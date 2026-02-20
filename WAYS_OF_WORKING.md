@@ -115,6 +115,18 @@ Follow these steps for each chunk of work. Don't skip steps — the order exists
 - Run the linter: `npx next lint`
 - Run the formatter: `npx prettier --check .`
 
+### Step 6: Human Review
+
+After automated checks pass, **pause and present the work to the human for review before committing**. Include:
+- A summary of what was implemented and which spec sections it covers
+- List of files created or modified
+- Any decisions or trade-offs made during implementation
+- Anything you're unsure about or want a second opinion on
+
+Do not commit, move on to the next task, or mark the task complete until the human approves. If the human requests changes, make them and re-run Steps 4–5 before presenting again.
+
+> **Note**: This gate exists for the early stages of the project to build confidence in patterns and conventions. It may be relaxed later for well-established patterns.
+
 ---
 
 ## 4. Progress Tracking
@@ -299,3 +311,9 @@ A task is done when all of the following are true. Don't move on until each is s
 - [ ] No TODO comments left in the code (either resolve them or create a tracked task)
 - [ ] No commented-out code
 - [ ] No temporary workarounds without a tracked follow-up task
+
+### 7.6 Human Approval
+
+- [ ] Work has been presented to the human for review (Step 6 of the implementation workflow)
+- [ ] Human has approved the changes
+- [ ] Changes have been committed only after approval
