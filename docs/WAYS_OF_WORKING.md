@@ -137,7 +137,7 @@ Do not commit, move on to the next task, or mark the task complete until the hum
 
 ## 4. Progress Tracking
 
-Progress is tracked in [BACKLOG.md](./BACKLOG.md) — a persistent markdown file at the project root. This file survives across Claude Code sessions and is readable by both humans and AI agents. It is the source of truth for what's been done, what's in progress, and what's next.
+Progress is tracked in [BACKLOG.md](./BACKLOG.md) — a persistent markdown file in the `docs/` directory. This file survives across Claude Code sessions and is readable by both humans and AI agents. It is the source of truth for what's been done, what's in progress, and what's next.
 
 Within a single session, Claude Code's built-in task management (TaskCreate/TaskUpdate/TaskList) can also be used for fine-grained tracking of active work. But BACKLOG.md is the durable record.
 

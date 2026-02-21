@@ -25,6 +25,7 @@
 15. [Performance](#15-performance)
 16. [Linting & Formatting](#16-linting--formatting)
 17. [File & Naming Conventions](#17-file--naming-conventions)
+18. [Comments & Readability](#18-comments--readability)
 
 ---
 
@@ -50,6 +51,9 @@ This app uses **Next.js 16 App Router**. Key rules:
 - **All dynamic APIs are async (mandatory in v16).** `params`, `searchParams`, `headers()`, `cookies()`, and `draftMode()` are all Promises. Synchronous access was deprecated in v15 and is **fully removed** in v16.
 
 ```tsx
+// headers/cookies — always await
+import { headers } from "next/headers";
+
 // params — always await
 export default async function Page(props: PageProps<"/leagues/[leagueId]">) {
   const { leagueId } = await props.params;
@@ -62,8 +66,6 @@ export default async function Page(props: {
   const { weekId } = await props.searchParams;
 }
 
-// headers/cookies — always await
-import { headers } from "next/headers";
 const headersList = await headers();
 ```
 
@@ -227,12 +229,12 @@ Every mutation is a Server Action in `actions/`. Actions **orchestrate** — the
 ```tsx
 "use server";
 
-import { SubmitPicksSchema } from "@/lib/validators/picks";
+import { getEventById } from "@/data/events";
+import { insertPicks } from "@/data/picks";
 import { getSession } from "@/lib/auth";
 import { assertLeagueMember } from "@/lib/permissions";
 import { isGameStarted } from "@/lib/scheduling";
-import { getEventById } from "@/data/events";
-import { insertPicks } from "@/data/picks";
+import { SubmitPicksSchema } from "@/lib/validators/picks";
 
 export async function submitPicks(
   input: SubmitPicksInput,
@@ -279,8 +281,9 @@ For **simple action buttons** (no form fields), call the Server Action directly 
 "use client";
 
 import { useTransition } from "react";
-import { acceptInvite } from "@/actions/invites";
 import { toast } from "sonner";
+
+import { acceptInvite } from "@/actions/invites";
 
 function AcceptInviteButton({ inviteId }: { inviteId: string }) {
   const [isPending, startTransition] = useTransition();
@@ -335,22 +338,23 @@ Every form follows the same structure:
 ```tsx
 "use client";
 
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+
+import { createLeague } from "@/actions/leagues";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   CreateLeagueSchema,
   type CreateLeagueInput,
 } from "@/lib/validators/leagues";
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { createLeague } from "@/actions/leagues";
 
 export function CreateLeagueForm() {
   const form = useForm<CreateLeagueInput>({
@@ -411,12 +415,14 @@ export function CreateLeagueForm() {
 
 ### 6.1 Data Access Layer
 
-All Drizzle ORM code is isolated in the `data/` directory. No other part of the application imports from Drizzle or writes raw queries. This means:
+All Drizzle ORM code is isolated in the `data/` directory — no exceptions, even simple one-line queries. No other part of the application imports from Drizzle or writes raw queries. This ensures all DB operations are discoverable and mockable. It means:
 
 - **Server Actions** call `data/` functions — they never call `db.insert()` or `db.query` directly
 - **Pages** call `data/` functions for reads — they never import Drizzle
 - **Business logic** (`lib/`) is ORM-free — it takes data in and returns results out
 - **Background jobs** (Inngest) call `data/` functions for syncing
+
+Data layer functions should be generic (e.g., `updateUser` not `anonymizeUser`) — business logic (what fields to set, what constitutes "anonymization") stays in `actions/` or `lib/`.
 
 If Drizzle is ever swapped for another ORM, only the `data/` directory changes.
 
@@ -487,9 +493,9 @@ Actions orchestrate transactions via `withTransaction`:
 
 ```tsx
 // actions/invites.ts
-import { withTransaction } from "@/data/utils";
 import { insertMember } from "@/data/members";
 import { insertStanding } from "@/data/standings";
+import { withTransaction } from "@/data/utils";
 
 await withTransaction(async (tx) => {
   await insertMember({ leagueId, userId, role: "member" }, tx);
@@ -541,10 +547,19 @@ for (const event of events) {
 
 ### 6.7 Migrations
 
-- Generate migrations with `drizzle-kit generate` after schema changes
-- Never manually edit generated migration SQL
-- Commit migrations to the repo
+After any schema change in `lib/db/schema/`, run these two commands in order:
+
+```bash
+npx drizzle-kit generate   # Creates a new SQL migration file in drizzle/
+npx drizzle-kit migrate     # Applies pending migrations to the database
+```
+
+Rules:
+
+- Never manually edit generated migration SQL files
+- Commit migration files (`drizzle/*.sql` and `drizzle/meta/`) to the repo
 - Apply migrations before deploying new code
+- One migration per schema change — don't batch unrelated changes
 
 ---
 
@@ -711,13 +726,15 @@ export function calculatePickResult(
 ): "win" | "loss" | "push" {
   // Implementation from BUSINESS_SPEC.md Section 8.1
 }
+```
 
+```tsx
 // Used in Inngest job (standings/recalculate):
 import { calculatePickResult } from "@/lib/scoring";
+
 const result = calculatePickResult(pick, outcome);
 
 // Used in Server Component (to enrich pick display data):
-import { calculatePickResult } from "@/lib/scoring";
 const enrichedPicks = picks.map((p) => ({
   ...p,
   result: calculatePickResult(p, outcomes[p.eventId]),
@@ -752,7 +769,9 @@ Mock imported dependencies — especially the data layer — so tests run fast a
 
 ```tsx
 // actions/picks.test.ts
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getEventById, insertPicks } from "@/data/picks";
 import { submitPicks } from "./picks";
 
 // Mock the data layer
@@ -765,8 +784,6 @@ vi.mock("@/data/picks", () => ({
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn().mockResolvedValue({ user: { id: "user-1" } }),
 }));
-
-import { getEventById, insertPicks } from "@/data/picks";
 
 describe("submitPicks", () => {
   beforeEach(() => {
@@ -872,6 +889,7 @@ describe("isWeekPastLockTime", () => {
 
 - React components (UI behavior is verified manually and via the type system)
 - Data layer functions (these are thin wrappers around Drizzle — testing them means testing the ORM)
+- Validator schemas (Zod handles validation — testing validators means testing the library)
 - Next.js routing, layouts, or middleware
 - CSS or styling
 
@@ -976,7 +994,9 @@ function PickDisplay({ pick, outcome }) {
   const result = adjustedScore > outcome.awayScore ? "win" : "loss";
   return <Badge>{result}</Badge>;
 }
+```
 
+```tsx
 // Good — logic extracted
 import { calculatePickResult } from "@/lib/scoring";
 
@@ -1127,13 +1147,21 @@ Never use `any`. Use `unknown` and narrow with type guards when you don't know t
 
 ### 14.4 Consistent Return Types
 
-Data layer functions should have explicit return types for documentation clarity:
+All exported non-UI functions must have explicit return types. Data layer functions use named type aliases inferred from Drizzle schemas:
 
 ```tsx
-// Data layer — explicit return type
-export async function getLeague(
-  leagueId: string,
-): Promise<LeagueWithMembers | null> {}
+// Data layer — named type aliases + explicit return types
+type Profile = typeof profile.$inferSelect;
+type NewProfile = typeof profile.$inferInsert;
+
+export async function getProfileByUserId(
+  userId: string,
+): Promise<Profile | undefined> {}
+
+export async function insertProfile(
+  data: NewProfile,
+  tx?: Transaction,
+): Promise<Profile> {}
 ```
 
 Server Actions should always return `ActionResult` (see [Section 4.2](#42-error-strategy)):
@@ -1287,3 +1315,54 @@ Maintain an `.env.example` file at the project root listing all required environ
 
 - Prefer named exports over default exports (except for Next.js page/layout components which require default exports).
 - One primary export per file. A file can have supporting types and helpers, but if it's growing, split it.
+
+---
+
+## 18. Comments & Readability
+
+### 18.1 Comments Explain WHY, Not WHAT
+
+Comments should explain reasoning, trade-offs, and deferred decisions — not describe what the code does. If the code needs a WHAT comment to be understandable, rename the variable/function instead.
+
+```tsx
+// Bad — describes what the code does
+// Check username uniqueness (excluding own profile)
+const existing = await getProfileByUsername(validated.username);
+
+// Good — no comment needed, the code is self-documenting
+const existing = await getProfileByUsername(validated.username);
+
+// Good — explains WHY something is deferred
+// TODO: Add "sole commissioner of multi-member league" guard in Epic 5
+// when league membership data is available. For now, always allow.
+```
+
+### 18.2 Extract Instead of Comment
+
+When you need a JSX comment to delineate a section (e.g., `{/* Nav */}`, `{/* Hero */}`), extract a named component instead. The component name replaces the comment.
+
+```tsx
+// Bad — comments as section markers
+return (
+  <div>
+    {/* Nav */}
+    <nav>...</nav>
+    {/* Hero */}
+    <section>...</section>
+  </div>
+);
+
+// Good — named components
+return (
+  <div>
+    <SplashNav />
+    <HeroSection />
+  </div>
+);
+```
+
+Similarly, when a function needs section comments to be readable, extract smaller private functions instead. Private helpers that exist purely for readability don't need separate tests.
+
+### 18.3 JSDoc
+
+Don't add JSDoc blocks that describe WHAT a function does — the function name and signature should convey that. Only use JSDoc when it provides information not obvious from the signature (e.g., non-obvious constraints, links to external specs).

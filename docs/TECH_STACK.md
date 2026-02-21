@@ -261,11 +261,16 @@ Define schemas alongside the domain they belong to (e.g., league schemas in the 
 │       ├── members/                  # Member list, invite forms
 │       └── common/                   # Shared components (week switcher, etc.)
 ├── drizzle/                          # Generated migrations
+├── docs/                             # Project documentation
+│   ├── BUSINESS_SPEC.md
+│   ├── ARCHITECTURE.md
+│   ├── TECH_STACK.md
+│   ├── BACKGROUND_JOBS.md
+│   ├── WAYS_OF_WORKING.md
+│   ├── BACKLOG.md
+│   └── feedback/                     # Historical feedback per epic
 ├── drizzle.config.ts
-├── vercel.json                       # Vercel config (rewrites if needed)
-├── BUSINESS_SPEC.md
-├── TECH_STACK.md
-└── BACKGROUND_JOBS.md
+└── vercel.json                       # Vercel config (rewrites if needed)
 ```
 
 ### Key Conventions
@@ -301,11 +306,13 @@ export default async function StandingsPage(
 ```tsx
 // src/actions/picks.ts
 "use server";
-import { SubmitPicksSchema } from "@/lib/validators/picks";
+
+import { revalidatePath } from "next/cache";
+
+import { insertPicks } from "@/data/picks";
 import { getSession } from "@/lib/auth";
 import { assertLeagueMember } from "@/lib/permissions";
-import { insertPicks } from "@/data/picks";
-import { revalidatePath } from "next/cache";
+import { SubmitPicksSchema } from "@/lib/validators/picks";
 
 export async function submitPicks(
   input: SubmitPicksInput,

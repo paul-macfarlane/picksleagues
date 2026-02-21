@@ -115,11 +115,11 @@ src/
 
 ## Documentation
 
-| Document                                   | Purpose                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------ |
-| [BUSINESS_SPEC.md](./BUSINESS_SPEC.md)     | What the product does — all business rules and user flows          |
-| [ARCHITECTURE.md](./ARCHITECTURE.md)       | How to structure code — patterns, conventions, testing             |
-| [TECH_STACK.md](./TECH_STACK.md)           | Technology choices, project structure, deployment                  |
-| [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | Inngest jobs, ESPN sync pipeline, scheduling                       |
-| [WAYS_OF_WORKING.md](./WAYS_OF_WORKING.md) | AI agent workflow — task breakdown, progress tracking, code review |
-| [BACKLOG.md](./BACKLOG.md)                 | Current task progress and status                                   |
+| Document                                        | Purpose                                                            |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| [BUSINESS_SPEC.md](./docs/BUSINESS_SPEC.md)     | What the product does — all business rules and user flows          |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md)       | How to structure code — patterns, conventions, testing             |
+| [TECH_STACK.md](./docs/TECH_STACK.md)           | Technology choices, project structure, deployment                  |
+| [BACKGROUND_JOBS.md](./docs/BACKGROUND_JOBS.md) | Inngest jobs, ESPN sync pipeline, scheduling                       |
+| [WAYS_OF_WORKING.md](./docs/WAYS_OF_WORKING.md) | AI agent workflow — task breakdown, progress tracking, code review |
+| [BACKLOG.md](./docs/BACKLOG.md)                 | Current task progress and status                                   |

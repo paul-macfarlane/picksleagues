@@ -6,20 +6,20 @@ PicksLeagues is an NFL Pick'Em app. Users create/join private leagues, make week
 
 Read these before starting any work. They are the source of truth.
 
-| Document                                   | What it covers                                                                                  |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [BUSINESS_SPEC.md](./BUSINESS_SPEC.md)     | **What** to build — all business rules, user flows, permissions, constants. Highest precedence. |
-| [ARCHITECTURE.md](./ARCHITECTURE.md)       | **How** to structure code — layer boundaries, patterns, testing, naming conventions.            |
-| [TECH_STACK.md](./TECH_STACK.md)           | **What technologies** to use — stack choices, project structure, deployment.                    |
-| [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | **Background work** — Inngest jobs, ESPN sync pipeline, game window detection.                  |
+| Document                                        | What it covers                                                                                  |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [BUSINESS_SPEC.md](./docs/BUSINESS_SPEC.md)     | **What** to build — all business rules, user flows, permissions, constants. Highest precedence. |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md)       | **How** to structure code — layer boundaries, patterns, testing, naming conventions.            |
+| [TECH_STACK.md](./docs/TECH_STACK.md)           | **What technologies** to use — stack choices, project structure, deployment.                    |
+| [BACKGROUND_JOBS.md](./docs/BACKGROUND_JOBS.md) | **Background work** — Inngest jobs, ESPN sync pipeline, game window detection.                  |
 
 When specs conflict, BUSINESS_SPEC.md wins.
 
 ## Workflow
 
-Follow [WAYS_OF_WORKING.md](./WAYS_OF_WORKING.md) for the full process. The essentials:
+Follow [WAYS_OF_WORKING.md](./docs/WAYS_OF_WORKING.md) for the full process. The essentials:
 
-1. **Start every session** by reading [BACKLOG.md](./BACKLOG.md) to see what's done, in progress, and next
+1. **Start every session** by reading [BACKLOG.md](./docs/BACKLOG.md) to see what's done, in progress, and next
 2. **Trace every task** to a BUSINESS_SPEC.md section before implementing
 3. **Break work into vertical slices** — each slice delivers one testable behavior across layers
 4. **Implement in layer order**: schema → data layer (`data/`) → business logic (`lib/`) → Server Action (`actions/`) → UI (`components/` + `app/`)
