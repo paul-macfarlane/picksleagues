@@ -1,5 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 
+process.loadEnvFile(".env.local");
+
 export default defineConfig({
   schema: "./src/lib/db/schema/*",
   out: "./drizzle",
