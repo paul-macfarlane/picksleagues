@@ -4,18 +4,18 @@ An NFL Pick'Em app where users create or join private leagues, make weekly game 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript (strict mode) |
-| Database | PostgreSQL via Neon (serverless) |
-| ORM | Drizzle ORM |
-| Auth | Better Auth (Google, Discord OAuth) |
-| Background Jobs | Inngest |
-| UI | shadcn/ui + Tailwind CSS v4 |
-| Forms | react-hook-form + Zod |
-| Testing | Vitest |
-| Deployment | Vercel |
+| Layer           | Technology                          |
+| --------------- | ----------------------------------- |
+| Framework       | Next.js 16 (App Router)             |
+| Language        | TypeScript (strict mode)            |
+| Database        | PostgreSQL via Neon (serverless)    |
+| ORM             | Drizzle ORM                         |
+| Auth            | Better Auth (Google, Discord OAuth) |
+| Background Jobs | Inngest                             |
+| UI              | shadcn/ui + Tailwind CSS v4         |
+| Forms           | react-hook-form + Zod               |
+| Testing         | Vitest                              |
+| Deployment      | Vercel                              |
 
 ## Prerequisites
 
@@ -24,6 +24,7 @@ An NFL Pick'Em app where users create or join private leagues, make weekly game 
 - A [Neon](https://neon.tech) PostgreSQL database
 - Google and/or Discord OAuth credentials
 - [Inngest CLI](https://www.inngest.com/docs/cli) for local background job development
+- [Docker](https://docs.docker.com/get-docker/) for local PostgreSQL
 
 ## Setup
 
@@ -35,20 +36,26 @@ cd picksleagues
 npm install
 ```
 
-2. Copy the environment template and fill in your values:
+2. Start the local PostgreSQL database (port 5433 to avoid conflicts):
+
+```bash
+docker compose up -d
+```
+
+3. Copy the environment template and fill in your values:
 
 ```bash
 cp .env.example .env.local
 ```
 
-3. Generate the database schema and run migrations:
+4. Generate the database schema and run migrations:
 
 ```bash
 npx drizzle-kit generate
 npx drizzle-kit migrate
 ```
 
-4. Generate route-aware TypeScript types:
+5. Generate route-aware TypeScript types:
 
 ```bash
 npx next typegen
@@ -70,18 +77,18 @@ npx inngest-cli@latest dev
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start dev server (Turbopack) |
-| `npm run build` | Production build |
-| `npx next lint` | Run ESLint |
-| `npx prettier --check .` | Check formatting |
-| `npx prettier --write .` | Fix formatting |
-| `npx vitest run` | Run tests |
-| `npx tsc --noEmit` | Type check |
+| Command                    | Description                             |
+| -------------------------- | --------------------------------------- |
+| `npm run dev`              | Start dev server (Turbopack)            |
+| `npm run build`            | Production build                        |
+| `npm run lint`             | Run ESLint                              |
+| `npm run format:check`     | Check formatting                        |
+| `npm run format`           | Fix formatting                          |
+| `npm test`                 | Run tests                               |
+| `npm run typecheck`        | Type check                              |
 | `npx drizzle-kit generate` | Generate migrations from schema changes |
-| `npx drizzle-kit migrate` | Apply migrations |
-| `npx next typegen` | Generate route-aware page prop types |
+| `npx drizzle-kit migrate`  | Apply migrations                        |
+| `npx next typegen`         | Generate route-aware page prop types    |
 
 ## Project Structure
 
@@ -108,11 +115,11 @@ src/
 
 ## Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [BUSINESS_SPEC.md](./BUSINESS_SPEC.md) | What the product does — all business rules and user flows |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | How to structure code — patterns, conventions, testing |
-| [TECH_STACK.md](./TECH_STACK.md) | Technology choices, project structure, deployment |
-| [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | Inngest jobs, ESPN sync pipeline, scheduling |
+| Document                                   | Purpose                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| [BUSINESS_SPEC.md](./BUSINESS_SPEC.md)     | What the product does — all business rules and user flows          |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)       | How to structure code — patterns, conventions, testing             |
+| [TECH_STACK.md](./TECH_STACK.md)           | Technology choices, project structure, deployment                  |
+| [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | Inngest jobs, ESPN sync pipeline, scheduling                       |
 | [WAYS_OF_WORKING.md](./WAYS_OF_WORKING.md) | AI agent workflow — task breakdown, progress tracking, code review |
-| [BACKLOG.md](./BACKLOG.md) | Current task progress and status |
+| [BACKLOG.md](./BACKLOG.md)                 | Current task progress and status                                   |

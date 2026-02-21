@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+build
+dist
+drizzle
+picksleagues-api
+picksleagues-web
+picksleagues-mobile
+package-lock.json

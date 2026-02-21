@@ -6,24 +6,24 @@
 
 ## Stack Summary
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript (strict mode) |
-| Database | PostgreSQL via Neon (serverless) |
-| ORM | Drizzle ORM |
-| Auth | Better Auth (session-based, database-stored sessions) |
-| Background Jobs | Inngest |
-| UI Components | shadcn/ui (Radix primitives) |
-| Styling | Tailwind CSS v4 |
-| Forms | react-hook-form + @hookform/resolvers (Zod) |
-| Validation | Zod |
-| Date/Time | date-fns + date-fns-tz |
-| Testing | Vitest |
-| Linting | ESLint (next/core-web-vitals + next/typescript) |
-| Formatting | Prettier |
-| Deployment | Vercel |
-| Monitoring | Sentry |
+| Layer           | Technology                                            |
+| --------------- | ----------------------------------------------------- |
+| Framework       | Next.js 16 (App Router)                               |
+| Language        | TypeScript (strict mode)                              |
+| Database        | PostgreSQL via Neon (serverless)                      |
+| ORM             | Drizzle ORM                                           |
+| Auth            | Better Auth (session-based, database-stored sessions) |
+| Background Jobs | Inngest                                               |
+| UI Components   | shadcn/ui (Radix primitives)                          |
+| Styling         | Tailwind CSS v4                                       |
+| Forms           | react-hook-form + @hookform/resolvers (Zod)           |
+| Validation      | Zod                                                   |
+| Date/Time       | date-fns + date-fns-tz                                |
+| Testing         | Vitest                                                |
+| Linting         | ESLint (next/core-web-vitals + next/typescript)       |
+| Formatting      | Prettier                                              |
+| Deployment      | Vercel                                                |
+| Monitoring      | Sentry                                                |
 
 ---
 
@@ -92,6 +92,7 @@ src/lib/db/
 ### Migrations
 
 Use `drizzle-kit` for migration generation and management:
+
 - `drizzle-kit generate` to create migrations from schema changes
 - `drizzle-kit migrate` to apply migrations
 - Migrations should be committed to the repo and applied as part of deployment
@@ -285,7 +286,9 @@ Define schemas alongside the domain they belong to (e.g., league schemas in the 
 import { getLeagueStandings } from "@/data/standings";
 import { getSession } from "@/lib/auth";
 
-export default async function StandingsPage(props: PageProps<"/leagues/[leagueId]">) {
+export default async function StandingsPage(
+  props: PageProps<"/leagues/[leagueId]">,
+) {
   const { leagueId } = await props.params;
   const session = await getSession();
   const standings = await getLeagueStandings(leagueId);
@@ -304,12 +307,16 @@ import { assertLeagueMember } from "@/lib/permissions";
 import { insertPicks } from "@/data/picks";
 import { revalidatePath } from "next/cache";
 
-export async function submitPicks(input: SubmitPicksInput): Promise<ActionResult> {
+export async function submitPicks(
+  input: SubmitPicksInput,
+): Promise<ActionResult> {
   const validated = SubmitPicksSchema.parse(input);
   const session = await getSession();
   await assertLeagueMember(session.user.id, validated.leagueId);
   // ... business rule checks, then call data layer
-  await insertPicks(validated.picks.map(p => ({ ...p, userId: session.user.id })));
+  await insertPicks(
+    validated.picks.map((p) => ({ ...p, userId: session.user.id })),
+  );
   revalidatePath(`/leagues/${validated.leagueId}/my-picks`);
   return { success: true, data: undefined };
 }

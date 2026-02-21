@@ -22,12 +22,12 @@
 
 Four spec documents govern this project. Each has a distinct scope, and they should be consulted in this order of precedence when resolving conflicts:
 
-| Priority | Document | Governs | When to Consult |
-|----------|----------|---------|-----------------|
-| 1 | [BUSINESS_SPEC.md](./BUSINESS_SPEC.md) | **What** the product does — all business rules, user flows, permissions, and constraints | Before implementing any feature or behavior. This is the single source of truth for product behavior. |
-| 2 | [ARCHITECTURE.md](./ARCHITECTURE.md) | **How** to structure code — patterns, conventions, layer boundaries, testing approach | When writing or reviewing code. Defines where code goes and how it should be organized. |
-| 3 | [TECH_STACK.md](./TECH_STACK.md) | **What technologies** to use — framework versions, libraries, project structure, deployment | When choosing tools, setting up new features, or verifying technology decisions. |
-| 4 | [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | **How background work runs** — Inngest jobs, ESPN sync pipeline, scheduling, game window detection | When working on data sync, live scores, odds, or standings recalculation. |
+| Priority | Document                                   | Governs                                                                                            | When to Consult                                                                                       |
+| -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1        | [BUSINESS_SPEC.md](./BUSINESS_SPEC.md)     | **What** the product does — all business rules, user flows, permissions, and constraints           | Before implementing any feature or behavior. This is the single source of truth for product behavior. |
+| 2        | [ARCHITECTURE.md](./ARCHITECTURE.md)       | **How** to structure code — patterns, conventions, layer boundaries, testing approach              | When writing or reviewing code. Defines where code goes and how it should be organized.               |
+| 3        | [TECH_STACK.md](./TECH_STACK.md)           | **What technologies** to use — framework versions, libraries, project structure, deployment        | When choosing tools, setting up new features, or verifying technology decisions.                      |
+| 4        | [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | **How background work runs** — Inngest jobs, ESPN sync pipeline, scheduling, game window detection | When working on data sync, live scores, odds, or standings recalculation.                             |
 
 **Precedence rule**: If BUSINESS_SPEC.md says "picks lock at game kickoff" and ARCHITECTURE.md shows a pattern that doesn't account for individual game locking, the business spec wins — update the code to match the business rule.
 
@@ -40,6 +40,7 @@ All work should be decomposed into small, testable, validatable chunks. The busi
 ### 2.1 Start from the Business Spec
 
 Before writing any code, identify which section(s) of BUSINESS_SPEC.md the task relates to. Every implementation task should trace back to a specific business rule or user flow. If a task doesn't map to the business spec, either:
+
 - The task is infrastructure/tooling (proceed, but keep it focused)
 - The business spec is missing something (update it — see [Section 5](#5-spec-maintenance))
 
@@ -48,6 +49,7 @@ Before writing any code, identify which section(s) of BUSINESS_SPEC.md the task 
 Break work into slices that each deliver a complete, testable behavior — not horizontal layers. A good slice touches the data layer, business logic, action, and UI for one specific behavior.
 
 **Good decomposition** (pick submission feature):
+
 1. Create the pick validation schema and business logic (`lib/validators/picks.ts`, `lib/scheduling.ts`)
 2. Create the data layer functions for picks (`data/picks.ts`)
 3. Create the Server Action for submitting picks (`actions/picks.ts`)
@@ -56,6 +58,7 @@ Break work into slices that each deliver a complete, testable behavior — not h
 6. Add tests for business logic and action (`lib/scheduling.test.ts`, `actions/picks.test.ts`)
 
 **Bad decomposition**:
+
 1. Create all data layer functions
 2. Create all Server Actions
 3. Create all components
@@ -63,6 +66,7 @@ Break work into slices that each deliver a complete, testable behavior — not h
 ### 2.3 Chunk Sizing
 
 Each chunk should be:
+
 - **Testable**: You can write a test or manually verify the behavior
 - **Reviewable**: The changes are small enough to reason about in isolation
 - **Completable in one pass**: You shouldn't need to leave a chunk half-done
@@ -71,6 +75,7 @@ Each chunk should be:
 ### 2.4 Identify Dependencies
 
 Before starting implementation, note which chunks depend on others. Work in dependency order:
+
 - Schema/migrations before data layer
 - Data layer before actions
 - Business logic before actions that use it
@@ -118,6 +123,7 @@ Follow these steps for each chunk of work. Don't skip steps — the order exists
 ### Step 6: Human Review
 
 After automated checks pass, **pause and present the work to the human for review before committing**. Include:
+
 - A summary of what was implemented and which spec sections it covers
 - List of files created or modified
 - Any decisions or trade-offs made during implementation
@@ -149,10 +155,12 @@ Tasks are grouped by feature area, with each group referencing the relevant BUSI
 - [!] League image upload — blocked: need S3 bucket setup
 
 ### Notes
+
 - In-season detection depends on week sync being complete
 ```
 
 Status markers:
+
 - `[ ]` — Not started
 - `[~]` — In progress
 - `[x]` — Complete
@@ -172,6 +180,7 @@ Update the status summary table at the top of BACKLOG.md when making changes.
 ### 4.3 Session Start Routine
 
 At the start of a new session, read BACKLOG.md to understand:
+
 - What's already been completed (don't redo work)
 - What's currently in progress (pick up where the last session left off)
 - What's blocked (check if the blocker has been resolved)
@@ -180,6 +189,7 @@ At the start of a new session, read BACKLOG.md to understand:
 ### 4.4 When Blocked
 
 If a task is blocked (e.g., missing spec clarity, upstream dependency, external issue):
+
 - Mark it as `[!]` in BACKLOG.md with the reason
 - Move to the next unblocked task
 - If the blocker is something the user needs to resolve, flag it explicitly
@@ -193,12 +203,14 @@ The spec documents are living documents. When business logic changes, the specs 
 ### 5.1 When to Update BUSINESS_SPEC.md
 
 Update BUSINESS_SPEC.md when:
+
 - The user requests a change to business behavior (e.g., "change the default picks per week from 5 to 3")
 - A new feature is being added that introduces new business rules
 - An existing rule is being modified or removed
 - An edge case is discovered that the spec doesn't address
 
 **Do not** update BUSINESS_SPEC.md for:
+
 - Implementation details (that belongs in ARCHITECTURE.md)
 - Technology changes (that belongs in TECH_STACK.md)
 - Bug fixes that don't change intended behavior
@@ -206,6 +218,7 @@ Update BUSINESS_SPEC.md when:
 ### 5.2 When to Update ARCHITECTURE.md or TECH_STACK.md
 
 Update these when:
+
 - A new architectural pattern is established (e.g., a new convention for how something is organized)
 - A technology is added, replaced, or upgraded
 - An existing pattern is modified based on experience
@@ -220,6 +233,7 @@ Update these when:
 ### 5.4 Spec-Code Consistency
 
 Code must match the spec. If you find code that contradicts BUSINESS_SPEC.md:
+
 - The spec is assumed correct unless the user says otherwise
 - Fix the code to match the spec
 - If the spec is actually wrong (the user confirms the code is the intended behavior), update the spec

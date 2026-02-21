@@ -10,11 +10,8 @@ build/
 dist/
 
 # Environment
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
+!.env.example
 
 # Debug
 npm-debug.log*
@@ -57,3 +54,6 @@ picksleagues-web/
 picksleagues-mobile/
 screenshots/
 PLANNING_TODOS.md
+
+# Google Credentials
+*client-secret.json

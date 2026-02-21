@@ -22,13 +22,14 @@
 
 All background work is managed by **Inngest**. There are three categories of jobs:
 
-| Category | Trigger | Examples |
-|----------|---------|---------|
-| **Initial setup** | Manual (one-time) | Seed data source, sportsbook, sync all NFL data |
+| Category           | Trigger           | Examples                                             |
+| ------------------ | ----------------- | ---------------------------------------------------- |
+| **Initial setup**  | Manual (one-time) | Seed data source, sportsbook, sync all NFL data      |
 | **Scheduled sync** | Cron (time-based) | Weekly event sync, game-day odds, live score polling |
-| **Event-driven** | Inngest event | Standings recalculation when a game finishes |
+| **Event-driven**   | Inngest event     | Standings recalculation when a game finishes         |
 
 Key principles:
+
 - **Every job is idempotent** — safe to re-run without creating duplicates (upsert pattern)
 - **Every multi-step job uses Inngest steps** — each step gets its own execution timeout and retry
 - **External IDs are mapped to internal IDs** via bridge tables — the data source (ESPN) can be swapped without changing core logic
@@ -123,6 +124,7 @@ This entire function is idempotent. Running it again on an existing database upd
 
 **Function**: `espn/odds-sync`
 **Schedule**: Game-day aware (see [Section 8](#8-game-window-detection))
+
 - **Game days (Thu/Sat/Sun/Mon)**: Every 30 minutes from 9:00 AM to first kickoff
 - **Non-game days**: Once daily at 9:00 AM Eastern
 - **Inactive months (Mar–Aug)**: Off
@@ -138,6 +140,7 @@ This entire function is idempotent. Running it again on an existing database upd
 
 **Function**: `espn/live-scores`
 **Schedule**: Game-day aware (see [Section 8](#8-game-window-detection))
+
 - **During active game windows**: Every 1–2 minutes
 - **Game days outside game windows**: Every 15 minutes (catches early/late starts)
 - **Non-game days**: Off
@@ -158,12 +161,12 @@ This entire function is idempotent. Running it again on an existing database upd
 
 Standard NFL game windows (all times Eastern):
 
-| Day | Typical Windows |
-|-----|----------------|
-| Thursday | 8:15 PM (TNF) |
+| Day      | Typical Windows                                           |
+| -------- | --------------------------------------------------------- |
+| Thursday | 8:15 PM (TNF)                                             |
 | Saturday | 1:00 PM, 4:30 PM, 8:15 PM (late season / postseason only) |
-| Sunday | 1:00 PM, 4:05 PM, 4:25 PM, 8:20 PM (SNF) |
-| Monday | 8:15 PM (MNF) |
+| Sunday   | 1:00 PM, 4:05 PM, 4:25 PM, 8:20 PM (SNF)                  |
+| Monday   | 8:15 PM (MNF)                                             |
 
 The polling window should span from 30 minutes before the earliest kickoff to ~4 hours after the latest kickoff (to capture game completion). See [Section 8](#8-game-window-detection) for implementation.
 
@@ -218,34 +221,34 @@ No API key required — this is a public API.
 
 ### Endpoints Used
 
-| Data | Endpoint | Notes |
-|------|----------|-------|
-| NFL league info | `/sports/football/leagues/nfl` | League metadata |
-| Seasons | `/sports/football/leagues/nfl/seasons` | Returns current + upcoming seasons |
-| Weeks | `/seasons/{seasonId}/types/{typeId}/weeks` | Type 2 = regular season, Type 3 = postseason. Exclude type 1 (preseason), type 4 (offseason). |
-| Teams | `/seasons/{seasonYear}/teams` | All teams for a season year |
-| Events (games) | `/seasons/{seasonId}/types/{typeId}/weeks/{weekNumber}/events` | Games for a specific week |
-| Odds | Fetched via `$ref` URL from event metadata | Betting lines from a specific sportsbook |
-| Score (per team) | Fetched via `$ref` URL from external event metadata | Individual team score |
-| Game status | Fetched via `$ref` URL from external event metadata | Status: scheduled → in progress → final |
+| Data             | Endpoint                                                       | Notes                                                                                         |
+| ---------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| NFL league info  | `/sports/football/leagues/nfl`                                 | League metadata                                                                               |
+| Seasons          | `/sports/football/leagues/nfl/seasons`                         | Returns current + upcoming seasons                                                            |
+| Weeks            | `/seasons/{seasonId}/types/{typeId}/weeks`                     | Type 2 = regular season, Type 3 = postseason. Exclude type 1 (preseason), type 4 (offseason). |
+| Teams            | `/seasons/{seasonYear}/teams`                                  | All teams for a season year                                                                   |
+| Events (games)   | `/seasons/{seasonId}/types/{typeId}/weeks/{weekNumber}/events` | Games for a specific week                                                                     |
+| Odds             | Fetched via `$ref` URL from event metadata                     | Betting lines from a specific sportsbook                                                      |
+| Score (per team) | Fetched via `$ref` URL from external event metadata            | Individual team score                                                                         |
+| Game status      | Fetched via `$ref` URL from external event metadata            | Status: scheduled → in progress → final                                                       |
 
 ### ESPN Season Types
 
-| Type ID | Name | Include? |
-|---------|------|----------|
-| 1 | Preseason | No |
-| 2 | Regular Season | Yes |
-| 3 | Postseason | Yes |
-| 4 | Offseason | No |
+| Type ID | Name           | Include? |
+| ------- | -------------- | -------- |
+| 1       | Preseason      | No       |
+| 2       | Regular Season | Yes      |
+| 3       | Postseason     | Yes      |
+| 4       | Offseason      | No       |
 
 ### ESPN Game Status Values
 
-| Status | Meaning | Action |
-|--------|---------|--------|
-| `STATUS_SCHEDULED` | Not started | Map to `not_started` |
-| `STATUS_IN_PROGRESS` | Live | Map to `in_progress` |
-| `STATUS_FINAL` | Completed | Map to `final`, create/update outcome record |
-| `STATUS_POSTPONED` | Delayed | Treat as `not_started` |
+| Status               | Meaning     | Action                                       |
+| -------------------- | ----------- | -------------------------------------------- |
+| `STATUS_SCHEDULED`   | Not started | Map to `not_started`                         |
+| `STATUS_IN_PROGRESS` | Live        | Map to `in_progress`                         |
+| `STATUS_FINAL`       | Completed   | Map to `final`, create/update outcome record |
+| `STATUS_POSTPONED`   | Delayed     | Treat as `not_started`                       |
 
 ### Pro Bowl Filtering
 
@@ -258,6 +261,7 @@ ESPN defines NFL weeks as starting Thursday midnight ET. We prefer Tuesday 2AM E
 ### Rate Limiting
 
 ESPN's public API does not document rate limits, but be respectful:
+
 - Limit concurrent requests to **10 parallel** when batch-fetching (e.g., fetching scores for all events in a week)
 - Use `p-limit` or similar for concurrency control
 
@@ -270,6 +274,7 @@ All ESPN entities are mapped to internal UUIDs via bridge tables. This decouples
 ### Bridge Table Pattern
 
 Each bridge table has:
+
 - `externalId` (string) — The ESPN ID or `$ref` URL
 - `dataSourceId` (UUID, FK → data_sources) — Identifies ESPN as the provider
 - `internalId` (UUID, FK → the core table) — Our internal ID
@@ -277,14 +282,14 @@ Each bridge table has:
 
 ### Bridge Tables
 
-| Bridge Table | Maps To | Metadata Contains |
-|-------------|---------|-------------------|
-| `external_seasons` | `seasons` | ESPN season slug |
-| `external_weeks` | `weeks` | ESPN season type + week number |
-| `external_teams` | `teams` | — |
-| `external_events` | `events` | ESPN `$ref` URLs for: odds, away team score, home team score, game status |
-| `external_odds` | `odds` | — |
-| `external_sportsbooks` | `sportsbooks` | — |
+| Bridge Table           | Maps To       | Metadata Contains                                                         |
+| ---------------------- | ------------- | ------------------------------------------------------------------------- |
+| `external_seasons`     | `seasons`     | ESPN season slug                                                          |
+| `external_weeks`       | `weeks`       | ESPN season type + week number                                            |
+| `external_teams`       | `teams`       | —                                                                         |
+| `external_events`      | `events`      | ESPN `$ref` URLs for: odds, away team score, home team score, game status |
+| `external_odds`        | `odds`        | —                                                                         |
+| `external_sportsbooks` | `sportsbooks` | —                                                                         |
 
 ### Why This Pattern
 
@@ -329,13 +334,13 @@ All scheduled game-day jobs (odds sync, live scores) should only be active Septe
 
 ## 9. Job Schedule Summary
 
-| Job | Trigger | Frequency | Active Period |
-|-----|---------|-----------|---------------|
-| `setup/initialize` | Manual | One-time | Anytime |
-| `espn/weekly-sync` | Cron | Tuesday 2:00 AM ET | Sep–Feb |
-| `espn/odds-sync` | Cron | Every 30 min (self-gating) | Sep–Feb, game days only |
-| `espn/live-scores` | Cron | Every 2 min (self-gating via game window detection) | Sep–Feb |
-| `standings/recalculate` | Event (`game/finished`) | On demand | Whenever games finish |
+| Job                     | Trigger                 | Frequency                                           | Active Period           |
+| ----------------------- | ----------------------- | --------------------------------------------------- | ----------------------- |
+| `setup/initialize`      | Manual                  | One-time                                            | Anytime                 |
+| `espn/weekly-sync`      | Cron                    | Tuesday 2:00 AM ET                                  | Sep–Feb                 |
+| `espn/odds-sync`        | Cron                    | Every 30 min (self-gating)                          | Sep–Feb, game days only |
+| `espn/live-scores`      | Cron                    | Every 2 min (self-gating via game window detection) | Sep–Feb                 |
+| `standings/recalculate` | Event (`game/finished`) | On demand                                           | Whenever games finish   |
 
 ### Self-Gating Pattern
 

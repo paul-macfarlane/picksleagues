@@ -56,7 +56,9 @@ export default async function Page(props: PageProps<"/leagues/[leagueId]">) {
 }
 
 // searchParams — always await
-export default async function Page(props: { searchParams: Promise<{ weekId?: string }> }) {
+export default async function Page(props: {
+  searchParams: Promise<{ weekId?: string }>;
+}) {
   const { weekId } = await props.searchParams;
 }
 
@@ -81,28 +83,28 @@ export default async function Page(props: PageProps<"/leagues/[leagueId]">) {
 
 Use Next.js file conventions consistently:
 
-| File | Purpose |
-|------|---------|
-| `page.tsx` | Route UI |
-| `layout.tsx` | Shared layout wrapping child routes |
-| `loading.tsx` | Suspense fallback for the route segment |
-| `error.tsx` | Error boundary (must be a client component) |
-| `not-found.tsx` | 404 UI for `notFound()` calls |
+| File            | Purpose                                     |
+| --------------- | ------------------------------------------- |
+| `page.tsx`      | Route UI                                    |
+| `layout.tsx`    | Shared layout wrapping child routes         |
+| `loading.tsx`   | Suspense fallback for the route segment     |
+| `error.tsx`     | Error boundary (must be a client component) |
+| `not-found.tsx` | 404 UI for `notFound()` calls               |
 
 ### 2.3 What Goes Where
 
-| Logic Type | Location | Example |
-|-----------|----------|---------|
-| Page rendering | `app/**/page.tsx` | Composing data functions + components |
-| Shared layout | `app/**/layout.tsx` | Navbar, auth guard, tab navigation |
-| Data access (reads) | `data/*.ts` | `getLeagueStandings()` |
-| Data access (writes) | `data/*.ts` | `insertPick()`, `updateLeague()` |
-| Mutations / orchestration | `actions/*.ts` | `submitPicks()` — validate, auth, call data layer, revalidate |
-| Database schema | `lib/db/schema/*.ts` | Table definitions |
-| Business logic | `lib/*.ts` | Scoring calculations, lock time checks |
-| Shared validation | `lib/validators/*.ts` | Zod schemas |
-| UI components | `components/**/*.tsx` | Reusable React components |
-| shadcn primitives | `components/ui/*.tsx` | Button, Card, Dialog, etc. |
+| Logic Type                | Location              | Example                                                       |
+| ------------------------- | --------------------- | ------------------------------------------------------------- |
+| Page rendering            | `app/**/page.tsx`     | Composing data functions + components                         |
+| Shared layout             | `app/**/layout.tsx`   | Navbar, auth guard, tab navigation                            |
+| Data access (reads)       | `data/*.ts`           | `getLeagueStandings()`                                        |
+| Data access (writes)      | `data/*.ts`           | `insertPick()`, `updateLeague()`                              |
+| Mutations / orchestration | `actions/*.ts`        | `submitPicks()` — validate, auth, call data layer, revalidate |
+| Database schema           | `lib/db/schema/*.ts`  | Table definitions                                             |
+| Business logic            | `lib/*.ts`            | Scoring calculations, lock time checks                        |
+| Shared validation         | `lib/validators/*.ts` | Zod schemas                                                   |
+| UI components             | `components/**/*.tsx` | Reusable React components                                     |
+| shadcn primitives         | `components/ui/*.tsx` | Button, Card, Dialog, etc.                                    |
 
 **Do not** put business logic in components. Components render; functions compute.
 
@@ -146,6 +148,7 @@ data/
 ```
 
 Each data function:
+
 - Takes explicit parameters (no request/context objects)
 - Returns typed data
 - Calls Drizzle directly
@@ -154,7 +157,9 @@ Each data function:
 
 ```tsx
 // data/standings.ts
-export async function getLeagueStandings(leagueId: string): Promise<Standing[]> {
+export async function getLeagueStandings(
+  leagueId: string,
+): Promise<Standing[]> {
   return db.query.standings.findMany({
     where: eq(standings.leagueId, leagueId),
     with: { user: { with: { profile: true } } },
@@ -164,10 +169,19 @@ export async function getLeagueStandings(leagueId: string): Promise<Standing[]> 
 
 export async function upsertStanding(data: NewStanding, tx?: Transaction) {
   const client = tx ?? db;
-  return client.insert(standings).values(data).onConflictDoUpdate({
-    target: [standings.leagueId, standings.userId, standings.seasonId],
-    set: { wins: data.wins, losses: data.losses, pushes: data.pushes, points: data.points, rank: data.rank },
-  });
+  return client
+    .insert(standings)
+    .values(data)
+    .onConflictDoUpdate({
+      target: [standings.leagueId, standings.userId, standings.seasonId],
+      set: {
+        wins: data.wins,
+        losses: data.losses,
+        pushes: data.pushes,
+        points: data.points,
+        rank: data.rank,
+      },
+    });
 }
 ```
 
@@ -220,9 +234,11 @@ import { isGameStarted } from "@/lib/scheduling";
 import { getEventById } from "@/data/events";
 import { insertPicks } from "@/data/picks";
 
-export async function submitPicks(input: SubmitPicksInput): Promise<ActionResult> {
+export async function submitPicks(
+  input: SubmitPicksInput,
+): Promise<ActionResult> {
   const validated = SubmitPicksSchema.parse(input);
-  const session = await getSession();                       // throws UnauthorizedError
+  const session = await getSession(); // throws UnauthorizedError
   await assertLeagueMember(session.user.id, validated.leagueId); // throws ForbiddenError
 
   for (const pick of validated.picks) {
@@ -232,7 +248,9 @@ export async function submitPicks(input: SubmitPicksInput): Promise<ActionResult
     }
   }
 
-  await insertPicks(validated.picks.map(p => ({ ...p, userId: session.user.id })));
+  await insertPicks(
+    validated.picks.map((p) => ({ ...p, userId: session.user.id })),
+  );
   revalidatePath(`/leagues/${validated.leagueId}/my-picks`);
   return { success: true, data: undefined };
 }
@@ -246,7 +264,9 @@ Server Actions use **two error mechanisms** for different situations:
 - **Return `ActionResult`** for expected business errors ("picks are locked", "league is at capacity"). These are returned to the calling component, which shows a toast or inline message. The user stays on the page.
 
 ```tsx
-type ActionResult<T = void> = { success: true; data: T } | { success: false; error: string };
+type ActionResult<T = void> =
+  | { success: true; data: T }
+  | { success: false; error: string };
 ```
 
 ### 4.3 Calling Server Actions from Client Components
@@ -317,8 +337,18 @@ Every form follows the same structure:
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CreateLeagueSchema, type CreateLeagueInput } from "@/lib/validators/leagues";
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import {
+  CreateLeagueSchema,
+  type CreateLeagueInput,
+} from "@/lib/validators/leagues";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { createLeague } from "@/actions/leagues";
 
@@ -418,6 +448,7 @@ export async function getLeagueWithMembers(leagueId: string) {
 ```
 
 **Use the SQL-like API** (`db.select()`, `db.insert()`, etc.) for:
+
 - Complex joins that the relational API doesn't support cleanly
 - Aggregations (`count`, `sum`, etc.)
 - Bulk operations
@@ -429,7 +460,9 @@ Wrap multi-step writes in transactions. The data layer exports a `withTransactio
 
 ```tsx
 // data/utils.ts
-export async function withTransaction<T>(fn: (tx: Transaction) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(
+  fn: (tx: Transaction) => Promise<T>,
+): Promise<T> {
   return db.transaction(fn);
 }
 ```
@@ -471,16 +504,23 @@ Use `onConflictDoUpdate` for idempotent sync operations:
 ```tsx
 // data/teams.ts
 export async function upsertTeam(data: NewTeam) {
-  return db.insert(teams).values(data).onConflictDoUpdate({
-    target: teams.id,
-    set: { name: sql`excluded.name`, abbreviation: sql`excluded.abbreviation` },
-  });
+  return db
+    .insert(teams)
+    .values(data)
+    .onConflictDoUpdate({
+      target: teams.id,
+      set: {
+        name: sql`excluded.name`,
+        abbreviation: sql`excluded.abbreviation`,
+      },
+    });
 }
 ```
 
 ### 6.6 Avoid N+1
 
 Never query inside a loop. If you need related data for a list, either:
+
 - Use the relational API's `with` clause
 - Use `inArray()` to batch-fetch
 
@@ -624,11 +664,13 @@ The one exception is `lib/permissions.ts`, which calls the data layer to look up
 ### 9.3 Key Business Logic Modules
 
 **`lib/scoring.ts`** — The scoring algorithm:
+
 - `calculatePickResult(pick, outcome)` → `"win" | "loss" | "push"`
 - `calculateStandingsPoints(result)` → number
 - Used by: standings recalculation (Inngest job), pick display components (via data results), pick result cards
 
 **`lib/scheduling.ts`** — Time-based rules. Use `date-fns` and `date-fns-tz` for all date manipulation and time zone conversions (lock times are defined in Eastern time). Store all dates as UTC in the database; convert to Eastern only for display and lock time calculations. There are **two distinct lock concepts**:
+
 - `isGameStarted(event, now?)` → boolean — has this specific game kicked off? Used to lock individual picks at kickoff. A pick for a started game cannot be edited even if the week deadline hasn't passed.
 - `isWeekPastLockTime(week, now?)` → boolean — has the week's pick lock deadline passed (Sunday 1PM ET for regular season, Saturday 1PM ET for postseason)? After this, no new picks can be submitted for any game in the week, and all picks become visible to other members.
 - `getWeekLockTime(week)` → Date — the deadline for the week
@@ -636,6 +678,7 @@ The one exception is `lib/permissions.ts`, which calls the data layer to look up
 - Used by: pick submission action (both checks), pick visibility logic (`isWeekPastLockTime`), pick UI (show/hide edit controls per game via `isGameStarted`), odds sync (to know when to stop)
 
 **`lib/permissions.ts`** — Authorization logic:
+
 - `assertLeagueMember(userId, leagueId)` → throws if not a member
 - `assertCommissioner(userId, leagueId)` → throws if not commissioner
 - `assertLeagueNotAtCapacity(leagueId)` → throws if full
@@ -643,6 +686,7 @@ The one exception is `lib/permissions.ts`, which calls the data layer to look up
 - Used by: Server Actions, pages
 
 **`lib/leagues.ts`** — League lifecycle:
+
 - `resolveSeasonWeeks(seasonFormat, season)` → { startWeek, endWeek }
 - `canEditLeagueSettings(league)` → boolean
 - Used by: league creation action, league settings action, UI display
@@ -674,7 +718,10 @@ const result = calculatePickResult(pick, outcome);
 
 // Used in Server Component (to enrich pick display data):
 import { calculatePickResult } from "@/lib/scoring";
-const enrichedPicks = picks.map(p => ({ ...p, result: calculatePickResult(p, outcomes[p.eventId]) }));
+const enrichedPicks = picks.map((p) => ({
+  ...p,
+  result: calculatePickResult(p, outcomes[p.eventId]),
+}));
 ```
 
 ---
@@ -686,6 +733,7 @@ const enrichedPicks = picks.map(p => ({ ...p, result: calculatePickResult(p, out
 Tests are **documentation of intended behavior**. They prove that business logic produces the correct output for a given input. They also protect existing functionality from accidental breakage during changes.
 
 Focus on **what** the code returns, not **how** it does it internally:
+
 - Assert return values and outputs
 - Don't assert that internal functions were called a certain number of times
 - Don't test framework behavior (Next.js routing, Drizzle query building, etc.)
@@ -802,12 +850,16 @@ describe("isGameStarted", () => {
 describe("isWeekPastLockTime", () => {
   it("returns false before Sunday 1PM ET for regular season", () => {
     const week = { lockTime: new Date("2025-09-07T17:00:00Z") }; // Sunday 1PM ET = 5PM UTC
-    expect(isWeekPastLockTime(week, new Date("2025-09-07T16:00:00Z"))).toBe(false);
+    expect(isWeekPastLockTime(week, new Date("2025-09-07T16:00:00Z"))).toBe(
+      false,
+    );
   });
 
   it("returns true after Sunday 1PM ET for regular season", () => {
     const week = { lockTime: new Date("2025-09-07T17:00:00Z") };
-    expect(isWeekPastLockTime(week, new Date("2025-09-07T18:00:00Z"))).toBe(true);
+    expect(isWeekPastLockTime(week, new Date("2025-09-07T18:00:00Z"))).toBe(
+      true,
+    );
   });
 });
 ```
@@ -817,6 +869,7 @@ describe("isWeekPastLockTime", () => {
 **3. Permission helpers (`lib/permissions.ts`)** — mock the data layer, test that the right errors are thrown for unauthorized access.
 
 **4. Do not test:**
+
 - React components (UI behavior is verified manually and via the type system)
 - Data layer functions (these are thin wrappers around Drizzle — testing them means testing the ORM)
 - Next.js routing, layouts, or middleware
@@ -856,6 +909,7 @@ actions/
 ### 11.1 Server vs Client Boundary
 
 Default to Server Components. Only add `"use client"` when you need:
+
 - Event handlers (`onClick`, `onSubmit`, `onChange`)
 - State (`useState`, `useReducer`)
 - Effects (`useEffect`)
@@ -875,7 +929,7 @@ export default async function MyPicksPage() {
 }
 
 // Client Component — handles interaction
-"use client";
+("use client");
 function PickSelector({ events, existingPicks }) {
   const [selected, setSelected] = useState(existingPicks);
   // ... toggle/submit logic
@@ -910,6 +964,7 @@ components/
 ### 11.4 No Business Logic in Components
 
 Components should render data and handle UI interactions. They should not:
+
 - Calculate pick results (that's `lib/scoring.ts`)
 - Determine permissions (that's `lib/permissions.ts`)
 - Call the data layer directly (pages do that and pass data as props)
@@ -963,11 +1018,13 @@ Use `next-themes` for the theme toggle (light/dark/system). Tailwind v4's `dark:
 ```tsx
 import { cn } from "@/lib/utils";
 
-<div className={cn(
-  "rounded-lg border p-4",
-  isWin && "border-green-500 bg-green-50",
-  isLoss && "border-red-500 bg-red-50",
-)} />
+<div
+  className={cn(
+    "rounded-lg border p-4",
+    isWin && "border-green-500 bg-green-50",
+    isLoss && "border-red-500 bg-red-50",
+  )}
+/>;
 ```
 
 - Don't use `@apply` except in `globals.css` for base styles.
@@ -983,22 +1040,33 @@ Define a small hierarchy of errors in `lib/errors.ts`:
 
 ```tsx
 export class AppError extends Error {
-  constructor(public statusCode: number, message: string) {
+  constructor(
+    public statusCode: number,
+    message: string,
+  ) {
     super(message);
   }
 }
 
 export class BadRequestError extends AppError {
-  constructor(message = "Bad request") { super(400, message); }
+  constructor(message = "Bad request") {
+    super(400, message);
+  }
 }
 export class UnauthorizedError extends AppError {
-  constructor(message = "Unauthorized") { super(401, message); }
+  constructor(message = "Unauthorized") {
+    super(401, message);
+  }
 }
 export class ForbiddenError extends AppError {
-  constructor(message = "Forbidden") { super(403, message); }
+  constructor(message = "Forbidden") {
+    super(403, message);
+  }
 }
 export class NotFoundError extends AppError {
-  constructor(message = "Not found") { super(404, message); }
+  constructor(message = "Not found") {
+    super(404, message);
+  }
 }
 ```
 
@@ -1063,18 +1131,26 @@ Data layer functions should have explicit return types for documentation clarity
 
 ```tsx
 // Data layer — explicit return type
-export async function getLeague(leagueId: string): Promise<LeagueWithMembers | null> { }
+export async function getLeague(
+  leagueId: string,
+): Promise<LeagueWithMembers | null> {}
 ```
 
 Server Actions should always return `ActionResult` (see [Section 4.2](#42-error-strategy)):
 
 ```tsx
 // lib/types.ts
-type ActionResult<T = void> = { success: true; data: T } | { success: false; error: string };
+type ActionResult<T = void> =
+  | { success: true; data: T }
+  | { success: false; error: string };
 
 // Every Server Action returns this shape
-export async function createLeague(input: CreateLeagueInput): Promise<ActionResult<{ leagueId: string }>> { }
-export async function submitPicks(input: SubmitPicksInput): Promise<ActionResult> { }
+export async function createLeague(
+  input: CreateLeagueInput,
+): Promise<ActionResult<{ leagueId: string }>> {}
+export async function submitPicks(
+  input: SubmitPicksInput,
+): Promise<ActionResult> {}
 ```
 
 Auth and permission errors are the exception — they throw (caught by error boundaries, never reach the return).

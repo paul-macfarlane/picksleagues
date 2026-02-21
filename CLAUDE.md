@@ -6,12 +6,12 @@ PicksLeagues is an NFL Pick'Em app. Users create/join private leagues, make week
 
 Read these before starting any work. They are the source of truth.
 
-| Document | What it covers |
-|----------|---------------|
-| [BUSINESS_SPEC.md](./BUSINESS_SPEC.md) | **What** to build — all business rules, user flows, permissions, constants. Highest precedence. |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | **How** to structure code — layer boundaries, patterns, testing, naming conventions. |
-| [TECH_STACK.md](./TECH_STACK.md) | **What technologies** to use — stack choices, project structure, deployment. |
-| [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | **Background work** — Inngest jobs, ESPN sync pipeline, game window detection. |
+| Document                                   | What it covers                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [BUSINESS_SPEC.md](./BUSINESS_SPEC.md)     | **What** to build — all business rules, user flows, permissions, constants. Highest precedence. |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)       | **How** to structure code — layer boundaries, patterns, testing, naming conventions.            |
+| [TECH_STACK.md](./TECH_STACK.md)           | **What technologies** to use — stack choices, project structure, deployment.                    |
+| [BACKGROUND_JOBS.md](./BACKGROUND_JOBS.md) | **Background work** — Inngest jobs, ESPN sync pipeline, game window detection.                  |
 
 When specs conflict, BUSINESS_SPEC.md wins.
 
@@ -46,10 +46,11 @@ These are the rules that matter most. Violations of these are bugs.
 
 ```bash
 npm run dev              # Dev server (Turbopack)
-npx next lint            # Lint
-npx prettier --check .   # Check formatting
-npx vitest run           # Run tests
-npx tsc --noEmit         # Type check
+npm run lint             # Lint (ESLint)
+npm run format:check     # Check formatting (Prettier)
+npm run format           # Fix formatting
+npm test                 # Run tests (Vitest)
+npm run typecheck        # Type check (tsc --noEmit)
 npx drizzle-kit generate # Generate migrations
 npx drizzle-kit migrate  # Apply migrations
 ```
