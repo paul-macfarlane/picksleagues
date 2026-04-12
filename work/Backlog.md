@@ -8,8 +8,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 0      |
-| In Progress | 1      |
+| Complete    | 1      |
+| In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 31     |
 | **Total**   | **32** |
@@ -28,7 +28,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
 
 ## 1. Foundation (no dependencies)
 
-- [~] PL-001: Install core dependencies
+- [x] PL-001: Install core dependencies
   - drizzle-orm, @neondatabase/serverless, drizzle-kit
   - better-auth (Google + Discord plugins)
   - zod, react-hook-form, @hookform/resolvers
