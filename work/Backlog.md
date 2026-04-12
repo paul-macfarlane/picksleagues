@@ -6,13 +6,13 @@
 
 ## Status Summary
 
-| Status | Count |
-|---|---|
-| Complete | 0 |
-| In Progress | 0 |
-| Blocked | 0 |
-| Pending | 32 |
-| **Total** | **32** |
+| Status      | Count  |
+| ----------- | ------ |
+| Complete    | 0      |
+| In Progress | 0      |
+| Blocked     | 0      |
+| Pending     | 32     |
+| **Total**   | **32** |
 
 ---
 
@@ -52,7 +52,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
 
 - [ ] PL-003: Data layer functions (ARCHITECTURE §3, §6)
   - data/utils.ts (withTransaction, Transaction type)
-  - data/ files for all schema domains following get*/insert*/update*/upsert*/remove* naming
+  - data/ files for all schema domains following get*/insert*/update*/upsert*/remove\* naming
   - All functions accept optional tx?: Transaction parameter
 
 - [ ] PL-004: Auth setup (BUSINESS_SPEC §2, §12.1)

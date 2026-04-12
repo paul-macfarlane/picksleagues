@@ -8,12 +8,12 @@ PicksLeagues is a sports prediction app. The MVP is an NFL Pick'Em game mode whe
 
 Read these before starting any work. They are the source of truth.
 
-| Document | What it covers |
-|---|---|
-| [BUSINESS_SPEC.md](./docs/BUSINESS_SPEC.md) | **What** to build — all business rules, user flows, permissions, constants. Highest precedence. |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **How** to structure code — layer boundaries, patterns, testing, naming conventions. |
-| [TECH_STACK.md](./docs/TECH_STACK.md) | **What technologies** to use — stack choices, project structure, deployment. |
-| [BACKGROUND_JOBS.md](./docs/BACKGROUND_JOBS.md) | **Background work** — cron-triggered sync jobs, ESPN sync pipeline, game window detection. |
+| Document                                        | What it covers                                                                                  |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [BUSINESS_SPEC.md](./docs/BUSINESS_SPEC.md)     | **What** to build — all business rules, user flows, permissions, constants. Highest precedence. |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md)       | **How** to structure code — layer boundaries, patterns, testing, naming conventions.            |
+| [TECH_STACK.md](./docs/TECH_STACK.md)           | **What technologies** to use — stack choices, project structure, deployment.                    |
+| [BACKGROUND_JOBS.md](./docs/BACKGROUND_JOBS.md) | **Background work** — cron-triggered sync jobs, ESPN sync pipeline, game window detection.      |
 
 When specs conflict, BUSINESS_SPEC.md wins.
 

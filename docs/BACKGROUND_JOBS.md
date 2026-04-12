@@ -97,6 +97,7 @@ When one or more events transition to a **final** status, this job triggers **st
 **Not a standalone cron route.** Standings are recalculated as part of the live scores job when games finish. The recalculation logic lives in `lib/sync/nfl/` and is called internally.
 
 Recalculation:
+
 - Scores all picks for the completed event
 - Aggregates win/loss/push counts and total points per member per phase
 - Updates the season-long leaderboard
@@ -107,12 +108,12 @@ Standings can also be triggered manually if needed (e.g., if a score was correct
 
 ## Job Schedule Summary
 
-| Job | Route | Schedule | Self-Gated |
-|---|---|---|---|
-| Initial Setup | `app/api/cron/nfl/setup` | Manual | No |
-| Weekly Sync | `app/api/cron/nfl/sync-weekly` | Weekly (e.g., Tue 6am ET) | Yes |
-| Odds Sync | `app/api/cron/nfl/sync-odds` | Every 15 min | Yes (game window) |
-| Live Scores | `app/api/cron/nfl/sync-scores` | Every 5 min | Yes (game window) |
+| Job           | Route                          | Schedule                  | Self-Gated        |
+| ------------- | ------------------------------ | ------------------------- | ----------------- |
+| Initial Setup | `app/api/cron/nfl/setup`       | Manual                    | No                |
+| Weekly Sync   | `app/api/cron/nfl/sync-weekly` | Weekly (e.g., Tue 6am ET) | Yes               |
+| Odds Sync     | `app/api/cron/nfl/sync-odds`   | Every 15 min              | Yes (game window) |
+| Live Scores   | `app/api/cron/nfl/sync-scores` | Every 5 min               | Yes (game window) |
 
 ---
 
@@ -121,6 +122,7 @@ Standings can also be triggered manually if needed (e.g., if a score was correct
 Not all cron invocations need to do real work. The odds sync and live scores jobs detect whether there is an active or upcoming game window before hitting external APIs.
 
 A **game window** is considered active when:
+
 - There are events scheduled within the next N hours, OR
 - There are events currently in-progress
 
@@ -138,31 +140,31 @@ https://site.api.espn.com/apis/site/v2/sports/football/nfl
 
 ### Key Endpoints
 
-| Endpoint | Description |
-|---|---|
-| `/scoreboard` | Current week's events and scores |
+| Endpoint                          | Description                      |
+| --------------------------------- | -------------------------------- |
+| `/scoreboard`                     | Current week's events and scores |
 | `/scoreboard?seasontype=2&week=N` | Regular season events for week N |
-| `/scoreboard?seasontype=3&week=N` | Postseason events for week N |
-| `/teams` | All NFL teams |
-| `/summary?event={id}` | Detailed event data |
+| `/scoreboard?seasontype=3&week=N` | Postseason events for week N     |
+| `/teams`                          | All NFL teams                    |
+| `/summary?event={id}`             | Detailed event data              |
 
 ### Season Types
 
-| Value | Description |
-|---|---|
-| `1` | Preseason |
-| `2` | Regular season |
-| `3` | Postseason |
+| Value | Description    |
+| ----- | -------------- |
+| `1`   | Preseason      |
+| `2`   | Regular season |
+| `3`   | Postseason     |
 
 ### Game Statuses
 
 ESPN returns a `status.type.state` on each event:
 
-| Value | Description |
-|---|---|
-| `pre` | Not yet started |
-| `in` | In progress |
-| `post` | Final |
+| Value  | Description     |
+| ------ | --------------- |
+| `pre`  | Not yet started |
+| `in`   | In progress     |
+| `post` | Final           |
 
 The `status.type.completed` boolean can also be used to detect finished games.
 
@@ -181,12 +183,14 @@ ESPN's scoreboard endpoint returns events for a "week" which may not exactly mat
 PicksLeagues maintains its own internal IDs for all entities (seasons, phases, teams, events). ESPN data is linked via **bridge tables** that store the external ID alongside the internal ID.
 
 Pattern:
+
 - `nfl_seasons` → `espn_nfl_seasons` (stores ESPN season ID)
 - `nfl_phases` → `espn_nfl_phases` (stores ESPN week ID)
 - `nfl_teams` → `espn_nfl_teams` (stores ESPN team ID)
 - `nfl_events` → `espn_nfl_events` (stores ESPN event ID)
 
 This pattern:
+
 - Keeps internal IDs stable even if the external data source changes
 - Makes it straightforward to add a second data source in the future
 - Allows querying by ESPN ID when processing sync responses

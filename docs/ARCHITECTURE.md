@@ -139,7 +139,7 @@ Every action follows this exact order:
 "use server";
 
 export async function submitPicksAction(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<void>> {
   // 1. Validate
   const result = submitPicksSchema.safeParse(input);
@@ -173,11 +173,11 @@ export async function submitPicksAction(
 
 ### Two error mechanisms
 
-| Situation | Mechanism | Reason |
-|---|---|---|
-| Not authenticated | `throw UnauthorizedError` | Caught by error boundary, redirect to login |
-| Not authorized | `throw ForbiddenError` | Caught by error boundary, show 403 page |
-| Business rule failure | `return ActionResult` error | Show feedback to user in the form/UI |
+| Situation             | Mechanism                   | Reason                                      |
+| --------------------- | --------------------------- | ------------------------------------------- |
+| Not authenticated     | `throw UnauthorizedError`   | Caught by error boundary, redirect to login |
+| Not authorized        | `throw ForbiddenError`      | Caught by error boundary, show 403 page     |
+| Business rule failure | `return ActionResult` error | Show feedback to user in the form/UI        |
 
 Never `throw` for business rule violations — the user needs to see the message, not a crash page.
 
@@ -258,10 +258,7 @@ data/
 // lib/db/schema/leagues.ts
 import { pgTable, uuid, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 
-export const leagueStatusEnum = pgEnum("league_status", [
-  "active",
-  "archived",
-]);
+export const leagueStatusEnum = pgEnum("league_status", ["active", "archived"]);
 
 export const leagues = pgTable("leagues", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -517,6 +514,7 @@ For testing the full app flow, use the simulator (`lib/simulator.ts`) with the a
 ### Server vs Client boundary
 
 Default to Server Components. Only add `"use client"` when the component needs:
+
 - `useState` / `useReducer`
 - `useEffect`
 - Browser APIs
@@ -600,13 +598,13 @@ export class NotFoundError extends AppError {}
 
 ### When to throw vs return
 
-| Error type | Mechanism |
-|---|---|
-| `UnauthorizedError` | `throw` — caught by error boundary, redirects to login |
-| `ForbiddenError` | `throw` — caught by error boundary, shows 403 |
-| `NotFoundError` | `throw` — caught by error boundary, shows 404 |
-| Business rule violation | `return ActionResult` with `success: false` |
-| Unexpected/system error | `throw` — caught by error boundary, logged to Sentry |
+| Error type              | Mechanism                                              |
+| ----------------------- | ------------------------------------------------------ |
+| `UnauthorizedError`     | `throw` — caught by error boundary, redirects to login |
+| `ForbiddenError`        | `throw` — caught by error boundary, shows 403          |
+| `NotFoundError`         | `throw` — caught by error boundary, shows 404          |
+| Business rule violation | `return ActionResult` with `success: false`            |
+| Unexpected/system error | `throw` — caught by error boundary, logged to Sentry   |
 
 ### error.tsx boundaries
 
@@ -705,7 +703,7 @@ export const picks = pgTable(
   (table) => [
     index("picks_user_id_idx").on(table.userId),
     index("picks_event_id_idx").on(table.eventId),
-  ]
+  ],
 );
 ```
 
@@ -758,13 +756,13 @@ leagueCard.tsx         ✗
 
 ### Data function names
 
-| Prefix | Purpose |
-|---|---|
-| `get*` | Read a single record or list |
-| `insert*` | Create a new record |
-| `update*` | Update an existing record |
-| `upsert*` | Insert or update |
-| `remove*` | Delete a record |
+| Prefix    | Purpose                      |
+| --------- | ---------------------------- |
+| `get*`    | Read a single record or list |
+| `insert*` | Create a new record          |
+| `update*` | Update an existing record    |
+| `upsert*` | Insert or update             |
+| `remove*` | Delete a record              |
 
 ### Permission function names
 
@@ -780,10 +778,10 @@ assertLeagueCommissioner(userId, league);
 verb + noun, descriptive.
 
 ```ts
-submitPicksAction
-createLeagueAction
-updateLeagueSettingsAction
-inviteMemberAction
+submitPicksAction;
+createLeagueAction;
+updateLeagueSettingsAction;
+inviteMemberAction;
 ```
 
 ### Flat over nested

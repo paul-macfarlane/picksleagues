@@ -30,6 +30,7 @@
 ## No Business Logic in Components
 
 Components render data and handle UI interactions. They do NOT:
+
 - Calculate pick results (use `lib/nfl/scoring.ts`)
 - Determine permissions (use `lib/permissions.ts`)
 - Call the data layer directly (pages fetch data and pass as props)

@@ -18,13 +18,13 @@
 
 ## Function Naming
 
-| Context | Convention | Example |
-|---|---|---|
-| Data reads | `get*` | `getLeague`, `getUserPicks` |
-| Data writes | `insert*`, `update*`, `upsert*`, `remove*` | `insertPick`, `updateLeague` |
-| Server Actions | verb + noun | `createLeague`, `submitPicks` |
-| Permissions | `assert*` | `assertCommissioner`, `assertNotInSeason` |
-| Business logic | descriptive | `calculatePickResult`, `isGameStarted` |
+| Context        | Convention                                 | Example                                   |
+| -------------- | ------------------------------------------ | ----------------------------------------- |
+| Data reads     | `get*`                                     | `getLeague`, `getUserPicks`               |
+| Data writes    | `insert*`, `update*`, `upsert*`, `remove*` | `insertPick`, `updateLeague`              |
+| Server Actions | verb + noun                                | `createLeague`, `submitPicks`             |
+| Permissions    | `assert*`                                  | `assertCommissioner`, `assertNotInSeason` |
+| Business logic | descriptive                                | `calculatePickResult`, `isGameStarted`    |
 
 ## Directory Structure
 

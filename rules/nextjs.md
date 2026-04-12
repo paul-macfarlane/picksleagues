@@ -23,13 +23,13 @@ const headersList = await headers();
 
 ## File Conventions
 
-| File | Purpose |
-|---|---|
-| `page.tsx` | Route UI |
-| `layout.tsx` | Shared layout wrapping child routes |
-| `loading.tsx` | Suspense fallback |
-| `error.tsx` | Error boundary (must be client component) |
-| `not-found.tsx` | 404 UI for `notFound()` calls |
+| File            | Purpose                                   |
+| --------------- | ----------------------------------------- |
+| `page.tsx`      | Route UI                                  |
+| `layout.tsx`    | Shared layout wrapping child routes       |
+| `loading.tsx`   | Suspense fallback                         |
+| `error.tsx`     | Error boundary (must be client component) |
+| `not-found.tsx` | 404 UI for `notFound()` calls             |
 
 ## Revalidation
 

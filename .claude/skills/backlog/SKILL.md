@@ -14,12 +14,14 @@ Manages the project backlog stored in `work/Backlog.md`.
 ### No arguments or "view"
 
 Display the current backlog with a status summary:
+
 - Count of completed `[x]`, in-progress `[~]`, blocked `[!]`, and pending `[ ]` stories
 - Show all stories grouped by epic/section
 
 ### "add {description}"
 
 Add a new story to the appropriate section of the backlog:
+
 - Assign the next available PL-XXX ID
 - Place it in the correct epic section based on content
 - Mark as `[ ]` (pending)
@@ -28,6 +30,7 @@ Add a new story to the appropriate section of the backlog:
 ### "next"
 
 Show the next unstarted story that is ready to work on:
+
 - Find the first `[ ]` story whose dependencies are met (all stories above it in the same section are `[x]`)
 - Display the story with any relevant BUSINESS_SPEC.md context
 - Suggest running `/implement` to start working on it
@@ -35,6 +38,7 @@ Show the next unstarted story that is ready to work on:
 ### "status"
 
 Show a compact summary:
+
 ```
 Backlog Status:
   Completed: X
@@ -47,6 +51,7 @@ Backlog Status:
 ### "prioritize"
 
 Review the backlog ordering with the user:
+
 - Show current order
 - Ask if any stories should be reordered
 - Update the backlog based on feedback

@@ -4,13 +4,13 @@
 
 ## Layer Boundaries
 
-| Layer | Directory | Allowed Imports | Forbidden |
-|---|---|---|---|
-| Data access | `data/` | Drizzle ORM, `lib/db/` | Everything else |
-| Business logic | `lib/` | Other `lib/` modules only | Drizzle, `data/`, `actions/`, `components/` |
-| Server Actions | `actions/` | `data/`, `lib/` | Drizzle, `components/` |
-| Pages | `app/**/page.tsx` | `data/`, `lib/`, `components/` | Drizzle, `actions/` (except form wiring) |
-| Components | `components/` | `lib/` (for logic calls), other components | Drizzle, `data/` |
+| Layer          | Directory         | Allowed Imports                            | Forbidden                                   |
+| -------------- | ----------------- | ------------------------------------------ | ------------------------------------------- |
+| Data access    | `data/`           | Drizzle ORM, `lib/db/`                     | Everything else                             |
+| Business logic | `lib/`            | Other `lib/` modules only                  | Drizzle, `data/`, `actions/`, `components/` |
+| Server Actions | `actions/`        | `data/`, `lib/`                            | Drizzle, `components/`                      |
+| Pages          | `app/**/page.tsx` | `data/`, `lib/`, `components/`             | Drizzle, `actions/` (except form wiring)    |
+| Components     | `components/`     | `lib/` (for logic calls), other components | Drizzle, `data/`                            |
 
 **Exception**: `lib/permissions.ts` may call `data/` functions — permissions are inherently data-dependent.
 

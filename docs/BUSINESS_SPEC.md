@@ -83,14 +83,14 @@ Account deletion is a **soft anonymization** — the user's identity is scrubbed
 
 When creating a league, the user configures:
 
-| Setting          | Description                                           | Constraints                                                                                  |
-| ---------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Name             | Display name for the league                           | 3–50 characters                                                                              |
-| Image            | Optional logo/avatar URL                              | Valid URL or empty                                                                           |
-| Season Format    | Which portion of the NFL season the league covers     | One of three presets (see below)                                                             |
-| League Size      | Maximum number of members                             | 2–20, default 10                                                                             |
-| Picks Per Phase  | Number of game picks each member must make per phase  | 1–16, default 5                                                                              |
-| Pick Type        | How picks are evaluated                               | "Straight Up" (just pick the winner) or "Against the Spread" (pick against the point spread) |
+| Setting         | Description                                          | Constraints                                                                                  |
+| --------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Name            | Display name for the league                          | 3–50 characters                                                                              |
+| Image           | Optional logo/avatar URL                             | Valid URL or empty                                                                           |
+| Season Format   | Which portion of the NFL season the league covers    | One of three presets (see below)                                                             |
+| League Size     | Maximum number of members                            | 2–20, default 10                                                                             |
+| Picks Per Phase | Number of game picks each member must make per phase | 1–16, default 5                                                                              |
+| Pick Type       | How picks are evaluated                              | "Straight Up" (just pick the winner) or "Against the Spread" (pick against the point spread) |
 
 All leagues are **private** (invite-only).
 
@@ -98,11 +98,11 @@ All leagues are **private** (invite-only).
 
 Instead of arbitrary start/end phases, leagues must choose one of three preset formats:
 
-| Format             | Phases Included                                    |
-| ------------------ | -------------------------------------------------- |
-| **Regular Season** | Week 1 through Week 18                             |
-| **Postseason**     | Wild Card through Super Bowl (Pro Bowl excluded)   |
-| **Full Season**    | Week 1 through Super Bowl (Pro Bowl excluded)      |
+| Format             | Phases Included                                  |
+| ------------------ | ------------------------------------------------ |
+| **Regular Season** | Week 1 through Week 18                           |
+| **Postseason**     | Wild Card through Super Bowl (Pro Bowl excluded) |
+| **Full Season**    | Week 1 through Super Bowl (Pro Bowl excluded)    |
 
 A league can only have **one season per NFL year**.
 
@@ -240,9 +240,9 @@ The NFL season is divided into **phases** (e.g., "Week 1", "Wild Card", "Divisio
 
 Each phase has a **pick lock time** — the deadline after which picks can no longer be submitted:
 
-| Season Type    | Lock Time                                                       |
-| -------------- | --------------------------------------------------------------- |
-| Regular Season | Next **Sunday** after the phase starts, at **1:00 PM Eastern**  |
+| Season Type    | Lock Time                                                        |
+| -------------- | ---------------------------------------------------------------- |
+| Regular Season | Next **Sunday** after the phase starts, at **1:00 PM Eastern**   |
 | Postseason     | Next **Saturday** after the phase starts, at **1:00 PM Eastern** |
 
 ### 6.3 Current Phase Resolution
@@ -432,15 +432,15 @@ The application syncs NFL data from ESPN's public API (no API key required). Thi
 
 ### 11.1 What Gets Synced
 
-| Data        | Description                                                                                    |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| Seasons     | Current and upcoming NFL seasons                                                               |
-| Phases      | All regular season and postseason phases (excluding pre-season, off-season, and Pro Bowl)       |
-| Teams       | All NFL teams with names, locations, abbreviations, and logos (light + dark variants)           |
-| Games       | Scheduled matchups with home/away teams and start times                                        |
-| Odds        | Betting lines (spreads, moneylines, totals) for current and upcoming phase games               |
-| Live Scores | Real-time scores, game status, period, and clock for current and upcoming phase games          |
-| Outcomes    | Final confirmed scores when games end                                                          |
+| Data        | Description                                                                               |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| Seasons     | Current and upcoming NFL seasons                                                          |
+| Phases      | All regular season and postseason phases (excluding pre-season, off-season, and Pro Bowl) |
+| Teams       | All NFL teams with names, locations, abbreviations, and logos (light + dark variants)     |
+| Games       | Scheduled matchups with home/away teams and start times                                   |
+| Odds        | Betting lines (spreads, moneylines, totals) for current and upcoming phase games          |
+| Live Scores | Real-time scores, game status, period, and clock for current and upcoming phase games     |
+| Outcomes    | Final confirmed scores when games end                                                     |
 
 ### 11.2 Sync Order
 
@@ -528,26 +528,26 @@ The league page has 5 tabs:
 
 ### 13.1 Action Matrix
 
-| Action                                                              | Who                  | Conditions                                                               |
-| ------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------ |
-| Create a league                                                     | Any user             | —                                                                        |
-| Delete a league                                                     | Commissioner         | —                                                                        |
-| Edit league name/image                                              | Commissioner         | —                                                                        |
-| Edit structural settings (season format, size, picks, pick type)    | Commissioner         | Not in-season                                                            |
-| View league data (standings, picks, members)                        | Any league member    | —                                                                        |
-| Submit/edit picks                                                   | Any league member    | Current phase, before lock time; individual picks lock at game kickoff   |
-| View own picks                                                      | Any league member    | Always                                                                   |
-| View other members' picks                                           | Any league member    | Only after pick lock time                                                |
-| Create invites                                                      | Commissioner         | League not at capacity AND not in-season                                 |
-| Revoke invites                                                      | Commissioner         | —                                                                        |
-| View invite list                                                    | Commissioner         | —                                                                        |
-| Accept/decline a direct invite                                      | The invite recipient | —                                                                        |
-| Join via link invite                                                | Any logged-in user   | —                                                                        |
-| Change a member's role                                              | Commissioner         | Cannot self-demote if sole commissioner                                  |
-| Remove a member                                                     | Commissioner         | Not in-season                                                            |
-| Leave a league                                                      | Any member           | Not in-season; must not be sole commissioner (unless sole member)        |
-| Edit own profile                                                    | The user themselves  | —                                                                        |
-| Delete own account                                                  | The user themselves  | Must not be sole commissioner of any league with 2+ members              |
+| Action                                                           | Who                  | Conditions                                                             |
+| ---------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------- |
+| Create a league                                                  | Any user             | —                                                                      |
+| Delete a league                                                  | Commissioner         | —                                                                      |
+| Edit league name/image                                           | Commissioner         | —                                                                      |
+| Edit structural settings (season format, size, picks, pick type) | Commissioner         | Not in-season                                                          |
+| View league data (standings, picks, members)                     | Any league member    | —                                                                      |
+| Submit/edit picks                                                | Any league member    | Current phase, before lock time; individual picks lock at game kickoff |
+| View own picks                                                   | Any league member    | Always                                                                 |
+| View other members' picks                                        | Any league member    | Only after pick lock time                                              |
+| Create invites                                                   | Commissioner         | League not at capacity AND not in-season                               |
+| Revoke invites                                                   | Commissioner         | —                                                                      |
+| View invite list                                                 | Commissioner         | —                                                                      |
+| Accept/decline a direct invite                                   | The invite recipient | —                                                                      |
+| Join via link invite                                             | Any logged-in user   | —                                                                      |
+| Change a member's role                                           | Commissioner         | Cannot self-demote if sole commissioner                                |
+| Remove a member                                                  | Commissioner         | Not in-season                                                          |
+| Leave a league                                                   | Any member           | Not in-season; must not be sole commissioner (unless sole member)      |
+| Edit own profile                                                 | The user themselves  | —                                                                      |
+| Delete own account                                               | The user themselves  | Must not be sole commissioner of any league with 2+ members            |
 
 ---
 
@@ -555,13 +555,13 @@ The league page has 5 tabs:
 
 ### Leagues
 
-| Rule                  | Value                                   |
-| --------------------- | --------------------------------------- |
-| League name length    | 3–50 characters                         |
-| League size range     | 2–20 members                            |
-| Default league size   | 10                                      |
-| Season formats        | Regular Season, Postseason, Full Season |
-| Seasons per NFL year  | 1 per league                            |
+| Rule                 | Value                                   |
+| -------------------- | --------------------------------------- |
+| League name length   | 3–50 characters                         |
+| League size range    | 2–20 members                            |
+| Default league size  | 10                                      |
+| Season formats       | Regular Season, Postseason, Full Season |
+| Seasons per NFL year | 1 per league                            |
 
 ### Picks
 
@@ -613,13 +613,13 @@ The league page has 5 tabs:
 
 ### Game Modes
 
-| Mode                  | Description                                                                | Timeline     |
-| --------------------- | -------------------------------------------------------------------------- | ------------ |
-| **Other NFL Modes**   | Survivor pools, college football, etc.                                     | After MVP    |
-| **Golf Major Pools**  | Predict outcomes of The Masters, US Open, etc.                             | After NFL    |
-| **Tennis Major Pools** | Predict outcomes of Wimbledon, French Open, etc.                           | After NFL    |
-| **March Madness**     | Bracket pools (carry over BracketsBall functionality)                      | After Golf/Tennis |
-| **NBA Playoff Pools** | Predict NBA playoff outcomes                                               | Last         |
+| Mode                   | Description                                           | Timeline          |
+| ---------------------- | ----------------------------------------------------- | ----------------- |
+| **Other NFL Modes**    | Survivor pools, college football, etc.                | After MVP         |
+| **Golf Major Pools**   | Predict outcomes of The Masters, US Open, etc.        | After NFL         |
+| **Tennis Major Pools** | Predict outcomes of Wimbledon, French Open, etc.      | After NFL         |
+| **March Madness**      | Bracket pools (carry over BracketsBall functionality) | After Golf/Tennis |
+| **NBA Playoff Pools**  | Predict NBA playoff outcomes                          | Last              |
 
 ### Platform
 
@@ -631,6 +631,7 @@ The league page has 5 tabs:
 ### Architecture Notes for Future Modes
 
 The current schema uses sport-agnostic naming to support future game modes:
+
 - **Phases** (not "weeks") — can represent NFL weeks, tournament rounds, playoff rounds
 - **Events** (not "games") — can represent any competition
 - **League types** — extensible via `leagueTypes` table ("pick-em" is the first; "bracket", "survivor", etc. can be added)

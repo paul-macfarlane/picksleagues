@@ -39,6 +39,7 @@ If requirements are ambiguous or there are multiple valid approaches, ask the us
 ### 5. Implement
 
 Follow layer order:
+
 1. Schema / migrations (`lib/db/schema/`)
 2. Data layer (`data/`)
 3. Business logic (`lib/`)
@@ -56,6 +57,7 @@ Invoke the `/self-review` skill to check changes against project standards.
 ### 7. Automated Checks
 
 Run all checks:
+
 ```bash
 pnpm lint && pnpm typecheck && pnpm test
 ```
@@ -65,6 +67,7 @@ Fix any issues found.
 ### 8. Present to User
 
 Provide a summary:
+
 - What was implemented and which BUSINESS_SPEC sections it covers
 - Files created or modified
 - Decisions or trade-offs made
@@ -77,6 +80,7 @@ Provide a summary:
 ### 10. Commit and Push
 
 Once approved:
+
 ```bash
 git add <specific files>
 git commit -m "<descriptive message>"

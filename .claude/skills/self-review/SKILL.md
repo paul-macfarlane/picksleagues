@@ -35,6 +35,7 @@ pnpm test
 Present a summary:
 
 **Review Results:**
+
 - Issues found and fixed (list what was corrected)
 - Issues found and unresolved (if any need user input)
 - Automated check results (lint, typecheck, test — pass/fail)

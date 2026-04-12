@@ -6,25 +6,25 @@
 
 ## Stack Summary
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript (strict mode) |
-| Database | PostgreSQL via Neon (serverless) |
-| ORM | Drizzle ORM |
-| Auth | Better Auth (Google, Discord OAuth) |
-| Background Jobs | Cron-triggered API routes (cron-job.org) |
-| UI Components | shadcn/ui (Radix primitives) |
-| Styling | Tailwind CSS v4 |
-| Forms | react-hook-form + @hookform/resolvers (Zod) |
-| Validation | Zod |
-| Date/Time | date-fns + date-fns-tz |
-| Testing | Vitest |
-| Linting | ESLint (next/core-web-vitals + next/typescript) |
-| Formatting | Prettier |
-| Deployment | Vercel |
-| Monitoring | Sentry |
-| Package Manager | pnpm |
+| Layer           | Technology                                      |
+| --------------- | ----------------------------------------------- |
+| Framework       | Next.js 16 (App Router)                         |
+| Language        | TypeScript (strict mode)                        |
+| Database        | PostgreSQL via Neon (serverless)                |
+| ORM             | Drizzle ORM                                     |
+| Auth            | Better Auth (Google, Discord OAuth)             |
+| Background Jobs | Cron-triggered API routes (cron-job.org)        |
+| UI Components   | shadcn/ui (Radix primitives)                    |
+| Styling         | Tailwind CSS v4                                 |
+| Forms           | react-hook-form + @hookform/resolvers (Zod)     |
+| Validation      | Zod                                             |
+| Date/Time       | date-fns + date-fns-tz                          |
+| Testing         | Vitest                                          |
+| Linting         | ESLint (next/core-web-vitals + next/typescript) |
+| Formatting      | Prettier                                        |
+| Deployment      | Vercel                                          |
+| Monitoring      | Sentry                                          |
+| Package Manager | pnpm                                            |
 
 ---
 
@@ -47,6 +47,7 @@
 **Drizzle ORM** is used for schema definition, migrations, and queries. Schema lives in `lib/db/schema/`. Migrations are managed with `drizzle-kit`.
 
 Key domain vocabulary used in the database schema:
+
 - **phases** — what the NFL calls "weeks" (e.g., Week 1, Wild Card, Super Bowl). The term "week" is avoided in DB column names and code.
 - **events** — what are colloquially called "games". The term "game" is avoided in DB column names and code.
 
@@ -65,6 +66,7 @@ Key domain vocabulary used in the database schema:
 Routes are authenticated via a `CRON_SECRET` environment variable checked in `lib/cron-auth.ts`. See `docs/BACKGROUND_JOBS.md` for full details on job structure and schedules.
 
 Sport-specific cron routes live under sport namespaces:
+
 - `app/api/cron/nfl/` — NFL sync jobs
 - `app/api/cron/march-madness/` — (future) March Madness sync jobs
 
@@ -127,6 +129,7 @@ Sport-specific cron routes live under sport namespaces:
 **pnpm**. Always use `pnpm` — never `npm` or `yarn`.
 
 Common commands:
+
 - `pnpm dev` — start local dev server
 - `pnpm build` — production build
 - `pnpm test` — run Vitest

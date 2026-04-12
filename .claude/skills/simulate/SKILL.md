@@ -14,6 +14,7 @@ Controls the simulator that replays historical ESPN data for testing picks, scor
 ### "init {year}"
 
 Initialize a simulation using historical NFL season data:
+
 - Fetch the {year} NFL season data from ESPN
 - Populate the database with seasons, phases, teams, and events for that year
 - Set the simulation state to Phase 1
@@ -24,6 +25,7 @@ Example: `/simulate init 2024`
 ### "advance"
 
 Advance the simulation to the next phase:
+
 - Sync live scores for the current phase (all games marked as final using historical data)
 - Create outcome records for all completed events
 - Sync odds for the next phase
@@ -33,6 +35,7 @@ Advance the simulation to the next phase:
 ### "status"
 
 Show the current simulation state:
+
 - Active season year
 - Current phase (and total phases)
 - Events completed vs remaining
@@ -41,6 +44,7 @@ Show the current simulation state:
 ### "reset"
 
 Clear all simulation data:
+
 - Confirm with user before proceeding
 - Delete all synced sports data (seasons, phases, teams, events, odds, live scores, outcomes)
 - Reset standings

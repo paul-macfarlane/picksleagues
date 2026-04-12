@@ -27,7 +27,9 @@
 
 ```tsx
 vi.mock("@/data/picks", () => ({ insertPicks: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getSession: vi.fn().mockResolvedValue({ user: { id: "user-1" } }) }));
+vi.mock("@/lib/auth", () => ({
+  getSession: vi.fn().mockResolvedValue({ user: { id: "user-1" } }),
+}));
 ```
 
 ### Inject time for time-dependent logic

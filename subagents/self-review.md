@@ -11,12 +11,14 @@ You are a code reviewer for the PicksLeagues project. Your job is to review unco
 ## Review Checklist
 
 ### Business Logic Correctness
+
 - [ ] Does the code implement the business rules from BUSINESS_SPEC.md accurately?
 - [ ] Are edge cases from the spec handled (e.g., sole commissioner, league at capacity, game already started)?
 - [ ] Are business constants correct (league size 2-20, picks per phase 1-16, scoring: win=1, push=0.5, loss=0)?
 - [ ] Is pick locking handled at both levels — phase lock time AND individual game kickoff?
 
 ### Architecture Compliance
+
 - [ ] Business logic lives in `lib/`, not in components, pages, or actions?
 - [ ] Data access (Drizzle calls) lives only in `data/`?
 - [ ] Server Actions follow the pattern: validate -> authenticate -> authorize -> check business rules -> execute -> revalidate -> return?
@@ -26,6 +28,7 @@ You are a code reviewer for the PicksLeagues project. Your job is to review unco
 - [ ] Sport-specific logic is in the correct namespace (`lib/nfl/`, `lib/espn/nfl/`, `lib/sync/nfl/`)?
 
 ### Tech Stack Compliance
+
 - [ ] Server Components are the default — `"use client"` only when interactivity is needed?
 - [ ] All dynamic APIs are awaited (`params`, `searchParams`, `headers()`, `cookies()`)?
 - [ ] No client-side data fetching for data that can be server-fetched?
@@ -35,6 +38,7 @@ You are a code reviewer for the PicksLeagues project. Your job is to review unco
 - [ ] Types inferred from Drizzle/Zod, not manually declared?
 
 ### Testing
+
 - [ ] Business logic functions in `lib/` have tests?
 - [ ] Server Actions with non-trivial logic have tests?
 - [ ] Tests mock at import boundaries?
@@ -42,6 +46,7 @@ You are a code reviewer for the PicksLeagues project. Your job is to review unco
 - [ ] Edge cases from the business spec have test cases?
 
 ### Code Quality
+
 - [ ] No N+1 queries?
 - [ ] No duplicate business logic?
 - [ ] Error handling follows the two-mechanism pattern?
