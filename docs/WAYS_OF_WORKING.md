@@ -91,10 +91,14 @@ Run the `/self-review` Claude Code skill. This performs an automated review pass
 - Highlight any decisions made, trade-offs, or areas of uncertainty
 - Request specific feedback if needed
 
-### Step 7: Ship
+### Step 7: Document
+
+Write the task notes file at `work/tasks/<ID>.md` (see §4, _Task Notes_). Capture decisions, deviations, and gotchas while they are fresh.
+
+### Step 8: Ship
 
 - Address any feedback
-- Commit directly to `main` and push
+- Commit directly to `main` (include the task notes file in the same commit series) and push
 - No pull requests — commit and push when changes are approved
 
 ---
@@ -127,6 +131,50 @@ The backlog lives at `work/Backlog.md`. This is the single source of truth for w
 ```
 
 Tasks move through statuses as work progresses. Completed tasks can be archived periodically to keep the backlog readable.
+
+### Task Notes
+
+Every backlog story gets a notes file at `work/tasks/<ID>.md` (e.g., `work/tasks/PL-001.md`). It captures the durable context that commit messages are too terse to hold: the decisions made, the deviations from the story as written, and anything a future reader (human or AI) would want to know before touching the same area.
+
+Write the file **before** committing — it is part of the deliverable, not an afterthought. Keep it terse; link to the commit(s) rather than restating the diff.
+
+Template:
+
+```markdown
+---
+id: PL-XXX
+title: <story title>
+status: complete | in-progress | blocked
+commits: <sha>[, <sha>...]
+---
+
+## Summary
+
+One or two sentences on what this story delivered.
+
+## Business Spec Coverage
+
+Which BUSINESS_SPEC.md sections this addresses (or "N/A — foundation story").
+
+## Decisions
+
+- **<decision>**: why, and what was rejected
+- ...
+
+## Deviations from the Story
+
+Anything in the backlog entry that was changed, dropped, or deferred, and why.
+
+## Notable / Gotchas
+
+Surprises, upstream-library quirks, places a future reader should double-check before changing things.
+
+## Follow-ups
+
+Anything left for a later story (link by ID if one exists).
+```
+
+Omit sections that don't apply rather than filling them with "none".
 
 ---
 
@@ -220,6 +268,7 @@ A task is complete when all of the following are true:
 - [ ] No TODO comments left in newly written code
 - [ ] No placeholder data or stub implementations
 - [ ] No console.log or debug artifacts
+- [ ] Task notes file exists at `work/tasks/<ID>.md` with decisions, deviations, and gotchas
 
 ### Human Approval
 

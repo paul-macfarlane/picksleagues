@@ -77,12 +77,16 @@ Provide a summary:
 
 **Do not commit until the user approves.** If changes are requested, make them and re-run steps 6-7.
 
-### 10. Commit and Push
+### 10. Write Task Notes
+
+Before committing, create `work/tasks/<ID>.md` following the template in `docs/WAYS_OF_WORKING.md` §4 (Task Notes). Record decisions, deviations from the story as written, and any gotchas a future reader should know. Keep it terse — link commits rather than restating diffs.
+
+### 11. Commit and Push
 
 Once approved:
 
 ```bash
-git add <specific files>
+git add <specific files>  # include work/tasks/<ID>.md
 git commit -m "<descriptive message>"
 git push origin main
 ```
