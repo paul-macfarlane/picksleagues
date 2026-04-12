@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     exclude: ["legacy/**", "node_modules/**"],
+    passWithNoTests: true,
   },
   resolve: {
     alias: {

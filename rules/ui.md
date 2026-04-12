@@ -48,7 +48,8 @@ Components render data and handle UI interactions. They do NOT:
 - One Zod schema shared between form validation and Server Action
 - Default values are required for all form fields
 - Forms are always Client Components (keep as leaf components)
-- Error feedback via sonner toast; field-level errors via `<FormMessage>`
+- Error feedback via sonner toast; field-level errors via `<FieldError>` (pass the RHF `fieldState.error` via the `errors` prop)
+- Use the shadcn **Field** primitives (`<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>`) — the legacy `<Form*>` wrappers were removed from the radix-nova preset
 
 ## Design Aesthetic
 

@@ -202,7 +202,7 @@ function handleSubmit() {
 
 ### Stack
 
-**react-hook-form** + **Zod resolver** + **shadcn Form** components.
+**react-hook-form** + **Zod resolver** + **shadcn Field** primitives (`<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>`). The older `<Form>`/`<FormField>`/`<FormMessage>` wrappers were removed from the radix-nova shadcn preset — compose Field directly with RHF's `register` / `useController` and surface errors via `<FieldError errors={[fieldState.error]} />`.
 
 ### One schema, two consumers
 
