@@ -1,0 +1,81 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { LogOutIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { authClient } from "@/lib/auth-client";
+import { getInitials } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type UserMenuUser = {
+  name: string;
+  email: string;
+  image?: string | null;
+};
+
+export function UserMenu({ user }: { user: UserMenuUser }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleSignOut() {
+    startTransition(async () => {
+      try {
+        await authClient.signOut();
+        router.replace("/login");
+        router.refresh();
+      } catch {
+        toast.error("Sign-out failed. Please try again.");
+      }
+    });
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full"
+          aria-label="Account menu"
+        >
+          <Avatar size="sm">
+            {user.image ? (
+              <AvatarImage src={user.image} alt={user.name} />
+            ) : null}
+            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-56">
+        <DropdownMenuLabel className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">{user.name}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {user.email}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            handleSignOut();
+          }}
+          disabled={isPending}
+        >
+          <LogOutIcon className="size-4" />
+          {isPending ? "Signing out…" : "Sign out"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

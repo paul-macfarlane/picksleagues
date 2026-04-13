@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 4      |
+| Complete    | 5      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 28     |
+| Pending     | 27     |
 | **Total**   | **32** |
 
 ---
@@ -58,7 +58,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Create database, configure connection string
   - Run initial migrations
 
-- [ ] PL-005: App layout + theming (BUSINESS_SPEC §12.2-12.4, ui rules)
+- [x] PL-005: App layout + theming (BUSINESS_SPEC §12.2-12.4, ui rules)
   - shadcn/ui setup + theme configuration
   - globals.css with sports-fan aesthetic, dark mode default
   - Root layout with providers (auth, theme)
