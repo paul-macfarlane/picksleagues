@@ -3,16 +3,18 @@
 > Stories ordered by dependency. Work top-to-bottom within each section. A story should only be started when its dependencies (stories above it in the same or prior section) are complete.
 >
 > Status: `[ ]` pending | `[~]` in progress | `[x]` complete | `[!]` blocked
+>
+> **Schema + data layer are owned by each feature story.** There is no up-front "all tables" or "all data functions" story — every feature story adds the schema, migration, and `data/` functions it needs as part of its vertical slice. Bootstrap infra (`lib/db/index.ts` client, `data/utils.ts` `withTransaction`) is introduced by the first story that needs a database (PL-004).
 
 ## Status Summary
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 1      |
+| Complete    | 4      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 31     |
-| **Total**   | **32** |
+| Pending     | 26     |
+| **Total**   | **30** |
 
 ---
 
@@ -37,31 +39,24 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - date-fns, date-fns-tz, sonner, lucide-react, next-themes
   - Configure: prettier, vitest, drizzle.config.ts, .env.example
 
-- [ ] PL-002: Database schema + initial migration (BUSINESS_SPEC all sections, ARCHITECTURE §6)
-  - Auth tables (BetterAuth managed): users, sessions, accounts, verifications
-  - profiles: username, name, avatarUrl
-  - Sports infrastructure: dataSources, sportsLeagues, seasons, phaseTemplates, phases, teams
-  - External ID mapping: externalSeasons, externalPhases, externalTeams
-  - Events: events, liveScores, outcomes + externalEvents
-  - Odds: sportsbooks, odds + externalSportsbooks, externalOdds
-  - League types (extensible): leagueTypes with "pick-em" seed
-  - Leagues: leagues, leagueMembers, leagueInvites
-  - Picks: picks (with spreadAtLock for ATS)
-  - Standings: standings (with metadata jsonb for sport-specific stats)
-  - Schema uses sport-agnostic naming: phases not weeks, events not games
-
-- [ ] PL-003: Data layer functions (ARCHITECTURE §3, §6)
-  - data/utils.ts (withTransaction, Transaction type)
-  - data/ files for all schema domains following get*/insert*/update*/upsert*/remove\* naming
-  - All functions accept optional tx?: Transaction parameter
-
-- [ ] PL-004: Auth setup (BUSINESS_SPEC §2, §12.1)
-  - lib/auth.ts — BetterAuth server config (Google + Discord providers, Drizzle adapter)
+- [x] PL-004: Auth setup (BUSINESS_SPEC §2, §12.1)
+  - lib/db/index.ts (dual driver — pg locally, @neondatabase/serverless on Vercel) + data/utils.ts (withTransaction, Transaction)
+  - lib/db/schema/auth.ts — user, session, account, verification (BetterAuth-managed)
+  - lib/db/schema/profiles.ts — profile table; data/profiles.ts — insertProfile (minimal; full CRUD in PL-006)
+  - lib/errors.ts (AppError hierarchy), lib/types.ts (ActionResult)
+  - lib/username.ts — generateUsername(email) + tests
+  - lib/auth.ts — BetterAuth server config (Google + Discord providers, Drizzle adapter), databaseHooks auto-create profile, getSession() that throws UnauthorizedError
   - lib/auth-client.ts — BetterAuth client
   - app/api/auth/[...all]/route.ts — catch-all route handler
-  - getSession() helper that throws UnauthorizedError
-  - Auto-create profile on first login (random username from email)
-  - Next.js middleware for auth guard on (app) routes
+  - Auth guard lives in (app)/layout.tsx via getSession() — layout/route group creation happens in PL-005
+
+- [x] PL-060: Vercel deployment (free tier)
+  - Build configuration, environment variables
+  - Node.js runtime (not Edge — needed for Better Auth + Drizzle pg driver)
+
+- [x] PL-061: Neon database provisioning
+  - Create database, configure connection string
+  - Run initial migrations
 
 - [ ] PL-005: App layout + theming (BUSINESS_SPEC §12.2-12.4, ui rules)
   - shadcn/ui setup + theme configuration
@@ -253,13 +248,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
 
 ## 7. Deployment (depends on: Polish complete)
 
-- [ ] PL-060: Vercel deployment (free tier)
-  - Build configuration, environment variables
-  - Node.js runtime (not Edge — needed for Better Auth + Drizzle pg driver)
-
-- [ ] PL-061: Neon database provisioning
-  - Create database, configure connection string
-  - Run initial migrations
+> PL-060 and PL-061 were pulled up into Foundation so we can deploy and test in production continuously.
 
 - [ ] PL-062: cron-job.org configuration
   - Configure all sync endpoints with schedules
