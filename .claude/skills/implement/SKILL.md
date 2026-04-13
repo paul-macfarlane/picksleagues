@@ -59,10 +59,10 @@ Invoke the `/self-review` skill to check changes against project standards.
 Run all checks:
 
 ```bash
-pnpm lint && pnpm typecheck && pnpm test
+pnpm check
 ```
 
-Fix any issues found.
+This runs `format:check`, `lint`, `typecheck`, and `test`. If `format:check` fails, run `pnpm format` and re-run `pnpm check`. Fix any other issues found.
 
 ### 8. Present to User
 

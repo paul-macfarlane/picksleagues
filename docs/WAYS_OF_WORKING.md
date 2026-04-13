@@ -76,9 +76,7 @@ The preferred way to run this workflow is via the `/implement` Claude Code skill
 
 ### Step 5: Verify
 
-- Run `pnpm build` — must pass with no errors
-- Run `pnpm lint` — must pass with no warnings
-- Run `pnpm test` — all tests must pass
+- Run `pnpm check` — runs `format:check`, `lint`, `typecheck`, and `test`. All must pass. If `format:check` fails, run `pnpm format` and re-run.
 - Manually exercise the feature in the local dev server
 
 ### Step 5.5: Self-Review
@@ -231,8 +229,7 @@ Before human review, a self-review should be performed (Step 5.5 above, using `/
 - [ ] No dead code or unused imports
 - [ ] No commented-out code blocks
 - [ ] Error states are handled, not silently swallowed
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [ ] `pnpm check` passes (format, lint, typecheck, test)
 
 ---
 
@@ -249,9 +246,7 @@ A task is complete when all of the following are true:
 ### Code Quality
 
 - [ ] Self-review checklist passed (Section 6)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes
+- [ ] `pnpm check` passes (format, lint, typecheck, test)
 
 ### Test Coverage
 

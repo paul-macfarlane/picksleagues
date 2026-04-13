@@ -25,10 +25,10 @@ Launch a subagent using the prompt in `subagents/self-review.md` to review the c
 ### 3. Run Automated Checks
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
+pnpm check
 ```
+
+Runs `format:check`, `lint`, `typecheck`, and `test`. If `format:check` fails, run `pnpm format` and re-run.
 
 ### 4. Report Findings
 
