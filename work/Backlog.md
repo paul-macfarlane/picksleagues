@@ -13,8 +13,8 @@
 | Complete    | 4      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 26     |
-| **Total**   | **30** |
+| Pending     | 27     |
+| **Total**   | **31** |
 
 ---
 
@@ -76,6 +76,17 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Account page with danger zone
   - Soft anonymization flow (blocked if sole commissioner of multi-member league)
   - Confirmation dialog
+
+- [ ] PL-008: Privacy policy + terms of service
+  - app/(public)/privacy/page.tsx — minimal privacy policy content
+  - app/(public)/terms/page.tsx — minimal terms of service content
+  - Footer links from (public) and (app) layouts
+  - Static content authored in-page (no CMS)
+
+- [ ] PL-053: Splash / landing page (public, unauthenticated)
+  - app/(public)/page.tsx — app description, key features, call-to-action
+  - Mobile-first responsive design
+  - Links to login, privacy, and terms
 
 ## 2. ESPN Integration (depends on: Foundation complete)
 
@@ -233,10 +244,6 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Test all flows at mobile viewport
   - Touch-friendly interactions, bottom sheet nav
   - Performance optimization (minimize client JS)
-
-- [ ] PL-053: Landing page (public, unauthenticated)
-  - App description, key features, call-to-action
-  - Mobile-first responsive design
 
 - [ ] PL-054: Standings scenarios (what-if calculations)
   - "What if team X wins?" scenario modeling
