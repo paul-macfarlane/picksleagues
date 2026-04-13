@@ -13,8 +13,8 @@
 | Complete    | 4      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 27     |
-| **Total**   | **31** |
+| Pending     | 28     |
+| **Total**   | **32** |
 
 ---
 
@@ -82,6 +82,13 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - app/(public)/terms/page.tsx — minimal terms of service content
   - Footer links from (public) and (app) layouts
   - Static content authored in-page (no CMS)
+
+- [ ] PL-009: Branding assets (logo, favicon, app icons)
+  - Logo (SVG) — light + dark variants
+  - app/icon.tsx or app/favicon.ico — favicon
+  - app/apple-icon.tsx — iOS home-screen icon
+  - app/opengraph-image.tsx — OG share card
+  - Update app/layout.tsx metadata (title, description, icons)
 
 - [ ] PL-053: Splash / landing page (public, unauthenticated)
   - app/(public)/page.tsx — app description, key features, call-to-action
