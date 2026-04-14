@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { LogOutIcon, UserIcon } from "lucide-react";
+import {
+  LogOutIcon,
+  MonitorIcon,
+  MoonIcon,
+  SettingsIcon,
+  SunIcon,
+  UserIcon,
+} from "lucide-react";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
@@ -15,6 +23,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -25,9 +35,16 @@ type UserMenuUser = {
   image?: string | null;
 };
 
+const THEME_OPTIONS = [
+  { value: "light", label: "Light", Icon: SunIcon },
+  { value: "dark", label: "Dark", Icon: MoonIcon },
+  { value: "system", label: "System", Icon: MonitorIcon },
+] as const;
+
 export function UserMenu({ user }: { user: UserMenuUser }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const { theme, setTheme } = useTheme();
 
   function handleSignOut() {
     startTransition(async () => {
@@ -72,6 +89,23 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             Profile
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account">
+            <SettingsIcon className="size-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+          {THEME_OPTIONS.map(({ value, label, Icon }) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              <Icon className="size-4" />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={(event) => {
             event.preventDefault();

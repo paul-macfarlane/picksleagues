@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 
 type AppShellUser = {
@@ -26,10 +25,7 @@ export function AppShell({
         >
           PicksLeagues
         </Link>
-        <div className="flex items-center gap-1">
-          <ThemeToggle />
-          <UserMenu user={user} />
-        </div>
+        <UserMenu user={user} />
       </header>
       <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">{children}</main>
     </div>

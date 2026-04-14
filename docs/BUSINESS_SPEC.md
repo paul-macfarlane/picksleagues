@@ -72,7 +72,13 @@ Account deletion is a **soft anonymization** — the user's identity is scrubbed
 2. If the user is the sole member of any league, those leagues are deleted entirely.
 3. The user is removed from all league memberships.
 4. All authentication data is deleted (sessions, linked accounts).
-5. The user's name is set to `"anonymous"`, email to `"anonymous"`, and all profile fields are cleared (username → `"anonymous"`, name → `"Anonymous User"`, avatar removed).
+5. The user's identity is scrubbed. Because `user.email` and `profile.username` are unique, the placeholder values are suffixed with the stable user id so deletions don't collide:
+   - `user.name` → `"Anonymous User"`
+   - `user.email` → `anonymous+<userId>@deleted.picksleagues.local`
+   - `user.image` → null
+   - `profile.username` → `anonymous-<userId>` (truncated to 50 chars)
+   - `profile.name` → `"Anonymous User"`
+   - `profile.avatarUrl` → null
 6. Historical picks and standings remain in place, now associated with the anonymized identity.
 
 ---

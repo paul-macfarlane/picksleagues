@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 6      |
+| Complete    | 7      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 26     |
+| Pending     | 25     |
 | **Total**   | **32** |
 
 ---
@@ -72,7 +72,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Username uniqueness validation, 3-50 chars, "anonymous" reserved
   - lib/validators/profiles.ts shared schema
 
-- [ ] PL-007: Account settings + deletion (BUSINESS_SPEC §2.3, §12.7)
+- [x] PL-007: Account settings + deletion (BUSINESS_SPEC §2.3, §12.7)
   - Account page with danger zone
   - Soft anonymization flow (blocked if sole commissioner of multi-member league)
   - Confirmation dialog
