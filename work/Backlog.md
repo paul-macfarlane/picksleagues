@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 9      |
+| Complete    | 10     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 23     |
+| Pending     | 22     |
 | **Total**   | **32** |
 
 ---
