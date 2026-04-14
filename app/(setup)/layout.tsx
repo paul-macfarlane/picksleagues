@@ -27,7 +27,7 @@ export default async function SetupLayout({
   }
 
   if (profile.setupComplete) {
-    redirect("/");
+    redirect("/home");
   }
 
   return (

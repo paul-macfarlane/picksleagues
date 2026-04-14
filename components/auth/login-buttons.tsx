@@ -15,7 +15,7 @@ export function LoginButtons() {
   async function handleSignIn(provider: Provider) {
     setPendingProvider(provider);
     try {
-      await authClient.signIn.social({ provider, callbackURL: "/" });
+      await authClient.signIn.social({ provider, callbackURL: "/home" });
     } catch {
       toast.error("Sign-in failed. Please try again.");
       setPendingProvider(null);

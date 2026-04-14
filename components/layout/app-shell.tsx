@@ -21,7 +21,7 @@ export function AppShell({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur">
-        <Link href="/" aria-label="PicksLeagues home">
+        <Link href="/home" aria-label="PicksLeagues home">
           <Logo />
         </Link>
         <UserMenu user={user} />

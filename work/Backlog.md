@@ -90,7 +90,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - app/opengraph-image.tsx — OG share card
   - Update app/layout.tsx metadata (title, description, icons)
 
-- [ ] PL-053: Splash / landing page (public, unauthenticated)
+- [x] PL-053: Splash / landing page (public, unauthenticated)
   - app/(public)/page.tsx — app description, key features, call-to-action
   - Mobile-first responsive design
   - Links to login, privacy, and terms
