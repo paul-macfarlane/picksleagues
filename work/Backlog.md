@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 7      |
+| Complete    | 8      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 25     |
+| Pending     | 24     |
 | **Total**   | **32** |
 
 ---
@@ -77,7 +77,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Soft anonymization flow (blocked if sole commissioner of multi-member league)
   - Confirmation dialog
 
-- [ ] PL-008: Privacy policy + terms of service
+- [x] PL-008: Privacy policy + terms of service
   - app/(public)/privacy/page.tsx — minimal privacy policy content
   - app/(public)/terms/page.tsx — minimal terms of service content
   - Footer links from (public) and (app) layouts

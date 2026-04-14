@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { SiteFooter } from "@/components/layout/site-footer";
 import { UserMenu } from "@/components/layout/user-menu";
 
 type AppShellUser = {
@@ -28,6 +29,7 @@ export function AppShell({
         <UserMenu user={user} />
       </header>
       <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">{children}</main>
+      <SiteFooter />
     </div>
   );
 }

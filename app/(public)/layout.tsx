@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { SiteFooter } from "@/components/layout/site-footer";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
@@ -15,9 +16,8 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         </Link>
         <ThemeToggle />
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-6">
-        {children}
-      </main>
+      <main className="flex flex-1 flex-col px-4 py-6">{children}</main>
+      <SiteFooter />
     </div>
   );
 }

@@ -15,16 +15,18 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Sign in to PicksLeagues</CardTitle>
-        <CardDescription>
-          NFL Pick&apos;Em leagues with friends.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <LoginButtons />
-      </CardContent>
-    </Card>
+    <div className="flex flex-1 items-center justify-center">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Sign in to PicksLeagues</CardTitle>
+          <CardDescription>
+            NFL Pick&apos;Em leagues with friends.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LoginButtons />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
