@@ -6,7 +6,11 @@ import { getProfileByUserId } from "@/data/profiles";
 import { getSession } from "@/lib/auth";
 import { UnauthorizedError } from "@/lib/errors";
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
+export default async function SetupLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   let session;
   try {
     session = await getSession();
@@ -22,8 +26,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect("/login");
   }
 
-  if (!profile.setupComplete) {
-    redirect("/setup");
+  if (profile.setupComplete) {
+    redirect("/");
   }
 
   return (

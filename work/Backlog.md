@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 5      |
+| Complete    | 6      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 27     |
+| Pending     | 26     |
 | **Total**   | **32** |
 
 ---
@@ -66,7 +66,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - (public) layout for unauthenticated pages
   - Login page with Google + Discord OAuth buttons
 
-- [ ] PL-006: Profile setup + edit (BUSINESS_SPEC §2.1-2.2, §12.1, §12.7)
+- [x] PL-006: Profile setup + edit (BUSINESS_SPEC §2.1-2.2, §12.1, §12.7)
   - Profile setup page (shown after first login, ?setup=true)
   - Profile edit page
   - Username uniqueness validation, 3-50 chars, "anonymous" reserved

@@ -7,12 +7,12 @@ describe("getInitials", () => {
     expect(getInitials("Madonna")).toBe("M");
   });
 
-  it("returns the first letter of the first two words", () => {
+  it("returns first and last initials for two-word names", () => {
     expect(getInitials("Jane Doe")).toBe("JD");
   });
 
-  it("caps at two letters for longer names", () => {
-    expect(getInitials("Mary Jane Watson")).toBe("MJ");
+  it("returns first and last initials for longer names", () => {
+    expect(getInitials("Mary Jane Watson")).toBe("MW");
   });
 
   it("uppercases lowercase input", () => {

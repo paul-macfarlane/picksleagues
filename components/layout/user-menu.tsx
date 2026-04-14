@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { LogOutIcon } from "lucide-react";
+import { LogOutIcon, UserIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
@@ -65,6 +66,12 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <UserIcon className="size-4" />
+            Profile
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={(event) => {
             event.preventDefault();
