@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Logo } from "@/components/brand/logo";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { UserMenu } from "@/components/layout/user-menu";
 
@@ -20,11 +21,8 @@ export function AppShell({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur">
-        <Link
-          href="/"
-          className="text-base font-bold tracking-tight sm:text-lg"
-        >
-          PicksLeagues
+        <Link href="/" aria-label="PicksLeagues home">
+          <Logo />
         </Link>
         <UserMenu user={user} />
       </header>

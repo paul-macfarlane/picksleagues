@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Logo } from "@/components/brand/logo";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -8,11 +9,8 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="flex h-14 items-center justify-between px-4">
-        <Link
-          href="/"
-          className="text-base font-bold tracking-tight sm:text-lg"
-        >
-          PicksLeagues
+        <Link href="/" aria-label="PicksLeagues home">
+          <Logo />
         </Link>
         <ThemeToggle />
       </header>

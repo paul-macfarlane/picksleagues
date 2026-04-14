@@ -44,3 +44,4 @@ legacy
 
 # claude code local settings
 .claude/settings.json
+.claude/scheduled_tasks.lock

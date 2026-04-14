@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { LogoMark } from "@/components/brand/logo-mark";
 import { LoginButtons } from "@/components/auth/login-buttons";
 import {
   Card,
@@ -17,7 +18,8 @@ export default function LoginPage() {
   return (
     <div className="flex flex-1 items-center justify-center">
       <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
+        <CardHeader className="items-center text-center">
+          <LogoMark className="mb-2 h-12 w-12" title="PicksLeagues logo" />
           <CardTitle className="text-2xl">Sign in to PicksLeagues</CardTitle>
           <CardDescription>
             NFL Pick&apos;Em leagues with friends.

@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 8      |
+| Complete    | 9      |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 24     |
+| Pending     | 23     |
 | **Total**   | **32** |
 
 ---
@@ -83,7 +83,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Footer links from (public) and (app) layouts
   - Static content authored in-page (no CMS)
 
-- [ ] PL-009: Branding assets (logo, favicon, app icons)
+- [x] PL-009: Branding assets (logo, favicon, app icons)
   - Logo (SVG) — light + dark variants
   - app/icon.tsx or app/favicon.ico — favicon
   - app/apple-icon.tsx — iOS home-screen icon
