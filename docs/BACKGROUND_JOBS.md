@@ -135,18 +135,26 @@ Outside of game windows, these jobs return early (no-op `200 OK`). This avoids u
 ### Base URL
 
 ```
-https://site.api.espn.com/apis/site/v2/sports/football/nfl
+https://sports.core.api.espn.com/v2/sports/football/leagues/nfl
 ```
+
+We use ESPN's reference-based `sports.core.api.espn.com/v2` API rather than the `site.api.espn.com` scoreboard API. Responses are paginated lists of `$ref` URLs; each ref is resolved via a follow-up fetch. This is more round-trips but yields stable, typed records per entity (seasons, weeks, teams, events, odds, scores) that are easier to upsert into our schema.
 
 ### Key Endpoints
 
-| Endpoint                          | Description                      |
-| --------------------------------- | -------------------------------- |
-| `/scoreboard`                     | Current week's events and scores |
-| `/scoreboard?seasontype=2&week=N` | Regular season events for week N |
-| `/scoreboard?seasontype=3&week=N` | Postseason events for week N     |
-| `/teams`                          | All NFL teams                    |
-| `/summary?event={id}`             | Detailed event data              |
+| Endpoint                                          | Description                                      |
+| ------------------------------------------------- | ------------------------------------------------ |
+| `/seasons?limit=100`                              | All NFL seasons (list of `$ref`)                 |
+| `/seasons/{year}/types/{typeId}/weeks?limit=100`  | Weeks for a season type (list of `$ref`)         |
+| `/seasons/{year}/teams?limit=100`                 | Teams for a season (list of `$ref`)              |
+| `/seasons/{year}/types/{typeId}/weeks/{N}/events` | Events (games) for a week (list of `$ref`)       |
+| Competition `odds` ref                            | Odds for an event (resolved from event response) |
+| Competition `status` ref                          | Status for an event (resolved from competition)  |
+| Competitor `score` ref                            | Per-team score (resolved from competitor)        |
+
+### Pagination
+
+Endpoints default to 10 items per page. Pass `?limit=100` to fetch all entities in one request for the volumes we deal with (≤100 weeks/teams/events per season).
 
 ### Season Types
 
@@ -155,26 +163,30 @@ https://site.api.espn.com/apis/site/v2/sports/football/nfl
 | `1`   | Preseason      |
 | `2`   | Regular season |
 | `3`   | Postseason     |
+| `4`   | Offseason      |
+
+Pick'em syncs only regular season and postseason (type 2 and 3).
 
 ### Game Statuses
 
-ESPN returns a `status.type.state` on each event:
+Each event's `status.type.name` is one of:
 
-| Value  | Description     |
-| ------ | --------------- |
-| `pre`  | Not yet started |
-| `in`   | In progress     |
-| `post` | Final           |
+| Value                | Internal mapping |
+| -------------------- | ---------------- |
+| `STATUS_SCHEDULED`   | `not_started`    |
+| `STATUS_POSTPONED`   | `not_started`    |
+| `STATUS_IN_PROGRESS` | `in_progress`    |
+| `STATUS_FINAL`       | `final`          |
 
 The `status.type.completed` boolean can also be used to detect finished games.
 
 ### Pro Bowl Filtering
 
-The Pro Bowl (and Pro Bowl Skills events) appear in ESPN's scoreboard data but should be **excluded** from sync. Filter out events where the event name or notes indicate it is a Pro Bowl or Skills Challenge. These events do not have meaningful pick'em value and can cause data issues.
+The Pro Bowl (and the Pro Bowl Skills Challenge) appear in ESPN's weeks list but should be **excluded** from sync. Filter out any week whose label starts with "Pro Bowl". These events do not have meaningful pick'em value and can cause data issues.
 
 ### Week Date Override
 
-ESPN's scoreboard endpoint returns events for a "week" which may not exactly match calendar weeks. When syncing phases, the phase date range should be derived from the actual event dates within that phase, not from ESPN's week start/end metadata — ESPN's week boundaries can be inconsistent, especially around holidays and bye weeks.
+ESPN's weeks endpoint returns start/end dates for a "week" which may not exactly match calendar weeks. When syncing phases, the phase date range should be derived from the actual event dates within that phase, not from ESPN's week start/end metadata — ESPN's week boundaries can be inconsistent, especially around holidays and bye weeks.
 
 ---
 

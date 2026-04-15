@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 10     |
+| Complete    | 11     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 22     |
+| Pending     | 21     |
 | **Total**   | **32** |
 
 ---
@@ -97,7 +97,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
 
 ## 2. ESPN Integration (depends on: Foundation complete)
 
-- [ ] PL-010: ESPN client library (BACKGROUND_JOBS §6)
+- [x] PL-010: ESPN client library (BACKGROUND_JOBS §6)
   - lib/espn/shared/client.ts — base fetch, URL builders, pagination
   - lib/espn/shared/types.ts — shared ESPN response types
   - lib/espn/nfl/seasons.ts — fetch NFL seasons
