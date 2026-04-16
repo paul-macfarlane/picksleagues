@@ -11,7 +11,7 @@ vi.mock("@/data/events", () => ({
 }));
 
 vi.mock("@/data/sports", () => ({
-  upsertDataSource: vi.fn().mockResolvedValue({ id: "ds-1", name: "ESPN" }),
+  getDataSourceByName: vi.fn().mockResolvedValue({ id: "ds-1", name: "ESPN" }),
 }));
 
 vi.mock("@/lib/espn/nfl/scores", () => ({

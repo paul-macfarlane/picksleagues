@@ -1,5 +1,5 @@
 import { getScorableEvents, updateEvent } from "@/data/events";
-import { upsertDataSource } from "@/data/sports";
+import { getDataSourceByName } from "@/data/sports";
 import { fetchEventScore } from "@/lib/espn/nfl/scores";
 import { isGameWindowActive, isNflSeasonMonth } from "@/lib/nfl/scheduling";
 
@@ -27,7 +27,7 @@ export async function runLiveScoresSync(
     };
   }
 
-  const dataSource = await upsertDataSource({ name: "ESPN" });
+  const dataSource = await getDataSourceByName("ESPN");
   const scorableEvents = await getScorableEvents(dataSource.id);
 
   if (scorableEvents.length === 0) {

@@ -71,6 +71,37 @@ export interface ScorableEvent {
   awayScoreRef: string;
 }
 
+export interface OddsSyncableEvent {
+  eventId: string;
+  startTime: Date;
+  oddsRef: string;
+}
+
+export async function getOddsSyncableEvents(
+  dataSourceId: string,
+  tx?: Transaction,
+): Promise<OddsSyncableEvent[]> {
+  const client = tx ?? db;
+  const rows = await client
+    .select({
+      eventId: events.id,
+      startTime: events.startTime,
+      oddsRef: externalEvents.oddsRef,
+    })
+    .from(events)
+    .innerJoin(externalEvents, eq(events.id, externalEvents.eventId))
+    .where(
+      and(
+        eq(externalEvents.dataSourceId, dataSourceId),
+        eq(events.status, "not_started"),
+        isNotNull(externalEvents.oddsRef),
+      ),
+    );
+
+  // WHERE clause guarantees oddsRef is non-null
+  return rows as OddsSyncableEvent[];
+}
+
 export async function getScorableEvents(
   dataSourceId: string,
   tx?: Transaction,

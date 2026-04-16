@@ -1,5 +1,8 @@
+import { eq } from "drizzle-orm";
+
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import type {
   DataSource,
   NewSportsLeague,
@@ -11,6 +14,34 @@ import {
   sportsbooks,
   sportsLeagues,
 } from "@/lib/db/schema/sports";
+
+export async function getDataSourceByName(
+  name: string,
+  tx?: Transaction,
+): Promise<DataSource> {
+  const client = tx ?? db;
+  const result = await client.query.dataSources.findFirst({
+    where: eq(dataSources.name, name),
+  });
+  if (!result) {
+    throw new NotFoundError(`Data source "${name}" not found`);
+  }
+  return result;
+}
+
+export async function getSportsbookByName(
+  name: string,
+  tx?: Transaction,
+): Promise<Sportsbook> {
+  const client = tx ?? db;
+  const result = await client.query.sportsbooks.findFirst({
+    where: eq(sportsbooks.name, name),
+  });
+  if (!result) {
+    throw new NotFoundError(`Sportsbook "${name}" not found`);
+  }
+  return result;
+}
 
 export async function upsertDataSource(
   data: { name: string },

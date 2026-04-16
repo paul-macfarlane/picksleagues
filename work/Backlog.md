@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 13     |
+| Complete    | 14     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 19     |
+| Pending     | 18     |
 | **Total**   | **32** |
 
 ---
@@ -121,7 +121,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Updates event status/scores, marks events final
   - Logs finalized event count (standings recalculation in PL-015)
 
-- [ ] PL-013: Sync pipeline — odds (BACKGROUND_JOBS §4.2)
+- [x] PL-013: Sync pipeline — odds (BACKGROUND_JOBS §4.2)
   - lib/sync/nfl/odds-sync.ts
   - Syncs odds for current phase unstarted events
   - NFL season month gating
