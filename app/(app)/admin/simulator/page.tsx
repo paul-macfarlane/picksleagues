@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getStatus, SIMULATOR_MAX_YEAR_OFFSET } from "@/lib/simulator";
+import { getSimulatorYearRange, getStatus } from "@/lib/simulator";
 
 export const metadata: Metadata = {
   title: "Simulator",
@@ -19,8 +19,7 @@ export const metadata: Metadata = {
 
 export default async function SimulatorAdminPage() {
   const status = await getStatus();
-  const currentYear = new Date().getFullYear();
-  const minYear = currentYear - SIMULATOR_MAX_YEAR_OFFSET;
+  const { minYear, maxYear } = getSimulatorYearRange();
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
@@ -34,7 +33,7 @@ export default async function SimulatorAdminPage() {
 
       <SimulatorStatusCard status={status} />
 
-      <InitializeSimulatorForm currentYear={currentYear} minYear={minYear} />
+      <InitializeSimulatorForm currentYear={maxYear} minYear={minYear} />
 
       <Card>
         <CardHeader>

@@ -4,7 +4,6 @@ import type { Profile } from "@/lib/db/schema/profiles";
 import {
   BadRequestError,
   ForbiddenError,
-  NotFoundError,
   UnauthorizedError,
 } from "@/lib/errors";
 
@@ -12,12 +11,8 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getSession: vi.fn(),
-}));
-
-vi.mock("@/data/profiles", () => ({
-  getProfileByUserId: vi.fn(),
+vi.mock("@/lib/permissions", () => ({
+  requireAdminSession: vi.fn(),
 }));
 
 vi.mock("@/lib/simulator", () => ({
@@ -28,8 +23,7 @@ vi.mock("@/lib/simulator", () => ({
 
 import { revalidatePath } from "next/cache";
 
-import { getProfileByUserId } from "@/data/profiles";
-import { getSession } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/permissions";
 import { advancePhase, initializeSeason, resetSeason } from "@/lib/simulator";
 
 import {
@@ -50,16 +44,12 @@ const ADMIN_PROFILE: Profile = {
   updatedAt: new Date(),
 };
 
-const USER_PROFILE: Profile = { ...ADMIN_PROFILE, role: "user" };
-
-const SESSION = { user: { id: "user-1" } };
-
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(getSession).mockResolvedValue(
-    SESSION as Awaited<ReturnType<typeof getSession>>,
-  );
-  vi.mocked(getProfileByUserId).mockResolvedValue(ADMIN_PROFILE);
+  vi.mocked(requireAdminSession).mockResolvedValue({
+    userId: ADMIN_PROFILE.userId,
+    profile: ADMIN_PROFILE,
+  });
 });
 
 describe("initializeSimulatorAction", () => {
@@ -69,8 +59,10 @@ describe("initializeSimulatorAction", () => {
     expect(initializeSeason).not.toHaveBeenCalled();
   });
 
-  it("throws UnauthorizedError when no session", async () => {
-    vi.mocked(getSession).mockRejectedValueOnce(new UnauthorizedError());
+  it("throws UnauthorizedError when session is missing", async () => {
+    vi.mocked(requireAdminSession).mockRejectedValueOnce(
+      new UnauthorizedError(),
+    );
     await expect(
       initializeSimulatorAction({ year: 2023 }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
@@ -78,18 +70,11 @@ describe("initializeSimulatorAction", () => {
   });
 
   it("throws ForbiddenError for non-admin caller", async () => {
-    vi.mocked(getProfileByUserId).mockResolvedValue(USER_PROFILE);
+    vi.mocked(requireAdminSession).mockRejectedValueOnce(new ForbiddenError());
     await expect(
       initializeSimulatorAction({ year: 2023 }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(initializeSeason).not.toHaveBeenCalled();
-  });
-
-  it("throws NotFoundError when profile is missing", async () => {
-    vi.mocked(getProfileByUserId).mockResolvedValue(null);
-    await expect(
-      initializeSimulatorAction({ year: 2023 }),
-    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("returns a business error when simulator throws BadRequestError (e.g., year out of range)", async () => {
@@ -120,7 +105,7 @@ describe("initializeSimulatorAction", () => {
 
 describe("advancePhaseAction", () => {
   it("throws ForbiddenError for non-admin", async () => {
-    vi.mocked(getProfileByUserId).mockResolvedValue(USER_PROFILE);
+    vi.mocked(requireAdminSession).mockRejectedValueOnce(new ForbiddenError());
     await expect(advancePhaseAction()).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -142,7 +127,7 @@ describe("advancePhaseAction", () => {
 
 describe("resetSimulatorAction", () => {
   it("throws ForbiddenError for non-admin", async () => {
-    vi.mocked(getProfileByUserId).mockResolvedValue(USER_PROFILE);
+    vi.mocked(requireAdminSession).mockRejectedValueOnce(new ForbiddenError());
     await expect(resetSimulatorAction()).rejects.toBeInstanceOf(ForbiddenError);
   });
 

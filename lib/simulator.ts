@@ -49,13 +49,24 @@ export async function getAppNow(): Promise<Date> {
   return state?.initialized ? state.simNow : new Date();
 }
 
+export function getSimulatorYearRange(now: Date = new Date()): {
+  minYear: number;
+  maxYear: number;
+} {
+  const currentYear = now.getFullYear();
+  return {
+    minYear: currentYear - SIMULATOR_MAX_YEAR_OFFSET,
+    maxYear: currentYear,
+  };
+}
+
 export function isValidSimulatorYear(
   year: number,
   now: Date = new Date(),
 ): boolean {
   if (!Number.isInteger(year)) return false;
-  const currentYear = now.getFullYear();
-  return year <= currentYear && year >= currentYear - SIMULATOR_MAX_YEAR_OFFSET;
+  const { minYear, maxYear } = getSimulatorYearRange(now);
+  return year >= minYear && year <= maxYear;
 }
 
 export async function initializeSeason(
