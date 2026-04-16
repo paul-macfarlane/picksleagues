@@ -10,7 +10,7 @@ import type {
   NewOdds,
   Odds,
 } from "@/lib/db/schema/sports";
-import { events, odds } from "@/lib/db/schema/sports";
+import { events, odds, phases } from "@/lib/db/schema/sports";
 import { externalEvents } from "@/lib/db/schema/external";
 
 export async function insertEvent(
@@ -130,4 +130,58 @@ export async function getScorableEvents(
 
   // WHERE clause guarantees statusRef, homeScoreRef, awayScoreRef are non-null
   return rows as ScorableEvent[];
+}
+
+export async function getScorableEventsForPhase(
+  phaseId: string,
+  dataSourceId: string,
+  tx?: Transaction,
+): Promise<ScorableEvent[]> {
+  const client = tx ?? db;
+  const rows = await client
+    .select({
+      eventId: events.id,
+      status: events.status,
+      startTime: events.startTime,
+      statusRef: externalEvents.statusRef,
+      homeScoreRef: externalEvents.homeScoreRef,
+      awayScoreRef: externalEvents.awayScoreRef,
+    })
+    .from(events)
+    .innerJoin(externalEvents, eq(events.id, externalEvents.eventId))
+    .where(
+      and(
+        eq(events.phaseId, phaseId),
+        eq(externalEvents.dataSourceId, dataSourceId),
+        ne(events.status, "final"),
+        isNotNull(externalEvents.statusRef),
+        isNotNull(externalEvents.homeScoreRef),
+        isNotNull(externalEvents.awayScoreRef),
+      ),
+    );
+
+  // WHERE clause guarantees statusRef, homeScoreRef, awayScoreRef are non-null
+  return rows as ScorableEvent[];
+}
+
+export interface SeasonEventSummary {
+  id: string;
+  phaseId: string;
+  status: EventStatus;
+}
+
+export async function getEventsBySeason(
+  seasonId: string,
+  tx?: Transaction,
+): Promise<SeasonEventSummary[]> {
+  const client = tx ?? db;
+  return client
+    .select({
+      id: events.id,
+      phaseId: events.phaseId,
+      status: events.status,
+    })
+    .from(events)
+    .innerJoin(phases, eq(events.phaseId, phases.id))
+    .where(eq(phases.seasonId, seasonId));
 }

@@ -1,3 +1,5 @@
+import { and, eq } from "drizzle-orm";
+
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
 import type { NewSeason, Season } from "@/lib/db/schema/sports";
@@ -21,4 +23,27 @@ export async function upsertSeason(
     })
     .returning();
   return result;
+}
+
+export async function getSeasonByLeagueAndYear(
+  sportsLeagueId: string,
+  year: number,
+  tx?: Transaction,
+): Promise<Season | null> {
+  const client = tx ?? db;
+  const result = await client.query.seasons.findFirst({
+    where: and(
+      eq(seasons.sportsLeagueId, sportsLeagueId),
+      eq(seasons.year, year),
+    ),
+  });
+  return result ?? null;
+}
+
+export async function removeSeason(
+  seasonId: string,
+  tx?: Transaction,
+): Promise<void> {
+  const client = tx ?? db;
+  await client.delete(seasons).where(eq(seasons.id, seasonId));
 }

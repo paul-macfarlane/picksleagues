@@ -1,8 +1,11 @@
 import { handleCronRoute } from "@/lib/cron-auth";
+import { getAppNow } from "@/lib/simulator";
 import { runInitialSetup } from "@/lib/sync/nfl/setup";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request): Promise<Response> {
-  return handleCronRoute(request, () => runInitialSetup());
+  return handleCronRoute(request, async () =>
+    runInitialSetup(await getAppNow()),
+  );
 }

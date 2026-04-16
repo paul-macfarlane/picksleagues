@@ -110,3 +110,15 @@ export function isGameWindowActive(
       event.startTime.getTime() <= windowCutoff,
   );
 }
+
+export interface PhaseLike {
+  startDate: Date;
+  endDate: Date;
+}
+
+export function findActivePhase<P extends PhaseLike>(
+  phases: P[],
+  now: Date,
+): P | null {
+  return phases.find((p) => now >= p.startDate && now < p.endDate) ?? null;
+}
