@@ -19,7 +19,12 @@ When specs conflict, BUSINESS_SPEC.md wins.
 
 ## Workflow
 
-Follow [WAYS_OF_WORKING.md](./docs/WAYS_OF_WORKING.md) for the full process. The essentials:
+Two workflows coexist — pick per task:
+
+- **[WAYS_OF_WORKING.md](./docs/WAYS_OF_WORKING.md)** (V1) — story-at-a-time with a human review gate between each story. Run via `/implement`. Default for one-off stories, bug fixes, or anything needing intermediate UX feedback.
+- **[WAYS_OF_WORKING_V2.md](./docs/WAYS_OF_WORKING_V2.md)** (V2, "epic mode") — autonomous run across an entire backlog section on a dedicated branch, with AI code review replacing per-story human review, opening a PR at the end. Run via `/implement-epic`. Use for larger chunks when you want to come back to a finished PR.
+
+Essentials that apply to both:
 
 1. **Start every session** by reading [work/Backlog.md](./work/Backlog.md) to see what's done, in progress, and next
 2. **Trace every task** to a BUSINESS_SPEC.md section before implementing
