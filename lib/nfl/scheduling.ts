@@ -1,6 +1,6 @@
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 
-import type { SeasonType } from "@/lib/db/schema/sports";
+import type { EventStatus, SeasonType } from "@/lib/db/schema/sports";
 
 const EASTERN_TZ = "America/New_York";
 const LOCK_HOUR = 13; // 1:00 PM
@@ -88,4 +88,25 @@ export function calculatePhaseEndBoundary(latestEventStart: Date): Date {
   }
 
   return boundary;
+}
+
+const NFL_SEASON_MONTHS = new Set([0, 1, 7, 8, 9, 10, 11]); // Jan, Feb, Aug–Dec
+const GAME_WINDOW_LEAD_MS = 30 * 60 * 1000; // 30 minutes
+
+export function isNflSeasonMonth(now?: Date): boolean {
+  const month = (now ?? new Date()).getMonth();
+  return NFL_SEASON_MONTHS.has(month);
+}
+
+export function isGameWindowActive(
+  events: { startTime: Date; status: EventStatus }[],
+  now?: Date,
+): boolean {
+  const currentTime = now ?? new Date();
+  const windowCutoff = currentTime.getTime() + GAME_WINDOW_LEAD_MS;
+  return events.some(
+    (event) =>
+      event.status === "in_progress" ||
+      event.startTime.getTime() <= windowCutoff,
+  );
 }

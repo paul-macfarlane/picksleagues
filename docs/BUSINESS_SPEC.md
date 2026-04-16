@@ -420,9 +420,9 @@ Games progress through three statuses:
 | In Progress | Game is live. Shows current scores, period, and game clock.        |
 | Final       | Game is over. Shows final scores and pick results (win/loss/push). |
 
-### 10.2 Outcomes
+### 10.2 Final Scores
 
-When a game reaches "Final" status, an **outcome** record is created with the confirmed final scores. This outcome is the authoritative source for scoring picks — it's what the standings calculation uses.
+When a game reaches "Final" status, the event's scores are confirmed as final. An event with `status = "final"` is the authoritative source for scoring picks — it's what the standings calculation uses.
 
 ### 10.3 Display
 
@@ -446,7 +446,6 @@ The application syncs NFL data from ESPN's public API (no API key required). Thi
 | Games       | Scheduled matchups with home/away teams and start times                                   |
 | Odds        | Betting lines (spreads, moneylines, totals) for current and upcoming phase games          |
 | Live Scores | Real-time scores, game status, period, and clock for current and upcoming phase games     |
-| Outcomes    | Final confirmed scores when games end                                                     |
 
 ### 11.2 Sync Order
 

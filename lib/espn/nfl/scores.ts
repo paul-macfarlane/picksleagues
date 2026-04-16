@@ -1,6 +1,5 @@
 import { ESPN_GAME_STATUSES, espnFetch } from "@/lib/espn/shared/client";
-
-export type EventStatus = "not_started" | "in_progress" | "final";
+import type { EventStatus } from "@/lib/db/schema/sports";
 
 export interface EspnGameStatus {
   type: {

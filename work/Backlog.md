@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 12     |
+| Complete    | 13     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 20     |
+| Pending     | 19     |
 | **Total**   | **32** |
 
 ---
@@ -114,12 +114,12 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Phase date override (Tuesday 2AM ET boundaries)
   - Pro Bowl filtering
 
-- [ ] PL-012: Sync pipeline — live scores (BACKGROUND_JOBS §4.3)
+- [x] PL-012: Sync pipeline — live scores (BACKGROUND_JOBS §4.3)
   - lib/sync/nfl/live-scores.ts
   - Game window detection (30 min before first kickoff to 4 hrs after last)
   - NFL season month gating (Sep-Feb)
-  - Creates outcome records when games go final
-  - Calls standings recalculation
+  - Updates event status/scores, marks events final
+  - Logs finalized event count (standings recalculation in PL-015)
 
 - [ ] PL-013: Sync pipeline — odds (BACKGROUND_JOBS §4.2)
   - lib/sync/nfl/odds-sync.ts

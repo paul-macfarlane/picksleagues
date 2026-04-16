@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import type { EventStatus } from "@/lib/db/schema/sports";
+
 import {
   calculatePhaseEndBoundary,
   calculatePhaseStartBoundary,
   calculatePickLockTime,
+  isGameWindowActive,
+  isNflSeasonMonth,
 } from "./scheduling";
 
 describe("calculatePickLockTime", () => {
@@ -149,5 +153,82 @@ describe("calculatePhaseEndBoundary", () => {
 
     // Tuesday Dec 9, 2025 at 2 AM EST = 7 AM UTC
     expect(result).toEqual(new Date("2025-12-09T07:00:00.000Z"));
+  });
+});
+
+describe("isNflSeasonMonth", () => {
+  it.each([
+    { month: "August", date: "2025-08-15T12:00:00Z" },
+    { month: "September", date: "2025-09-15T12:00:00Z" },
+    { month: "October", date: "2025-10-15T12:00:00Z" },
+    { month: "November", date: "2025-11-15T12:00:00Z" },
+    { month: "December", date: "2025-12-15T12:00:00Z" },
+    { month: "January", date: "2026-01-15T12:00:00Z" },
+    { month: "February", date: "2026-02-15T12:00:00Z" },
+  ])("returns true for $month", ({ date }) => {
+    expect(isNflSeasonMonth(new Date(date))).toBe(true);
+  });
+
+  it.each([
+    { month: "March", date: "2026-03-15T12:00:00Z" },
+    { month: "April", date: "2026-04-15T12:00:00Z" },
+    { month: "May", date: "2026-05-15T12:00:00Z" },
+    { month: "June", date: "2026-06-15T12:00:00Z" },
+    { month: "July", date: "2026-07-15T12:00:00Z" },
+  ])("returns false for $month", ({ date }) => {
+    expect(isNflSeasonMonth(new Date(date))).toBe(false);
+  });
+});
+
+describe("isGameWindowActive", () => {
+  function makeEvent(
+    startTime: string,
+    status: EventStatus = "not_started",
+  ): { startTime: Date; status: EventStatus } {
+    return { startTime: new Date(startTime), status };
+  }
+
+  it("returns false for empty events array", () => {
+    expect(isGameWindowActive([], new Date("2025-09-14T16:00:00Z"))).toBe(
+      false,
+    );
+  });
+
+  it("returns true when an event is in_progress", () => {
+    const events = [makeEvent("2025-09-14T17:00:00Z", "in_progress")];
+    expect(isGameWindowActive(events, new Date("2025-09-14T19:00:00Z"))).toBe(
+      true,
+    );
+  });
+
+  it("returns true when an event starts within 30 minutes", () => {
+    const events = [makeEvent("2025-09-14T17:00:00Z")];
+    // 20 minutes before kickoff
+    expect(isGameWindowActive(events, new Date("2025-09-14T16:40:00Z"))).toBe(
+      true,
+    );
+  });
+
+  it("returns true when an event starts exactly 30 minutes from now", () => {
+    const events = [makeEvent("2025-09-14T17:00:00Z")];
+    expect(isGameWindowActive(events, new Date("2025-09-14T16:30:00Z"))).toBe(
+      true,
+    );
+  });
+
+  it("returns false when all events start more than 30 minutes from now", () => {
+    const events = [makeEvent("2025-09-14T17:00:00Z")];
+    // 31 minutes before kickoff
+    expect(isGameWindowActive(events, new Date("2025-09-14T16:29:00Z"))).toBe(
+      false,
+    );
+  });
+
+  it("returns true when an event already started but is not final", () => {
+    const events = [makeEvent("2025-09-14T17:00:00Z", "not_started")];
+    // 2 hours after start time
+    expect(isGameWindowActive(events, new Date("2025-09-14T19:00:00Z"))).toBe(
+      true,
+    );
   });
 });
