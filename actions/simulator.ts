@@ -2,22 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getProfileByUserId } from "@/data/profiles";
-import { getSession } from "@/lib/auth";
-import { BadRequestError, NotFoundError } from "@/lib/errors";
-import { assertAdmin } from "@/lib/permissions";
+import { BadRequestError } from "@/lib/errors";
+import { requireAdminSession } from "@/lib/permissions";
 import { advancePhase, initializeSeason, resetSeason } from "@/lib/simulator";
 import type { ActionResult } from "@/lib/types";
 import { initializeSimulatorSchema } from "@/lib/validators/simulator";
 
 const SIMULATOR_PATH = "/admin/simulator";
-
-async function assertCallerIsAdmin(): Promise<void> {
-  const session = await getSession();
-  const profile = await getProfileByUserId(session.user.id);
-  if (!profile) throw new NotFoundError("Profile not found");
-  assertAdmin(profile);
-}
 
 export async function initializeSimulatorAction(
   input: unknown,
@@ -30,7 +21,7 @@ export async function initializeSimulatorAction(
     };
   }
 
-  await assertCallerIsAdmin();
+  await requireAdminSession();
 
   try {
     await initializeSeason(parsed.data.year);
@@ -46,7 +37,7 @@ export async function initializeSimulatorAction(
 }
 
 export async function advancePhaseAction(): Promise<ActionResult> {
-  await assertCallerIsAdmin();
+  await requireAdminSession();
 
   try {
     await advancePhase();
@@ -62,7 +53,7 @@ export async function advancePhaseAction(): Promise<ActionResult> {
 }
 
 export async function resetSimulatorAction(): Promise<ActionResult> {
-  await assertCallerIsAdmin();
+  await requireAdminSession();
 
   await resetSeason();
 
