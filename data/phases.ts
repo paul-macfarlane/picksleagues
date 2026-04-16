@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
@@ -43,4 +43,16 @@ export async function updatePhase(
     throw new NotFoundError("Phase not found");
   }
   return result;
+}
+
+export async function getPhasesBySeason(
+  seasonId: string,
+  tx?: Transaction,
+): Promise<Phase[]> {
+  const client = tx ?? db;
+  return client
+    .select()
+    .from(phases)
+    .where(eq(phases.seasonId, seasonId))
+    .orderBy(asc(phases.startDate));
 }

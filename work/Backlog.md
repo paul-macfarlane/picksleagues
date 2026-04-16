@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 15     |
-| In Progress | 2      |
+| Complete    | 16     |
+| In Progress | 1      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **32** |
@@ -138,7 +138,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
 
 > Simulator must be ready before Picks & Scoring — it's the only way to test during off-season.
 
-- [~] PL-040: Simulator service (testing.md initial-doc)
+- [x] PL-040: Simulator service (testing.md initial-doc)
   - lib/simulator.ts — initializeSeason(year), advancePhase(), getStatus(), resetSeason()
   - Uses same sync functions as production cron jobs
   - Fetches historical ESPN data and replays phase by phase

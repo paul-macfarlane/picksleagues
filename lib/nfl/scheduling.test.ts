@@ -6,6 +6,7 @@ import {
   calculatePhaseEndBoundary,
   calculatePhaseStartBoundary,
   calculatePickLockTime,
+  findActivePhase,
   isGameWindowActive,
   isNflSeasonMonth,
 } from "./scheduling";
@@ -230,5 +231,67 @@ describe("isGameWindowActive", () => {
     expect(isGameWindowActive(events, new Date("2025-09-14T19:00:00Z"))).toBe(
       true,
     );
+  });
+});
+
+describe("findActivePhase", () => {
+  const phase1 = {
+    id: "p1",
+    startDate: new Date("2025-09-09T06:00:00Z"),
+    endDate: new Date("2025-09-16T06:00:00Z"),
+  };
+  const phase2 = {
+    id: "p2",
+    startDate: new Date("2025-09-16T06:00:00Z"),
+    endDate: new Date("2025-09-23T06:00:00Z"),
+  };
+
+  it("returns the phase whose window contains now", () => {
+    const result = findActivePhase(
+      [phase1, phase2],
+      new Date("2025-09-14T12:00:00Z"),
+    );
+    expect(result?.id).toBe("p1");
+  });
+
+  it("includes the exact start boundary (inclusive)", () => {
+    const result = findActivePhase([phase1, phase2], phase1.startDate);
+    expect(result?.id).toBe("p1");
+  });
+
+  it("excludes the exact end boundary (exclusive) — rolls to next phase", () => {
+    // phase1.endDate === phase2.startDate (contiguous boundary)
+    const result = findActivePhase([phase1, phase2], phase1.endDate);
+    expect(result?.id).toBe("p2");
+  });
+
+  it("returns null when now is before any phase", () => {
+    const result = findActivePhase(
+      [phase1, phase2],
+      new Date("2025-09-01T00:00:00Z"),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when now is after every phase", () => {
+    const result = findActivePhase(
+      [phase1, phase2],
+      new Date("2025-10-01T00:00:00Z"),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when now falls in a gap between non-contiguous phases", () => {
+    // Phase with a gap after phase1 (simulates the lull before Super Bowl)
+    const phaseAfterGap = {
+      id: "p3",
+      startDate: new Date("2025-09-30T06:00:00Z"),
+      endDate: new Date("2025-10-07T06:00:00Z"),
+    };
+    const result = findActivePhase(
+      [phase1, phaseAfterGap],
+      new Date("2025-09-20T12:00:00Z"),
+    );
+    expect(result).toBeNull();
   });
 });
