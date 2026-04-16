@@ -43,6 +43,22 @@ export async function getSportsbookByName(
   return result;
 }
 
+export async function getSportsLeagueByAbbreviation(
+  abbreviation: string,
+  tx?: Transaction,
+): Promise<SportsLeague> {
+  const client = tx ?? db;
+  const result = await client.query.sportsLeagues.findFirst({
+    where: eq(sportsLeagues.abbreviation, abbreviation),
+  });
+  if (!result) {
+    throw new NotFoundError(
+      `Sports league with abbreviation "${abbreviation}" not found`,
+    );
+  }
+  return result;
+}
+
 export async function upsertDataSource(
   data: { name: string },
   tx?: Transaction,

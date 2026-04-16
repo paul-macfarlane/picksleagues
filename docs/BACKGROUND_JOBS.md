@@ -54,7 +54,7 @@ This job is idempotent — running it again should not create duplicates.
 
 ### 2. Weekly Sync Job
 
-**Route:** `app/api/cron/nfl/sync-weekly`
+**Route:** `app/api/cron/nfl/weekly-sync`
 **Schedule:** Once per week (e.g., Tuesday morning, after the previous week's games are fully settled)
 
 Refreshes structural data that changes week to week:
@@ -69,7 +69,7 @@ This job does **not** sync odds or live scores — those have dedicated jobs.
 
 ### 3. Odds Sync Job
 
-**Route:** `app/api/cron/nfl/sync-odds`
+**Route:** `app/api/cron/nfl/odds-sync`
 **Schedule:** Every 15 minutes during the active pick window
 
 Fetches current odds from the sportsbook and updates events. Only runs during the game window (see Game Window Detection below).
@@ -80,7 +80,7 @@ Odds are relevant until the pick lock deadline for each event. After an event st
 
 ### 4. Live Scores Job
 
-**Route:** `app/api/cron/nfl/sync-scores`
+**Route:** `app/api/cron/nfl/live-scores`
 **Schedule:** Every 5 minutes during active game windows
 
 Fetches current scores and game statuses from ESPN. Updates event records with:
@@ -111,9 +111,9 @@ Standings can also be triggered manually if needed (e.g., if a score was correct
 | Job           | Route                          | Schedule                  | Self-Gated        |
 | ------------- | ------------------------------ | ------------------------- | ----------------- |
 | Initial Setup | `app/api/cron/nfl/setup`       | Manual                    | No                |
-| Weekly Sync   | `app/api/cron/nfl/sync-weekly` | Weekly (e.g., Tue 6am ET) | Yes               |
-| Odds Sync     | `app/api/cron/nfl/sync-odds`   | Every 15 min              | Yes (game window) |
-| Live Scores   | `app/api/cron/nfl/sync-scores` | Every 5 min               | Yes (game window) |
+| Weekly Sync   | `app/api/cron/nfl/weekly-sync` | Weekly (e.g., Tue 6am ET) | Yes               |
+| Odds Sync     | `app/api/cron/nfl/odds-sync`   | Every 15 min              | Yes (game window) |
+| Live Scores   | `app/api/cron/nfl/live-scores` | Every 5 min               | Yes (game window) |
 
 ---
 
