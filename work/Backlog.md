@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 16     |
-| In Progress | 1      |
+| Complete    | 17     |
+| In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **32** |
@@ -143,7 +143,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Uses same sync functions as production cron jobs
   - Fetches historical ESPN data and replays phase by phase
 
-- [~] PL-041: Admin simulator UI
+- [x] PL-041: Admin simulator UI
   - app/(app)/admin/simulator/page.tsx
   - Controls: Initialize Season (year input), Advance Phase, Reset
   - Status display: current phase, events completed, standings state
