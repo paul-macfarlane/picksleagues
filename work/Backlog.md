@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 14     |
-| In Progress | 1      |
+| Complete    | 15     |
+| In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 17     |
 | **Total**   | **32** |
@@ -126,7 +126,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Syncs odds for current phase unstarted events
   - NFL season month gating
 
-- [~] PL-014: Cron route handlers + API key auth (BACKGROUND_JOBS §2)
+- [x] PL-014: Cron route handlers + API key auth (BACKGROUND_JOBS §2)
   - lib/cron-auth.ts — Bearer token verification
   - lib/sync/nfl/weekly-sync.ts — runWeeklySync (phases + teams + events; no odds)
   - app/api/cron/nfl/setup/route.ts
