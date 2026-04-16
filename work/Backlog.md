@@ -11,9 +11,9 @@
 | Status      | Count  |
 | ----------- | ------ |
 | Complete    | 14     |
-| In Progress | 0      |
+| In Progress | 1      |
 | Blocked     | 0      |
-| Pending     | 18     |
+| Pending     | 17     |
 | **Total**   | **32** |
 
 ---
@@ -126,17 +126,13 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Syncs odds for current phase unstarted events
   - NFL season month gating
 
-- [ ] PL-014: Cron route handlers + API key auth (BACKGROUND_JOBS §2)
+- [~] PL-014: Cron route handlers + API key auth (BACKGROUND_JOBS §2)
   - lib/cron-auth.ts — Bearer token verification
+  - lib/sync/nfl/weekly-sync.ts — runWeeklySync (phases + teams + events; no odds)
   - app/api/cron/nfl/setup/route.ts
   - app/api/cron/nfl/weekly-sync/route.ts
   - app/api/cron/nfl/odds-sync/route.ts
   - app/api/cron/nfl/live-scores/route.ts
-
-- [ ] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
-  - lib/sync/nfl/standings.ts
-  - Score unscored picks, recalculate totals, recompute dense rankings
-  - Full integrity check (recompute from all scored picks)
 
 ## 3. Simulator (depends on: ESPN Integration complete)
 
@@ -227,6 +223,13 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Standings tab: sortable table with rank, player, points, W/L/P
   - Dense ranking
   - Season history (prior season standings preserved)
+
+- [ ] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
+  - Re-slotted from Section 2 — depends on picks (PL-028), pick scoring (PL-030), standings schema (PL-031).
+  - lib/sync/nfl/standings.ts
+  - Score unscored picks, recalculate totals, recompute dense rankings
+  - Full integrity check (recompute from all scored picks)
+  - Wire call from runLiveScoresSync when events finalize
 
 - [ ] PL-032: Phase navigation (BUSINESS_SPEC §6.3-6.4)
   - Prev/next phase browsing
