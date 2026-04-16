@@ -12,7 +12,10 @@
 | Pages          | `app/**/page.tsx` | `data/`, `lib/`, `components/`             | Drizzle, `actions/` (except form wiring)    |
 | Components     | `components/`     | `lib/` (for logic calls), other components | Drizzle, `data/`                            |
 
-**Exception**: `lib/permissions.ts` may call `data/` functions — permissions are inherently data-dependent.
+**Exceptions**:
+
+- `lib/permissions.ts` may call `data/` functions — permissions are inherently data-dependent.
+- `lib/sync/` may call `data/` functions — sync pipelines orchestrate external data fetching and database persistence.
 
 ## Server Action Pattern
 

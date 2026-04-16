@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 11     |
+| Complete    | 12     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 21     |
+| Pending     | 20     |
 | **Total**   | **32** |
 
 ---
@@ -107,7 +107,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - lib/espn/nfl/scores.ts — fetch live scores
   - lib/espn/nfl/odds.ts — fetch odds data
 
-- [ ] PL-011: Sync pipeline — initial setup (BACKGROUND_JOBS §3)
+- [x] PL-011: Sync pipeline — initial setup (BACKGROUND_JOBS §3)
   - lib/sync/nfl/setup.ts — one-time idempotent setup
   - Seeds: data source (ESPN), sportsbook (ESPN Bet)
   - Syncs: seasons, phases (with lock time calculation), teams, events, odds
