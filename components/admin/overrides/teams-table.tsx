@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 
+import { TeamLogo } from "@/components/team-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +28,6 @@ import type { Team } from "@/lib/db/schema/sports";
 import { DetailRow } from "./detail-row";
 import { EditTeamDialog } from "./edit-team-dialog";
 import { formatUtc } from "./format";
-import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
 export function TeamsTable({ teams }: { teams: Team[] }) {
@@ -59,14 +58,13 @@ export function TeamsTable({ teams }: { teams: Team[] }) {
             <TableRow>
               <TableHead className="w-20">Abbr</TableHead>
               <TableHead>Team</TableHead>
-              <TableHead className="w-24">Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={3} className="text-muted-foreground">
                   No teams match “{query}”.
                 </TableCell>
               </TableRow>
@@ -88,15 +86,14 @@ function TeamRow({ team }: { team: Team }) {
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
-          {team.logoUrl ? (
-            <Image
-              src={team.logoUrl}
-              alt=""
-              width={24}
-              height={24}
-              className="size-6 rounded-sm"
-            />
-          ) : null}
+          <TeamLogo
+            logoUrl={team.logoUrl}
+            logoDarkUrl={team.logoDarkUrl}
+            alt=""
+            width={24}
+            height={24}
+            className="size-6 rounded-sm"
+          />
           <div className="flex flex-col">
             <span className="font-medium">{team.name}</span>
             <span className="text-xs text-muted-foreground">
@@ -104,9 +101,6 @@ function TeamRow({ team }: { team: Team }) {
             </span>
           </div>
         </div>
-      </TableCell>
-      <TableCell>
-        <LockBadge lockedAt={team.lockedAt} />
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap justify-end gap-2">
@@ -128,7 +122,7 @@ function TeamDetailDialog({ team }: { team: Team }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        <Button size="sm" variant="outline">
           Details
         </Button>
       </DialogTrigger>

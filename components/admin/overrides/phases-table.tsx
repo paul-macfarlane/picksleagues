@@ -24,7 +24,6 @@ import type { Phase } from "@/lib/db/schema/sports";
 import { DetailRow } from "./detail-row";
 import { EditPhaseDialog } from "./edit-phase-dialog";
 import { formatUtc } from "./format";
-import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
 export function PhasesTable({ phases }: { phases: Phase[] }) {
@@ -44,7 +43,6 @@ export function PhasesTable({ phases }: { phases: Phase[] }) {
             <TableHead className="w-16">Wk</TableHead>
             <TableHead>Label</TableHead>
             <TableHead className="hidden sm:table-cell">Window</TableHead>
-            <TableHead className="w-24">Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -67,9 +65,6 @@ function PhaseRow({ phase }: { phase: Phase }) {
         {formatUtc(phase.startDate)} → {formatUtc(phase.endDate)}
       </TableCell>
       <TableCell>
-        <LockBadge lockedAt={phase.lockedAt} />
-      </TableCell>
-      <TableCell>
         <div className="flex flex-wrap justify-end gap-2">
           <PhaseDetailDialog phase={phase} />
           <EditPhaseDialog phase={phase} />
@@ -89,7 +84,7 @@ function PhaseDetailDialog({ phase }: { phase: Phase }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        <Button size="sm" variant="outline">
           Details
         </Button>
       </DialogTrigger>

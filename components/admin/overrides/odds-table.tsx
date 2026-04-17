@@ -24,7 +24,6 @@ import type { OddsWithContext } from "@/data/events";
 import { DetailRow } from "./detail-row";
 import { EditOddsDialog } from "./edit-odds-dialog";
 import { formatUtc } from "./format";
-import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
 function formatNumber(n: number | null, precision = 1): string {
@@ -55,7 +54,6 @@ export function OddsTable({ odds }: { odds: OddsWithContext[] }) {
             <TableHead className="hidden sm:table-cell">Book</TableHead>
             <TableHead className="w-24 text-right">Home sprd</TableHead>
             <TableHead className="w-24 text-right">Away sprd</TableHead>
-            <TableHead className="w-24">Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -91,9 +89,6 @@ function OddsRow({ row }: { row: OddsWithContext }) {
         {formatNumber(row.awaySpread)}
       </TableCell>
       <TableCell>
-        <LockBadge lockedAt={row.lockedAt} />
-      </TableCell>
-      <TableCell>
         <div className="flex flex-wrap justify-end gap-2">
           <OddsDetailDialog row={row} matchup={matchup} />
           <EditOddsDialog row={row} />
@@ -119,7 +114,7 @@ function OddsDetailDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        <Button size="sm" variant="outline">
           Details
         </Button>
       </DialogTrigger>
