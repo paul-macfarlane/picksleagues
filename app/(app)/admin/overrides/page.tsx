@@ -133,7 +133,10 @@ async function EventsTabContent({
   }
 
   const activePhaseId = resolveActiveId(phases, phase);
-  const events = await getEventsByPhaseWithTeams(activePhaseId);
+  const [events, teams] = await Promise.all([
+    getEventsByPhaseWithTeams(activePhaseId),
+    getTeamsBySportsLeague(nfl.id),
+  ]);
   const externalEvents = await getExternalEventsByEventIds(
     events.map((e) => e.id),
   );
@@ -148,7 +151,11 @@ async function EventsTabContent({
         <SeasonFilter seasons={seasons} current={activeSeasonId} />
         <PhaseFilter phases={phases} current={activePhaseId} />
       </div>
-      <EventsTable events={events} externalEventMap={externalEventMap} />
+      <EventsTable
+        events={events}
+        externalEventMap={externalEventMap}
+        teams={teams}
+      />
     </div>
   );
 }

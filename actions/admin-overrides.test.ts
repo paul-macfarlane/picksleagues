@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   toggleLockAction,
+  updateEventAction,
   updatePhaseAction,
   updateTeamAction,
 } from "@/actions/admin-overrides";
@@ -10,6 +11,7 @@ import {
   clearLockedOdds,
   setLockedEvent,
   setLockedOdds,
+  updateEvent,
 } from "@/data/events";
 import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
 import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
@@ -34,6 +36,7 @@ vi.mock("@/data/events", () => ({
   clearLockedEvent: vi.fn(),
   setLockedOdds: vi.fn(),
   clearLockedOdds: vi.fn(),
+  updateEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/permissions", () => ({
@@ -320,5 +323,110 @@ describe("updatePhaseAction", () => {
     const result = await updatePhaseAction(validInput());
 
     expect(result).toEqual({ success: false, error: "Phase not found" });
+  });
+});
+
+describe("updateEventAction", () => {
+  const HOME_TEAM_ID = "22222222-2222-4222-8222-222222222222";
+  const AWAY_TEAM_ID = "33333333-3333-4333-8333-333333333333";
+
+  function validInput() {
+    return {
+      id: UUID,
+      homeTeamId: HOME_TEAM_ID,
+      awayTeamId: AWAY_TEAM_ID,
+      startTime: "2025-09-09 17:00",
+      status: "not_started" as const,
+      homeScore: "",
+      awayScore: "",
+    };
+  }
+
+  it("rejects when home and away teams are the same", async () => {
+    const result = await updateEventAction({
+      ...validInput(),
+      awayTeamId: HOME_TEAM_ID,
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateEvent).not.toHaveBeenCalled();
+  });
+
+  it("requires scores when status is final", async () => {
+    const result = await updateEventAction({
+      ...validInput(),
+      status: "final",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-numeric scores", async () => {
+    const result = await updateEventAction({
+      ...validInput(),
+      status: "final",
+      homeScore: "seven",
+      awayScore: "3",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects negative scores (regex-enforced)", async () => {
+    const result = await updateEventAction({
+      ...validInput(),
+      homeScore: "-3",
+      awayScore: "7",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateEvent).not.toHaveBeenCalled();
+  });
+
+  it("converts empty scores to null and auto-locks for not_started", async () => {
+    const result = await updateEventAction(validInput());
+
+    expect(result.success).toBe(true);
+    expect(updateEvent).toHaveBeenCalledWith(UUID, {
+      homeTeamId: HOME_TEAM_ID,
+      awayTeamId: AWAY_TEAM_ID,
+      startTime: new Date("2025-09-09T17:00:00Z"),
+      status: "not_started",
+      homeScore: null,
+      awayScore: null,
+      lockedAt: expect.any(Date),
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/overrides");
+  });
+
+  it("parses final with scores", async () => {
+    const result = await updateEventAction({
+      ...validInput(),
+      status: "final",
+      homeScore: "24",
+      awayScore: "17",
+    });
+
+    expect(result.success).toBe(true);
+    expect(updateEvent).toHaveBeenCalledWith(
+      UUID,
+      expect.objectContaining({
+        status: "final",
+        homeScore: 24,
+        awayScore: 17,
+      }),
+    );
+  });
+
+  it("returns a business error when the event is missing", async () => {
+    vi.mocked(updateEvent).mockRejectedValueOnce(
+      new NotFoundError("Event not found"),
+    );
+
+    const result = await updateEventAction(validInput());
+
+    expect(result).toEqual({ success: false, error: "Event not found" });
   });
 });

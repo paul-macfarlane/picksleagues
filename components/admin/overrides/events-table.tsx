@@ -23,7 +23,9 @@ import {
 } from "@/components/ui/table";
 import type { EventWithTeams } from "@/data/events";
 import type { ExternalEvent } from "@/lib/db/schema/external";
+import type { Team } from "@/lib/db/schema/sports";
 
+import { EditEventDialog } from "./edit-event-dialog";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
@@ -40,9 +42,11 @@ function formatScore(home: number | null, away: number | null): string {
 export function EventsTable({
   events,
   externalEventMap,
+  teams,
 }: {
   events: EventWithTeams[];
   externalEventMap: Map<string, ExternalEvent>;
+  teams: Team[];
 }) {
   if (events.length === 0) {
     return (
@@ -61,7 +65,7 @@ export function EventsTable({
             <TableHead className="hidden sm:table-cell">Kickoff</TableHead>
             <TableHead className="w-28">Status</TableHead>
             <TableHead className="w-20 text-right">Score</TableHead>
-            <TableHead className="w-40 text-right">Actions</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -70,6 +74,7 @@ export function EventsTable({
               key={event.id}
               event={event}
               externalEvent={externalEventMap.get(event.id) ?? null}
+              teams={teams}
             />
           ))}
         </TableBody>
@@ -81,9 +86,11 @@ export function EventsTable({
 function EventRow({
   event,
   externalEvent,
+  teams,
 }: {
   event: EventWithTeams;
   externalEvent: ExternalEvent | null;
+  teams: Team[];
 }) {
   const matchupLabel = `${event.awayTeam.abbreviation} @ ${event.homeTeam.abbreviation}`;
   return (
@@ -111,12 +118,13 @@ function EventRow({
         {formatScore(event.homeScore, event.awayScore)}
       </TableCell>
       <TableCell>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <EventDetailDialog
             event={event}
             externalEvent={externalEvent}
             matchupLabel={matchupLabel}
           />
+          <EditEventDialog event={event} teams={teams} />
           <LockToggle
             entity="event"
             id={event.id}
