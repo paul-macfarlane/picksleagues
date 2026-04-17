@@ -11,9 +11,9 @@
 | Status      | Count  |
 | ----------- | ------ |
 | Complete    | 17     |
-| In Progress | 0      |
+| In Progress | 5      |
 | Blocked     | 0      |
-| Pending     | 20     |
+| Pending     | 15     |
 | **Total**   | **37** |
 
 ---
@@ -155,30 +155,30 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 > Manual escape hatch when ESPN data is wrong or a sync regresses — admins can edit entities by hand and lock them against future auto-overrides. Parallel to Leagues / Picks & Scoring; doesn't block either.
 
-- [ ] PL-070: Override lock infrastructure
+- [~] PL-070: Override lock infrastructure
   - Add `locked_at` nullable timestamp column to teams, phases, events, odds
   - data/ layer: setLocked*/clearLocked* helpers for each entity
   - Sync pipelines (runStructuralSync, runLiveScoresSync, runOddsSync) skip upserts/updates on locked rows
   - Tests: sync respects locks; manual edits auto-set locked_at
 
-- [ ] PL-071: Admin override index + lock toggle
+- [~] PL-071: Admin override index + lock toggle
   - app/(app)/admin/overrides/page.tsx with tabs for teams / phases / events / odds
   - Table view per entity with search + filter (season, phase, team)
   - Locked badge + lock/unlock toggle per row
   - Read-only detail view; edit forms arrive in PL-072–PL-074
 
-- [ ] PL-072: Edit teams + phases
+- [~] PL-072: Edit teams + phases
   - actions/admin-overrides.ts: updateTeamAction, updatePhaseAction
   - lib/validators/admin-overrides.ts: team/phase edit schemas
   - Edit forms (RHF + zod) for name / location / abbreviation / logo URLs (teams) and label / start / end / pick lock time (phases)
   - Save auto-sets locked_at on the edited row
 
-- [ ] PL-073: Edit events + scores
+- [~] PL-073: Edit events + scores
   - Edit form for home team / away team / start time / status / scores
   - Admin can manually mark an event final with custom scores (correction path for ESPN errors)
   - Auto-lock on save
 
-- [ ] PL-074: Edit odds
+- [~] PL-074: Edit odds
   - Edit form for spreads / moneylines / over-under per sportsbook
   - Auto-lock on save
 
