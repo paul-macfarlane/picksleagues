@@ -13,18 +13,20 @@
 | Complete    | 17     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 15     |
-| **Total**   | **32** |
+| Pending     | 20     |
+| **Total**   | **37** |
 
 ---
 
 ## Dependency Graph
 
 ```
-Foundation ──┬── ESPN Integration ── Simulator ──┐
-             │                                    │
-             └── Leagues ─────────────────────────┴── Picks & Scoring ── Polish ── Deployment
+Foundation ──┬── ESPN Integration ── Simulator ──┬── Admin Overrides ──┐
+             │                                    │                     │
+             └── Leagues ─────────────────────────┴── Picks & Scoring ──┴── Polish ── Deployment
 ```
+
+Admin Overrides is a parallel track off Simulator — it reuses the admin gate and entity tables but doesn't block Leagues or Picks & Scoring.
 
 ---
 
@@ -149,7 +151,38 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Status display: current phase, events completed, standings state
   - Protected by admin check
 
-## 4. Leagues (depends on: Foundation complete)
+## 4. Admin Overrides (depends on: Simulator complete)
+
+> Manual escape hatch when ESPN data is wrong or a sync regresses — admins can edit entities by hand and lock them against future auto-overrides. Parallel to Leagues / Picks & Scoring; doesn't block either.
+
+- [ ] PL-070: Override lock infrastructure
+  - Add `locked_at` nullable timestamp column to teams, phases, events, odds
+  - data/ layer: setLocked*/clearLocked* helpers for each entity
+  - Sync pipelines (runStructuralSync, runLiveScoresSync, runOddsSync) skip upserts/updates on locked rows
+  - Tests: sync respects locks; manual edits auto-set locked_at
+
+- [ ] PL-071: Admin override index + lock toggle
+  - app/(app)/admin/overrides/page.tsx with tabs for teams / phases / events / odds
+  - Table view per entity with search + filter (season, phase, team)
+  - Locked badge + lock/unlock toggle per row
+  - Read-only detail view; edit forms arrive in PL-072–PL-074
+
+- [ ] PL-072: Edit teams + phases
+  - actions/admin-overrides.ts: updateTeamAction, updatePhaseAction
+  - lib/validators/admin-overrides.ts: team/phase edit schemas
+  - Edit forms (RHF + zod) for name / location / abbreviation / logo URLs (teams) and label / start / end / pick lock time (phases)
+  - Save auto-sets locked_at on the edited row
+
+- [ ] PL-073: Edit events + scores
+  - Edit form for home team / away team / start time / status / scores
+  - Admin can manually mark an event final with custom scores (correction path for ESPN errors)
+  - Auto-lock on save
+
+- [ ] PL-074: Edit odds
+  - Edit form for spreads / moneylines / over-under per sportsbook
+  - Auto-lock on save
+
+## 5. Leagues (depends on: Foundation complete)
 
 - [ ] PL-020: League creation (BUSINESS_SPEC §3.1, §12.4)
   - lib/validators/leagues.ts — CreateLeagueSchema
@@ -192,7 +225,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Sole member deletes league entirely
   - Only when not in-season
 
-## 5. Picks & Scoring (depends on: Leagues + Simulator ready for testing)
+## 6. Picks & Scoring (depends on: Leagues + Simulator ready for testing)
 
 - [ ] PL-027: Phase picks view (BUSINESS_SPEC §6, §10, §12.4-12.5)
   - Phase/event data display: teams, odds, scores, lock status
@@ -240,7 +273,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Before lock: "picks will be visible after deadline" message
   - After lock: collapsible cards per member with picks, record, points
 
-## 6. Polish (depends on: Core features complete)
+## 7. Polish (depends on: Core features complete)
 
 - [ ] PL-050: Sentry integration
   - @sentry/nextjs setup with source maps
@@ -263,7 +296,7 @@ Foundation ──┬── ESPN Integration ── Simulator ──┐
   - Advanced stats to help users make informed picks
   - Historical pick performance data
 
-## 7. Deployment (depends on: Polish complete)
+## 8. Deployment (depends on: Polish complete)
 
 > PL-060 and PL-061 were pulled up into Foundation so we can deploy and test in production continuously.
 
