@@ -11,9 +11,9 @@
 | Status      | Count  |
 | ----------- | ------ |
 | Complete    | 22     |
-| In Progress | 0      |
+| In Progress | 7      |
 | Blocked     | 0      |
-| Pending     | 15     |
+| Pending     | 8      |
 | **Total**   | **37** |
 
 ---
@@ -184,42 +184,42 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 ## 5. Leagues (depends on: Foundation complete)
 
-- [ ] PL-020: League creation (BUSINESS_SPEC §3.1, §12.4)
+- [~] PL-020: League creation (BUSINESS_SPEC §3.1, §12.4)
   - lib/validators/leagues.ts — CreateLeagueSchema
   - actions/leagues.ts — createLeague action
   - League create page with form (name, season format, size, picks per phase, pick type)
   - Creator becomes commissioner, initialized with 0-point standing
 
-- [ ] PL-021: League settings + in-season edit restrictions (BUSINESS_SPEC §3.2-3.3)
+- [~] PL-021: League settings + in-season edit restrictions (BUSINESS_SPEC §3.2-3.3)
   - actions/leagues.ts — updateLeague action
   - lib/nfl/scheduling.ts — isLeagueInSeason()
   - League settings page (name/image always editable, structural fields locked in-season)
   - League size cannot go below current member count
 
-- [ ] PL-022: League deletion (BUSINESS_SPEC §3.6)
+- [~] PL-022: League deletion (BUSINESS_SPEC §3.6)
   - actions/leagues.ts — deleteLeague action
   - Commissioner-only, cascade deletes all data
   - Confirmation dialog
 
-- [ ] PL-023: Direct invites (BUSINESS_SPEC §5.1)
+- [~] PL-023: Direct invites (BUSINESS_SPEC §5.1)
   - lib/validators/invites.ts — CreateDirectInviteSchema
   - actions/invites.ts — createDirectInvite, respondToInvite
   - User search by username/name
   - One pending invite per user per league
   - Home page invite display with accept/decline
 
-- [ ] PL-024: Link invites (BUSINESS_SPEC §5.2, §12.6)
+- [~] PL-024: Link invites (BUSINESS_SPEC §5.2, §12.6)
   - actions/invites.ts — createLinkInvite
   - Shareable URL with token
   - app/(public)/join/[token]/page.tsx — preview without auth, join with auth
   - Auto-cleanup of invites when league reaches capacity
 
-- [ ] PL-025: League members (BUSINESS_SPEC §4, §12.4)
+- [~] PL-025: League members (BUSINESS_SPEC §4, §12.4)
   - Members tab UI (member list with roles)
   - actions/members.ts — promoteMember, demoteMember, removeMember
   - Commissioner-only management, removal only when not in-season
 
-- [ ] PL-026: Leave league (BUSINESS_SPEC §4.4)
+- [~] PL-026: Leave league (BUSINESS_SPEC §4.4)
   - actions/members.ts — leaveLeague
   - Sole commissioner check (must not be sole commissioner unless sole member)
   - Sole member deletes league entirely
