@@ -35,6 +35,10 @@ const RETRIABLE_NETWORK_CODES = new Set([
   "UND_ERR_SOCKET",
   "UND_ERR_CONNECT_TIMEOUT",
 ]);
+// Limit retries to status codes that are actually transient. Permanent 5xx
+// variants (501 Not Implemented, 505 HTTP Version Not Supported, etc.) would
+// just burn the retry budget without ever succeeding.
+const RETRIABLE_HTTP_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 export class EspnApiError extends Error {
   constructor(
@@ -49,8 +53,12 @@ export class EspnApiError extends Error {
 
 function isRetriableError(err: unknown): boolean {
   if (err instanceof EspnApiError) {
-    return err.status === 429 || err.status >= 500;
+    return RETRIABLE_HTTP_STATUSES.has(err.status);
   }
+  // Node's undici-backed fetch wraps network errors as `TypeError("fetch failed")`
+  // with a `cause.code` from the Node errno set. If this shape ever changes
+  // (e.g., a Node major bump), unrelated TypeErrors simply stop retrying —
+  // the allowlist on cause.code is the load-bearing check.
   if (err instanceof TypeError && err.message === "fetch failed") {
     const cause = (err as { cause?: { code?: string } }).cause;
     return !!cause?.code && RETRIABLE_NETWORK_CODES.has(cause.code);
@@ -93,12 +101,21 @@ export async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let cursor = 0;
+  // `aborted` short-circuits sibling workers once one has thrown, so a
+  // multi-failure burst (e.g., concurrent ENOTFOUND) doesn't leak a pile
+  // of unhandled rejections while Promise.all settles on the first error.
+  let aborted = false;
 
   async function worker(): Promise<void> {
-    while (true) {
+    while (!aborted) {
       const i = cursor++;
       if (i >= items.length) return;
-      results[i] = await fn(items[i], i);
+      try {
+        results[i] = await fn(items[i], i);
+      } catch (err) {
+        aborted = true;
+        throw err;
+      }
     }
   }
 
