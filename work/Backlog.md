@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 25     |
-| In Progress | 4      |
+| Complete    | 26     |
+| In Progress | 3      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -201,7 +201,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Commissioner-only, cascade deletes all data
   - Confirmation dialog
 
-- [~] PL-023: Direct invites (BUSINESS_SPEC §5.1)
+- [x] PL-023: Direct invites (BUSINESS_SPEC §5.1)
   - lib/validators/invites.ts — CreateDirectInviteSchema
   - actions/invites.ts — createDirectInvite, respondToInvite
   - User search by username/name

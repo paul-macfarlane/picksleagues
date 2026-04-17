@@ -127,3 +127,37 @@ export const leagueStandings = pgTable(
 
 export type LeagueStanding = typeof leagueStandings.$inferSelect;
 export type NewLeagueStanding = typeof leagueStandings.$inferInsert;
+
+export const directInvites = pgTable(
+  "direct_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    inviteeUserId: text("invitee_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    inviterUserId: text("inviter_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    role: leagueRoleEnum("role").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("direct_invites_league_invitee_uniq").on(
+      table.leagueId,
+      table.inviteeUserId,
+    ),
+    index("direct_invites_invitee_user_id_idx").on(table.inviteeUserId),
+    index("direct_invites_league_id_idx").on(table.leagueId),
+  ],
+);
+
+export type DirectInvite = typeof directInvites.$inferSelect;
+export type NewDirectInvite = typeof directInvites.$inferInsert;
