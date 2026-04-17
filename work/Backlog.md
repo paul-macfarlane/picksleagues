@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 23     |
-| In Progress | 6      |
+| Complete    | 24     |
+| In Progress | 5      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -190,7 +190,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - League create page with form (name, season format, size, picks per phase, pick type)
   - Creator becomes commissioner, initialized with 0-point standing
 
-- [~] PL-021: League settings + in-season edit restrictions (BUSINESS_SPEC §3.2-3.3)
+- [x] PL-021: League settings + in-season edit restrictions (BUSINESS_SPEC §3.2-3.3)
   - actions/leagues.ts — updateLeague action
   - lib/nfl/scheduling.ts — isLeagueInSeason()
   - League settings page (name/image always editable, structural fields locked in-season)

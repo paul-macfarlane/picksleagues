@@ -52,6 +52,19 @@ export const createLeagueSchema = z.object({
 export type CreateLeagueInput = z.input<typeof createLeagueSchema>;
 export type CreateLeagueOutput = z.output<typeof createLeagueSchema>;
 
+export const updateLeagueSchema = z.object({
+  leagueId: z.string().uuid({ error: "Invalid league id." }),
+  name: nameSchema,
+  imageUrl: imageUrlSchema.optional(),
+  seasonFormat: z.enum(seasonFormatEnum.enumValues),
+  size: sizeSchema,
+  picksPerPhase: picksPerPhaseSchema,
+  pickType: z.enum(pickTypeEnum.enumValues),
+});
+
+export type UpdateLeagueInput = z.input<typeof updateLeagueSchema>;
+export type UpdateLeagueOutput = z.output<typeof updateLeagueSchema>;
+
 export const SEASON_FORMAT_LABELS: Record<
   (typeof seasonFormatEnum.enumValues)[number],
   string
