@@ -43,6 +43,13 @@
       "when": 1776455100640,
       "tag": "0005_low_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776455747420,
+      "tag": "0006_breezy_karma",
+      "breakpoints": true
     }
   ]
 }

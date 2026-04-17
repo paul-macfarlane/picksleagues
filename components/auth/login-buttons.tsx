@@ -9,13 +9,17 @@ import { DiscordIcon, GoogleIcon } from "@/components/auth/oauth-icons";
 
 type Provider = "google" | "discord";
 
-export function LoginButtons() {
+export function LoginButtons({
+  callbackURL = "/home",
+}: {
+  callbackURL?: string;
+}) {
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
 
   async function handleSignIn(provider: Provider) {
     setPendingProvider(provider);
     try {
-      await authClient.signIn.social({ provider, callbackURL: "/home" });
+      await authClient.signIn.social({ provider, callbackURL });
     } catch {
       toast.error("Sign-in failed. Please try again.");
       setPendingProvider(null);

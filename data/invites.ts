@@ -6,9 +6,16 @@ import { NotFoundError } from "@/lib/errors";
 import type {
   DirectInvite,
   League,
+  LinkInvite,
   NewDirectInvite,
+  NewLinkInvite,
 } from "@/lib/db/schema/leagues";
-import { directInvites, leagueMembers, leagues } from "@/lib/db/schema/leagues";
+import {
+  directInvites,
+  leagueMembers,
+  leagues,
+  linkInvites,
+} from "@/lib/db/schema/leagues";
 import { profile } from "@/lib/db/schema/profiles";
 import type { Profile } from "@/lib/db/schema/profiles";
 
@@ -160,4 +167,69 @@ export async function searchInviteCandidates(
     .where(whereClause)
     .orderBy(asc(profile.username))
     .limit(limit);
+}
+
+export async function insertLinkInvite(
+  data: Omit<NewLinkInvite, "id" | "createdAt" | "updatedAt">,
+  tx?: Transaction,
+): Promise<LinkInvite> {
+  const client = tx ?? db;
+  const [result] = await client.insert(linkInvites).values(data).returning();
+  return result;
+}
+
+export async function getLinkInviteById(
+  inviteId: string,
+  tx?: Transaction,
+): Promise<LinkInvite | null> {
+  const client = tx ?? db;
+  const result = await client.query.linkInvites.findFirst({
+    where: eq(linkInvites.id, inviteId),
+  });
+  return result ?? null;
+}
+
+export async function getLinkInviteByToken(
+  token: string,
+  tx?: Transaction,
+): Promise<LinkInvite | null> {
+  const client = tx ?? db;
+  const result = await client.query.linkInvites.findFirst({
+    where: eq(linkInvites.token, token),
+  });
+  return result ?? null;
+}
+
+export async function getLinkInvitesByLeague(
+  leagueId: string,
+  tx?: Transaction,
+): Promise<LinkInvite[]> {
+  const client = tx ?? db;
+  return client
+    .select()
+    .from(linkInvites)
+    .where(eq(linkInvites.leagueId, leagueId))
+    .orderBy(desc(linkInvites.createdAt));
+}
+
+export async function removeLinkInvite(
+  inviteId: string,
+  tx?: Transaction,
+): Promise<void> {
+  const client = tx ?? db;
+  const deleted = await client
+    .delete(linkInvites)
+    .where(eq(linkInvites.id, inviteId))
+    .returning({ id: linkInvites.id });
+  if (deleted.length === 0) {
+    throw new NotFoundError("Link invite not found");
+  }
+}
+
+export async function removeLinkInvitesByLeague(
+  leagueId: string,
+  tx?: Transaction,
+): Promise<void> {
+  const client = tx ?? db;
+  await client.delete(linkInvites).where(eq(linkInvites.leagueId, leagueId));
 }

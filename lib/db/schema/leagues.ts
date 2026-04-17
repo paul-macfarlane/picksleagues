@@ -161,3 +161,28 @@ export const directInvites = pgTable(
 
 export type DirectInvite = typeof directInvites.$inferSelect;
 export type NewDirectInvite = typeof directInvites.$inferInsert;
+
+export const linkInvites = pgTable(
+  "link_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    inviterUserId: text("inviter_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    role: leagueRoleEnum("role").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("link_invites_league_id_idx").on(table.leagueId)],
+);
+
+export type LinkInvite = typeof linkInvites.$inferSelect;
+export type NewLinkInvite = typeof linkInvites.$inferInsert;
