@@ -250,6 +250,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Straight up: compare scores
   - ATS: apply frozen spread, compare adjusted scores
   - Points: win=1, push=0.5, loss=0
+  - `calculatePickResult` is deterministic from the event's current score — no caching assumptions beyond the stored `pickResult` field, which is invalidated on admin event edits (see PL-015)
   - Tests for all scoring edge cases
 
 - [ ] PL-031: Standings + leaderboard UI (BUSINESS_SPEC §8.3-8.4, §12.4)
@@ -263,6 +264,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Score unscored picks, recalculate totals, recompute dense rankings
   - Full integrity check (recompute from all scored picks)
   - Wire call from runLiveScoresSync when events finalize
+  - **Admin event edits clear `pickResult` on affected picks** — `updateEventAction` (PL-073, shipped) must null out `pickResult` for every pick on the event whenever scores or status change on a `final` event (or status flips away from `final`). The next recalc run then re-scores them via step 2 of §8.5.
 
 - [ ] PL-032: Phase navigation (BUSINESS_SPEC §6.3-6.4)
   - Prev/next phase browsing
