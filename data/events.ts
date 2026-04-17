@@ -188,25 +188,6 @@ export async function getEventsBySeason(
     .where(eq(phases.seasonId, seasonId));
 }
 
-export async function getEventById(
-  eventId: string,
-  tx?: Transaction,
-): Promise<Event | null> {
-  const client = tx ?? db;
-  const result = await client.query.events.findFirst({
-    where: eq(events.id, eventId),
-  });
-  return result ?? null;
-}
-
-export async function getEventsByPhase(
-  phaseId: string,
-  tx?: Transaction,
-): Promise<Event[]> {
-  const client = tx ?? db;
-  return client.select().from(events).where(eq(events.phaseId, phaseId));
-}
-
 export interface EventWithTeams extends Event {
   homeTeam: Team;
   awayTeam: Team;
@@ -267,25 +248,6 @@ export async function getLockedEventIds(
     .from(events)
     .where(isNotNull(events.lockedAt));
   return new Set(rows.map((r) => r.id));
-}
-
-export async function getOddsById(
-  oddsId: string,
-  tx?: Transaction,
-): Promise<Odds | null> {
-  const client = tx ?? db;
-  const result = await client.query.odds.findFirst({
-    where: eq(odds.id, oddsId),
-  });
-  return result ?? null;
-}
-
-export async function getOddsByEvent(
-  eventId: string,
-  tx?: Transaction,
-): Promise<Odds[]> {
-  const client = tx ?? db;
-  return client.select().from(odds).where(eq(odds.eventId, eventId));
 }
 
 export interface OddsWithContext extends Odds {

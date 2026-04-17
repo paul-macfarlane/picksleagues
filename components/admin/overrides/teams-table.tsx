@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/table";
 import type { Team } from "@/lib/db/schema/sports";
 
+import { DetailRow } from "./detail-row";
 import { EditTeamDialog } from "./edit-team-dialog";
+import { formatUtc } from "./format";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
@@ -147,7 +149,7 @@ function TeamDetailDialog({ team }: { team: Team }) {
             label="Locked"
             value={
               team.lockedAt ? (
-                team.lockedAt.toISOString()
+                formatUtc(team.lockedAt)
               ) : (
                 <Badge variant="outline">No</Badge>
               )
@@ -163,26 +165,5 @@ function TeamDetailDialog({ team }: { team: Team }) {
         <DialogFooter showCloseButton />
       </DialogContent>
     </Dialog>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={mono ? "break-all font-mono text-xs" : undefined}>
-        {value}
-      </dd>
-    </div>
   );
 }

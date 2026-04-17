@@ -1,7 +1,5 @@
 "use client";
 
-import { formatInTimeZone } from "date-fns-tz";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,14 +21,11 @@ import {
 } from "@/components/ui/table";
 import type { OddsWithContext } from "@/data/events";
 
+import { DetailRow } from "./detail-row";
 import { EditOddsDialog } from "./edit-odds-dialog";
+import { formatUtc } from "./format";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
-
-function formatUtc(d: Date | null): string {
-  if (!d) return "—";
-  return formatInTimeZone(d, "UTC", "yyyy-MM-dd HH:mm 'UTC'");
-}
 
 function formatNumber(n: number | null, precision = 1): string {
   if (n === null || n === undefined) return "—";
@@ -165,26 +160,5 @@ function OddsDetailDialog({
         <DialogFooter showCloseButton />
       </DialogContent>
     </Dialog>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={mono ? "break-all font-mono text-xs" : undefined}>
-        {value}
-      </dd>
-    </div>
   );
 }

@@ -1,7 +1,5 @@
 "use client";
 
-import { formatInTimeZone } from "date-fns-tz";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,14 +23,11 @@ import type { EventWithTeams } from "@/data/events";
 import type { ExternalEvent } from "@/lib/db/schema/external";
 import type { Team } from "@/lib/db/schema/sports";
 
+import { DetailRow } from "./detail-row";
 import { EditEventDialog } from "./edit-event-dialog";
+import { formatUtc } from "./format";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
-
-function formatUtc(d: Date | null): string {
-  if (!d) return "—";
-  return formatInTimeZone(d, "UTC", "yyyy-MM-dd HH:mm 'UTC'");
-}
 
 function formatScore(home: number | null, away: number | null): string {
   if (home === null || away === null) return "—";
@@ -213,26 +208,5 @@ function EventDetailDialog({
         <DialogFooter showCloseButton />
       </DialogContent>
     </Dialog>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={mono ? "break-all font-mono text-xs" : undefined}>
-        {value}
-      </dd>
-    </div>
   );
 }

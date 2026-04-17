@@ -37,17 +37,19 @@ export function EditTeamDialog({ team }: { team: Team }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  const defaults: UpdateTeamInput = {
+    id: team.id,
+    name: team.name,
+    location: team.location,
+    abbreviation: team.abbreviation,
+    logoUrl: team.logoUrl ?? "",
+    logoDarkUrl: team.logoDarkUrl ?? "",
+  };
+
   const form = useForm<UpdateTeamInput, unknown, UpdateTeamOutput>({
     resolver: zodResolver(updateTeamSchema),
     mode: "onBlur",
-    defaultValues: {
-      id: team.id,
-      name: team.name,
-      location: team.location,
-      abbreviation: team.abbreviation,
-      logoUrl: team.logoUrl ?? "",
-      logoDarkUrl: team.logoDarkUrl ?? "",
-    },
+    defaultValues: defaults,
   });
 
   const {
@@ -74,16 +76,7 @@ export function EditTeamDialog({ team }: { team: Team }) {
       open={open}
       onOpenChange={(next) => {
         if (isPending && !next) return;
-        if (next) {
-          reset({
-            id: team.id,
-            name: team.name,
-            location: team.location,
-            abbreviation: team.abbreviation,
-            logoUrl: team.logoUrl ?? "",
-            logoDarkUrl: team.logoDarkUrl ?? "",
-          });
-        }
+        if (next) reset(defaults);
         setOpen(next);
       }}
     >

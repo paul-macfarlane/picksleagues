@@ -1,7 +1,5 @@
 "use client";
 
-import { formatInTimeZone } from "date-fns-tz";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,14 +21,11 @@ import {
 } from "@/components/ui/table";
 import type { Phase } from "@/lib/db/schema/sports";
 
+import { DetailRow } from "./detail-row";
 import { EditPhaseDialog } from "./edit-phase-dialog";
+import { formatUtc } from "./format";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
-
-function formatUtc(d: Date | null): string {
-  if (!d) return "—";
-  return formatInTimeZone(d, "UTC", "yyyy-MM-dd HH:mm 'UTC'");
-}
 
 export function PhasesTable({ phases }: { phases: Phase[] }) {
   if (phases.length === 0) {
@@ -125,26 +120,5 @@ function PhaseDetailDialog({ phase }: { phase: Phase }) {
         <DialogFooter showCloseButton />
       </DialogContent>
     </Dialog>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={mono ? "break-all font-mono text-xs" : undefined}>
-        {value}
-      </dd>
-    </div>
   );
 }

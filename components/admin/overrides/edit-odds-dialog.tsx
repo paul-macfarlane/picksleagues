@@ -31,11 +31,9 @@ import {
   type UpdateOddsInput,
 } from "@/lib/validators/admin-overrides";
 
-type UpdateOddsOutput = z.output<typeof updateOddsSchema>;
+import { numberToInput } from "./format";
 
-function toStringOrEmpty(n: number | null): string {
-  return n === null ? "" : String(n);
-}
+type UpdateOddsOutput = z.output<typeof updateOddsSchema>;
 
 export function EditOddsDialog({ row }: { row: OddsWithContext }) {
   const [open, setOpen] = useState(false);
@@ -45,11 +43,11 @@ export function EditOddsDialog({ row }: { row: OddsWithContext }) {
 
   const defaults: UpdateOddsInput = {
     id: row.id,
-    homeSpread: toStringOrEmpty(row.homeSpread),
-    awaySpread: toStringOrEmpty(row.awaySpread),
-    homeMoneyline: toStringOrEmpty(row.homeMoneyline),
-    awayMoneyline: toStringOrEmpty(row.awayMoneyline),
-    overUnder: toStringOrEmpty(row.overUnder),
+    homeSpread: numberToInput(row.homeSpread),
+    awaySpread: numberToInput(row.awaySpread),
+    homeMoneyline: numberToInput(row.homeMoneyline),
+    awayMoneyline: numberToInput(row.awayMoneyline),
+    overUnder: numberToInput(row.overUnder),
   };
 
   const form = useForm<UpdateOddsInput, unknown, UpdateOddsOutput>({
