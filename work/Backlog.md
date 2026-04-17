@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 18     |
-| In Progress | 4      |
+| Complete    | 19     |
+| In Progress | 3      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **37** |
@@ -161,7 +161,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Sync pipelines (runStructuralSync, runLiveScoresSync, runOddsSync) skip upserts/updates on locked rows
   - Tests: sync respects locks; manual edits auto-set locked_at
 
-- [~] PL-071: Admin override index + lock toggle
+- [x] PL-071: Admin override index + lock toggle
   - app/(app)/admin/overrides/page.tsx with tabs for teams / phases / events / odds
   - Table view per entity with search + filter (season, phase, team)
   - Locked badge + lock/unlock toggle per row
