@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 
+import { user } from "./auth";
 import {
   externalEvents,
   externalPhases,
@@ -7,6 +8,7 @@ import {
   externalSportsbooks,
   externalTeams,
 } from "./external";
+import { leagueMembers, leagueStandings, leagues } from "./leagues";
 import {
   dataSources,
   events,
@@ -23,6 +25,7 @@ import {
 export const sportsLeaguesRelations = relations(sportsLeagues, ({ many }) => ({
   seasons: many(seasons),
   teams: many(teams),
+  leagues: many(leagues),
 }));
 
 export const seasonsRelations = relations(seasons, ({ one, many }) => ({
@@ -136,6 +139,46 @@ export const externalSportsbooksRelations = relations(
     sportsbook: one(sportsbooks, {
       fields: [externalSportsbooks.sportsbookId],
       references: [sportsbooks.id],
+    }),
+  }),
+);
+
+// --- League relations ---
+
+export const leaguesRelations = relations(leagues, ({ one, many }) => ({
+  sportsLeague: one(sportsLeagues, {
+    fields: [leagues.sportsLeagueId],
+    references: [sportsLeagues.id],
+  }),
+  members: many(leagueMembers),
+  standings: many(leagueStandings),
+}));
+
+export const leagueMembersRelations = relations(leagueMembers, ({ one }) => ({
+  league: one(leagues, {
+    fields: [leagueMembers.leagueId],
+    references: [leagues.id],
+  }),
+  user: one(user, {
+    fields: [leagueMembers.userId],
+    references: [user.id],
+  }),
+}));
+
+export const leagueStandingsRelations = relations(
+  leagueStandings,
+  ({ one }) => ({
+    league: one(leagues, {
+      fields: [leagueStandings.leagueId],
+      references: [leagues.id],
+    }),
+    user: one(user, {
+      fields: [leagueStandings.userId],
+      references: [user.id],
+    }),
+    season: one(seasons, {
+      fields: [leagueStandings.seasonId],
+      references: [seasons.id],
     }),
   }),
 );
