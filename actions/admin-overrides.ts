@@ -8,6 +8,7 @@ import {
   setLockedEvent,
   setLockedOdds,
   updateEvent,
+  updateOdds,
 } from "@/data/events";
 import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
 import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
@@ -15,10 +16,13 @@ import { NotFoundError } from "@/lib/errors";
 import { requireAdminSession } from "@/lib/permissions";
 import type { ActionResult } from "@/lib/types";
 import {
+  parseDecimal,
+  parseInteger,
   parseScore,
   parseUtcDatetime,
   toggleLockSchema,
   updateEventSchema,
+  updateOddsSchema,
   updatePhaseSchema,
   updateTeamSchema,
 } from "@/lib/validators/admin-overrides";
@@ -144,6 +148,46 @@ export async function updateEventAction(input: unknown): Promise<ActionResult> {
       status,
       homeScore: parseScore(homeScore),
       awayScore: parseScore(awayScore),
+      lockedAt: new Date(),
+    });
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      return { success: false, error: err.message };
+    }
+    throw err;
+  }
+
+  revalidatePath(OVERRIDES_PATH);
+  return { success: true, data: undefined };
+}
+
+export async function updateOddsAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateOddsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  await requireAdminSession();
+
+  const {
+    id,
+    homeSpread,
+    awaySpread,
+    homeMoneyline,
+    awayMoneyline,
+    overUnder,
+  } = parsed.data;
+
+  try {
+    await updateOdds(id, {
+      homeSpread: parseDecimal(homeSpread),
+      awaySpread: parseDecimal(awaySpread),
+      homeMoneyline: parseInteger(homeMoneyline),
+      awayMoneyline: parseInteger(awayMoneyline),
+      overUnder: parseDecimal(overUnder),
       lockedAt: new Date(),
     });
   } catch (err) {

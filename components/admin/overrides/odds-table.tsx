@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import type { OddsWithContext } from "@/data/events";
 
+import { EditOddsDialog } from "./edit-odds-dialog";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
@@ -60,7 +61,7 @@ export function OddsTable({ odds }: { odds: OddsWithContext[] }) {
             <TableHead className="w-24 text-right">Home sprd</TableHead>
             <TableHead className="w-24 text-right">Away sprd</TableHead>
             <TableHead className="w-24">Status</TableHead>
-            <TableHead className="w-40 text-right">Actions</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -98,8 +99,9 @@ function OddsRow({ row }: { row: OddsWithContext }) {
         <LockBadge lockedAt={row.lockedAt} />
       </TableCell>
       <TableCell>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <OddsDetailDialog row={row} matchup={matchup} />
+          <EditOddsDialog row={row} />
           <LockToggle
             entity="odds"
             id={row.id}
