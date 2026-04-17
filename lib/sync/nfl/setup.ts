@@ -6,6 +6,10 @@ import {
   upsertSportsLeague,
 } from "@/data/sports";
 import { fetchOdds } from "@/lib/espn/nfl/odds";
+import {
+  ESPN_FETCH_CONCURRENCY,
+  mapWithConcurrency,
+} from "@/lib/espn/shared/client";
 
 import { runStructuralSync } from "./structural";
 
@@ -44,8 +48,10 @@ export async function runInitialSetup(now?: Date): Promise<InitialSetupResult> {
 
   // 3. Sync odds for every event with an oddsRef
   log(`Fetching odds for ${structural.oddsToSync.length} events from ESPN...`);
-  const oddsResults = await Promise.all(
-    structural.oddsToSync.map(async ({ oddsRef }) => fetchOdds(oddsRef)),
+  const oddsResults = await mapWithConcurrency(
+    structural.oddsToSync,
+    ESPN_FETCH_CONCURRENCY,
+    ({ oddsRef }) => fetchOdds(oddsRef),
   );
 
   let oddsUpserted = 0;

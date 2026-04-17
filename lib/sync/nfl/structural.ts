@@ -16,6 +16,10 @@ import { fetchPhases } from "@/lib/espn/nfl/phases";
 import { fetchCurrentSeason } from "@/lib/espn/nfl/seasons";
 import { fetchTeams } from "@/lib/espn/nfl/teams";
 import {
+  ESPN_FETCH_CONCURRENCY,
+  mapWithConcurrency,
+} from "@/lib/espn/shared/client";
+import {
   calculatePhaseEndBoundary,
   calculatePhaseStartBoundary,
   calculatePickLockTime,
@@ -165,13 +169,14 @@ export async function runStructuralSync(args: {
     existingEventMap.set(ee.externalId, ee.eventId);
   }
 
-  // 4. Fetch events for all phases concurrently from ESPN
+  // 4. Fetch events for all phases from ESPN (concurrency-limited)
   log(`Fetching events for ${phaseMap.size} phases from ESPN...`);
   const phaseEntries = [...phaseMap.entries()];
-  const phaseEventResults = await Promise.all(
-    phaseEntries.map(async ([, info]) =>
+  const phaseEventResults = await mapWithConcurrency(
+    phaseEntries,
+    ESPN_FETCH_CONCURRENCY,
+    ([, info]) =>
       fetchEvents(currentSeason.year, info.espnTypeId, info.weekNumber),
-    ),
   );
 
   // 5. Sync events and collect odds refs
