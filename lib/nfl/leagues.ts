@@ -32,15 +32,9 @@ export function selectCurrentSeason(
 }
 
 export function isLeagueInSeason(
-  phases: Phase[],
+  activePhases: Pick<Phase, "seasonType">[],
   format: SeasonFormat,
-  now: Date = new Date(),
 ): boolean {
   const allowedTypes = new Set(seasonFormatToSeasonTypes(format));
-  return phases.some(
-    (phase) =>
-      allowedTypes.has(phase.seasonType) &&
-      now >= phase.startDate &&
-      now < phase.endDate,
-  );
+  return activePhases.some((phase) => allowedTypes.has(phase.seasonType));
 }

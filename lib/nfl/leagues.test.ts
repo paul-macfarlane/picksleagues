@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Phase, Season } from "@/lib/db/schema/sports";
+import type { Season } from "@/lib/db/schema/sports";
 
 import {
   isLeagueInSeason,
@@ -17,25 +17,6 @@ function season(overrides: Partial<Season> & Pick<Season, "year">): Season {
       overrides.startDate ?? new Date(`${overrides.year}-09-01T00:00:00Z`),
     endDate:
       overrides.endDate ?? new Date(`${overrides.year + 1}-02-28T00:00:00Z`),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}
-
-function phase(
-  overrides: Partial<Phase> &
-    Pick<Phase, "startDate" | "endDate" | "seasonType">,
-): Phase {
-  return {
-    id: overrides.id ?? "phase-1",
-    seasonId: overrides.seasonId ?? "season-2025",
-    seasonType: overrides.seasonType,
-    weekNumber: overrides.weekNumber ?? 1,
-    label: overrides.label ?? "Week 1",
-    startDate: overrides.startDate,
-    endDate: overrides.endDate,
-    pickLockTime: overrides.pickLockTime ?? overrides.startDate,
-    lockedAt: overrides.lockedAt ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -108,53 +89,22 @@ describe("selectCurrentSeason", () => {
 });
 
 describe("isLeagueInSeason", () => {
-  const regularPhase = phase({
-    id: "p-reg",
-    seasonType: "regular",
-    startDate: new Date("2025-09-02T06:00:00Z"),
-    endDate: new Date("2025-09-09T06:00:00Z"),
-  });
-  const postPhase = phase({
-    id: "p-post",
-    seasonType: "postseason",
-    startDate: new Date("2026-01-13T06:00:00Z"),
-    endDate: new Date("2026-01-20T06:00:00Z"),
+  const regularPhase = { seasonType: "regular" as const };
+  const postPhase = { seasonType: "postseason" as const };
+
+  it("returns true when an active phase matches a format that includes its type", () => {
+    expect(isLeagueInSeason([regularPhase], "regular_season")).toBe(true);
+    expect(isLeagueInSeason([regularPhase], "full_season")).toBe(true);
+    expect(isLeagueInSeason([postPhase], "postseason")).toBe(true);
+    expect(isLeagueInSeason([postPhase], "full_season")).toBe(true);
   });
 
-  it("returns true when now is inside a phase that matches the format", () => {
-    const now = new Date("2025-09-05T12:00:00Z");
-    expect(
-      isLeagueInSeason([regularPhase, postPhase], "regular_season", now),
-    ).toBe(true);
-    expect(
-      isLeagueInSeason([regularPhase, postPhase], "full_season", now),
-    ).toBe(true);
+  it("returns false when the active phase type is not in the format", () => {
+    expect(isLeagueInSeason([postPhase], "regular_season")).toBe(false);
+    expect(isLeagueInSeason([regularPhase], "postseason")).toBe(false);
   });
 
-  it("returns false when now is inside a phase whose type is not in the format", () => {
-    const now = new Date("2026-01-15T12:00:00Z");
-    expect(
-      isLeagueInSeason([regularPhase, postPhase], "regular_season", now),
-    ).toBe(false);
-    expect(isLeagueInSeason([regularPhase, postPhase], "postseason", now)).toBe(
-      true,
-    );
-  });
-
-  it("returns false when now is outside every phase window", () => {
-    const now = new Date("2025-07-01T00:00:00Z");
-    expect(
-      isLeagueInSeason([regularPhase, postPhase], "full_season", now),
-    ).toBe(false);
-  });
-
-  it("treats the phase end as exclusive", () => {
-    const now = regularPhase.endDate;
-    expect(isLeagueInSeason([regularPhase], "regular_season", now)).toBe(false);
-  });
-
-  it("treats the phase start as inclusive", () => {
-    const now = regularPhase.startDate;
-    expect(isLeagueInSeason([regularPhase], "regular_season", now)).toBe(true);
+  it("returns false when there are no active phases", () => {
+    expect(isLeagueInSeason([], "full_season")).toBe(false);
   });
 });

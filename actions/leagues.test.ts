@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NotFoundError, UnauthorizedError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "@/lib/errors";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -8,10 +8,21 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/data/leagues", () => ({
   insertLeague: vi.fn(),
+  updateLeague: vi.fn(),
+  getLeagueById: vi.fn(),
+  getLeagueMemberCount: vi.fn(),
 }));
 
 vi.mock("@/data/members", () => ({
   insertLeagueMember: vi.fn(),
+}));
+
+vi.mock("@/data/phases", () => ({
+  getActivePhasesForSportsLeague: vi.fn(),
+}));
+
+vi.mock("@/lib/permissions", () => ({
+  assertLeagueCommissioner: vi.fn(),
 }));
 
 vi.mock("@/data/seasons", () => ({
@@ -34,14 +45,21 @@ vi.mock("@/lib/auth", () => ({
   getSession: vi.fn(),
 }));
 
-import { insertLeague } from "@/data/leagues";
+import {
+  getLeagueById,
+  getLeagueMemberCount,
+  insertLeague,
+  updateLeague,
+} from "@/data/leagues";
 import { insertLeagueMember } from "@/data/members";
+import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSportsLeagueByAbbreviation } from "@/data/sports";
 import { insertLeagueStanding } from "@/data/standings";
 import { getSession } from "@/lib/auth";
+import { assertLeagueCommissioner } from "@/lib/permissions";
 
-import { createLeagueAction } from "./leagues";
+import { createLeagueAction, updateLeagueAction } from "./leagues";
 
 const validInput = {
   name: "Test League",
@@ -193,6 +211,141 @@ describe("createLeagueAction", () => {
         imageUrl: "https://example.com/logo.png",
       }),
       expect.anything(),
+    );
+  });
+});
+
+describe("updateLeagueAction", () => {
+  const leagueId = "11111111-1111-4111-8111-111111111111";
+  const existingLeague = {
+    ...createdLeague,
+    id: leagueId,
+    size: 10,
+  };
+
+  const validUpdate = {
+    leagueId,
+    name: "Renamed League",
+    imageUrl: "",
+    seasonFormat: "regular_season",
+    size: 10,
+    picksPerPhase: 5,
+    pickType: "straight_up",
+  } as const;
+
+  beforeEach(() => {
+    vi.mocked(assertLeagueCommissioner).mockResolvedValue({
+      id: "m-1",
+      leagueId,
+      userId: "user-1",
+      role: "commissioner",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(getLeagueById).mockResolvedValue(existingLeague);
+    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValue([]);
+    vi.mocked(getLeagueMemberCount).mockResolvedValue(1);
+    vi.mocked(updateLeague).mockResolvedValue(existingLeague);
+  });
+
+  it("returns a validation error on bad input", async () => {
+    const result = await updateLeagueAction({ ...validUpdate, name: "a" });
+    expect(result.success).toBe(false);
+    expect(updateLeague).not.toHaveBeenCalled();
+  });
+
+  it("propagates ForbiddenError when the user is not a commissioner", async () => {
+    vi.mocked(assertLeagueCommissioner).mockRejectedValueOnce(
+      new ForbiddenError("Must be a league commissioner"),
+    );
+    await expect(updateLeagueAction(validUpdate)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it("returns an error when the league does not exist", async () => {
+    vi.mocked(getLeagueById).mockResolvedValueOnce(null);
+    const result = await updateLeagueAction(validUpdate);
+    expect(result.success).toBe(false);
+    expect(updateLeague).not.toHaveBeenCalled();
+  });
+
+  it("allows name-only edits in-season", async () => {
+    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
+      {
+        id: "p-1",
+        seasonId: "season-1",
+        seasonType: "regular",
+        weekNumber: 3,
+        label: "Week 3",
+        startDate: new Date("2026-09-17T00:00:00Z"),
+        endDate: new Date("2026-09-24T00:00:00Z"),
+        pickLockTime: new Date("2026-09-21T17:00:00Z"),
+        lockedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    const result = await updateLeagueAction({
+      ...validUpdate,
+      name: "New Name",
+      imageUrl: "https://example.com/new.png",
+    });
+    expect(result.success).toBe(true);
+    expect(updateLeague).toHaveBeenCalledWith(
+      leagueId,
+      expect.objectContaining({
+        name: "New Name",
+        imageUrl: "https://example.com/new.png",
+      }),
+    );
+  });
+
+  it("blocks structural edits when the league is in-season", async () => {
+    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
+      {
+        id: "p-1",
+        seasonId: "season-1",
+        seasonType: "regular",
+        weekNumber: 3,
+        label: "Week 3",
+        startDate: new Date("2026-09-17T00:00:00Z"),
+        endDate: new Date("2026-09-24T00:00:00Z"),
+        pickLockTime: new Date("2026-09-21T17:00:00Z"),
+        lockedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    const result = await updateLeagueAction({ ...validUpdate, size: 12 });
+    expect(result.success).toBe(false);
+    expect(updateLeague).not.toHaveBeenCalled();
+  });
+
+  it("refuses to shrink league size below the current member count", async () => {
+    vi.mocked(getLeagueMemberCount).mockResolvedValueOnce(8);
+    const result = await updateLeagueAction({ ...validUpdate, size: 6 });
+    expect(result.success).toBe(false);
+    expect(updateLeague).not.toHaveBeenCalled();
+  });
+
+  it("updates structural settings when not in-season", async () => {
+    const result = await updateLeagueAction({
+      ...validUpdate,
+      size: 12,
+      pickType: "against_the_spread",
+      picksPerPhase: 6,
+      seasonFormat: "full_season",
+    });
+    expect(result.success).toBe(true);
+    expect(updateLeague).toHaveBeenCalledWith(
+      leagueId,
+      expect.objectContaining({
+        size: 12,
+        pickType: "against_the_spread",
+        picksPerPhase: 6,
+        seasonFormat: "full_season",
+      }),
     );
   });
 });
