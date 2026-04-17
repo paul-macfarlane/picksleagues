@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 21     |
-| In Progress | 1      |
+| Complete    | 22     |
+| In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **37** |
@@ -178,7 +178,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Admin can manually mark an event final with custom scores (correction path for ESPN errors)
   - Auto-lock on save
 
-- [~] PL-074: Edit odds
+- [x] PL-074: Edit odds
   - Edit form for spreads / moneylines / over-under per sportsbook
   - Auto-lock on save
 

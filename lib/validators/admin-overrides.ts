@@ -131,3 +131,32 @@ export const updateEventSchema = z
   });
 
 export type UpdateEventInput = z.input<typeof updateEventSchema>;
+
+const decimalString = z
+  .string()
+  .trim()
+  .regex(/^(-?\d+(\.\d+)?)?$/, "Enter a number (e.g. -3.5) or leave empty.");
+
+const integerString = z
+  .string()
+  .trim()
+  .regex(/^(-?\d+)?$/, "Enter a whole number or leave empty.");
+
+export function parseDecimal(value: string): number | null {
+  return value === "" ? null : Number.parseFloat(value);
+}
+
+export function parseInteger(value: string): number | null {
+  return value === "" ? null : Number.parseInt(value, 10);
+}
+
+export const updateOddsSchema = z.object({
+  id: z.string().uuid({ error: "Invalid id." }),
+  homeSpread: decimalString,
+  awaySpread: decimalString,
+  homeMoneyline: integerString,
+  awayMoneyline: integerString,
+  overUnder: decimalString,
+});
+
+export type UpdateOddsInput = z.input<typeof updateOddsSchema>;

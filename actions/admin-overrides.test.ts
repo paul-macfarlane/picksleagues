@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   toggleLockAction,
   updateEventAction,
+  updateOddsAction,
   updatePhaseAction,
   updateTeamAction,
 } from "@/actions/admin-overrides";
@@ -12,6 +13,7 @@ import {
   setLockedEvent,
   setLockedOdds,
   updateEvent,
+  updateOdds,
 } from "@/data/events";
 import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
 import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
@@ -37,6 +39,7 @@ vi.mock("@/data/events", () => ({
   setLockedOdds: vi.fn(),
   clearLockedOdds: vi.fn(),
   updateEvent: vi.fn(),
+  updateOdds: vi.fn(),
 }));
 
 vi.mock("@/lib/permissions", () => ({
@@ -428,5 +431,84 @@ describe("updateEventAction", () => {
     const result = await updateEventAction(validInput());
 
     expect(result).toEqual({ success: false, error: "Event not found" });
+  });
+});
+
+describe("updateOddsAction", () => {
+  function validInput() {
+    return {
+      id: UUID,
+      homeSpread: "-3.5",
+      awaySpread: "3.5",
+      homeMoneyline: "-180",
+      awayMoneyline: "150",
+      overUnder: "47.5",
+    };
+  }
+
+  it("rejects non-numeric input", async () => {
+    const result = await updateOddsAction({
+      ...validInput(),
+      homeSpread: "pick-em",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateOdds).not.toHaveBeenCalled();
+  });
+
+  it("rejects decimals in moneyline fields", async () => {
+    const result = await updateOddsAction({
+      ...validInput(),
+      homeMoneyline: "-180.5",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateOdds).not.toHaveBeenCalled();
+  });
+
+  it("parses and auto-locks on save", async () => {
+    const result = await updateOddsAction(validInput());
+
+    expect(result.success).toBe(true);
+    expect(updateOdds).toHaveBeenCalledWith(UUID, {
+      homeSpread: -3.5,
+      awaySpread: 3.5,
+      homeMoneyline: -180,
+      awayMoneyline: 150,
+      overUnder: 47.5,
+      lockedAt: expect.any(Date),
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/overrides");
+  });
+
+  it("converts empty strings to null", async () => {
+    const result = await updateOddsAction({
+      id: UUID,
+      homeSpread: "",
+      awaySpread: "",
+      homeMoneyline: "",
+      awayMoneyline: "",
+      overUnder: "",
+    });
+
+    expect(result.success).toBe(true);
+    expect(updateOdds).toHaveBeenCalledWith(UUID, {
+      homeSpread: null,
+      awaySpread: null,
+      homeMoneyline: null,
+      awayMoneyline: null,
+      overUnder: null,
+      lockedAt: expect.any(Date),
+    });
+  });
+
+  it("returns a business error when the odds row is missing", async () => {
+    vi.mocked(updateOdds).mockRejectedValueOnce(
+      new NotFoundError("Odds not found"),
+    );
+
+    const result = await updateOddsAction(validInput());
+
+    expect(result).toEqual({ success: false, error: "Odds not found" });
   });
 });
