@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { eventStatusEnum } from "@/lib/db/schema/sports";
+
 export const OVERRIDE_ENTITIES = ["team", "phase", "event", "odds"] as const;
 export type OverrideEntity = (typeof OVERRIDE_ENTITIES)[number];
 
@@ -93,3 +95,39 @@ export const updatePhaseSchema = z
   });
 
 export type UpdatePhaseInput = z.input<typeof updatePhaseSchema>;
+
+const scoreString = z
+  .string()
+  .trim()
+  .regex(/^\d*$/, "Enter a non-negative whole number or leave empty.");
+
+export function parseScore(value: string): number | null {
+  return value === "" ? null : Number.parseInt(value, 10);
+}
+
+export const eventStatusValues = eventStatusEnum.enumValues;
+
+export const updateEventSchema = z
+  .object({
+    id: z.string().uuid({ error: "Invalid id." }),
+    homeTeamId: z.string().uuid({ error: "Invalid home team." }),
+    awayTeamId: z.string().uuid({ error: "Invalid away team." }),
+    startTime: utcDatetimeString,
+    status: z.enum(eventStatusValues),
+    homeScore: scoreString,
+    awayScore: scoreString,
+  })
+  .refine((data) => data.homeTeamId !== data.awayTeamId, {
+    message: "Home and away teams must be different.",
+    path: ["awayTeamId"],
+  })
+  .refine((data) => data.status !== "final" || data.homeScore !== "", {
+    message: "Required when status is final.",
+    path: ["homeScore"],
+  })
+  .refine((data) => data.status !== "final" || data.awayScore !== "", {
+    message: "Required when status is final.",
+    path: ["awayScore"],
+  });
+
+export type UpdateEventInput = z.input<typeof updateEventSchema>;

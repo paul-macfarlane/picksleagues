@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 20     |
-| In Progress | 2      |
+| Complete    | 21     |
+| In Progress | 1      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **37** |
@@ -173,7 +173,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Edit forms (RHF + zod) for name / location / abbreviation / logo URLs (teams) and label / start / end / pick lock time (phases)
   - Save auto-sets locked_at on the edited row
 
-- [~] PL-073: Edit events + scores
+- [x] PL-073: Edit events + scores
   - Edit form for home team / away team / start time / status / scores
   - Admin can manually mark an event final with custom scores (correction path for ESPN errors)
   - Auto-lock on save

@@ -7,6 +7,7 @@ import {
   clearLockedOdds,
   setLockedEvent,
   setLockedOdds,
+  updateEvent,
 } from "@/data/events";
 import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
 import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
@@ -14,8 +15,10 @@ import { NotFoundError } from "@/lib/errors";
 import { requireAdminSession } from "@/lib/permissions";
 import type { ActionResult } from "@/lib/types";
 import {
+  parseScore,
   parseUtcDatetime,
   toggleLockSchema,
+  updateEventSchema,
   updatePhaseSchema,
   updateTeamSchema,
 } from "@/lib/validators/admin-overrides";
@@ -99,6 +102,48 @@ export async function updateTeamAction(input: unknown): Promise<ActionResult> {
       abbreviation,
       logoUrl,
       logoDarkUrl,
+      lockedAt: new Date(),
+    });
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      return { success: false, error: err.message };
+    }
+    throw err;
+  }
+
+  revalidatePath(OVERRIDES_PATH);
+  return { success: true, data: undefined };
+}
+
+export async function updateEventAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateEventSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  await requireAdminSession();
+
+  const {
+    id,
+    homeTeamId,
+    awayTeamId,
+    startTime,
+    status,
+    homeScore,
+    awayScore,
+  } = parsed.data;
+
+  try {
+    await updateEvent(id, {
+      homeTeamId,
+      awayTeamId,
+      startTime: parseUtcDatetime(startTime),
+      status,
+      homeScore: parseScore(homeScore),
+      awayScore: parseScore(awayScore),
       lockedAt: new Date(),
     });
   } catch (err) {
