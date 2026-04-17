@@ -138,7 +138,7 @@ describe("mapWithConcurrency", () => {
     expect(result).toEqual([10, 20, 30, 40, 50]);
   });
 
-  it("caps in-flight calls at the concurrency limit", async () => {
+  it("caps in-flight calls at the concurrency limit and actually parallelises", async () => {
     let inFlight = 0;
     let maxInFlight = 0;
 
@@ -150,7 +150,10 @@ describe("mapWithConcurrency", () => {
       return null;
     });
 
+    // Upper bound — never exceed the limit.
     expect(maxInFlight).toBeLessThanOrEqual(3);
+    // Lower bound — catches a regression to serial execution.
+    expect(maxInFlight).toBeGreaterThan(1);
   });
 
   it("returns an empty array for empty input", async () => {
@@ -167,6 +170,38 @@ describe("mapWithConcurrency", () => {
         return n;
       }),
     ).rejects.toThrow("boom");
+  });
+
+  it("aborts sibling workers after the first error instead of leaking rejections", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    const started: number[] = [];
+    try {
+      await mapWithConcurrency([1, 2, 3, 4, 5, 6, 7, 8], 2, async (n) => {
+        started.push(n);
+        if (n === 1) {
+          await new Promise((r) => setTimeout(r, 0));
+          throw new Error("first worker fails");
+        }
+        if (n === 2) {
+          await new Promise((r) => setTimeout(r, 0));
+          throw new Error("second worker fails");
+        }
+        await new Promise((r) => setTimeout(r, 0));
+        return n;
+      });
+    } catch {
+      // expected
+    }
+
+    // Give the microtask queue a chance to surface any unhandled rejection.
+    await new Promise((r) => setTimeout(r, 10));
+    process.off("unhandledRejection", unhandled);
+
+    expect(unhandled).not.toHaveBeenCalled();
+    // Abort flag should prevent pulling items past the two in-flight failures.
+    expect(started.length).toBeLessThan(8);
   });
 });
 

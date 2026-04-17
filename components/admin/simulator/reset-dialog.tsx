@@ -36,7 +36,15 @@ export function ResetSimulatorDialog({ disabled }: { disabled: boolean }) {
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        // Prevent escape / backdrop-click from dismissing mid-reset — the
+        // Cancel button is already disabled during `isPending`.
+        if (isPending && !next) return;
+        setOpen(next);
+      }}
+    >
       <AlertDialogTrigger asChild>
         <Button variant="destructive" disabled={disabled} className="w-fit">
           Reset simulation
