@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { CreateDirectInviteDialog } from "@/components/invites/create-direct-invite-dialog";
 import { LinkInvitesSection } from "@/components/invites/link-invites-section";
+import { LeaveLeagueButton } from "@/components/leagues/leave-league-button";
 import { MembersList } from "@/components/leagues/members-list";
 import { getLinkInvitesByLeague } from "@/data/invites";
 import { getLeagueById } from "@/data/leagues";
@@ -85,6 +86,24 @@ export default async function LeagueMembersPage(
             disabled={inSeason}
           />
         </>
+      ) : null}
+
+      {viewerMember && !inSeason ? (
+        <section className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-base font-semibold">Leave league</h2>
+            <p className="text-sm text-muted-foreground">
+              {members.length <= 1
+                ? "You're the only member. Leaving deletes the league."
+                : "Historical picks and standings stay — you just stop participating."}
+            </p>
+          </div>
+          <LeaveLeagueButton
+            leagueId={leagueId}
+            leagueName={league.name}
+            isSoleMember={members.length <= 1}
+          />
+        </section>
       ) : null}
     </div>
   );
