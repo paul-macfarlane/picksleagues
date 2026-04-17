@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 27     |
-| In Progress | 2      |
+| Complete    | 28     |
+| In Progress | 1      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -214,7 +214,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - app/(public)/join/[token]/page.tsx — preview without auth, join with auth
   - Auto-cleanup of invites when league reaches capacity
 
-- [~] PL-025: League members (BUSINESS_SPEC §4, §12.4)
+- [x] PL-025: League members (BUSINESS_SPEC §4, §12.4)
   - Members tab UI (member list with roles)
   - actions/members.ts — promoteMember, demoteMember, removeMember
   - Commissioner-only management, removal only when not in-season

@@ -2,10 +2,10 @@ import { notFound } from "next/navigation";
 
 import { CreateDirectInviteDialog } from "@/components/invites/create-direct-invite-dialog";
 import { LinkInvitesSection } from "@/components/invites/link-invites-section";
-import { ComingSoon } from "@/components/leagues/coming-soon";
+import { MembersList } from "@/components/leagues/members-list";
 import { getLinkInvitesByLeague } from "@/data/invites";
 import { getLeagueById } from "@/data/leagues";
-import { getLeagueMember } from "@/data/members";
+import { getLeagueMember, getLeagueMembersWithProfiles } from "@/data/members";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSession } from "@/lib/auth";
 import { isLeagueInSeason } from "@/lib/nfl/leagues";
@@ -21,20 +21,44 @@ export default async function LeagueMembersPage(
     notFound();
   }
 
-  const [member, activePhases] = await Promise.all([
+  const [viewerMember, members, activePhases] = await Promise.all([
     getLeagueMember(leagueId, session.user.id),
+    getLeagueMembersWithProfiles(leagueId),
     getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
   ]);
 
-  const isCommissioner = member?.role === "commissioner";
+  const viewerIsCommissioner = viewerMember?.role === "commissioner";
   const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
-  const linkInvites = isCommissioner
+  const linkInvites = viewerIsCommissioner
     ? await getLinkInvitesByLeague(leagueId)
     : [];
 
   return (
     <div className="flex flex-col gap-6">
-      {isCommissioner ? (
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Members</h2>
+            <p className="text-sm text-muted-foreground">
+              {members.length} of {league.size}
+              {viewerIsCommissioner && !inSeason
+                ? " — you can promote, demote, or remove members."
+                : viewerIsCommissioner
+                  ? " — removals are paused while the league is in-season."
+                  : ""}
+            </p>
+          </div>
+        </div>
+        <MembersList
+          leagueId={leagueId}
+          members={members}
+          viewerUserId={session.user.id}
+          viewerIsCommissioner={viewerIsCommissioner}
+          canRemove={viewerIsCommissioner && !inSeason}
+        />
+      </section>
+
+      {viewerIsCommissioner ? (
         <>
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -62,11 +86,6 @@ export default async function LeagueMembersPage(
           />
         </>
       ) : null}
-
-      <ComingSoon
-        title="Members"
-        description="The member list and role management land in PL-025."
-      />
     </div>
   );
 }
