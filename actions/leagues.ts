@@ -6,6 +6,7 @@ import {
   getLeagueById,
   getLeagueMemberCount,
   insertLeague,
+  removeLeague,
   updateLeague,
 } from "@/data/leagues";
 import { insertLeagueMember } from "@/data/members";
@@ -21,6 +22,7 @@ import { assertLeagueCommissioner } from "@/lib/permissions";
 import type { ActionResult } from "@/lib/types";
 import {
   createLeagueSchema,
+  deleteLeagueSchema,
   updateLeagueSchema,
 } from "@/lib/validators/leagues";
 
@@ -176,4 +178,36 @@ export async function updateLeagueAction(
   revalidatePath("/home");
 
   return { success: true, data: { leagueId } };
+}
+
+export async function deleteLeagueAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const parsed = deleteLeagueSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid league id.",
+    };
+  }
+
+  const session = await getSession();
+  const { leagueId } = parsed.data;
+
+  await assertLeagueCommissioner(session.user.id, leagueId);
+
+  try {
+    await removeLeague(leagueId);
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      return { success: false, error: "League not found." };
+    }
+    throw err;
+  }
+
+  revalidatePath(`/leagues/${leagueId}`, "layout");
+  revalidatePath("/leagues");
+  revalidatePath("/home");
+
+  return { success: true, data: undefined };
 }

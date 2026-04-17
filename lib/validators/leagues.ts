@@ -65,6 +65,12 @@ export const updateLeagueSchema = z.object({
 export type UpdateLeagueInput = z.input<typeof updateLeagueSchema>;
 export type UpdateLeagueOutput = z.output<typeof updateLeagueSchema>;
 
+export const deleteLeagueSchema = z.object({
+  leagueId: z.string().uuid({ error: "Invalid league id." }),
+});
+
+export type DeleteLeagueInput = z.input<typeof deleteLeagueSchema>;
+
 export const SEASON_FORMAT_LABELS: Record<
   (typeof seasonFormatEnum.enumValues)[number],
   string

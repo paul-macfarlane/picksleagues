@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 24     |
-| In Progress | 5      |
+| Complete    | 25     |
+| In Progress | 4      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -196,7 +196,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - League settings page (name/image always editable, structural fields locked in-season)
   - League size cannot go below current member count
 
-- [~] PL-022: League deletion (BUSINESS_SPEC §3.6)
+- [x] PL-022: League deletion (BUSINESS_SPEC §3.6)
   - actions/leagues.ts — deleteLeague action
   - Commissioner-only, cascade deletes all data
   - Confirmation dialog

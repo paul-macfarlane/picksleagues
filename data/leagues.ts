@@ -48,7 +48,13 @@ export async function removeLeague(
   tx?: Transaction,
 ): Promise<void> {
   const client = tx ?? db;
-  await client.delete(leagues).where(eq(leagues.id, leagueId));
+  const deleted = await client
+    .delete(leagues)
+    .where(eq(leagues.id, leagueId))
+    .returning({ id: leagues.id });
+  if (deleted.length === 0) {
+    throw new NotFoundError("League not found");
+  }
 }
 
 export interface LeagueWithMemberCount extends League {
