@@ -370,6 +370,8 @@ Standings are recalculated periodically (via a background job):
 4. Perform a full integrity check by recomputing from all scored picks (safety net).
 5. Recompute rankings for all members in the league.
 
+If an admin manually corrects an event's scores or status (via admin overrides) after picks have already been scored, the affected pick results are invalidated — cleared back to "unscored" — so the next recalculation re-scores them against the corrected event. Standings must reflect corrected scores, not the cached pre-correction result.
+
 ### 8.6 Initialization
 
 When a user joins a league, their standing starts at:
