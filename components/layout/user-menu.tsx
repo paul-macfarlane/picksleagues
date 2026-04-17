@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import {
+  FlaskConicalIcon,
   LogOutIcon,
   MonitorIcon,
   MoonIcon,
   SettingsIcon,
-  ShieldIcon,
   SunIcon,
   UserIcon,
+  WrenchIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -103,13 +104,13 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             <DropdownMenuLabel>Admin</DropdownMenuLabel>
             <DropdownMenuItem asChild>
               <Link href="/admin/simulator">
-                <ShieldIcon className="size-4" />
+                <FlaskConicalIcon className="size-4" />
                 Simulator
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/admin/overrides">
-                <ShieldIcon className="size-4" />
+                <WrenchIcon className="size-4" />
                 Overrides
               </Link>
             </DropdownMenuItem>

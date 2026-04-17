@@ -26,7 +26,6 @@ import type { Team } from "@/lib/db/schema/sports";
 import { DetailRow } from "./detail-row";
 import { EditEventDialog } from "./edit-event-dialog";
 import { formatUtc } from "./format";
-import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
 function formatScore(home: number | null, away: number | null): string {
@@ -104,10 +103,7 @@ function EventRow({
         {formatUtc(event.startTime)}
       </TableCell>
       <TableCell>
-        <div className="flex flex-col gap-1">
-          <StatusBadge status={event.status} />
-          <LockBadge lockedAt={event.lockedAt} />
-        </div>
+        <StatusBadge status={event.status} />
       </TableCell>
       <TableCell className="text-right font-mono">
         {formatScore(event.homeScore, event.awayScore)}
@@ -154,7 +150,7 @@ function EventDetailDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        <Button size="sm" variant="outline">
           Details
         </Button>
       </DialogTrigger>
