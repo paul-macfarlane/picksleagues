@@ -10,3 +10,86 @@ export const toggleLockSchema = z.object({
 });
 
 export type ToggleLockInput = z.infer<typeof toggleLockSchema>;
+
+// Shared UTC datetime literal (e.g. "2025-09-10 13:00"). The schema keeps the
+// value as a string so the same schema works on both the client (RHF) and the
+// server; `parseUtcDatetime` below converts to Date after a successful parse.
+// We deliberately avoid <input type="datetime-local">: it reinterprets strings
+// in the browser's local timezone, which is unsafe for an admin correction
+// tool where the DB truth is in UTC.
+export const UTC_DATETIME_FORMAT = "YYYY-MM-DD HH:MM (UTC)";
+const utcDatetimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+
+const utcDatetimeString = z
+  .string({ error: "Required." })
+  .regex(utcDatetimeRegex, `Format: ${UTC_DATETIME_FORMAT}`)
+  .refine(isValidUtcDatetime, {
+    message: `Invalid date. Format: ${UTC_DATETIME_FORMAT}`,
+  });
+
+export function parseUtcDatetime(value: string): Date {
+  return new Date(`${value.replace(" ", "T")}:00Z`);
+}
+
+function isValidUtcDatetime(value: string): boolean {
+  // Reject calendar rollovers (e.g. "2025-02-30" → Mar 2). The regex
+  // guarantees shape; this confirms every field is in-range by reading
+  // the Date back out and comparing components.
+  if (!utcDatetimeRegex.test(value)) return false;
+  const [y, mo, d, h, mi] = value
+    .replace(" ", "-")
+    .replace(":", "-")
+    .split("-")
+    .map(Number);
+  if (mo < 1 || mo > 12) return false;
+  if (d < 1 || d > 31) return false;
+  if (h > 23 || mi > 59) return false;
+  const parsed = parseUtcDatetime(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return (
+    parsed.getUTCFullYear() === y &&
+    parsed.getUTCMonth() + 1 === mo &&
+    parsed.getUTCDate() === d &&
+    parsed.getUTCHours() === h &&
+    parsed.getUTCMinutes() === mi
+  );
+}
+
+const optionalUrl = z
+  .string()
+  .trim()
+  .transform((v) => (v === "" ? null : v))
+  .pipe(z.union([z.null(), z.string().url("Must be a valid URL.")]));
+
+export const updateTeamSchema = z.object({
+  id: z.string().uuid({ error: "Invalid id." }),
+  name: z.string().trim().min(1, "Required.").max(100),
+  location: z.string().trim().min(1, "Required.").max(100),
+  abbreviation: z
+    .string()
+    .trim()
+    .min(2, "At least 2 characters.")
+    .max(5, "At most 5 characters.")
+    .toUpperCase()
+    .refine((v) => /^[A-Z]+$/.test(v), "Letters only."),
+  logoUrl: optionalUrl,
+  logoDarkUrl: optionalUrl,
+});
+
+export type UpdateTeamInput = z.input<typeof updateTeamSchema>;
+
+export const updatePhaseSchema = z
+  .object({
+    id: z.string().uuid({ error: "Invalid id." }),
+    label: z.string().trim().min(1, "Required.").max(100),
+    startDate: utcDatetimeString,
+    endDate: utcDatetimeString,
+    pickLockTime: utcDatetimeString,
+  })
+  // ISO UTC strings compare lexically — same ordering as Date comparison.
+  .refine((data) => data.startDate < data.endDate, {
+    message: "Start date must be before end date.",
+    path: ["endDate"],
+  });
+
+export type UpdatePhaseInput = z.input<typeof updatePhaseSchema>;

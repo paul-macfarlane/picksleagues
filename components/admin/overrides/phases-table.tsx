@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import type { Phase } from "@/lib/db/schema/sports";
 
+import { EditPhaseDialog } from "./edit-phase-dialog";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
@@ -49,7 +50,7 @@ export function PhasesTable({ phases }: { phases: Phase[] }) {
             <TableHead>Label</TableHead>
             <TableHead className="hidden sm:table-cell">Window</TableHead>
             <TableHead className="w-24">Status</TableHead>
-            <TableHead className="w-40 text-right">Actions</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -74,8 +75,9 @@ function PhaseRow({ phase }: { phase: Phase }) {
         <LockBadge lockedAt={phase.lockedAt} />
       </TableCell>
       <TableCell>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <PhaseDetailDialog phase={phase} />
+          <EditPhaseDialog phase={phase} />
           <LockToggle
             entity="phase"
             id={phase.id}
