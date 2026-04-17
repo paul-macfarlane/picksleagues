@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 17     |
-| In Progress | 5      |
+| Complete    | 18     |
+| In Progress | 4      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **37** |
@@ -155,7 +155,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 > Manual escape hatch when ESPN data is wrong or a sync regresses — admins can edit entities by hand and lock them against future auto-overrides. Parallel to Leagues / Picks & Scoring; doesn't block either.
 
-- [~] PL-070: Override lock infrastructure
+- [x] PL-070: Override lock infrastructure
   - Add `locked_at` nullable timestamp column to teams, phases, events, odds
   - data/ layer: setLocked*/clearLocked* helpers for each entity
   - Sync pipelines (runStructuralSync, runLiveScoresSync, runOddsSync) skip upserts/updates on locked rows

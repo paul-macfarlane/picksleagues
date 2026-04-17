@@ -1,4 +1,4 @@
-import { upsertOdds } from "@/data/events";
+import { getLockedOddsPairs, upsertOdds } from "@/data/events";
 import { upsertExternalSportsbook } from "@/data/external";
 import {
   upsertDataSource,
@@ -16,13 +16,17 @@ import { runStructuralSync } from "./structural";
 export interface InitialSetupResult {
   seasonYear: number;
   phasesUpserted: number;
+  phasesLocked: number;
   teamsInserted: number;
   teamsUpdated: number;
+  teamsLocked: number;
   eventsInserted: number;
   eventsUpdated: number;
   eventsSkipped: number;
+  eventsLocked: number;
   oddsUpserted: number;
   oddsEmpty: number;
+  oddsLocked: number;
 }
 
 function log(message: string): void {
@@ -46,16 +50,23 @@ export async function runInitialSetup(now?: Date): Promise<InitialSetupResult> {
   // 2. Structural sync: season + phases + teams + events
   const structural = await runStructuralSync({ dataSource, sportsLeague, now });
 
-  // 3. Sync odds for every event with an oddsRef
+  // 3. Sync odds for every event with an oddsRef — skip locked pairs
   log(`Fetching odds for ${structural.oddsToSync.length} events from ESPN...`);
-  const oddsResults = await mapWithConcurrency(
-    structural.oddsToSync,
-    ESPN_FETCH_CONCURRENCY,
-    ({ oddsRef }) => fetchOdds(oddsRef),
+  const [oddsResults, lockedOddsPairs] = await Promise.all([
+    mapWithConcurrency(
+      structural.oddsToSync,
+      ESPN_FETCH_CONCURRENCY,
+      ({ oddsRef }) => fetchOdds(oddsRef),
+    ),
+    getLockedOddsPairs(),
+  ]);
+  const lockedOddsKey = new Set<string>(
+    lockedOddsPairs.map((p) => `${p.eventId}:${p.sportsbookId}`),
   );
 
   let oddsUpserted = 0;
   let oddsEmpty = 0;
+  let oddsLocked = 0;
 
   for (let i = 0; i < structural.oddsToSync.length; i++) {
     const fetchedOdds = oddsResults[i];
@@ -70,6 +81,12 @@ export async function runInitialSetup(now?: Date): Promise<InitialSetupResult> {
       sportsbookId: sportsbook.id,
     });
 
+    const key = `${structural.oddsToSync[i].eventId}:${extSportsbook.sportsbookId}`;
+    if (lockedOddsKey.has(key)) {
+      oddsLocked++;
+      continue;
+    }
+
     await upsertOdds({
       eventId: structural.oddsToSync[i].eventId,
       sportsbookId: extSportsbook.sportsbookId,
@@ -81,19 +98,25 @@ export async function runInitialSetup(now?: Date): Promise<InitialSetupResult> {
     });
     oddsUpserted++;
   }
-  log(`Synced odds: ${oddsUpserted} upserted, ${oddsEmpty} empty`);
+  log(
+    `Synced odds: ${oddsUpserted} upserted, ${oddsEmpty} empty, ${oddsLocked} locked`,
+  );
 
   log("Initial setup complete");
 
   return {
     seasonYear: structural.seasonYear,
     phasesUpserted: structural.phasesUpserted,
+    phasesLocked: structural.phasesLocked,
     teamsInserted: structural.teamsInserted,
     teamsUpdated: structural.teamsUpdated,
+    teamsLocked: structural.teamsLocked,
     eventsInserted: structural.eventsInserted,
     eventsUpdated: structural.eventsUpdated,
     eventsSkipped: structural.eventsSkipped,
+    eventsLocked: structural.eventsLocked,
     oddsUpserted,
     oddsEmpty,
+    oddsLocked,
   };
 }

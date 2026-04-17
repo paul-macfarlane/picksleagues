@@ -15,16 +15,19 @@ vi.mock("@/data/seasons", () => ({
 vi.mock("@/data/phases", () => ({
   upsertPhase: vi.fn().mockResolvedValue({ id: "phase-1" }),
   updatePhase: vi.fn().mockResolvedValue({ id: "phase-1" }),
+  getPhasesBySeason: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/data/teams", () => ({
   insertTeam: vi.fn().mockResolvedValue({ id: "team-new" }),
   updateTeam: vi.fn().mockResolvedValue({ id: "team-existing" }),
+  getLockedTeamIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
 
 vi.mock("@/data/events", () => ({
   insertEvent: vi.fn().mockResolvedValue({ id: "event-1" }),
   updateEvent: vi.fn().mockResolvedValue({ id: "event-existing" }),
+  getLockedEventIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
 
 vi.mock("@/data/external", () => ({
@@ -65,8 +68,12 @@ vi.mock("@/lib/nfl/scheduling", () => ({
 }));
 
 const { upsertSeason } = await import("@/data/seasons");
-const { insertTeam, updateTeam } = await import("@/data/teams");
-const { insertEvent, updateEvent } = await import("@/data/events");
+const { insertTeam, updateTeam, getLockedTeamIds } =
+  await import("@/data/teams");
+const { insertEvent, updateEvent, getLockedEventIds } =
+  await import("@/data/events");
+const { upsertPhase, updatePhase, getPhasesBySeason } =
+  await import("@/data/phases");
 const { getAllExternalTeams, getAllExternalEvents } =
   await import("@/data/external");
 const { fetchCurrentSeason } = await import("@/lib/espn/nfl/seasons");
@@ -164,6 +171,9 @@ describe("runStructuralSync", () => {
       ]);
 
     vi.mocked(getAllExternalEvents).mockResolvedValue([]);
+    vi.mocked(getPhasesBySeason).mockResolvedValue([]);
+    vi.mocked(getLockedTeamIds).mockResolvedValue(new Set<string>());
+    vi.mocked(getLockedEventIds).mockResolvedValue(new Set<string>());
   });
 
   it("returns sync counts for the full happy path", async () => {
@@ -175,11 +185,14 @@ describe("runStructuralSync", () => {
     expect(result.seasonYear).toBe(2025);
     expect(result.seasonId).toBe("season-1");
     expect(result.phasesUpserted).toBe(1);
+    expect(result.phasesLocked).toBe(0);
     expect(result.teamsInserted).toBe(2);
     expect(result.teamsUpdated).toBe(0);
+    expect(result.teamsLocked).toBe(0);
     expect(result.eventsInserted).toBe(1);
     expect(result.eventsUpdated).toBe(0);
     expect(result.eventsSkipped).toBe(0);
+    expect(result.eventsLocked).toBe(0);
     expect(result.oddsToSync).toEqual([
       { eventId: "event-1", oddsRef: EVENT.refs.oddsRef },
     ]);
@@ -281,5 +294,115 @@ describe("runStructuralSync", () => {
     });
 
     expect(result.oddsToSync).toEqual([]);
+  });
+
+  it("skips updateTeam for locked teams", async () => {
+    vi.mocked(getAllExternalTeams)
+      .mockReset()
+      .mockResolvedValueOnce([makeExternalTeam("12", "team-kc-locked")])
+      .mockResolvedValueOnce([
+        makeExternalTeam("12", "team-kc-locked"),
+        makeExternalTeam("33", "team-bal"),
+      ]);
+    vi.mocked(getLockedTeamIds).mockResolvedValue(new Set(["team-kc-locked"]));
+
+    const result = await runStructuralSync({
+      dataSource: DATA_SOURCE,
+      sportsLeague: SPORTS_LEAGUE,
+    });
+
+    expect(updateTeam).not.toHaveBeenCalledWith(
+      "team-kc-locked",
+      expect.anything(),
+    );
+    expect(result.teamsLocked).toBe(1);
+    expect(result.teamsUpdated).toBe(0);
+    expect(result.teamsInserted).toBe(1);
+  });
+
+  it("skips upsertPhase for locked phases and keeps their existing id", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValue([
+      {
+        id: "phase-locked",
+        seasonId: "season-1",
+        seasonType: "regular",
+        weekNumber: 1,
+        label: "Week 1 (admin)",
+        startDate: new Date("2025-09-10"),
+        endDate: new Date("2025-09-17"),
+        pickLockTime: new Date("2025-09-14T17:00:00Z"),
+        lockedAt: new Date("2025-09-01"),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const result = await runStructuralSync({
+      dataSource: DATA_SOURCE,
+      sportsLeague: SPORTS_LEAGUE,
+    });
+
+    expect(upsertPhase).not.toHaveBeenCalled();
+    expect(result.phasesLocked).toBe(1);
+    expect(result.phasesUpserted).toBe(0);
+    // Events should still be inserted against the existing locked phase id
+    expect(insertEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ phaseId: "phase-locked" }),
+    );
+  });
+
+  it("skips updateEvent for locked events but still upserts the external bridge", async () => {
+    vi.mocked(getAllExternalEvents).mockResolvedValue([
+      {
+        id: "ee-1",
+        dataSourceId: "ds-1",
+        externalId: "401547417",
+        eventId: "event-locked",
+        oddsRef: null,
+        statusRef: null,
+        homeScoreRef: null,
+        awayScoreRef: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    vi.mocked(getLockedEventIds).mockResolvedValue(new Set(["event-locked"]));
+
+    const result = await runStructuralSync({
+      dataSource: DATA_SOURCE,
+      sportsLeague: SPORTS_LEAGUE,
+    });
+
+    expect(updateEvent).not.toHaveBeenCalled();
+    expect(insertEvent).not.toHaveBeenCalled();
+    expect(result.eventsLocked).toBe(1);
+    expect(result.oddsToSync).toEqual([
+      { eventId: "event-locked", oddsRef: EVENT.refs.oddsRef },
+    ]);
+  });
+
+  it("skips phase date snap when the phase is locked", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValue([
+      {
+        id: "phase-locked",
+        seasonId: "season-1",
+        seasonType: "regular",
+        weekNumber: 1,
+        label: "Week 1 (admin)",
+        startDate: new Date("2025-09-10"),
+        endDate: new Date("2025-09-17"),
+        pickLockTime: new Date("2025-09-14T17:00:00Z"),
+        lockedAt: new Date("2025-09-01"),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    await runStructuralSync({
+      dataSource: DATA_SOURCE,
+      sportsLeague: SPORTS_LEAGUE,
+    });
+
+    expect(updatePhase).not.toHaveBeenCalled();
   });
 });

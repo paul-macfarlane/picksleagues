@@ -107,6 +107,7 @@ export const phases = pgTable(
     startDate: timestamp("start_date").notNull(),
     endDate: timestamp("end_date").notNull(),
     pickLockTime: timestamp("pick_lock_time").notNull(),
+    lockedAt: timestamp("locked_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -138,6 +139,7 @@ export const teams = pgTable(
     abbreviation: text("abbreviation").notNull(),
     logoUrl: text("logo_url"),
     logoDarkUrl: text("logo_dark_url"),
+    lockedAt: timestamp("locked_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -167,6 +169,7 @@ export const events = pgTable(
     status: eventStatusEnum("status").notNull().default("not_started"),
     homeScore: integer("home_score"),
     awayScore: integer("away_score"),
+    lockedAt: timestamp("locked_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -198,6 +201,7 @@ export const odds = pgTable(
     homeMoneyline: integer("home_moneyline"),
     awayMoneyline: integer("away_moneyline"),
     overUnder: doublePrecision("over_under"),
+    lockedAt: timestamp("locked_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

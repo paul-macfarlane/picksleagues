@@ -1,4 +1,8 @@
-import { getScorableEvents, updateEvent } from "@/data/events";
+import {
+  getLockedEventIds,
+  getScorableEvents,
+  updateEvent,
+} from "@/data/events";
 import { getDataSourceByName } from "@/data/sports";
 import { fetchEventScore } from "@/lib/espn/nfl/scores";
 import { isGameWindowActive, isNflSeasonMonth } from "@/lib/nfl/scheduling";
@@ -8,6 +12,7 @@ export interface LiveScoresSyncResult {
   reason?: string;
   eventsUpdated: number;
   eventsFinalized: number;
+  eventsLocked: number;
 }
 
 function log(message: string): void {
@@ -24,19 +29,40 @@ export async function runLiveScoresSync(
       reason: "off-season",
       eventsUpdated: 0,
       eventsFinalized: 0,
+      eventsLocked: 0,
     };
   }
 
   const dataSource = await getDataSourceByName("ESPN");
-  const scorableEvents = await getScorableEvents(dataSource.id);
+  const [allScorableEvents, lockedEventIds] = await Promise.all([
+    getScorableEvents(dataSource.id),
+    getLockedEventIds(),
+  ]);
 
-  if (scorableEvents.length === 0) {
+  if (allScorableEvents.length === 0) {
     log("No scorable events — skipping");
     return {
       skipped: true,
       reason: "no-scorable-events",
       eventsUpdated: 0,
       eventsFinalized: 0,
+      eventsLocked: 0,
+    };
+  }
+
+  const scorableEvents = allScorableEvents.filter(
+    (e) => !lockedEventIds.has(e.eventId),
+  );
+  const eventsLocked = allScorableEvents.length - scorableEvents.length;
+
+  if (scorableEvents.length === 0) {
+    log(`All ${eventsLocked} scorable events are locked — skipping`);
+    return {
+      skipped: true,
+      reason: "all-locked",
+      eventsUpdated: 0,
+      eventsFinalized: 0,
+      eventsLocked,
     };
   }
 
@@ -47,6 +73,7 @@ export async function runLiveScoresSync(
       reason: "no-game-window",
       eventsUpdated: 0,
       eventsFinalized: 0,
+      eventsLocked,
     };
   }
 
@@ -81,7 +108,7 @@ export async function runLiveScoresSync(
   }
 
   log(
-    `Sync complete: ${eventsUpdated} events updated, ${eventsFinalized} finalized`,
+    `Sync complete: ${eventsUpdated} events updated, ${eventsFinalized} finalized, ${eventsLocked} locked`,
   );
 
   if (eventsFinalized > 0) {
@@ -90,5 +117,5 @@ export async function runLiveScoresSync(
     );
   }
 
-  return { skipped: false, eventsUpdated, eventsFinalized };
+  return { skipped: false, eventsUpdated, eventsFinalized, eventsLocked };
 }

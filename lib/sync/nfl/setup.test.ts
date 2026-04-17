@@ -25,17 +25,21 @@ vi.mock("@/data/seasons", () => ({
 vi.mock("@/data/phases", () => ({
   upsertPhase: vi.fn().mockResolvedValue({ id: "phase-1" }),
   updatePhase: vi.fn().mockResolvedValue({ id: "phase-1" }),
+  getPhasesBySeason: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/data/teams", () => ({
   insertTeam: vi.fn().mockResolvedValue({ id: "team-new" }),
   updateTeam: vi.fn().mockResolvedValue({ id: "team-existing" }),
+  getLockedTeamIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
 
 vi.mock("@/data/events", () => ({
   insertEvent: vi.fn().mockResolvedValue({ id: "event-1" }),
   updateEvent: vi.fn().mockResolvedValue({ id: "event-existing" }),
   upsertOdds: vi.fn().mockResolvedValue({ id: "odds-1" }),
+  getLockedEventIds: vi.fn().mockResolvedValue(new Set<string>()),
+  getLockedOddsPairs: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/data/external", () => ({
@@ -387,5 +391,18 @@ describe("runInitialSetup", () => {
     await runInitialSetup();
 
     expect(upsertOdds).not.toHaveBeenCalled();
+  });
+
+  it("skips upsertOdds for locked (event, sportsbook) pairs", async () => {
+    const { getLockedOddsPairs } = await import("@/data/events");
+    vi.mocked(getLockedOddsPairs).mockResolvedValue([
+      { eventId: "event-1", sportsbookId: "sb-1" },
+    ]);
+
+    const result = await runInitialSetup();
+
+    expect(upsertOdds).not.toHaveBeenCalled();
+    expect(result.oddsLocked).toBe(1);
+    expect(result.oddsUpserted).toBe(0);
   });
 });
