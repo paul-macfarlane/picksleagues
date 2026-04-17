@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 
+import { OpenInvites } from "@/components/invites/open-invites";
 import { LeagueCard } from "@/components/leagues/league-card";
 import { Button } from "@/components/ui/button";
+import { getPendingDirectInvitesForUser } from "@/data/invites";
 import { getLeaguesForUser } from "@/data/leagues";
 import { getSession } from "@/lib/auth";
 
@@ -10,7 +12,10 @@ const HOME_LEAGUE_PREVIEW_LIMIT = 3;
 
 export default async function HomePage() {
   const session = await getSession();
-  const leagues = await getLeaguesForUser(session.user.id);
+  const [leagues, openInvites] = await Promise.all([
+    getLeaguesForUser(session.user.id),
+    getPendingDirectInvitesForUser(session.user.id, new Date()),
+  ]);
   const previewLeagues = leagues.slice(0, HOME_LEAGUE_PREVIEW_LIMIT);
   const hasMoreLeagues = leagues.length > HOME_LEAGUE_PREVIEW_LIMIT;
 
@@ -24,6 +29,8 @@ export default async function HomePage() {
           Pick up where you left off or jump into a league.
         </p>
       </header>
+
+      <OpenInvites invites={openInvites} />
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

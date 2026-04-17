@@ -8,7 +8,12 @@ import {
   externalSportsbooks,
   externalTeams,
 } from "./external";
-import { leagueMembers, leagueStandings, leagues } from "./leagues";
+import {
+  directInvites,
+  leagueMembers,
+  leagueStandings,
+  leagues,
+} from "./leagues";
 import {
   dataSources,
   events,
@@ -182,3 +187,14 @@ export const leagueStandingsRelations = relations(
     }),
   }),
 );
+
+export const directInvitesRelations = relations(directInvites, ({ one }) => ({
+  league: one(leagues, {
+    fields: [directInvites.leagueId],
+    references: [leagues.id],
+  }),
+  invitee: one(user, {
+    fields: [directInvites.inviteeUserId],
+    references: [user.id],
+  }),
+}));

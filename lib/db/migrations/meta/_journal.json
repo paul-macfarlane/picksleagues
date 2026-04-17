@@ -36,6 +36,13 @@
       "when": 1776453558982,
       "tag": "0004_third_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776455100640,
+      "tag": "0005_low_joshua_kane",
+      "breakpoints": true
     }
   ]
 }
