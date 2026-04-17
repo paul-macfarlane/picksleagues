@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { CreateDirectInviteDialog } from "@/components/invites/create-direct-invite-dialog";
+import { LinkInvitesSection } from "@/components/invites/link-invites-section";
 import { ComingSoon } from "@/components/leagues/coming-soon";
+import { getLinkInvitesByLeague } from "@/data/invites";
 import { getLeagueById } from "@/data/leagues";
 import { getLeagueMember } from "@/data/members";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
@@ -26,26 +28,39 @@ export default async function LeagueMembersPage(
 
   const isCommissioner = member?.role === "commissioner";
   const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
+  const linkInvites = isCommissioner
+    ? await getLinkInvitesByLeague(leagueId)
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
       {isCommissioner ? (
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Invite members</h2>
-              <p className="text-sm text-muted-foreground">
-                Send a direct invite to a specific user.
-              </p>
+        <>
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Invite members</h2>
+                <p className="text-sm text-muted-foreground">
+                  Send a direct invite to a specific user.
+                </p>
+              </div>
+              {inSeason ? null : (
+                <CreateDirectInviteDialog leagueId={leagueId} />
+              )}
             </div>
-            {inSeason ? null : <CreateDirectInviteDialog leagueId={leagueId} />}
-          </div>
-          {inSeason ? (
-            <p className="rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
-              Invites are paused while the league is in-season.
-            </p>
-          ) : null}
-        </section>
+            {inSeason ? (
+              <p className="rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
+                Direct invites are paused while the league is in-season.
+              </p>
+            ) : null}
+          </section>
+
+          <LinkInvitesSection
+            leagueId={leagueId}
+            existingInvites={linkInvites}
+            disabled={inSeason}
+          />
+        </>
       ) : null}
 
       <ComingSoon

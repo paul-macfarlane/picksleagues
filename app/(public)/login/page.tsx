@@ -14,7 +14,21 @@ export const metadata: Metadata = {
   title: "Sign in",
 };
 
-export default function LoginPage() {
+function safeCallback(raw: string | string[] | undefined): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  // Only allow same-origin paths: must start with "/" followed by a char
+  // that isn't "/" or "\", otherwise browsers may treat "//evil" or "/\evil"
+  // as a protocol-relative redirect.
+  if (value && /^\/[^/\\]/.test(value)) {
+    return value;
+  }
+  return "/home";
+}
+
+export default async function LoginPage(props: PageProps<"/login">) {
+  const searchParams = await props.searchParams;
+  const callbackURL = safeCallback(searchParams.redirect);
+
   return (
     <div className="flex flex-1 items-center justify-center">
       <Card className="w-full max-w-sm">
@@ -26,7 +40,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginButtons />
+          <LoginButtons callbackURL={callbackURL} />
         </CardContent>
       </Card>
     </div>

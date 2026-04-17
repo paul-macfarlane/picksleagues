@@ -46,6 +46,23 @@ export const searchProfilesSchema = z.object({
 
 export type SearchProfilesInput = z.input<typeof searchProfilesSchema>;
 
+export const createLinkInviteSchema = z.object({
+  leagueId: z.string().uuid({ error: "Invalid league id." }),
+  role: z.enum(leagueRoleEnum.enumValues),
+  expirationDays: expirationDaysSchema,
+});
+
+export type CreateLinkInviteInput = z.input<typeof createLinkInviteSchema>;
+export type CreateLinkInviteOutput = z.output<typeof createLinkInviteSchema>;
+
+export const revokeLinkInviteSchema = z.object({
+  inviteId: z.string().uuid({ error: "Invalid invite id." }),
+});
+
+export const joinViaLinkSchema = z.object({
+  token: z.string().min(1, "Invalid invite link."),
+});
+
 export const LEAGUE_ROLE_LABELS: Record<
   (typeof leagueRoleEnum.enumValues)[number],
   string

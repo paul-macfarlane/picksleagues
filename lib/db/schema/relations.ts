@@ -13,6 +13,7 @@ import {
   leagueMembers,
   leagueStandings,
   leagues,
+  linkInvites,
 } from "./leagues";
 import {
   dataSources,
@@ -196,5 +197,12 @@ export const directInvitesRelations = relations(directInvites, ({ one }) => ({
   invitee: one(user, {
     fields: [directInvites.inviteeUserId],
     references: [user.id],
+  }),
+}));
+
+export const linkInvitesRelations = relations(linkInvites, ({ one }) => ({
+  league: one(leagues, {
+    fields: [linkInvites.leagueId],
+    references: [leagues.id],
   }),
 }));

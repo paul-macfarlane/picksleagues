@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 26     |
-| In Progress | 3      |
+| Complete    | 27     |
+| In Progress | 2      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -208,7 +208,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - One pending invite per user per league
   - Home page invite display with accept/decline
 
-- [~] PL-024: Link invites (BUSINESS_SPEC §5.2, §12.6)
+- [x] PL-024: Link invites (BUSINESS_SPEC §5.2, §12.6)
   - actions/invites.ts — createLinkInvite
   - Shareable URL with token
   - app/(public)/join/[token]/page.tsx — preview without auth, join with auth
