@@ -43,11 +43,14 @@ const STRUCTURAL_RESULT = {
   seasonYear: 2025,
   seasonId: "season-1",
   phasesUpserted: 18,
+  phasesLocked: 0,
   teamsInserted: 0,
   teamsUpdated: 32,
+  teamsLocked: 0,
   eventsInserted: 5,
   eventsUpdated: 10,
   eventsSkipped: 0,
+  eventsLocked: 0,
   oddsToSync: [{ eventId: "event-1", oddsRef: "https://espn.com/odds/1" }],
 };
 
@@ -91,11 +94,14 @@ describe("runWeeklySync", () => {
       skipped: false,
       seasonYear: 2025,
       phasesUpserted: 18,
+      phasesLocked: 0,
       teamsInserted: 0,
       teamsUpdated: 32,
+      teamsLocked: 0,
       eventsInserted: 5,
       eventsUpdated: 10,
       eventsSkipped: 0,
+      eventsLocked: 0,
     });
     // Weekly sync specifically does NOT expose odds-related fields
     expect(result).not.toHaveProperty("oddsUpserted");

@@ -1,4 +1,8 @@
-import { getOddsSyncableEvents, upsertOdds } from "@/data/events";
+import {
+  getLockedOddsPairs,
+  getOddsSyncableEvents,
+  upsertOdds,
+} from "@/data/events";
 import { getDataSourceByName, getSportsbookByName } from "@/data/sports";
 import { fetchOdds } from "@/lib/espn/nfl/odds";
 import { isGameWindowActive, isNflSeasonMonth } from "@/lib/nfl/scheduling";
@@ -8,6 +12,7 @@ export interface OddsSyncResult {
   reason?: string;
   oddsUpdated: number;
   oddsEmpty: number;
+  oddsLocked: number;
 }
 
 function log(message: string): void {
@@ -22,6 +27,7 @@ export async function runOddsSync(now?: Date): Promise<OddsSyncResult> {
       reason: "off-season",
       oddsUpdated: 0,
       oddsEmpty: 0,
+      oddsLocked: 0,
     };
   }
 
@@ -39,6 +45,7 @@ export async function runOddsSync(now?: Date): Promise<OddsSyncResult> {
       reason: "no-syncable-events",
       oddsUpdated: 0,
       oddsEmpty: 0,
+      oddsLocked: 0,
     };
   }
 
@@ -55,8 +62,13 @@ export async function runOddsSync(now?: Date): Promise<OddsSyncResult> {
       reason: "no-game-window",
       oddsUpdated: 0,
       oddsEmpty: 0,
+      oddsLocked: 0,
     };
   }
+
+  const lockedOddsKey = new Set<string>(
+    (await getLockedOddsPairs()).map((p) => `${p.eventId}:${p.sportsbookId}`),
+  );
 
   log(`Fetching odds for ${syncableEvents.length} events from ESPN...`);
   const fetchedOddsResults = await Promise.all(
@@ -65,11 +77,18 @@ export async function runOddsSync(now?: Date): Promise<OddsSyncResult> {
 
   let oddsUpdated = 0;
   let oddsEmpty = 0;
+  let oddsLocked = 0;
 
   for (let i = 0; i < syncableEvents.length; i++) {
     const fetchedOdds = fetchedOddsResults[i];
     if (!fetchedOdds) {
       oddsEmpty++;
+      continue;
+    }
+
+    const key = `${syncableEvents[i].eventId}:${sportsbook.id}`;
+    if (lockedOddsKey.has(key)) {
+      oddsLocked++;
       continue;
     }
 
@@ -85,7 +104,9 @@ export async function runOddsSync(now?: Date): Promise<OddsSyncResult> {
     oddsUpdated++;
   }
 
-  log(`Sync complete: ${oddsUpdated} updated, ${oddsEmpty} empty`);
+  log(
+    `Sync complete: ${oddsUpdated} updated, ${oddsEmpty} empty, ${oddsLocked} locked`,
+  );
 
-  return { skipped: false, oddsUpdated, oddsEmpty };
+  return { skipped: false, oddsUpdated, oddsEmpty, oddsLocked };
 }

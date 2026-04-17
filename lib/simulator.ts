@@ -1,5 +1,6 @@
 import {
   getEventsBySeason,
+  getLockedEventIds,
   getScorableEventsForPhase,
   updateEvent,
 } from "@/data/events";
@@ -127,13 +128,18 @@ export async function advancePhase(): Promise<SimulatorStatus> {
     throw new BadRequestError("No active phase to advance");
   }
 
-  const scorableEvents = await getScorableEventsForPhase(
-    currentPhase.id,
-    dataSource.id,
+  const [allScorableEvents, lockedEventIds] = await Promise.all([
+    getScorableEventsForPhase(currentPhase.id, dataSource.id),
+    getLockedEventIds(),
+  ]);
+  const scorableEvents = allScorableEvents.filter(
+    (e) => !lockedEventIds.has(e.eventId),
   );
+  const lockedCount = allScorableEvents.length - scorableEvents.length;
 
   log(
-    `Advancing "${currentPhase.label}" — finalizing ${scorableEvents.length} event(s)`,
+    `Advancing "${currentPhase.label}" — finalizing ${scorableEvents.length} event(s)` +
+      (lockedCount > 0 ? ` (${lockedCount} locked, skipped)` : ""),
   );
 
   const fetchedScores = await Promise.all(

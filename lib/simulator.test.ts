@@ -40,6 +40,7 @@ vi.mock("@/data/events", () => ({
   getScorableEventsForPhase: vi.fn(),
   getEventsBySeason: vi.fn(),
   updateEvent: vi.fn(),
+  getLockedEventIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
 
 vi.mock("@/lib/sync/nfl/setup", () => ({
@@ -57,8 +58,12 @@ const { getDataSourceByName, getSportsLeagueByAbbreviation } =
 const { getSeasonByLeagueAndYear, removeSeason } =
   await import("@/data/seasons");
 const { getPhasesBySeason } = await import("@/data/phases");
-const { getScorableEventsForPhase, getEventsBySeason, updateEvent } =
-  await import("@/data/events");
+const {
+  getScorableEventsForPhase,
+  getEventsBySeason,
+  updateEvent,
+  getLockedEventIds,
+} = await import("@/data/events");
 const { runInitialSetup } = await import("@/lib/sync/nfl/setup");
 const { fetchEventScore } = await import("@/lib/espn/nfl/scores");
 
@@ -75,6 +80,7 @@ const mockGetPhasesBySeason = vi.mocked(getPhasesBySeason);
 const mockGetScorableEventsForPhase = vi.mocked(getScorableEventsForPhase);
 const mockGetEventsBySeason = vi.mocked(getEventsBySeason);
 const mockUpdateEvent = vi.mocked(updateEvent);
+const mockGetLockedEventIds = vi.mocked(getLockedEventIds);
 const mockRunInitialSetup = vi.mocked(runInitialSetup);
 const mockFetchEventScore = vi.mocked(fetchEventScore);
 
@@ -91,6 +97,7 @@ const PHASE_1: Phase = {
   startDate: new Date("2023-09-05T06:00:00Z"),
   endDate: new Date("2023-09-12T06:00:00Z"),
   pickLockTime: new Date("2023-09-10T17:00:00Z"),
+  lockedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -104,6 +111,7 @@ const PHASE_2: Phase = {
   startDate: new Date("2023-09-12T06:00:00Z"),
   endDate: new Date("2023-09-19T06:00:00Z"),
   pickLockTime: new Date("2023-09-17T17:00:00Z"),
+  lockedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -172,6 +180,7 @@ beforeEach(() => {
   mockGetSeasonByLeagueAndYear.mockResolvedValue(SEASON);
   mockGetPhasesBySeason.mockResolvedValue([PHASE_1, PHASE_2]);
   mockGetEventsBySeason.mockResolvedValue([]);
+  mockGetLockedEventIds.mockResolvedValue(new Set<string>());
 });
 
 // --- Tests ---
@@ -240,13 +249,17 @@ describe("initializeSeason", () => {
     mockRunInitialSetup.mockResolvedValue({
       seasonYear: 2023,
       phasesUpserted: 18,
+      phasesLocked: 0,
       teamsInserted: 32,
       teamsUpdated: 0,
+      teamsLocked: 0,
       eventsInserted: 272,
       eventsUpdated: 0,
       eventsSkipped: 0,
+      eventsLocked: 0,
       oddsUpserted: 272,
       oddsEmpty: 0,
+      oddsLocked: 0,
     });
   });
 
@@ -387,6 +400,19 @@ describe("advancePhase", () => {
       homeScore: 24,
       awayScore: 17,
     });
+  });
+
+  it("skips locked events when advancing", async () => {
+    mockGetSimulatorState.mockResolvedValue(
+      makeState({ simNow: new Date(PHASE_1.startDate.getTime() + 1) }),
+    );
+    mockGetLockedEventIds.mockResolvedValue(new Set(["event-1"]));
+
+    await advancePhase();
+
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateEvent).toHaveBeenCalledWith("event-2", expect.anything());
+    expect(mockFetchEventScore).toHaveBeenCalledTimes(1);
   });
 
   it("advances simNow to 1ms past next phase start (contiguous)", async () => {

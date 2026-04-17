@@ -8,6 +8,7 @@ import { runOddsSync } from "./odds-sync";
 vi.mock("@/data/events", () => ({
   getOddsSyncableEvents: vi.fn(),
   upsertOdds: vi.fn(),
+  getLockedOddsPairs: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/data/sports", () => ({
@@ -31,7 +32,8 @@ vi.mock("@/lib/nfl/scheduling", async (importOriginal) => {
   };
 });
 
-const { getOddsSyncableEvents, upsertOdds } = await import("@/data/events");
+const { getOddsSyncableEvents, upsertOdds, getLockedOddsPairs } =
+  await import("@/data/events");
 const { fetchOdds } = await import("@/lib/espn/nfl/odds");
 const { isNflSeasonMonth, isGameWindowActive } =
   await import("@/lib/nfl/scheduling");
@@ -39,6 +41,7 @@ const { isNflSeasonMonth, isGameWindowActive } =
 const mockGetOddsSyncableEvents = vi.mocked(getOddsSyncableEvents);
 const mockUpsertOdds = vi.mocked(upsertOdds);
 const mockFetchOdds = vi.mocked(fetchOdds);
+const mockGetLockedOddsPairs = vi.mocked(getLockedOddsPairs);
 const mockIsNflSeasonMonth = vi.mocked(isNflSeasonMonth);
 const mockIsGameWindowActive = vi.mocked(isGameWindowActive);
 
@@ -73,6 +76,7 @@ beforeEach(() => {
   mockIsNflSeasonMonth.mockReturnValue(true);
   mockIsGameWindowActive.mockReturnValue(true);
   mockGetOddsSyncableEvents.mockResolvedValue([]);
+  mockGetLockedOddsPairs.mockResolvedValue([]);
 });
 
 describe("runOddsSync", () => {
@@ -181,5 +185,25 @@ describe("runOddsSync", () => {
     await runOddsSync(OCTOBER_SUNDAY);
 
     expect(mockFetchOdds).toHaveBeenCalledWith("https://espn.com/odds/42");
+  });
+
+  it("skips upsert for locked (event, sportsbook) pairs", async () => {
+    mockGetOddsSyncableEvents.mockResolvedValue([
+      makeSyncableEvent({ eventId: "event-locked" }),
+      makeSyncableEvent({ eventId: "event-free" }),
+    ]);
+    mockFetchOdds.mockResolvedValue(makeFetchedOdds());
+    mockGetLockedOddsPairs.mockResolvedValue([
+      { eventId: "event-locked", sportsbookId: "sb-1" },
+    ]);
+
+    const result = await runOddsSync(OCTOBER_SUNDAY);
+
+    expect(result.oddsLocked).toBe(1);
+    expect(result.oddsUpdated).toBe(1);
+    expect(mockUpsertOdds).toHaveBeenCalledTimes(1);
+    expect(mockUpsertOdds).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: "event-free" }),
+    );
   });
 });

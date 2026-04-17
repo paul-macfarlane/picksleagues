@@ -8,6 +8,7 @@ import { runLiveScoresSync } from "./live-scores";
 vi.mock("@/data/events", () => ({
   getScorableEvents: vi.fn(),
   updateEvent: vi.fn(),
+  getLockedEventIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
 
 vi.mock("@/data/sports", () => ({
@@ -28,13 +29,15 @@ vi.mock("@/lib/nfl/scheduling", async (importOriginal) => {
   };
 });
 
-const { getScorableEvents, updateEvent } = await import("@/data/events");
+const { getScorableEvents, updateEvent, getLockedEventIds } =
+  await import("@/data/events");
 const { fetchEventScore } = await import("@/lib/espn/nfl/scores");
 const { isNflSeasonMonth, isGameWindowActive } =
   await import("@/lib/nfl/scheduling");
 
 const mockGetScorableEvents = vi.mocked(getScorableEvents);
 const mockUpdateEvent = vi.mocked(updateEvent);
+const mockGetLockedEventIds = vi.mocked(getLockedEventIds);
 const mockFetchEventScore = vi.mocked(fetchEventScore);
 const mockIsNflSeasonMonth = vi.mocked(isNflSeasonMonth);
 const mockIsGameWindowActive = vi.mocked(isGameWindowActive);
@@ -69,6 +72,7 @@ beforeEach(() => {
   mockIsNflSeasonMonth.mockReturnValue(true);
   mockIsGameWindowActive.mockReturnValue(true);
   mockGetScorableEvents.mockResolvedValue([]);
+  mockGetLockedEventIds.mockResolvedValue(new Set<string>());
 });
 
 describe("runLiveScoresSync", () => {
@@ -197,5 +201,41 @@ describe("runLiveScoresSync", () => {
       homeScoreRef: "https://espn.com/score/home/42",
       awayScoreRef: "https://espn.com/score/away/42",
     });
+  });
+
+  it("skips locked events and counts them", async () => {
+    mockGetScorableEvents.mockResolvedValue([
+      makeScorableEvent({ eventId: "event-free" }),
+      makeScorableEvent({ eventId: "event-locked" }),
+    ]);
+    mockGetLockedEventIds.mockResolvedValue(new Set(["event-locked"]));
+    mockFetchEventScore.mockResolvedValue(makeScore());
+
+    const result = await runLiveScoresSync(OCTOBER_SUNDAY);
+
+    expect(result.skipped).toBe(false);
+    expect(result.eventsLocked).toBe(1);
+    expect(result.eventsUpdated).toBe(1);
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateEvent).toHaveBeenCalledWith(
+      "event-free",
+      expect.anything(),
+    );
+    expect(mockFetchEventScore).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips when every scorable event is locked", async () => {
+    mockGetScorableEvents.mockResolvedValue([
+      makeScorableEvent({ eventId: "event-locked" }),
+    ]);
+    mockGetLockedEventIds.mockResolvedValue(new Set(["event-locked"]));
+
+    const result = await runLiveScoresSync(OCTOBER_SUNDAY);
+
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe("all-locked");
+    expect(result.eventsLocked).toBe(1);
+    expect(mockFetchEventScore).not.toHaveBeenCalled();
+    expect(mockUpdateEvent).not.toHaveBeenCalled();
   });
 });

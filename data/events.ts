@@ -185,3 +185,150 @@ export async function getEventsBySeason(
     .innerJoin(phases, eq(events.phaseId, phases.id))
     .where(eq(phases.seasonId, seasonId));
 }
+
+export async function getEventById(
+  eventId: string,
+  tx?: Transaction,
+): Promise<Event | null> {
+  const client = tx ?? db;
+  const result = await client.query.events.findFirst({
+    where: eq(events.id, eventId),
+  });
+  return result ?? null;
+}
+
+export async function getEventsByPhase(
+  phaseId: string,
+  tx?: Transaction,
+): Promise<Event[]> {
+  const client = tx ?? db;
+  return client.select().from(events).where(eq(events.phaseId, phaseId));
+}
+
+export async function setLockedEvent(
+  eventId: string,
+  lockedAt: Date,
+  tx?: Transaction,
+): Promise<Event> {
+  const client = tx ?? db;
+  const [result] = await client
+    .update(events)
+    .set({ lockedAt, updatedAt: new Date() })
+    .where(eq(events.id, eventId))
+    .returning();
+  if (!result) {
+    throw new NotFoundError("Event not found");
+  }
+  return result;
+}
+
+export async function clearLockedEvent(
+  eventId: string,
+  tx?: Transaction,
+): Promise<Event> {
+  const client = tx ?? db;
+  const [result] = await client
+    .update(events)
+    .set({ lockedAt: null, updatedAt: new Date() })
+    .where(eq(events.id, eventId))
+    .returning();
+  if (!result) {
+    throw new NotFoundError("Event not found");
+  }
+  return result;
+}
+
+export async function getLockedEventIds(
+  tx?: Transaction,
+): Promise<Set<string>> {
+  const client = tx ?? db;
+  const rows = await client
+    .select({ id: events.id })
+    .from(events)
+    .where(isNotNull(events.lockedAt));
+  return new Set(rows.map((r) => r.id));
+}
+
+export async function getOddsById(
+  oddsId: string,
+  tx?: Transaction,
+): Promise<Odds | null> {
+  const client = tx ?? db;
+  const result = await client.query.odds.findFirst({
+    where: eq(odds.id, oddsId),
+  });
+  return result ?? null;
+}
+
+export async function getOddsByEvent(
+  eventId: string,
+  tx?: Transaction,
+): Promise<Odds[]> {
+  const client = tx ?? db;
+  return client.select().from(odds).where(eq(odds.eventId, eventId));
+}
+
+export async function updateOdds(
+  oddsId: string,
+  data: Partial<Omit<NewOdds, "id" | "createdAt" | "updatedAt">>,
+  tx?: Transaction,
+): Promise<Odds> {
+  const client = tx ?? db;
+  const [result] = await client
+    .update(odds)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(odds.id, oddsId))
+    .returning();
+  if (!result) {
+    throw new NotFoundError("Odds not found");
+  }
+  return result;
+}
+
+export async function setLockedOdds(
+  oddsId: string,
+  lockedAt: Date,
+  tx?: Transaction,
+): Promise<Odds> {
+  const client = tx ?? db;
+  const [result] = await client
+    .update(odds)
+    .set({ lockedAt, updatedAt: new Date() })
+    .where(eq(odds.id, oddsId))
+    .returning();
+  if (!result) {
+    throw new NotFoundError("Odds not found");
+  }
+  return result;
+}
+
+export async function clearLockedOdds(
+  oddsId: string,
+  tx?: Transaction,
+): Promise<Odds> {
+  const client = tx ?? db;
+  const [result] = await client
+    .update(odds)
+    .set({ lockedAt: null, updatedAt: new Date() })
+    .where(eq(odds.id, oddsId))
+    .returning();
+  if (!result) {
+    throw new NotFoundError("Odds not found");
+  }
+  return result;
+}
+
+export interface LockedOddsPair {
+  eventId: string;
+  sportsbookId: string;
+}
+
+export async function getLockedOddsPairs(
+  tx?: Transaction,
+): Promise<LockedOddsPair[]> {
+  const client = tx ?? db;
+  return client
+    .select({ eventId: odds.eventId, sportsbookId: odds.sportsbookId })
+    .from(odds)
+    .where(isNotNull(odds.lockedAt));
+}
