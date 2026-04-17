@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import type { Team } from "@/lib/db/schema/sports";
 
+import { EditTeamDialog } from "./edit-team-dialog";
 import { LockBadge } from "./lock-badge";
 import { LockToggle } from "./lock-toggle";
 
@@ -57,7 +58,7 @@ export function TeamsTable({ teams }: { teams: Team[] }) {
               <TableHead className="w-20">Abbr</TableHead>
               <TableHead>Team</TableHead>
               <TableHead className="w-24">Status</TableHead>
-              <TableHead className="w-40 text-right">Actions</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -106,8 +107,9 @@ function TeamRow({ team }: { team: Team }) {
         <LockBadge lockedAt={team.lockedAt} />
       </TableCell>
       <TableCell>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <TeamDetailDialog team={team} />
+          <EditTeamDialog team={team} />
           <LockToggle
             entity="team"
             id={team.id}

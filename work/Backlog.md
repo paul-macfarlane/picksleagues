@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 19     |
-| In Progress | 3      |
+| Complete    | 20     |
+| In Progress | 2      |
 | Blocked     | 0      |
 | Pending     | 15     |
 | **Total**   | **37** |
@@ -167,7 +167,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Locked badge + lock/unlock toggle per row
   - Read-only detail view; edit forms arrive in PL-072–PL-074
 
-- [~] PL-072: Edit teams + phases
+- [x] PL-072: Edit teams + phases
   - actions/admin-overrides.ts: updateTeamAction, updatePhaseAction
   - lib/validators/admin-overrides.ts: team/phase edit schemas
   - Edit forms (RHF + zod) for name / location / abbreviation / logo URLs (teams) and label / start / end / pick lock time (phases)

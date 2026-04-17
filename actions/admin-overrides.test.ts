@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { toggleLockAction } from "@/actions/admin-overrides";
+import {
+  toggleLockAction,
+  updatePhaseAction,
+  updateTeamAction,
+} from "@/actions/admin-overrides";
 import {
   clearLockedEvent,
   clearLockedOdds,
   setLockedEvent,
   setLockedOdds,
 } from "@/data/events";
-import { clearLockedPhase, setLockedPhase } from "@/data/phases";
-import { clearLockedTeam, setLockedTeam } from "@/data/teams";
+import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
+import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
 import type { Profile } from "@/lib/db/schema/profiles";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "@/lib/errors";
 import { requireAdminSession } from "@/lib/permissions";
@@ -16,11 +20,13 @@ import { requireAdminSession } from "@/lib/permissions";
 vi.mock("@/data/teams", () => ({
   setLockedTeam: vi.fn(),
   clearLockedTeam: vi.fn(),
+  updateTeam: vi.fn(),
 }));
 
 vi.mock("@/data/phases", () => ({
   setLockedPhase: vi.fn(),
   clearLockedPhase: vi.fn(),
+  updatePhase: vi.fn(),
 }));
 
 vi.mock("@/data/events", () => ({
@@ -155,5 +161,164 @@ describe("toggleLockAction", () => {
     await expect(
       toggleLockAction({ entity: "team", id: UUID, locked: true }),
     ).rejects.toThrow("boom");
+  });
+});
+
+describe("updateTeamAction", () => {
+  function validInput() {
+    return {
+      id: UUID,
+      name: "Chiefs",
+      location: "Kansas City",
+      abbreviation: "KC",
+      logoUrl: "https://example.com/kc.png",
+      logoDarkUrl: "",
+    };
+  }
+
+  it("rejects invalid input without calling auth", async () => {
+    const result = await updateTeamAction({ ...validInput(), name: "" });
+
+    expect(result.success).toBe(false);
+    expect(requireAdminSession).not.toHaveBeenCalled();
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
+
+  it("requires admin session", async () => {
+    vi.mocked(requireAdminSession).mockRejectedValueOnce(new ForbiddenError());
+
+    await expect(updateTeamAction(validInput())).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it("updates the team, auto-locks, and normalizes empty URLs to null", async () => {
+    const result = await updateTeamAction(validInput());
+
+    expect(result.success).toBe(true);
+    expect(updateTeam).toHaveBeenCalledWith(UUID, {
+      name: "Chiefs",
+      location: "Kansas City",
+      abbreviation: "KC",
+      logoUrl: "https://example.com/kc.png",
+      logoDarkUrl: null,
+      lockedAt: expect.any(Date),
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/overrides");
+  });
+
+  it("rejects digits/symbols in abbreviation", async () => {
+    const result = await updateTeamAction({
+      ...validInput(),
+      abbreviation: "KC1",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
+
+  it("uppercases the abbreviation input", async () => {
+    await updateTeamAction({ ...validInput(), abbreviation: "kc" });
+
+    expect(updateTeam).toHaveBeenCalledWith(
+      UUID,
+      expect.objectContaining({ abbreviation: "KC" }),
+    );
+  });
+
+  it("rejects a non-URL logoUrl", async () => {
+    const result = await updateTeamAction({
+      ...validInput(),
+      logoUrl: "not a url",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
+
+  it("returns a business error when the team is missing", async () => {
+    vi.mocked(updateTeam).mockRejectedValueOnce(
+      new NotFoundError("Team not found"),
+    );
+
+    const result = await updateTeamAction(validInput());
+
+    expect(result).toEqual({ success: false, error: "Team not found" });
+  });
+});
+
+describe("updatePhaseAction", () => {
+  function validInput() {
+    return {
+      id: UUID,
+      label: "Week 1",
+      startDate: "2025-09-09 00:00",
+      endDate: "2025-09-16 06:00",
+      pickLockTime: "2025-09-14 17:00",
+    };
+  }
+
+  it("rejects malformed datetime strings", async () => {
+    const result = await updatePhaseAction({
+      ...validInput(),
+      startDate: "09/09/2025",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updatePhase).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid calendar dates (e.g. Feb 30)", async () => {
+    const result = await updatePhaseAction({
+      ...validInput(),
+      startDate: "2025-02-30 00:00",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updatePhase).not.toHaveBeenCalled();
+  });
+
+  it("rejects out-of-range time fields (e.g. 25:99)", async () => {
+    const result = await updatePhaseAction({
+      ...validInput(),
+      startDate: "2025-09-09 25:99",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updatePhase).not.toHaveBeenCalled();
+  });
+
+  it("rejects when end is not after start", async () => {
+    const result = await updatePhaseAction({
+      ...validInput(),
+      endDate: "2025-09-09 00:00",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updatePhase).not.toHaveBeenCalled();
+  });
+
+  it("converts strings to UTC Dates and auto-locks", async () => {
+    const result = await updatePhaseAction(validInput());
+
+    expect(result.success).toBe(true);
+    expect(updatePhase).toHaveBeenCalledWith(UUID, {
+      label: "Week 1",
+      startDate: new Date("2025-09-09T00:00:00Z"),
+      endDate: new Date("2025-09-16T06:00:00Z"),
+      pickLockTime: new Date("2025-09-14T17:00:00Z"),
+      lockedAt: expect.any(Date),
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/overrides");
+  });
+
+  it("returns a business error when the phase is missing", async () => {
+    vi.mocked(updatePhase).mockRejectedValueOnce(
+      new NotFoundError("Phase not found"),
+    );
+
+    const result = await updatePhaseAction(validInput());
+
+    expect(result).toEqual({ success: false, error: "Phase not found" });
   });
 });
