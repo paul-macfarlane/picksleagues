@@ -8,6 +8,8 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/data/leagues", () => ({
   getLeagueById: vi.fn(),
+  getLeagueMemberCount: vi.fn(),
+  removeLeague: vi.fn(),
 }));
 
 vi.mock("@/data/members", () => ({
@@ -27,9 +29,14 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/permissions", () => ({
   assertLeagueCommissioner: vi.fn(),
+  assertLeagueMember: vi.fn(),
 }));
 
-import { getLeagueById } from "@/data/leagues";
+import {
+  getLeagueById,
+  getLeagueMemberCount,
+  removeLeague,
+} from "@/data/leagues";
 import {
   getCommissionerCount,
   getLeagueMember,
@@ -38,10 +45,14 @@ import {
 } from "@/data/members";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSession } from "@/lib/auth";
-import { assertLeagueCommissioner } from "@/lib/permissions";
+import {
+  assertLeagueCommissioner,
+  assertLeagueMember,
+} from "@/lib/permissions";
 
 import {
   demoteMemberAction,
+  leaveLeagueAction,
   promoteMemberAction,
   removeMemberAction,
 } from "./members";
@@ -85,8 +96,13 @@ beforeEach(() => {
     member("commissioner", sessionUserId),
   );
   vi.mocked(getLeagueById).mockResolvedValue(league);
+  vi.mocked(getLeagueMemberCount).mockResolvedValue(3);
+  vi.mocked(removeLeague).mockResolvedValue(undefined);
   vi.mocked(getActivePhasesForSportsLeague).mockResolvedValue([]);
   vi.mocked(getLeagueMember).mockResolvedValue(member("member"));
+  vi.mocked(assertLeagueMember).mockResolvedValue(
+    member("member", sessionUserId),
+  );
   vi.mocked(updateLeagueMemberRole).mockResolvedValue(member("commissioner"));
   vi.mocked(removeLeagueMember).mockResolvedValue(undefined);
   vi.mocked(getCommissionerCount).mockResolvedValue(2);
@@ -259,5 +275,79 @@ describe("removeMemberAction", () => {
     });
     expect(result.success).toBe(true);
     expect(removeLeagueMember).toHaveBeenCalledWith(leagueId, targetUserId);
+  });
+});
+
+describe("leaveLeagueAction", () => {
+  it("returns a validation error on bad input", async () => {
+    const result = await leaveLeagueAction({ leagueId: "nope" });
+    expect(result.success).toBe(false);
+    expect(removeLeagueMember).not.toHaveBeenCalled();
+    expect(removeLeague).not.toHaveBeenCalled();
+  });
+
+  it("blocks leaving while in-season", async () => {
+    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
+      {
+        id: "p-1",
+        seasonId: "s-1",
+        seasonType: "regular",
+        weekNumber: 2,
+        label: "Week 2",
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 86400_000),
+        pickLockTime: new Date(),
+        lockedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    const result = await leaveLeagueAction({ leagueId });
+    expect(result.success).toBe(false);
+    expect(removeLeagueMember).not.toHaveBeenCalled();
+  });
+
+  it("deletes the league when the user is the sole member", async () => {
+    vi.mocked(getLeagueMemberCount).mockResolvedValueOnce(1);
+    vi.mocked(assertLeagueMember).mockResolvedValueOnce(
+      member("commissioner", sessionUserId),
+    );
+    const result = await leaveLeagueAction({ leagueId });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.leagueDeleted).toBe(true);
+    }
+    expect(removeLeague).toHaveBeenCalledWith(leagueId);
+    expect(removeLeagueMember).not.toHaveBeenCalled();
+  });
+
+  it("blocks a sole commissioner from leaving when others remain", async () => {
+    vi.mocked(assertLeagueMember).mockResolvedValueOnce(
+      member("commissioner", sessionUserId),
+    );
+    vi.mocked(getCommissionerCount).mockResolvedValueOnce(1);
+    const result = await leaveLeagueAction({ leagueId });
+    expect(result.success).toBe(false);
+    expect(removeLeagueMember).not.toHaveBeenCalled();
+    expect(removeLeague).not.toHaveBeenCalled();
+  });
+
+  it("lets a commissioner leave when other commissioners exist", async () => {
+    vi.mocked(assertLeagueMember).mockResolvedValueOnce(
+      member("commissioner", sessionUserId),
+    );
+    vi.mocked(getCommissionerCount).mockResolvedValueOnce(2);
+    const result = await leaveLeagueAction({ leagueId });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.leagueDeleted).toBe(false);
+    }
+    expect(removeLeagueMember).toHaveBeenCalledWith(leagueId, sessionUserId);
+  });
+
+  it("lets a regular member leave", async () => {
+    const result = await leaveLeagueAction({ leagueId });
+    expect(result.success).toBe(true);
+    expect(removeLeagueMember).toHaveBeenCalledWith(leagueId, sessionUserId);
   });
 });

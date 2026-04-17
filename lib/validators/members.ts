@@ -17,3 +17,7 @@ export const removeMemberSchema = z.object({
   leagueId: leagueIdSchema,
   userId: userIdSchema,
 });
+
+export const leaveLeagueSchema = z.object({
+  leagueId: leagueIdSchema,
+});

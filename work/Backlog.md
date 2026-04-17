@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 28     |
-| In Progress | 1      |
+| Complete    | 29     |
+| In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -219,7 +219,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - actions/members.ts — promoteMember, demoteMember, removeMember
   - Commissioner-only management, removal only when not in-season
 
-- [~] PL-026: Leave league (BUSINESS_SPEC §4.4)
+- [x] PL-026: Leave league (BUSINESS_SPEC §4.4)
   - actions/members.ts — leaveLeague
   - Sole commissioner check (must not be sole commissioner unless sole member)
   - Sole member deletes league entirely

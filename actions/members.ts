@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getLeagueById } from "@/data/leagues";
+import {
+  getLeagueById,
+  getLeagueMemberCount,
+  removeLeague,
+} from "@/data/leagues";
 import {
   getCommissionerCount,
   getLeagueMember,
@@ -12,10 +16,14 @@ import {
 import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSession } from "@/lib/auth";
 import { isLeagueInSeason } from "@/lib/nfl/leagues";
-import { assertLeagueCommissioner } from "@/lib/permissions";
+import {
+  assertLeagueCommissioner,
+  assertLeagueMember,
+} from "@/lib/permissions";
 import type { ActionResult } from "@/lib/types";
 import {
   demoteMemberSchema,
+  leaveLeagueSchema,
   promoteMemberSchema,
   removeMemberSchema,
 } from "@/lib/validators/members";
@@ -135,4 +143,62 @@ export async function removeMemberAction(
   revalidatePath("/leagues");
   revalidatePath("/home");
   return { success: true, data: undefined };
+}
+
+export async function leaveLeagueAction(
+  input: unknown,
+): Promise<ActionResult<{ leagueDeleted: boolean }>> {
+  const parsed = leaveLeagueSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid request.",
+    };
+  }
+
+  const session = await getSession();
+  const { leagueId } = parsed.data;
+  const member = await assertLeagueMember(session.user.id, leagueId);
+
+  const league = await getLeagueById(leagueId);
+  if (!league) {
+    return { success: false, error: "League not found." };
+  }
+
+  const [activePhases, memberCount] = await Promise.all([
+    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getLeagueMemberCount(leagueId),
+  ]);
+
+  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+    return {
+      success: false,
+      error: "You can't leave the league while it's in-season.",
+    };
+  }
+
+  if (memberCount <= 1) {
+    await removeLeague(leagueId);
+    revalidatePath(`/leagues/${leagueId}`, "layout");
+    revalidatePath("/leagues");
+    revalidatePath("/home");
+    return { success: true, data: { leagueDeleted: true } };
+  }
+
+  if (member.role === "commissioner") {
+    const commissionerCount = await getCommissionerCount(leagueId);
+    if (commissionerCount <= 1) {
+      return {
+        success: false,
+        error:
+          "Promote another commissioner before leaving — you're the only one.",
+      };
+    }
+  }
+
+  await removeLeagueMember(leagueId, session.user.id);
+  revalidatePath(`/leagues/${leagueId}`, "layout");
+  revalidatePath("/leagues");
+  revalidatePath("/home");
+  return { success: true, data: { leagueDeleted: false } };
 }
