@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
@@ -9,6 +9,8 @@ import type {
   NewEvent,
   NewOdds,
   Odds,
+  Sportsbook,
+  Team,
 } from "@/lib/db/schema/sports";
 import { events, odds, phases } from "@/lib/db/schema/sports";
 import { externalEvents } from "@/lib/db/schema/external";
@@ -205,6 +207,24 @@ export async function getEventsByPhase(
   return client.select().from(events).where(eq(events.phaseId, phaseId));
 }
 
+export interface EventWithTeams extends Event {
+  homeTeam: Team;
+  awayTeam: Team;
+}
+
+export async function getEventsByPhaseWithTeams(
+  phaseId: string,
+  tx?: Transaction,
+): Promise<EventWithTeams[]> {
+  const client = tx ?? db;
+  const rows = await client.query.events.findMany({
+    where: eq(events.phaseId, phaseId),
+    with: { homeTeam: true, awayTeam: true },
+    orderBy: asc(events.startTime),
+  });
+  return rows;
+}
+
 export async function setLockedEvent(
   eventId: string,
   lockedAt: Date,
@@ -266,6 +286,33 @@ export async function getOddsByEvent(
 ): Promise<Odds[]> {
   const client = tx ?? db;
   return client.select().from(odds).where(eq(odds.eventId, eventId));
+}
+
+export interface OddsWithContext extends Odds {
+  sportsbook: Sportsbook;
+  event: EventWithTeams;
+}
+
+export async function getOddsByPhaseWithContext(
+  phaseId: string,
+  tx?: Transaction,
+): Promise<OddsWithContext[]> {
+  const client = tx ?? db;
+  const eventRows = await client
+    .select({ id: events.id })
+    .from(events)
+    .where(eq(events.phaseId, phaseId));
+  const eventIds = eventRows.map((r) => r.id);
+  if (eventIds.length === 0) return [];
+
+  const rows = await client.query.odds.findMany({
+    where: inArray(odds.eventId, eventIds),
+    with: {
+      sportsbook: true,
+      event: { with: { homeTeam: true, awayTeam: true } },
+    },
+  });
+  return rows;
 }
 
 export async function updateOdds(

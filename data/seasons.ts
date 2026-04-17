@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
@@ -46,4 +46,16 @@ export async function removeSeason(
 ): Promise<void> {
   const client = tx ?? db;
   await client.delete(seasons).where(eq(seasons.id, seasonId));
+}
+
+export async function getSeasonsBySportsLeague(
+  sportsLeagueId: string,
+  tx?: Transaction,
+): Promise<Season[]> {
+  const client = tx ?? db;
+  return client
+    .select()
+    .from(seasons)
+    .where(eq(seasons.sportsLeagueId, sportsLeagueId))
+    .orderBy(desc(seasons.year));
 }

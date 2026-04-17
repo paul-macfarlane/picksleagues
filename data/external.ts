@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
@@ -118,6 +118,28 @@ export async function getAllExternalEvents(
   const client = tx ?? db;
   return client.query.externalEvents.findMany({
     where: eq(externalEvents.dataSourceId, dataSourceId),
+  });
+}
+
+export async function getExternalEventByEventId(
+  eventId: string,
+  tx?: Transaction,
+): Promise<ExternalEvent | null> {
+  const client = tx ?? db;
+  const result = await client.query.externalEvents.findFirst({
+    where: eq(externalEvents.eventId, eventId),
+  });
+  return result ?? null;
+}
+
+export async function getExternalEventsByEventIds(
+  eventIds: string[],
+  tx?: Transaction,
+): Promise<ExternalEvent[]> {
+  if (eventIds.length === 0) return [];
+  const client = tx ?? db;
+  return client.query.externalEvents.findMany({
+    where: inArray(externalEvents.eventId, eventIds),
   });
 }
 

@@ -107,6 +107,12 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
                 Simulator
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/overrides">
+                <ShieldIcon className="size-4" />
+                Overrides
+              </Link>
+            </DropdownMenuItem>
           </>
         )}
         <DropdownMenuSeparator />
