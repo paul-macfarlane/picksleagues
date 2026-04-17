@@ -108,6 +108,15 @@ const PHASE_2: Phase = {
   updatedAt: new Date(),
 };
 
+const PHASE_3_CONTIGUOUS: Phase = {
+  ...PHASE_2,
+  id: "phase-3",
+  weekNumber: 3,
+  label: "Week 3",
+  startDate: new Date("2023-09-19T06:00:00Z"),
+  endDate: new Date("2023-09-26T06:00:00Z"),
+};
+
 const PHASE_3_WITH_GAP: Phase = {
   ...PHASE_2,
   id: "phase-3",
@@ -388,6 +397,29 @@ describe("advancePhase", () => {
     await advancePhase();
 
     // PHASE_2.startDate === PHASE_1.endDate (contiguous). Land inside PHASE_2.
+    expect(mockUpsertSimulatorState).toHaveBeenCalledWith({
+      seasonYear: 2023,
+      simNow: new Date(PHASE_2.startDate.getTime() + 1),
+      initialized: true,
+    });
+  });
+
+  it("does not skip a phase when three phases are contiguous", async () => {
+    // Regression for manual-test bug where advancing from phase 1 skipped
+    // phase 2 and landed in phase 3. The fix walks the ordered phase list
+    // by index so contiguous boundaries don't get dropped by a strict-greater
+    // date comparison.
+    mockGetPhasesBySeason.mockResolvedValue([
+      PHASE_1,
+      PHASE_2,
+      PHASE_3_CONTIGUOUS,
+    ]);
+    mockGetSimulatorState.mockResolvedValue(
+      makeState({ simNow: new Date(PHASE_1.startDate.getTime() + 1) }),
+    );
+
+    await advancePhase();
+
     expect(mockUpsertSimulatorState).toHaveBeenCalledWith({
       seasonYear: 2023,
       simNow: new Date(PHASE_2.startDate.getTime() + 1),

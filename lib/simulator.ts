@@ -156,15 +156,14 @@ export async function advancePhase(): Promise<SimulatorStatus> {
     ),
   );
 
-  // Jump to the next phase's start so we never land in a between-phase gap
-  // (e.g., the lull between conference championships and the Super Bowl).
-  const laterPhases = phases.filter(
-    (p) => p.startDate.getTime() > currentPhase.endDate.getTime(),
-  );
-  const newSimNow =
-    laterPhases.length > 0
-      ? new Date(laterPhases[0].startDate.getTime() + 1)
-      : new Date(currentPhase.endDate.getTime() + 1);
+  // Jump to the next phase's start. Phases come back ordered by startDate,
+  // so a simple index+1 lookup skips any between-phase gap without risking
+  // a strict-greater comparison dropping a contiguous neighbor.
+  const currentIndex = phases.findIndex((p) => p.id === currentPhase.id);
+  const nextPhase = currentIndex >= 0 ? phases[currentIndex + 1] : undefined;
+  const newSimNow = nextPhase
+    ? new Date(nextPhase.startDate.getTime() + 1)
+    : new Date(currentPhase.endDate.getTime() + 1);
 
   await upsertSimulatorState({
     seasonYear: state.seasonYear,
