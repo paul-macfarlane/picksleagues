@@ -32,6 +32,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         name: profile.name,
         email: session.user.email,
         image: profile.avatarUrl,
+        isAdmin: profile.role === "admin",
       }}
     >
       {children}

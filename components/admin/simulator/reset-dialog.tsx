@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 export function ResetSimulatorDialog({ disabled }: { disabled: boolean }) {
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function handleConfirm() {
@@ -30,11 +31,12 @@ export function ResetSimulatorDialog({ disabled }: { disabled: boolean }) {
         return;
       }
       toast.success("Simulator reset");
+      setOpen(false);
     });
   }
 
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
         <Button variant="destructive" disabled={disabled} className="w-fit">
           Reset simulation

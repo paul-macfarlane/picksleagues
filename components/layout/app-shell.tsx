@@ -9,6 +9,7 @@ type AppShellUser = {
   name: string;
   email: string;
   image?: string | null;
+  isAdmin?: boolean;
 };
 
 export function AppShell({
