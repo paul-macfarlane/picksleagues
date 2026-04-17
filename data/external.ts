@@ -121,17 +121,6 @@ export async function getAllExternalEvents(
   });
 }
 
-export async function getExternalEventByEventId(
-  eventId: string,
-  tx?: Transaction,
-): Promise<ExternalEvent | null> {
-  const client = tx ?? db;
-  const result = await client.query.externalEvents.findFirst({
-    where: eq(externalEvents.eventId, eventId),
-  });
-  return result ?? null;
-}
-
 export async function getExternalEventsByEventIds(
   eventIds: string[],
   tx?: Transaction,

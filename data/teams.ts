@@ -32,17 +32,6 @@ export async function updateTeam(
   return result;
 }
 
-export async function getTeamById(
-  teamId: string,
-  tx?: Transaction,
-): Promise<Team | null> {
-  const client = tx ?? db;
-  const result = await client.query.teams.findFirst({
-    where: eq(teams.id, teamId),
-  });
-  return result ?? null;
-}
-
 export async function getTeamsBySportsLeague(
   sportsLeagueId: string,
   tx?: Transaction,

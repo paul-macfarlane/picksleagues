@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { formatInTimeZone } from "date-fns-tz";
 import { PencilIcon } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -42,15 +41,9 @@ import {
   type UpdateEventInput,
 } from "@/lib/validators/admin-overrides";
 
+import { numberToInput, toUtcInput } from "./format";
+
 type UpdateEventOutput = z.output<typeof updateEventSchema>;
-
-function toUtcInput(d: Date): string {
-  return formatInTimeZone(d, "UTC", "yyyy-MM-dd HH:mm");
-}
-
-function scoreToInput(n: number | null): string {
-  return n === null ? "" : String(n);
-}
 
 const STATUS_LABELS: Record<(typeof eventStatusValues)[number], string> = {
   not_started: "Not started",
@@ -78,8 +71,8 @@ export function EditEventDialog({
     awayTeamId: event.awayTeamId,
     startTime: toUtcInput(event.startTime),
     status: event.status,
-    homeScore: scoreToInput(event.homeScore),
-    awayScore: scoreToInput(event.awayScore),
+    homeScore: numberToInput(event.homeScore),
+    awayScore: numberToInput(event.awayScore),
   };
 
   const form = useForm<UpdateEventInput, unknown, UpdateEventOutput>({

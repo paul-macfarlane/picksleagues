@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { formatInTimeZone } from "date-fns-tz";
 import { PencilIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import type { z } from "zod";
 
 import { updatePhaseAction } from "@/actions/admin-overrides";
 import { Button } from "@/components/ui/button";
@@ -26,18 +26,15 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { Phase } from "@/lib/db/schema/sports";
-import type { z } from "zod";
 import {
   UTC_DATETIME_FORMAT,
   updatePhaseSchema,
   type UpdatePhaseInput,
 } from "@/lib/validators/admin-overrides";
 
-type UpdatePhaseOutput = z.output<typeof updatePhaseSchema>;
+import { toUtcInput } from "./format";
 
-function toUtcInput(d: Date): string {
-  return formatInTimeZone(d, "UTC", "yyyy-MM-dd HH:mm");
-}
+type UpdatePhaseOutput = z.output<typeof updatePhaseSchema>;
 
 export function EditPhaseDialog({ phase }: { phase: Phase }) {
   const [open, setOpen] = useState(false);
