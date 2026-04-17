@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
+import { DeleteLeagueButton } from "@/components/leagues/delete-league-button";
 import { EditLeagueForm } from "@/components/leagues/edit-league-form";
+import { Separator } from "@/components/ui/separator";
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSession } from "@/lib/auth";
@@ -38,6 +40,19 @@ export default async function LeagueSettingsPage(
         inSeason={inSeason}
         memberCount={memberCount}
       />
+
+      <Separator />
+
+      <section className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-base font-semibold">Danger zone</h3>
+          <p className="text-sm text-muted-foreground">
+            Deleting the league removes it for every member. There&apos;s no
+            recovery.
+          </p>
+        </div>
+        <DeleteLeagueButton leagueId={league.id} leagueName={league.name} />
+      </section>
     </div>
   );
 }

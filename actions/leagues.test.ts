@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/data/leagues", () => ({
   insertLeague: vi.fn(),
   updateLeague: vi.fn(),
+  removeLeague: vi.fn(),
   getLeagueById: vi.fn(),
   getLeagueMemberCount: vi.fn(),
 }));
@@ -49,6 +50,7 @@ import {
   getLeagueById,
   getLeagueMemberCount,
   insertLeague,
+  removeLeague,
   updateLeague,
 } from "@/data/leagues";
 import { insertLeagueMember } from "@/data/members";
@@ -59,7 +61,11 @@ import { insertLeagueStanding } from "@/data/standings";
 import { getSession } from "@/lib/auth";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 
-import { createLeagueAction, updateLeagueAction } from "./leagues";
+import {
+  createLeagueAction,
+  deleteLeagueAction,
+  updateLeagueAction,
+} from "./leagues";
 
 const validInput = {
   name: "Test League",
@@ -347,5 +353,49 @@ describe("updateLeagueAction", () => {
         seasonFormat: "full_season",
       }),
     );
+  });
+});
+
+describe("deleteLeagueAction", () => {
+  const leagueId = "22222222-2222-4222-8222-222222222222";
+
+  beforeEach(() => {
+    vi.mocked(assertLeagueCommissioner).mockResolvedValue({
+      id: "m-1",
+      leagueId,
+      userId: "user-1",
+      role: "commissioner",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(removeLeague).mockResolvedValue(undefined);
+  });
+
+  it("returns a validation error on a bad id", async () => {
+    const result = await deleteLeagueAction({ leagueId: "not-a-uuid" });
+    expect(result.success).toBe(false);
+    expect(removeLeague).not.toHaveBeenCalled();
+  });
+
+  it("propagates ForbiddenError when the user is not a commissioner", async () => {
+    vi.mocked(assertLeagueCommissioner).mockRejectedValueOnce(
+      new ForbiddenError("Must be a league commissioner"),
+    );
+    await expect(deleteLeagueAction({ leagueId })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+    expect(removeLeague).not.toHaveBeenCalled();
+  });
+
+  it("deletes the league on success", async () => {
+    const result = await deleteLeagueAction({ leagueId });
+    expect(result.success).toBe(true);
+    expect(removeLeague).toHaveBeenCalledWith(leagueId);
+  });
+
+  it("returns a business error if the league cannot be found", async () => {
+    vi.mocked(removeLeague).mockRejectedValueOnce(new NotFoundError());
+    const result = await deleteLeagueAction({ leagueId });
+    expect(result.success).toBe(false);
   });
 });
