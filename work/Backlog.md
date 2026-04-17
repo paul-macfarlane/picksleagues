@@ -10,8 +10,8 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 22     |
-| In Progress | 7      |
+| Complete    | 23     |
+| In Progress | 6      |
 | Blocked     | 0      |
 | Pending     | 8      |
 | **Total**   | **37** |
@@ -184,7 +184,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 ## 5. Leagues (depends on: Foundation complete)
 
-- [~] PL-020: League creation (BUSINESS_SPEC §3.1, §12.4)
+- [x] PL-020: League creation (BUSINESS_SPEC §3.1, §12.4)
   - lib/validators/leagues.ts — CreateLeagueSchema
   - actions/leagues.ts — createLeague action
   - League create page with form (name, season format, size, picks per phase, pick type)

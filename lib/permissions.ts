@@ -1,5 +1,7 @@
+import { getLeagueMember } from "@/data/members";
 import { getProfileByUserId } from "@/data/profiles";
 import { getSession } from "@/lib/auth";
+import type { LeagueMember } from "@/lib/db/schema/leagues";
 import type { Profile } from "@/lib/db/schema/profiles";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 
@@ -20,4 +22,26 @@ export async function requireAdminSession(): Promise<{
   }
   assertAdmin(profile);
   return { userId: session.user.id, profile };
+}
+
+export async function assertLeagueMember(
+  userId: string,
+  leagueId: string,
+): Promise<LeagueMember> {
+  const member = await getLeagueMember(leagueId, userId);
+  if (!member) {
+    throw new ForbiddenError("Not a league member");
+  }
+  return member;
+}
+
+export async function assertLeagueCommissioner(
+  userId: string,
+  leagueId: string,
+): Promise<LeagueMember> {
+  const member = await assertLeagueMember(userId, leagueId);
+  if (member.role !== "commissioner") {
+    throw new ForbiddenError("Must be a league commissioner");
+  }
+  return member;
 }
