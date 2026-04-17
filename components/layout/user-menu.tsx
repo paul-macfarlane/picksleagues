@@ -8,6 +8,7 @@ import {
   MonitorIcon,
   MoonIcon,
   SettingsIcon,
+  ShieldIcon,
   SunIcon,
   UserIcon,
 } from "lucide-react";
@@ -33,6 +34,7 @@ type UserMenuUser = {
   name: string;
   email: string;
   image?: string | null;
+  isAdmin?: boolean;
 };
 
 const THEME_OPTIONS = [
@@ -95,6 +97,18 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             Account
           </Link>
         </DropdownMenuItem>
+        {user.isAdmin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Admin</DropdownMenuLabel>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/simulator">
+                <ShieldIcon className="size-4" />
+                Simulator
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
