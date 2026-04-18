@@ -17,12 +17,17 @@ import {
   upsertDirectInvite,
 } from "@/data/invites";
 import { getLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
 import type { LinkInvite } from "@/lib/db/schema/leagues";
 import type { Profile } from "@/lib/db/schema/profiles";
 import { joinLeague } from "@/lib/invites";
-import { isLeagueInSeason } from "@/lib/nfl/leagues";
+import {
+  hasLeagueStartLockPassed,
+  leagueActivationTime,
+  selectCurrentSeason,
+} from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 import { getAppNow } from "@/lib/simulator";
 import type { ActionResult } from "@/lib/types";
@@ -60,20 +65,33 @@ export async function createDirectInviteAction(
   }
 
   const now = await getAppNow();
-  const [activePhases, memberCount, existingMember] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
+  const [memberCount, existingMember, seasons] = await Promise.all([
     getLeagueMemberCount(leagueId),
     getLeagueMember(leagueId, inviteeUserId),
+    getSeasonsBySportsLeague(league.sportsLeagueId),
   ]);
 
   if (existingMember) {
     return { success: false, error: "That user is already in the league." };
   }
 
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+  const currentSeason = selectCurrentSeason(seasons, now);
+  if (!currentSeason) {
     return {
       success: false,
-      error: "Invites can't be created while the league is in-season.",
+      error: "No NFL season is synced yet. Try again later.",
+    };
+  }
+  const phases = await getPhasesBySeason(currentSeason.id);
+  const activation = leagueActivationTime(
+    league.createdAt,
+    currentSeason.startDate,
+  );
+  if (hasLeagueStartLockPassed(phases, league.seasonFormat, activation, now)) {
+    return {
+      success: false,
+      error:
+        "New invites can't be created — the league's start lock has already passed.",
     };
   }
 
@@ -189,15 +207,28 @@ export async function createLinkInviteAction(
   }
 
   const now = await getAppNow();
-  const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
+  const [memberCount, seasons] = await Promise.all([
     getLeagueMemberCount(leagueId),
+    getSeasonsBySportsLeague(league.sportsLeagueId),
   ]);
 
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+  const currentSeason = selectCurrentSeason(seasons, now);
+  if (!currentSeason) {
     return {
       success: false,
-      error: "Invites can't be created while the league is in-season.",
+      error: "No NFL season is synced yet. Try again later.",
+    };
+  }
+  const phases = await getPhasesBySeason(currentSeason.id);
+  const activation = leagueActivationTime(
+    league.createdAt,
+    currentSeason.startDate,
+  );
+  if (hasLeagueStartLockPassed(phases, league.seasonFormat, activation, now)) {
+    return {
+      success: false,
+      error:
+        "New invites can't be created — the league's start lock has already passed.",
     };
   }
 

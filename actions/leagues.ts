@@ -10,7 +10,7 @@ import {
   updateLeague,
 } from "@/data/leagues";
 import { insertLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSportsLeagueByAbbreviation } from "@/data/sports";
 import { insertLeagueStanding } from "@/data/standings";
@@ -18,7 +18,12 @@ import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { cleanupInvitesIfFull } from "@/lib/invites";
-import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
+import {
+  hasLeagueStartLockPassed,
+  leagueActivationTime,
+  selectCurrentSeason,
+  selectLeagueStartPhase,
+} from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 import { getAppNow } from "@/lib/simulator";
 import type { ActionResult } from "@/lib/types";
@@ -68,6 +73,22 @@ export async function createLeagueAction(
 
   const { name, imageUrl, seasonFormat, size, picksPerPhase, pickType } =
     parsed.data;
+
+  // §3.1 + §3.8: league creation is only allowed when the chosen format has
+  // an upcoming pick lock this season. Activation for a new league is
+  // max(now, seasonStart) — using the helper keeps the invariant greppable
+  // and correct if the season hasn't started yet.
+  const phases = await getPhasesBySeason(currentSeason.id);
+  const activation = leagueActivationTime(now, currentSeason.startDate);
+  const startPhase = selectLeagueStartPhase(phases, seasonFormat, activation);
+  if (!startPhase) {
+    return {
+      success: false,
+      error:
+        "No upcoming phases in that format this season. Pick a different format or wait for next season.",
+    };
+  }
+
   const normalizedImageUrl = imageUrl && imageUrl !== "" ? imageUrl : null;
 
   const league = await withTransaction(async (tx) => {
@@ -141,11 +162,20 @@ export async function updateLeagueAction(
   }
 
   const now = await getAppNow();
-  const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
-    getLeagueMemberCount(leagueId),
-  ]);
-  const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
+  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
+  const currentSeason = selectCurrentSeason(seasons, now);
+  const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
+  const memberCount = await getLeagueMemberCount(leagueId);
+
+  const activation = currentSeason
+    ? leagueActivationTime(league.createdAt, currentSeason.startDate)
+    : league.createdAt;
+  const startLocked = hasLeagueStartLockPassed(
+    phases,
+    league.seasonFormat,
+    activation,
+    now,
+  );
 
   const structuralChanged =
     seasonFormat !== league.seasonFormat ||
@@ -153,11 +183,15 @@ export async function updateLeagueAction(
     picksPerPhase !== league.picksPerPhase ||
     pickType !== league.pickType;
 
-  if (structuralChanged && inSeason) {
+  if (structuralChanged && startLocked) {
+    // BUSINESS_SPEC §3.2 layers a second gate on top of the start lock:
+    // "no picks submitted yet". The picks table doesn't exist until
+    // PL-028, so today the start lock is the only gate. When picks ship,
+    // fold in a picks-exist check here.
     return {
       success: false,
       error:
-        "Structural settings can't be changed while the league is in-season.",
+        "Structural settings are locked once the season's first pick lock has passed.",
     };
   }
 

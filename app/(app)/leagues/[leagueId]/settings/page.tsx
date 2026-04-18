@@ -5,9 +5,14 @@ import { EditLeagueForm } from "@/components/leagues/edit-league-form";
 import { Separator } from "@/components/ui/separator";
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
 import { getLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
-import { isLeagueInSeason } from "@/lib/nfl/leagues";
+import {
+  hasLeagueStartLockPassed,
+  leagueActivationTime,
+  selectCurrentSeason,
+} from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
 import { getAppNow } from "@/lib/simulator";
 
@@ -33,11 +38,22 @@ export default async function LeagueSettingsPage(
   const canEdit = canLeagueRoleDo(member.role, "edit_settings");
   const canDelete = canLeagueRoleDo(member.role, "delete_league");
 
-  const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, await getAppNow()),
+  const now = await getAppNow();
+  const [memberCount, seasons] = await Promise.all([
     getLeagueMemberCount(leagueId),
+    getSeasonsBySportsLeague(league.sportsLeagueId),
   ]);
-  const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
+  const currentSeason = selectCurrentSeason(seasons, now);
+  const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
+  const activation = currentSeason
+    ? leagueActivationTime(league.createdAt, currentSeason.startDate)
+    : league.createdAt;
+  const structuralLocked = hasLeagueStartLockPassed(
+    phases,
+    league.seasonFormat,
+    activation,
+    now,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,7 +67,7 @@ export default async function LeagueSettingsPage(
       </header>
       <EditLeagueForm
         league={league}
-        inSeason={inSeason}
+        structuralLocked={structuralLocked}
         memberCount={memberCount}
         readOnly={!canEdit}
       />

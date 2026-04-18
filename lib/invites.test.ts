@@ -17,7 +17,7 @@ vi.mock("@/data/members", () => ({
 }));
 
 vi.mock("@/data/phases", () => ({
-  getActivePhasesForSportsLeague: vi.fn(),
+  getPhasesBySeason: vi.fn(),
 }));
 
 vi.mock("@/data/seasons", () => ({
@@ -43,7 +43,7 @@ import {
 } from "@/data/invites";
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
 import { getLeagueMember, insertLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { insertLeagueStanding } from "@/data/standings";
 import type { League } from "@/lib/db/schema/leagues";
@@ -52,6 +52,8 @@ import { cleanupInvitesIfFull, joinLeague } from "./invites";
 
 const leagueId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
+// League was created long before the season kicked off → activation
+// defaults to the season start, start phase defaults to Week 1.
 const league: League = {
   id: leagueId,
   sportsLeagueId: "nfl-id",
@@ -61,16 +63,33 @@ const league: League = {
   size: 10,
   picksPerPhase: 5,
   pickType: "straight_up",
-  createdAt: new Date(),
+  createdAt: new Date("2025-06-01T00:00:00Z"),
   updatedAt: new Date(),
 };
 
 const season = {
   id: "season-1",
   sportsLeagueId: "nfl-id",
-  year: 2026,
-  startDate: new Date("2026-09-01"),
-  endDate: new Date("2027-02-28"),
+  year: 2025,
+  startDate: new Date("2025-09-01T00:00:00Z"),
+  endDate: new Date("2026-02-28T00:00:00Z"),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// Week 1 of 2025. Pick lock time in the future keeps joinLeague unlocked.
+// Push into 2099 so "now" from the real `new Date()` in simulator-mock is
+// always well before the lock.
+const week1 = {
+  id: "phase-1",
+  seasonId: season.id,
+  seasonType: "regular" as const,
+  weekNumber: 1,
+  label: "Week 1",
+  startDate: new Date("2099-09-07T00:00:00Z"),
+  endDate: new Date("2099-09-14T00:00:00Z"),
+  pickLockTime: new Date("2099-09-07T17:00:00Z"),
+  lockedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -79,7 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getLeagueMember).mockResolvedValue(null);
   vi.mocked(getLeagueMemberCount).mockResolvedValue(1);
-  vi.mocked(getActivePhasesForSportsLeague).mockResolvedValue([]);
+  vi.mocked(getPhasesBySeason).mockResolvedValue([week1]);
   vi.mocked(getSeasonsBySportsLeague).mockResolvedValue([season]);
   vi.mocked(getLeagueById).mockResolvedValue(league);
   vi.mocked(insertLeagueMember).mockResolvedValue({
@@ -124,20 +143,16 @@ describe("joinLeague", () => {
     expect(insertLeagueStanding).not.toHaveBeenCalled();
   });
 
-  it("errors when the league is in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
+  it("errors once the league's start lock has passed", async () => {
+    // Swap the week-1 phase for one whose pick lock is in the past → the
+    // league's start lock is the only format-relevant phase and it has
+    // already fired.
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
       {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        ...week1,
+        startDate: new Date("2020-09-07T00:00:00Z"),
+        endDate: new Date("2020-09-14T00:00:00Z"),
+        pickLockTime: new Date("2020-09-07T17:00:00Z"),
       },
     ]);
     const result = await joinLeague(league, "user-1", "member");

@@ -19,7 +19,7 @@ vi.mock("@/data/members", () => ({
 }));
 
 vi.mock("@/data/phases", () => ({
-  getActivePhasesForSportsLeague: vi.fn(),
+  getPhasesBySeason: vi.fn(),
 }));
 
 vi.mock("@/lib/invites", () => ({
@@ -62,7 +62,7 @@ import {
   updateLeague,
 } from "@/data/leagues";
 import { insertLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSportsLeagueByAbbreviation } from "@/data/sports";
 import { insertLeagueStanding } from "@/data/standings";
@@ -99,9 +99,25 @@ const nflLeague = {
 const season = {
   id: "season-1",
   sportsLeagueId: "nfl-id",
-  year: 2026,
-  startDate: new Date("2026-09-01"),
-  endDate: new Date("2027-02-28"),
+  year: 2099,
+  startDate: new Date("2099-09-01T00:00:00Z"),
+  endDate: new Date("2100-02-28T00:00:00Z"),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// Future-dated Week 1 keeps the league's start lock in the future by
+// default, so structural edits + invites + creation stay open.
+const openPhase = {
+  id: "phase-1",
+  seasonId: season.id,
+  seasonType: "regular" as const,
+  weekNumber: 1,
+  label: "Week 1",
+  startDate: new Date("2099-09-07T00:00:00Z"),
+  endDate: new Date("2099-09-14T00:00:00Z"),
+  pickLockTime: new Date("2099-09-07T17:00:00Z"),
+  lockedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -126,6 +142,7 @@ beforeEach(() => {
   );
   vi.mocked(getSportsLeagueByAbbreviation).mockResolvedValue(nflLeague);
   vi.mocked(getSeasonsBySportsLeague).mockResolvedValue([season]);
+  vi.mocked(getPhasesBySeason).mockResolvedValue([openPhase]);
   vi.mocked(insertLeague).mockResolvedValue(createdLeague);
   vi.mocked(insertLeagueMember).mockResolvedValue({
     id: "m-1",
@@ -236,6 +253,18 @@ describe("updateLeagueAction", () => {
     ...createdLeague,
     id: leagueId,
     size: 10,
+    // Created well before Week 1 → activation defaults to season.startDate.
+    createdAt: new Date("2099-06-01T00:00:00Z"),
+  };
+
+  // Default remains the future-dated openPhase from the outer beforeEach
+  // (unlocked). Individual tests swap to this past-dated phase when they
+  // need to exercise the start-locked branch.
+  const lockedPhase = {
+    ...openPhase,
+    startDate: new Date("2020-09-07T00:00:00Z"),
+    endDate: new Date("2020-09-14T00:00:00Z"),
+    pickLockTime: new Date("2020-09-07T17:00:00Z"),
   };
 
   const validUpdate = {
@@ -258,7 +287,6 @@ describe("updateLeagueAction", () => {
       updatedAt: new Date(),
     });
     vi.mocked(getLeagueById).mockResolvedValue(existingLeague);
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValue([]);
     vi.mocked(getLeagueMemberCount).mockResolvedValue(1);
     vi.mocked(updateLeague).mockResolvedValue(existingLeague);
   });
@@ -285,22 +313,10 @@ describe("updateLeagueAction", () => {
     expect(updateLeague).not.toHaveBeenCalled();
   });
 
-  it("allows name-only edits in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
-      {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 3,
-        label: "Week 3",
-        startDate: new Date("2026-09-17T00:00:00Z"),
-        endDate: new Date("2026-09-24T00:00:00Z"),
-        pickLockTime: new Date("2026-09-21T17:00:00Z"),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+  it("allows name-only edits once the start lock has passed", async () => {
+    // Default phases mock has a future-dated start lock; swap to a past
+    // one so the league is "post-start-lock" for this test.
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([lockedPhase]);
     const result = await updateLeagueAction({
       ...validUpdate,
       name: "New Name",
@@ -316,22 +332,36 @@ describe("updateLeagueAction", () => {
     );
   });
 
-  it("blocks structural edits when the league is in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
-      {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 3,
-        label: "Week 3",
-        startDate: new Date("2026-09-17T00:00:00Z"),
-        endDate: new Date("2026-09-24T00:00:00Z"),
-        pickLockTime: new Date("2026-09-21T17:00:00Z"),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+  it("blocks structural edits once the start lock has passed", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([lockedPhase]);
+    const result = await updateLeagueAction({ ...validUpdate, size: 12 });
+    expect(result.success).toBe(false);
+    expect(updateLeague).not.toHaveBeenCalled();
+  });
+
+  it("blocks structural edits when the league's own start phase has locked mid-season", async () => {
+    // A phase whose pickLockTime IS > activation (so it would be the
+    // start phase) but is <= now (so it has already fired) exercises the
+    // "start phase exists but its lock is passed" branch of
+    // hasLeagueStartLockPassed — distinct from the "no eligible start
+    // phase at all" branch above.
+    const midSeasonLocked = {
+      ...openPhase,
+      startDate: new Date("2099-09-14T00:00:00Z"),
+      endDate: new Date("2099-09-21T00:00:00Z"),
+      pickLockTime: new Date("2099-09-14T17:00:00Z"),
+    };
+    vi.mocked(getLeagueById).mockResolvedValueOnce({
+      ...existingLeague,
+      // Activation > season start → mid-season league.
+      createdAt: new Date("2099-09-10T00:00:00Z"),
+    });
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([midSeasonLocked]);
+    // Pretend "now" is after the pickLockTime.
+    const { getAppNow } = await import("@/lib/simulator");
+    vi.mocked(getAppNow).mockResolvedValueOnce(
+      new Date("2099-09-15T00:00:00Z"),
+    );
     const result = await updateLeagueAction({ ...validUpdate, size: 12 });
     expect(result.success).toBe(false);
     expect(updateLeague).not.toHaveBeenCalled();
@@ -344,7 +374,7 @@ describe("updateLeagueAction", () => {
     expect(updateLeague).not.toHaveBeenCalled();
   });
 
-  it("updates structural settings when not in-season", async () => {
+  it("updates structural settings before the start lock fires", async () => {
     const result = await updateLeagueAction({
       ...validUpdate,
       size: 12,
