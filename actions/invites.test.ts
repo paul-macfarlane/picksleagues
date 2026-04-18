@@ -26,6 +26,7 @@ vi.mock("@/data/invites", () => ({
 
 vi.mock("@/lib/invites", () => ({
   cleanupInvitesIfFull: vi.fn(),
+  joinLeague: vi.fn(),
 }));
 
 vi.mock("@/lib/simulator", () => ({
@@ -34,23 +35,10 @@ vi.mock("@/lib/simulator", () => ({
 
 vi.mock("@/data/members", () => ({
   getLeagueMember: vi.fn(),
-  insertLeagueMember: vi.fn(),
 }));
 
 vi.mock("@/data/phases", () => ({
   getActivePhasesForSportsLeague: vi.fn(),
-}));
-
-vi.mock("@/data/seasons", () => ({
-  getSeasonsBySportsLeague: vi.fn(),
-}));
-
-vi.mock("@/data/standings", () => ({
-  insertLeagueStanding: vi.fn(),
-}));
-
-vi.mock("@/data/utils", () => ({
-  withTransaction: vi.fn(<T>(fn: (tx: unknown) => Promise<T>) => fn({})),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -72,12 +60,10 @@ import {
   searchInviteCandidates,
   upsertDirectInvite,
 } from "@/data/invites";
-import { getLeagueMember, insertLeagueMember } from "@/data/members";
+import { getLeagueMember } from "@/data/members";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
-import { getSeasonsBySportsLeague } from "@/data/seasons";
-import { insertLeagueStanding } from "@/data/standings";
 import { getSession } from "@/lib/auth";
-import { cleanupInvitesIfFull } from "@/lib/invites";
+import { joinLeague } from "@/lib/invites";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 
 import {
@@ -121,16 +107,6 @@ const invite = {
   updatedAt: new Date(),
 };
 
-const season = {
-  id: "season-1",
-  sportsLeagueId: "nfl-id",
-  year: 2026,
-  startDate: new Date("2026-09-01"),
-  endDate: new Date("2027-02-28"),
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(
@@ -153,31 +129,9 @@ beforeEach(() => {
     ...invite,
     inviteeUserId: inviterUserId,
   });
-  vi.mocked(getSeasonsBySportsLeague).mockResolvedValue([season]);
-  vi.mocked(insertLeagueMember).mockResolvedValue({
-    id: "m-new",
-    leagueId,
-    userId: inviterUserId,
-    role: "member",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-  vi.mocked(insertLeagueStanding).mockResolvedValue({
-    id: "s-new",
-    leagueId,
-    userId: inviterUserId,
-    seasonId: season.id,
-    wins: 0,
-    losses: 0,
-    pushes: 0,
-    points: 0,
-    rank: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
   vi.mocked(removeDirectInvite).mockResolvedValue(undefined);
   vi.mocked(removeLinkInvite).mockResolvedValue(undefined);
-  vi.mocked(cleanupInvitesIfFull).mockResolvedValue(undefined);
+  vi.mocked(joinLeague).mockResolvedValue({ status: "joined" });
   vi.mocked(searchInviteCandidates).mockResolvedValue([]);
   vi.mocked(insertLinkInvite).mockResolvedValue({
     id: "55555555-5555-4555-8555-555555555555",
@@ -301,7 +255,7 @@ describe("respondToDirectInviteAction", () => {
     });
     expect(result.success).toBe(true);
     expect(removeDirectInvite).toHaveBeenCalledWith(inviteId);
-    expect(insertLeagueMember).not.toHaveBeenCalled();
+    expect(joinLeague).not.toHaveBeenCalled();
   });
 
   it("rejects when the invite belongs to a different user", async () => {
@@ -314,7 +268,7 @@ describe("respondToDirectInviteAction", () => {
       response: "accept",
     });
     expect(result.success).toBe(false);
-    expect(insertLeagueMember).not.toHaveBeenCalled();
+    expect(joinLeague).not.toHaveBeenCalled();
   });
 
   it("rejects when the invite is expired", async () => {
@@ -328,53 +282,30 @@ describe("respondToDirectInviteAction", () => {
       response: "accept",
     });
     expect(result.success).toBe(false);
-    expect(insertLeagueMember).not.toHaveBeenCalled();
+    expect(joinLeague).not.toHaveBeenCalled();
   });
 
-  it("rejects when the league is in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
-      {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+  it("surfaces joinLeague errors to the caller", async () => {
+    vi.mocked(joinLeague).mockResolvedValueOnce({
+      status: "error",
+      error: "This league is already in-season. You can't join mid-season.",
+    });
     const result = await respondToDirectInviteAction({
       inviteId,
       response: "accept",
     });
     expect(result.success).toBe(false);
-    expect(insertLeagueMember).not.toHaveBeenCalled();
   });
 
-  it("rejects when the league is at capacity", async () => {
-    vi.mocked(getLeagueMemberCount).mockResolvedValueOnce(10);
-    const result = await respondToDirectInviteAction({
-      inviteId,
-      response: "accept",
-    });
-    expect(result.success).toBe(false);
-    expect(insertLeagueMember).not.toHaveBeenCalled();
-  });
-
-  it("accepts by inserting member + standing + removing invite", async () => {
+  it("delegates accept to joinLeague with the invite id", async () => {
     const result = await respondToDirectInviteAction({
       inviteId,
       response: "accept",
     });
     expect(result.success).toBe(true);
-    expect(insertLeagueMember).toHaveBeenCalled();
-    expect(insertLeagueStanding).toHaveBeenCalled();
-    expect(removeDirectInvite).toHaveBeenCalled();
-    expect(cleanupInvitesIfFull).toHaveBeenCalledWith(leagueId);
+    expect(joinLeague).toHaveBeenCalledWith(league, inviterUserId, "member", {
+      directInviteIdToDelete: inviteId,
+    });
   });
 });
 
@@ -513,6 +444,7 @@ describe("joinViaLinkInviteAction", () => {
     vi.mocked(getLinkInviteByToken).mockResolvedValueOnce(null);
     const result = await joinViaLinkInviteAction({ token });
     expect(result.success).toBe(false);
+    expect(joinLeague).not.toHaveBeenCalled();
   });
 
   it("returns an error when the invite is expired", async () => {
@@ -528,53 +460,34 @@ describe("joinViaLinkInviteAction", () => {
     });
     const result = await joinViaLinkInviteAction({ token });
     expect(result.success).toBe(false);
+    expect(joinLeague).not.toHaveBeenCalled();
   });
 
-  it("short-circuits when the user is already a member", async () => {
-    vi.mocked(getLeagueMember).mockResolvedValueOnce({
-      id: "m-existing",
-      leagueId,
-      userId: inviterUserId,
-      role: "member",
-      createdAt: new Date(),
-      updatedAt: new Date(),
+  it("threads alreadyMember=true through when joinLeague short-circuits", async () => {
+    vi.mocked(joinLeague).mockResolvedValueOnce({ status: "already_member" });
+    const result = await joinViaLinkInviteAction({ token });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.alreadyMember).toBe(true);
+    }
+  });
+
+  it("surfaces joinLeague errors to the caller", async () => {
+    vi.mocked(joinLeague).mockResolvedValueOnce({
+      status: "error",
+      error: "This league is already at capacity.",
     });
     const result = await joinViaLinkInviteAction({ token });
-    expect(result.success).toBe(true);
-  });
-
-  it("blocks when the league is in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
-      {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
-    const result = await joinViaLinkInviteAction({ token });
     expect(result.success).toBe(false);
   });
 
-  it("blocks when the league is at capacity", async () => {
-    vi.mocked(getLeagueMemberCount).mockResolvedValueOnce(10);
-    const result = await joinViaLinkInviteAction({ token });
-    expect(result.success).toBe(false);
-  });
-
-  it("joins by inserting member + standing", async () => {
+  it("delegates to joinLeague without an invite id", async () => {
     const result = await joinViaLinkInviteAction({ token });
     expect(result.success).toBe(true);
-    expect(insertLeagueMember).toHaveBeenCalled();
-    expect(insertLeagueStanding).toHaveBeenCalled();
-    expect(cleanupInvitesIfFull).toHaveBeenCalledWith(leagueId);
+    if (result.success) {
+      expect(result.data).toEqual({ leagueId, alreadyMember: false });
+    }
+    expect(joinLeague).toHaveBeenCalledWith(league, inviterUserId, "member");
   });
 });
 

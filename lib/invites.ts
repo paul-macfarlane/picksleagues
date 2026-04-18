@@ -1,9 +1,18 @@
 import {
+  removeDirectInvite,
   removeDirectInvitesByLeague,
   removeLinkInvitesByLeague,
 } from "@/data/invites";
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
+import { getLeagueMember, insertLeagueMember } from "@/data/members";
+import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
+import { insertLeagueStanding } from "@/data/standings";
 import type { Transaction } from "@/data/utils";
+import { withTransaction } from "@/data/utils";
+import type { League, LeagueRole } from "@/lib/db/schema/leagues";
+import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
+import { getAppNow } from "@/lib/simulator";
 
 /**
  * BUSINESS_SPEC §5.4: when a league reaches its maximum size, all remaining
@@ -28,4 +37,73 @@ export async function cleanupInvitesIfFull(
       removeLinkInvitesByLeague(leagueId, tx),
     ]);
   }
+}
+
+export type JoinLeagueResult =
+  | { status: "joined" }
+  | { status: "already_member" }
+  | { status: "error"; error: string };
+
+/**
+ * Shared "accept an invite or use a link" flow. Inputs are typed DB rows +
+ * derived values — callers (Server Actions in `actions/invites.ts`) zod-parse
+ * their wire input first and fetch the League + invite rows from the data
+ * layer before handing off. No zod here because the helper never sees raw
+ * client input.
+ *
+ * The flow runs the §5.3 joining validation (not-already-member, not in-
+ * season, not at capacity, current season resolvable), then inserts the
+ * member + zeroed standing (and optionally deletes a consumed direct invite)
+ * inside a single transaction, then runs the §5.4 capacity cleanup.
+ */
+export async function joinLeague(
+  league: League,
+  userId: string,
+  role: LeagueRole,
+  options: { directInviteIdToDelete?: string } = {},
+): Promise<JoinLeagueResult> {
+  const now = await getAppNow();
+  const [activePhases, memberCount, existingMember] = await Promise.all([
+    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
+    getLeagueMemberCount(league.id),
+    getLeagueMember(league.id, userId),
+  ]);
+
+  if (existingMember) {
+    return { status: "already_member" };
+  }
+
+  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+    return {
+      status: "error",
+      error: "This league is already in-season. You can't join mid-season.",
+    };
+  }
+
+  if (memberCount >= league.size) {
+    return { status: "error", error: "This league is already at capacity." };
+  }
+
+  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
+  const currentSeason = selectCurrentSeason(seasons, now);
+  if (!currentSeason) {
+    return {
+      status: "error",
+      error: "No NFL season is synced yet. Try again later.",
+    };
+  }
+
+  await withTransaction(async (tx) => {
+    await insertLeagueMember({ leagueId: league.id, userId, role }, tx);
+    await insertLeagueStanding(
+      { leagueId: league.id, userId, seasonId: currentSeason.id },
+      tx,
+    );
+    if (options.directInviteIdToDelete) {
+      await removeDirectInvite(options.directInviteIdToDelete, tx);
+    }
+  });
+
+  await cleanupInvitesIfFull(league.id);
+  return { status: "joined" };
 }
