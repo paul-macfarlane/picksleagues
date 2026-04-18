@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { UsersIcon } from "lucide-react";
 
+import { LeagueAvatar } from "@/components/leagues/league-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LeagueWithMemberCount } from "@/data/leagues";
@@ -18,21 +18,11 @@ export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
     >
       <Card className="h-full transition-colors hover:border-primary/50">
         <CardContent className="flex items-center gap-4 p-4">
-          <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
-            {league.imageUrl ? (
-              <Image
-                src={league.imageUrl}
-                alt=""
-                fill
-                sizes="56px"
-                className="object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-muted-foreground">
-                {league.name.slice(0, 1).toUpperCase()}
-              </div>
-            )}
-          </div>
+          <LeagueAvatar
+            name={league.name}
+            imageUrl={league.imageUrl}
+            size="lg"
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h3 className="truncate text-base font-semibold">{league.name}</h3>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

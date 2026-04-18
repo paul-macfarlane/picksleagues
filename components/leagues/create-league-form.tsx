@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { z } from "zod";
 
 import { createLeagueAction } from "@/actions/leagues";
+import { LeagueAvatar } from "@/components/leagues/league-avatar";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -45,7 +46,7 @@ export function CreateLeagueForm() {
     seasonFormat: "regular_season",
     size: LEAGUE_SIZE_DEFAULT,
     picksPerPhase: PICKS_PER_PHASE_DEFAULT,
-    pickType: "straight_up",
+    pickType: "against_the_spread",
   };
 
   const form = useForm<CreateLeagueInput, unknown, CreateLeagueOutput>({
@@ -64,6 +65,8 @@ export function CreateLeagueForm() {
 
   const seasonFormat = useWatch({ control, name: "seasonFormat" });
   const pickType = useWatch({ control, name: "pickType" });
+  const watchedName = useWatch({ control, name: "name" });
+  const watchedImageUrl = useWatch({ control, name: "imageUrl" });
 
   function onSubmit(values: CreateLeagueOutput) {
     startTransition(async () => {
@@ -98,15 +101,22 @@ export function CreateLeagueForm() {
 
         <Field>
           <FieldLabel htmlFor="league-image">Image URL</FieldLabel>
-          <Input
-            id="league-image"
-            type="url"
-            placeholder="https://…"
-            {...register("imageUrl")}
-            aria-invalid={errors.imageUrl ? true : undefined}
-          />
+          <div className="flex items-center gap-3">
+            <LeagueAvatar
+              name={watchedName ?? ""}
+              imageUrl={watchedImageUrl}
+              size="lg"
+            />
+            <Input
+              id="league-image"
+              type="url"
+              placeholder="https://…"
+              {...register("imageUrl")}
+              aria-invalid={errors.imageUrl ? true : undefined}
+            />
+          </div>
           <FieldDescription>
-            Optional. Paste a link to a logo or banner.
+            Optional. Paste a link and the preview updates live.
           </FieldDescription>
           <FieldError errors={[errors.imageUrl]} />
         </Field>

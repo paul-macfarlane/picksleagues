@@ -18,15 +18,11 @@ const nameSchema = z
   .max(LEAGUE_NAME_MAX, `Name must be at most ${LEAGUE_NAME_MAX} characters.`);
 
 const imageUrlSchema = z
-  .string()
-  .trim()
-  .transform((v) => (v === "" ? null : v))
-  .pipe(
-    z.union([
-      z.null(),
-      z.string().url("Image URL must be a valid URL.").max(2048),
-    ]),
-  );
+  .union([
+    z.string().trim().url("Image URL must be a valid URL.").max(2048),
+    z.literal(""),
+  ])
+  .optional();
 
 const sizeSchema = z.coerce
   .number({ error: "Size is required." })
@@ -42,7 +38,7 @@ const picksPerPhaseSchema = z.coerce
 
 export const createLeagueSchema = z.object({
   name: nameSchema,
-  imageUrl: imageUrlSchema.optional(),
+  imageUrl: imageUrlSchema,
   seasonFormat: z.enum(seasonFormatEnum.enumValues),
   size: sizeSchema,
   picksPerPhase: picksPerPhaseSchema,
@@ -55,7 +51,7 @@ export type CreateLeagueOutput = z.output<typeof createLeagueSchema>;
 export const updateLeagueSchema = z.object({
   leagueId: z.string().uuid({ error: "Invalid league id." }),
   name: nameSchema,
-  imageUrl: imageUrlSchema.optional(),
+  imageUrl: imageUrlSchema,
   seasonFormat: z.enum(seasonFormatEnum.enumValues),
   size: sizeSchema,
   picksPerPhase: picksPerPhaseSchema,

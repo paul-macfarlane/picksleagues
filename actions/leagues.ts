@@ -65,13 +65,14 @@ export async function createLeagueAction(
 
   const { name, imageUrl, seasonFormat, size, picksPerPhase, pickType } =
     parsed.data;
+  const normalizedImageUrl = imageUrl && imageUrl !== "" ? imageUrl : null;
 
   const league = await withTransaction(async (tx) => {
     const created = await insertLeague(
       {
         sportsLeagueId: sportsLeague.id,
         name,
-        imageUrl: imageUrl ?? null,
+        imageUrl: normalizedImageUrl,
         seasonFormat,
         size,
         picksPerPhase,
@@ -164,9 +165,11 @@ export async function updateLeagueAction(
     };
   }
 
+  const normalizedImageUrl = imageUrl && imageUrl !== "" ? imageUrl : null;
+
   await updateLeague(leagueId, {
     name,
-    imageUrl: imageUrl ?? null,
+    imageUrl: normalizedImageUrl,
     seasonFormat,
     size,
     picksPerPhase,
