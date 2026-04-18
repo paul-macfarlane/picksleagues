@@ -18,7 +18,9 @@ export function JoinLinkButton({ token }: { token: string }) {
         toast.error(result.error);
         return;
       }
-      toast.success("Joined the league.");
+      toast.success(
+        result.data.alreadyMember ? "Already a member." : "Joined the league.",
+      );
       router.push(`/leagues/${result.data.leagueId}`);
       router.refresh();
     });

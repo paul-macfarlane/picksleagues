@@ -48,3 +48,7 @@ export async function getSession(): Promise<AuthenticatedSession> {
   if (!session) throw new UnauthorizedError();
   return session;
 }
+
+export async function getOptionalSession(): Promise<AuthenticatedSession | null> {
+  return auth.api.getSession({ headers: await headers() });
+}
