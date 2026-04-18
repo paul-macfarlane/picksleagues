@@ -20,6 +20,7 @@ import { NotFoundError } from "@/lib/errors";
 import { cleanupInvitesIfFull } from "@/lib/invites";
 import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
+import { getAppNow } from "@/lib/simulator";
 import type { ActionResult } from "@/lib/types";
 import {
   createLeagueSchema,
@@ -54,8 +55,9 @@ export async function createLeagueAction(
     throw err;
   }
 
+  const now = await getAppNow();
   const seasons = await getSeasonsBySportsLeague(sportsLeague.id);
-  const currentSeason = selectCurrentSeason(seasons);
+  const currentSeason = selectCurrentSeason(seasons, now);
   if (!currentSeason) {
     return {
       success: false,
@@ -138,8 +140,9 @@ export async function updateLeagueAction(
     return { success: false, error: "League not found." };
   }
 
+  const now = await getAppNow();
   const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
     getLeagueMemberCount(leagueId),
   ]);
   const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);

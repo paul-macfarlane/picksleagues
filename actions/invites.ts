@@ -27,6 +27,7 @@ import type { Profile } from "@/lib/db/schema/profiles";
 import { cleanupInvitesIfFull } from "@/lib/invites";
 import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
+import { getAppNow } from "@/lib/simulator";
 import type { ActionResult } from "@/lib/types";
 import {
   createDirectInviteSchema,
@@ -49,8 +50,9 @@ async function joinLeague(
   role: LeagueRole,
   options: { directInviteIdToDelete?: string } = {},
 ): Promise<JoinSuccess | JoinError> {
+  const now = await getAppNow();
   const [activePhases, memberCount, existingMember] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
     getLeagueMemberCount(league.id),
     getLeagueMember(league.id, userId),
   ]);
@@ -70,7 +72,7 @@ async function joinLeague(
   }
 
   const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
-  const currentSeason = selectCurrentSeason(seasons);
+  const currentSeason = selectCurrentSeason(seasons, now);
   if (!currentSeason) {
     return { error: "No NFL season is synced yet. Try again later." };
   }
@@ -115,8 +117,9 @@ export async function createDirectInviteAction(
     return { success: false, error: "League not found." };
   }
 
+  const now = await getAppNow();
   const [activePhases, memberCount, existingMember] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
     getLeagueMemberCount(leagueId),
     getLeagueMember(leagueId, inviteeUserId),
   ]);
@@ -243,8 +246,9 @@ export async function createLinkInviteAction(
     return { success: false, error: "League not found." };
   }
 
+  const now = await getAppNow();
   const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
     getLeagueMemberCount(leagueId),
   ]);
 

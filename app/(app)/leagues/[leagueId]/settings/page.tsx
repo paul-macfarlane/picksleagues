@@ -9,6 +9,7 @@ import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSession } from "@/lib/auth";
 import { isLeagueInSeason } from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
+import { getAppNow } from "@/lib/simulator";
 
 export default async function LeagueSettingsPage(
   props: PageProps<"/leagues/[leagueId]/settings">,
@@ -33,7 +34,7 @@ export default async function LeagueSettingsPage(
   const canDelete = canLeagueRoleDo(member.role, "delete_league");
 
   const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, await getAppNow()),
     getLeagueMemberCount(leagueId),
   ]);
   const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
