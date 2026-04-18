@@ -150,6 +150,18 @@ Leagues are **persistent** — they carry over from one NFL year to the next aut
 
 Only commissioners can delete a league. Deletion removes all associated data: members, invites, picks, and standings.
 
+### 3.7 Season State Display
+
+Every league shows a season-state badge on its detail page, derived from the league's current season and the league's configured season format. The state is one of three values:
+
+| State           | Condition                                                    |
+| --------------- | ------------------------------------------------------------ |
+| **Upcoming**    | Every phase in the league's format starts after "now"        |
+| **In progress** | "Now" falls inside at least one phase in the league's format |
+| **Complete**    | Every phase in the league's format ended at or before "now"  |
+
+The badge displays the season year, the league's format label, and the state, e.g. "2025 Regular Season · In progress". "Now" is the app-scoped current time (see the Time-Dependent Logic rule in `rules/architecture.md`) so the badge honors simulator state during off-season testing.
+
 ---
 
 ## 4. League Membership & Roles

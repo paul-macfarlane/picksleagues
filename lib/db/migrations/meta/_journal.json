@@ -50,6 +50,13 @@
       "when": 1776455747420,
       "tag": "0006_breezy_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776487354365,
+      "tag": "0007_yummy_madripoor",
+      "breakpoints": true
     }
   ]
 }

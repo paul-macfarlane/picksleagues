@@ -100,7 +100,7 @@ export const leagueStandings = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     seasonId: uuid("season_id")
       .notNull()
-      .references(() => seasons.id, { onDelete: "restrict" }),
+      .references(() => seasons.id, { onDelete: "cascade" }),
     wins: integer("wins").notNull().default(0),
     losses: integer("losses").notNull().default(0),
     pushes: integer("pushes").notNull().default(0),
