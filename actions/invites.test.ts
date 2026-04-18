@@ -28,6 +28,10 @@ vi.mock("@/lib/invites", () => ({
   cleanupInvitesIfFull: vi.fn(),
 }));
 
+vi.mock("@/lib/simulator", () => ({
+  getAppNow: vi.fn(() => Promise.resolve(new Date())),
+}));
+
 vi.mock("@/data/members", () => ({
   getLeagueMember: vi.fn(),
   insertLeagueMember: vi.fn(),

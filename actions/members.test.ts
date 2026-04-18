@@ -40,6 +40,10 @@ vi.mock("@/lib/permissions", () => ({
   assertLeagueMember: vi.fn(),
 }));
 
+vi.mock("@/lib/simulator", () => ({
+  getAppNow: vi.fn(() => Promise.resolve(new Date())),
+}));
+
 import {
   getLeagueById,
   getLeagueMemberCount,

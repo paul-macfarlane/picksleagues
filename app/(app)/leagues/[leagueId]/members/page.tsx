@@ -14,6 +14,7 @@ import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSession } from "@/lib/auth";
 import { isLeagueInSeason } from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
+import { getAppNow } from "@/lib/simulator";
 
 function inviteDisabledReason(
   atCapacity: boolean,
@@ -39,7 +40,7 @@ export default async function LeagueMembersPage(
   const [member, members, activePhases] = await Promise.all([
     getLeagueMember(leagueId, session.user.id),
     getLeagueMembersWithProfiles(leagueId),
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, await getAppNow()),
   ]);
   if (!member) {
     notFound();

@@ -22,6 +22,7 @@ import {
   assertLeagueCommissioner,
   assertLeagueMember,
 } from "@/lib/permissions";
+import { getAppNow } from "@/lib/simulator";
 import type { ActionResult } from "@/lib/types";
 import {
   demoteMemberSchema,
@@ -126,7 +127,7 @@ export async function removeMemberAction(
 
   const activePhases = await getActivePhasesForSportsLeague(
     league.sportsLeagueId,
-    new Date(),
+    await getAppNow(),
   );
   if (isLeagueInSeason(activePhases, league.seasonFormat)) {
     return {
@@ -167,7 +168,7 @@ export async function leaveLeagueAction(
   }
 
   const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getActivePhasesForSportsLeague(league.sportsLeagueId, await getAppNow()),
     getLeagueMemberCount(leagueId),
   ]);
 
