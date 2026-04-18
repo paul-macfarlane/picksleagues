@@ -129,7 +129,7 @@ export async function removeMemberAction(
     league.sportsLeagueId,
     await getAppNow(),
   );
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+  if (isLeagueInSeason(activePhases, league)) {
     return {
       success: false,
       error: "Members can't be removed while the league is in-season.",
@@ -172,7 +172,7 @@ export async function leaveLeagueAction(
     getLeagueMemberCount(leagueId),
   ]);
 
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+  if (isLeagueInSeason(activePhases, league)) {
     return {
       success: false,
       error: "You can't leave the league while it's in-season.",

@@ -11,17 +11,9 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
-import { seasons, sportsLeagues } from "./sports";
+import { seasons, seasonTypeEnum, sportsLeagues } from "./sports";
 
 // --- Enums ---
-
-export const seasonFormatEnum = pgEnum("season_format", [
-  "regular_season",
-  "postseason",
-  "full_season",
-]);
-
-export type SeasonFormat = (typeof seasonFormatEnum.enumValues)[number];
 
 export const pickTypeEnum = pgEnum("pick_type", [
   "straight_up",
@@ -45,7 +37,13 @@ export const leagues = pgTable(
       .references(() => sportsLeagues.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     imageUrl: text("image_url"),
-    seasonFormat: seasonFormatEnum("season_format").notNull(),
+    // The league's schedule range — start and end phases identified by
+    // (seasonType, weekNumber). These are season-agnostic so they carry
+    // over naturally year to year. See BUSINESS_SPEC §3.1 / §3.8.
+    startSeasonType: seasonTypeEnum("start_season_type").notNull(),
+    startWeekNumber: integer("start_week_number").notNull(),
+    endSeasonType: seasonTypeEnum("end_season_type").notNull(),
+    endWeekNumber: integer("end_week_number").notNull(),
     size: integer("size").notNull(),
     picksPerPhase: integer("picks_per_phase").notNull(),
     pickType: pickTypeEnum("pick_type").notNull(),

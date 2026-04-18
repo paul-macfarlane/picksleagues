@@ -34,7 +34,7 @@ export default async function LeagueLayout({
   const currentSeason = selectCurrentSeason(seasons, now);
   const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
   const seasonState = currentSeason
-    ? getLeagueSeasonState(phases, league.seasonFormat, now)
+    ? getLeagueSeasonState(phases, league, now)
     : null;
 
   return (
@@ -48,7 +48,7 @@ export default async function LeagueLayout({
           {currentSeason && seasonState ? (
             <SeasonStateBadge
               year={currentSeason.year}
-              format={league.seasonFormat}
+              range={league}
               state={seasonState}
             />
           ) : null}

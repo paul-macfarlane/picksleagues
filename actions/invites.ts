@@ -87,7 +87,7 @@ export async function createDirectInviteAction(
     league.createdAt,
     currentSeason.startDate,
   );
-  if (hasLeagueStartLockPassed(phases, league.seasonFormat, activation, now)) {
+  if (hasLeagueStartLockPassed(phases, league, activation, now)) {
     return {
       success: false,
       error:
@@ -224,7 +224,7 @@ export async function createLinkInviteAction(
     league.createdAt,
     currentSeason.startDate,
   );
-  if (hasLeagueStartLockPassed(phases, league.seasonFormat, activation, now)) {
+  if (hasLeagueStartLockPassed(phases, league, activation, now)) {
     return {
       success: false,
       error:

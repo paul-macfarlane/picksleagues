@@ -27,22 +27,52 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { League } from "@/lib/db/schema/leagues";
+import type { Phase } from "@/lib/db/schema/sports";
+import { comparePhasesByOrdinal, phaseLabel } from "@/lib/nfl/leagues";
 import {
   PICK_TYPE_LABELS,
-  SEASON_FORMAT_LABELS,
   updateLeagueSchema,
   type UpdateLeagueInput,
 } from "@/lib/validators/leagues";
 
 type UpdateLeagueOutput = z.output<typeof updateLeagueSchema>;
 
+type PhaseOption = {
+  value: string;
+  label: string;
+  seasonType: Phase["seasonType"];
+  weekNumber: number;
+};
+
+function toPhaseOption(phase: Phase): PhaseOption {
+  return {
+    value: `${phase.seasonType}:${phase.weekNumber}`,
+    label: phaseLabel(phase.seasonType, phase.weekNumber),
+    seasonType: phase.seasonType,
+    weekNumber: phase.weekNumber,
+  };
+}
+
+function parsePhaseValue(value: string): {
+  seasonType: Phase["seasonType"];
+  weekNumber: number;
+} {
+  const [seasonType, week] = value.split(":");
+  return {
+    seasonType: seasonType as Phase["seasonType"],
+    weekNumber: Number(week),
+  };
+}
+
 export function EditLeagueForm({
   league,
+  phases,
   structuralLocked,
   memberCount,
   readOnly = false,
 }: {
   league: League;
+  phases: Phase[];
   structuralLocked: boolean;
   memberCount: number;
   readOnly?: boolean;
@@ -50,11 +80,35 @@ export function EditLeagueForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  // Include the league's current endpoints even if they aren't in the
+  // current season's phase list (e.g. an old end-week that's already been
+  // cleaned up). Sort the combined list so appended endpoints don't render
+  // out of order below the in-season phases.
+  const options: PhaseOption[] = [...phases.map(toPhaseOption)];
+  for (const endpoint of [
+    { seasonType: league.startSeasonType, weekNumber: league.startWeekNumber },
+    { seasonType: league.endSeasonType, weekNumber: league.endWeekNumber },
+  ]) {
+    const value = `${endpoint.seasonType}:${endpoint.weekNumber}`;
+    if (!options.some((o) => o.value === value)) {
+      options.push({
+        value,
+        label: phaseLabel(endpoint.seasonType, endpoint.weekNumber),
+        seasonType: endpoint.seasonType,
+        weekNumber: endpoint.weekNumber,
+      });
+    }
+  }
+  options.sort(comparePhasesByOrdinal);
+
   const defaults: UpdateLeagueInput = {
     leagueId: league.id,
     name: league.name,
     imageUrl: league.imageUrl ?? "",
-    seasonFormat: league.seasonFormat,
+    startSeasonType: league.startSeasonType,
+    startWeekNumber: league.startWeekNumber,
+    endSeasonType: league.endSeasonType,
+    endWeekNumber: league.endWeekNumber,
     size: league.size,
     picksPerPhase: league.picksPerPhase,
     pickType: league.pickType,
@@ -74,10 +128,16 @@ export function EditLeagueForm({
     formState: { errors },
   } = form;
 
-  const seasonFormat = useWatch({ control, name: "seasonFormat" });
+  const startSeasonType = useWatch({ control, name: "startSeasonType" });
+  const startWeekNumber = useWatch({ control, name: "startWeekNumber" });
+  const endSeasonType = useWatch({ control, name: "endSeasonType" });
+  const endWeekNumber = useWatch({ control, name: "endWeekNumber" });
   const pickType = useWatch({ control, name: "pickType" });
   const watchedName = useWatch({ control, name: "name" });
   const watchedImageUrl = useWatch({ control, name: "imageUrl" });
+
+  const startValue = `${startSeasonType}:${startWeekNumber}`;
+  const endValue = `${endSeasonType}:${endWeekNumber}`;
 
   function onSubmit(values: UpdateLeagueOutput) {
     startTransition(async () => {
@@ -149,32 +209,65 @@ export function EditLeagueForm({
           <FieldError errors={[errors.imageUrl]} />
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="league-season-format">Season format</FieldLabel>
-          <Select
-            value={seasonFormat}
-            disabled={readOnly || structuralLocked}
-            onValueChange={(value) =>
-              setValue(
-                "seasonFormat",
-                value as UpdateLeagueInput["seasonFormat"],
-                { shouldDirty: true },
-              )
-            }
-          >
-            <SelectTrigger id="league-season-format">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(SEASON_FORMAT_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldError errors={[errors.seasonFormat]} />
-        </Field>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="league-start-week">Start week</FieldLabel>
+            <Select
+              value={startValue}
+              disabled={readOnly || structuralLocked}
+              onValueChange={(value) => {
+                const parsed = parsePhaseValue(value);
+                setValue("startSeasonType", parsed.seasonType, {
+                  shouldDirty: true,
+                });
+                setValue("startWeekNumber", parsed.weekNumber, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+            >
+              <SelectTrigger id="league-start-week">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="league-end-week">End week</FieldLabel>
+            <Select
+              value={endValue}
+              disabled={readOnly || structuralLocked}
+              onValueChange={(value) => {
+                const parsed = parsePhaseValue(value);
+                setValue("endSeasonType", parsed.seasonType, {
+                  shouldDirty: true,
+                });
+                setValue("endWeekNumber", parsed.weekNumber, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+            >
+              <SelectTrigger id="league-end-week">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <FieldError errors={[errors.endWeekNumber]} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field>

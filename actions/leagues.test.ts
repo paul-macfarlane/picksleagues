@@ -76,10 +76,16 @@ import {
   updateLeagueAction,
 } from "./leagues";
 
+// Default input covers only Week 1 because the shared `openPhase` fixture
+// only mocks a single phase. Tests that need a multi-week range override
+// `getPhasesBySeason` themselves.
 const validInput = {
   name: "Test League",
   imageUrl: "",
-  seasonFormat: "regular_season",
+  startSeasonType: "regular",
+  startWeekNumber: 1,
+  endSeasonType: "regular",
+  endWeekNumber: 1,
   size: 10,
   picksPerPhase: 5,
   pickType: "straight_up",
@@ -127,7 +133,10 @@ const createdLeague = {
   sportsLeagueId: "nfl-id",
   name: "Test League",
   imageUrl: null,
-  seasonFormat: "regular_season" as const,
+  startSeasonType: "regular" as const,
+  startWeekNumber: 1,
+  endSeasonType: "regular" as const,
+  endWeekNumber: 18,
   size: 10,
   picksPerPhase: 5,
   pickType: "straight_up" as const,
@@ -204,7 +213,10 @@ describe("createLeagueAction", () => {
       expect.objectContaining({
         name: validInput.name,
         sportsLeagueId: "nfl-id",
-        seasonFormat: "regular_season",
+        startSeasonType: "regular",
+        startWeekNumber: 1,
+        endSeasonType: "regular",
+        endWeekNumber: 1,
         size: 10,
         picksPerPhase: 5,
         pickType: "straight_up",
@@ -271,7 +283,10 @@ describe("updateLeagueAction", () => {
     leagueId,
     name: "Renamed League",
     imageUrl: "",
-    seasonFormat: "regular_season",
+    startSeasonType: "regular",
+    startWeekNumber: 1,
+    endSeasonType: "regular",
+    endWeekNumber: 18,
     size: 10,
     picksPerPhase: 5,
     pickType: "straight_up",
@@ -375,12 +390,29 @@ describe("updateLeagueAction", () => {
   });
 
   it("updates structural settings before the start lock fires", async () => {
+    // Full-season range needs a postseason phase to exist in the season —
+    // extend the phases mock for this test so the range validation passes.
+    const postseasonPhase = {
+      ...openPhase,
+      id: "phase-2",
+      seasonType: "postseason" as const,
+      weekNumber: 5,
+      label: "Super Bowl",
+      startDate: new Date("2100-02-08T00:00:00Z"),
+      endDate: new Date("2100-02-15T00:00:00Z"),
+      pickLockTime: new Date("2100-02-08T23:00:00Z"),
+    };
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
+      openPhase,
+      postseasonPhase,
+    ]);
     const result = await updateLeagueAction({
       ...validUpdate,
       size: 12,
       pickType: "against_the_spread",
       picksPerPhase: 6,
-      seasonFormat: "full_season",
+      endSeasonType: "postseason",
+      endWeekNumber: 5,
     });
     expect(result.success).toBe(true);
     expect(updateLeague).toHaveBeenCalledWith(
@@ -389,7 +421,8 @@ describe("updateLeagueAction", () => {
         size: 12,
         pickType: "against_the_spread",
         picksPerPhase: 6,
-        seasonFormat: "full_season",
+        endSeasonType: "postseason",
+        endWeekNumber: 5,
       }),
     );
     expect(cleanupInvitesIfFull).not.toHaveBeenCalled();

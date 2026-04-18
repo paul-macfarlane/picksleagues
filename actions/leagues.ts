@@ -20,6 +20,7 @@ import { NotFoundError } from "@/lib/errors";
 import { cleanupInvitesIfFull } from "@/lib/invites";
 import {
   hasLeagueStartLockPassed,
+  isPhaseInLeagueRange,
   leagueActivationTime,
   selectCurrentSeason,
   selectLeagueStartPhase,
@@ -71,21 +72,59 @@ export async function createLeagueAction(
     };
   }
 
-  const { name, imageUrl, seasonFormat, size, picksPerPhase, pickType } =
-    parsed.data;
+  const {
+    name,
+    imageUrl,
+    startSeasonType,
+    startWeekNumber,
+    endSeasonType,
+    endWeekNumber,
+    size,
+    picksPerPhase,
+    pickType,
+  } = parsed.data;
 
-  // §3.1 + §3.8: league creation is only allowed when the chosen format has
+  const range = {
+    startSeasonType,
+    startWeekNumber,
+    endSeasonType,
+    endWeekNumber,
+  };
+
+  // §3.1 + §3.8: league creation is only allowed when the chosen range has
   // an upcoming pick lock this season. Activation for a new league is
   // max(now, seasonStart) — using the helper keeps the invariant greppable
   // and correct if the season hasn't started yet.
   const phases = await getPhasesBySeason(currentSeason.id);
+
+  // Make sure both endpoints exist in this season — otherwise the user
+  // picked a week that doesn't run in NFL (e.g. regular-season week 19).
+  const startExists = phases.some(
+    (p) => p.seasonType === startSeasonType && p.weekNumber === startWeekNumber,
+  );
+  const endExists = phases.some(
+    (p) => p.seasonType === endSeasonType && p.weekNumber === endWeekNumber,
+  );
+  if (!startExists || !endExists) {
+    return {
+      success: false,
+      error: "Selected weeks aren't part of this NFL season.",
+    };
+  }
+  if (!phases.some((p) => isPhaseInLeagueRange(p, range))) {
+    return {
+      success: false,
+      error: "No phases fall within the selected range.",
+    };
+  }
+
   const activation = leagueActivationTime(now, currentSeason.startDate);
-  const startPhase = selectLeagueStartPhase(phases, seasonFormat, activation);
+  const startPhase = selectLeagueStartPhase(phases, range, activation);
   if (!startPhase) {
     return {
       success: false,
       error:
-        "No upcoming phases in that format this season. Pick a different format or wait for next season.",
+        "The selected range has no upcoming pick lock this season. Pick a later week or wait for next season.",
     };
   }
 
@@ -97,7 +136,10 @@ export async function createLeagueAction(
         sportsLeagueId: sportsLeague.id,
         name,
         imageUrl: normalizedImageUrl,
-        seasonFormat,
+        startSeasonType,
+        startWeekNumber,
+        endSeasonType,
+        endWeekNumber,
         size,
         picksPerPhase,
         pickType,
@@ -148,7 +190,10 @@ export async function updateLeagueAction(
     leagueId,
     name,
     imageUrl,
-    seasonFormat,
+    startSeasonType,
+    startWeekNumber,
+    endSeasonType,
+    endWeekNumber,
     size,
     picksPerPhase,
     pickType,
@@ -170,15 +215,16 @@ export async function updateLeagueAction(
   const activation = currentSeason
     ? leagueActivationTime(league.createdAt, currentSeason.startDate)
     : league.createdAt;
-  const startLocked = hasLeagueStartLockPassed(
-    phases,
-    league.seasonFormat,
-    activation,
-    now,
-  );
+  const startLocked = hasLeagueStartLockPassed(phases, league, activation, now);
+
+  const rangeChanged =
+    startSeasonType !== league.startSeasonType ||
+    startWeekNumber !== league.startWeekNumber ||
+    endSeasonType !== league.endSeasonType ||
+    endWeekNumber !== league.endWeekNumber;
 
   const structuralChanged =
-    seasonFormat !== league.seasonFormat ||
+    rangeChanged ||
     size !== league.size ||
     picksPerPhase !== league.picksPerPhase ||
     pickType !== league.pickType;
@@ -195,6 +241,34 @@ export async function updateLeagueAction(
     };
   }
 
+  if (rangeChanged) {
+    const range = {
+      startSeasonType,
+      startWeekNumber,
+      endSeasonType,
+      endWeekNumber,
+    };
+    const startExists = phases.some(
+      (p) =>
+        p.seasonType === startSeasonType && p.weekNumber === startWeekNumber,
+    );
+    const endExists = phases.some(
+      (p) => p.seasonType === endSeasonType && p.weekNumber === endWeekNumber,
+    );
+    if (!startExists || !endExists) {
+      return {
+        success: false,
+        error: "Selected weeks aren't part of this NFL season.",
+      };
+    }
+    if (!phases.some((p) => isPhaseInLeagueRange(p, range))) {
+      return {
+        success: false,
+        error: "No phases fall within the selected range.",
+      };
+    }
+  }
+
   if (size !== league.size && size < memberCount) {
     return {
       success: false,
@@ -207,7 +281,10 @@ export async function updateLeagueAction(
   await updateLeague(leagueId, {
     name,
     imageUrl: normalizedImageUrl,
-    seasonFormat,
+    startSeasonType,
+    startWeekNumber,
+    endSeasonType,
+    endWeekNumber,
     size,
     picksPerPhase,
     pickType,

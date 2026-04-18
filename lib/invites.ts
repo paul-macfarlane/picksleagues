@@ -93,7 +93,7 @@ export async function joinLeague(
     league.createdAt,
     currentSeason.startDate,
   );
-  if (hasLeagueStartLockPassed(phases, league.seasonFormat, activation, now)) {
+  if (hasLeagueStartLockPassed(phases, league, activation, now)) {
     return {
       status: "error",
       error: "The league's start lock has passed — you can't join this season.",
