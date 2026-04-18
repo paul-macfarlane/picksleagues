@@ -12,9 +12,7 @@ import {
   getLinkInviteByToken,
   insertLinkInvite,
   removeDirectInvite,
-  removeDirectInvitesByLeague,
   removeLinkInvite,
-  removeLinkInvitesByLeague,
   searchInviteCandidates,
   upsertDirectInvite,
 } from "@/data/invites";
@@ -26,6 +24,7 @@ import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
 import type { League, LeagueRole, LinkInvite } from "@/lib/db/schema/leagues";
 import type { Profile } from "@/lib/db/schema/profiles";
+import { cleanupInvitesIfFull } from "@/lib/invites";
 import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 import type { ActionResult } from "@/lib/types";
@@ -34,23 +33,12 @@ import {
   createLinkInviteSchema,
   joinViaLinkSchema,
   respondToDirectInviteSchema,
+  revokeDirectInviteSchema,
   revokeLinkInviteSchema,
   searchProfilesSchema,
 } from "@/lib/validators/invites";
 
 const MAX_INVITE_CANDIDATES = 10;
-
-async function cleanupInvitesIfFull(leagueId: string): Promise<void> {
-  const league = await getLeagueById(leagueId);
-  if (!league) return;
-  const count = await getLeagueMemberCount(leagueId);
-  if (count >= league.size) {
-    await Promise.all([
-      removeDirectInvitesByLeague(leagueId),
-      removeLinkInvitesByLeague(leagueId),
-    ]);
-  }
-}
 
 type JoinSuccess = { alreadyMember: boolean };
 type JoinError = { error: string };
@@ -158,7 +146,7 @@ export async function createDirectInviteAction(
   });
 
   revalidatePath(`/leagues/${leagueId}`, "layout");
-  revalidatePath("/home");
+  revalidatePath("/leagues");
 
   return { success: true, data: { inviteId: invite.id } };
 }
@@ -184,7 +172,7 @@ export async function respondToDirectInviteAction(
 
   if (response === "decline") {
     await removeDirectInvite(inviteId);
-    revalidatePath("/home");
+    revalidatePath("/leagues");
     return { success: true, data: undefined };
   }
 
@@ -206,7 +194,6 @@ export async function respondToDirectInviteAction(
 
   revalidatePath(`/leagues/${league.id}`, "layout");
   revalidatePath("/leagues");
-  revalidatePath("/home");
 
   return { success: true, data: undefined };
 }
@@ -313,6 +300,35 @@ export async function revokeLinkInviteAction(
   return { success: true, data: undefined };
 }
 
+export async function revokeDirectInviteAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const parsed = revokeDirectInviteSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid invite id.",
+    };
+  }
+
+  const session = await getSession();
+  const { inviteId } = parsed.data;
+
+  const invite = await getDirectInviteById(inviteId);
+  if (!invite) {
+    return { success: false, error: "Invite not found." };
+  }
+
+  await assertLeagueCommissioner(session.user.id, invite.leagueId);
+  await removeDirectInvite(inviteId);
+
+  revalidatePath(`/leagues/${invite.leagueId}`, "layout");
+  // Revoked invite disappears from the invitee's /leagues open-invite list.
+  revalidatePath("/leagues");
+
+  return { success: true, data: undefined };
+}
+
 export async function joinViaLinkInviteAction(
   input: unknown,
 ): Promise<ActionResult<{ leagueId: string; alreadyMember: boolean }>> {
@@ -348,7 +364,6 @@ export async function joinViaLinkInviteAction(
 
   revalidatePath(`/leagues/${league.id}`, "layout");
   revalidatePath("/leagues");
-  revalidatePath("/home");
 
   return {
     success: true,

@@ -14,6 +14,8 @@ import {
   updateLeagueMemberRole,
 } from "@/data/members";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { removeLeagueStandingsForUser } from "@/data/standings";
+import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
 import { isLeagueInSeason } from "@/lib/nfl/leagues";
 import {
@@ -141,7 +143,6 @@ export async function removeMemberAction(
   await removeLeagueMember(leagueId, userId);
   revalidatePath(`/leagues/${leagueId}`, "layout");
   revalidatePath("/leagues");
-  revalidatePath("/home");
   return { success: true, data: undefined };
 }
 
@@ -181,7 +182,6 @@ export async function leaveLeagueAction(
     await removeLeague(leagueId);
     revalidatePath(`/leagues/${leagueId}`, "layout");
     revalidatePath("/leagues");
-    revalidatePath("/home");
     return { success: true, data: { leagueDeleted: true } };
   }
 
@@ -196,9 +196,11 @@ export async function leaveLeagueAction(
     }
   }
 
-  await removeLeagueMember(leagueId, session.user.id);
+  await withTransaction(async (tx) => {
+    await removeLeagueMember(leagueId, session.user.id, tx);
+    await removeLeagueStandingsForUser(leagueId, session.user.id, tx);
+  });
   revalidatePath(`/leagues/${leagueId}`, "layout");
   revalidatePath("/leagues");
-  revalidatePath("/home");
   return { success: true, data: { leagueDeleted: false } };
 }

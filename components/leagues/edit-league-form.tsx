@@ -40,10 +40,12 @@ export function EditLeagueForm({
   league,
   inSeason,
   memberCount,
+  readOnly = false,
 }: {
   league: League;
   inSeason: boolean;
   memberCount: number;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -96,7 +98,12 @@ export function EditLeagueForm({
       noValidate
     >
       <input type="hidden" {...register("leagueId")} />
-      {inSeason ? (
+      {readOnly ? (
+        <p className="flex items-start gap-2 rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
+          <LockIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>Only commissioners can edit these settings.</span>
+        </p>
+      ) : inSeason ? (
         <p className="flex items-start gap-2 rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
           <LockIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
@@ -111,6 +118,7 @@ export function EditLeagueForm({
           <FieldLabel htmlFor="league-name">Name</FieldLabel>
           <Input
             id="league-name"
+            disabled={readOnly}
             {...register("name")}
             aria-invalid={errors.name ? true : undefined}
           />
@@ -130,6 +138,7 @@ export function EditLeagueForm({
               id="league-image"
               type="url"
               placeholder="https://…"
+              disabled={readOnly}
               {...register("imageUrl")}
               aria-invalid={errors.imageUrl ? true : undefined}
             />
@@ -144,7 +153,7 @@ export function EditLeagueForm({
           <FieldLabel htmlFor="league-season-format">Season format</FieldLabel>
           <Select
             value={seasonFormat}
-            disabled={inSeason}
+            disabled={readOnly || inSeason}
             onValueChange={(value) =>
               setValue(
                 "seasonFormat",
@@ -176,7 +185,7 @@ export function EditLeagueForm({
               inputMode="numeric"
               min={Math.max(2, memberCount)}
               max={20}
-              disabled={inSeason}
+              disabled={readOnly || inSeason}
               {...register("size")}
               aria-invalid={errors.size ? true : undefined}
             />
@@ -195,7 +204,7 @@ export function EditLeagueForm({
               inputMode="numeric"
               min={1}
               max={16}
-              disabled={inSeason}
+              disabled={readOnly || inSeason}
               {...register("picksPerPhase")}
               aria-invalid={errors.picksPerPhase ? true : undefined}
             />
@@ -208,7 +217,7 @@ export function EditLeagueForm({
           <FieldLabel htmlFor="league-pick-type">Pick type</FieldLabel>
           <Select
             value={pickType}
-            disabled={inSeason}
+            disabled={readOnly || inSeason}
             onValueChange={(value) =>
               setValue("pickType", value as UpdateLeagueInput["pickType"], {
                 shouldDirty: true,
@@ -230,9 +239,11 @@ export function EditLeagueForm({
         </Field>
       </FieldGroup>
 
-      <Button type="submit" size="lg" disabled={isPending} className="w-full">
-        {isPending ? "Saving…" : "Save changes"}
-      </Button>
+      {readOnly ? null : (
+        <Button type="submit" size="lg" disabled={isPending} className="w-full">
+          {isPending ? "Saving…" : "Save changes"}
+        </Button>
+      )}
     </form>
   );
 }

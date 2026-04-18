@@ -22,6 +22,10 @@ vi.mock("@/data/phases", () => ({
   getActivePhasesForSportsLeague: vi.fn(),
 }));
 
+vi.mock("@/lib/invites", () => ({
+  cleanupInvitesIfFull: vi.fn(),
+}));
+
 vi.mock("@/lib/permissions", () => ({
   assertLeagueCommissioner: vi.fn(),
 }));
@@ -59,6 +63,7 @@ import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSportsLeagueByAbbreviation } from "@/data/sports";
 import { insertLeagueStanding } from "@/data/standings";
 import { getSession } from "@/lib/auth";
+import { cleanupInvitesIfFull } from "@/lib/invites";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 
 import {
@@ -353,6 +358,17 @@ describe("updateLeagueAction", () => {
         seasonFormat: "full_season",
       }),
     );
+    expect(cleanupInvitesIfFull).not.toHaveBeenCalled();
+  });
+
+  it("cleans up invites when the size change could fill the league", async () => {
+    vi.mocked(getLeagueById).mockResolvedValueOnce({
+      ...existingLeague,
+      size: 12,
+    });
+    const result = await updateLeagueAction({ ...validUpdate, size: 6 });
+    expect(result.success).toBe(true);
+    expect(cleanupInvitesIfFull).toHaveBeenCalledWith(leagueId);
   });
 });
 

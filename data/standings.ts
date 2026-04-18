@@ -36,3 +36,19 @@ export async function getLeagueStanding(
   });
   return result ?? null;
 }
+
+export async function removeLeagueStandingsForUser(
+  leagueId: string,
+  userId: string,
+  tx?: Transaction,
+): Promise<void> {
+  const client = tx ?? db;
+  await client
+    .delete(leagueStandings)
+    .where(
+      and(
+        eq(leagueStandings.leagueId, leagueId),
+        eq(leagueStandings.userId, userId),
+      ),
+    );
+}

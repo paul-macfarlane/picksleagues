@@ -10,7 +10,6 @@ import {
   MoonIcon,
   SettingsIcon,
   SunIcon,
-  TrophyIcon,
   UserIcon,
   WrenchIcon,
 } from "lucide-react";
@@ -87,12 +86,6 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/leagues">
-            <TrophyIcon className="size-4" />
-            Leagues
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/profile">
             <UserIcon className="size-4" />

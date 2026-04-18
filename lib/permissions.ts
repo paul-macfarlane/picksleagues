@@ -1,7 +1,7 @@
 import { getLeagueMember } from "@/data/members";
 import { getProfileByUserId } from "@/data/profiles";
 import { getSession } from "@/lib/auth";
-import type { LeagueMember } from "@/lib/db/schema/leagues";
+import type { LeagueMember, LeagueRole } from "@/lib/db/schema/leagues";
 import type { Profile } from "@/lib/db/schema/profiles";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 
@@ -44,4 +44,37 @@ export async function assertLeagueCommissioner(
     throw new ForbiddenError("Must be a league commissioner");
   }
   return member;
+}
+
+export const LEAGUE_CAPABILITIES = [
+  "view_settings",
+  "edit_settings",
+  "delete_league",
+  "invite_members",
+  "revoke_invites",
+  "leave_league",
+] as const;
+
+export type LeagueCapability = (typeof LEAGUE_CAPABILITIES)[number];
+
+const CAPABILITIES_BY_ROLE: Record<
+  LeagueRole,
+  ReadonlySet<LeagueCapability>
+> = {
+  commissioner: new Set<LeagueCapability>([
+    "view_settings",
+    "edit_settings",
+    "delete_league",
+    "invite_members",
+    "revoke_invites",
+    "leave_league",
+  ]),
+  member: new Set<LeagueCapability>(["view_settings", "leave_league"]),
+};
+
+export function canLeagueRoleDo(
+  role: LeagueRole,
+  capability: LeagueCapability,
+): boolean {
+  return CAPABILITIES_BY_ROLE[role].has(capability);
 }

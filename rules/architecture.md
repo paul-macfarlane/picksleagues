@@ -17,6 +17,7 @@
 - `lib/permissions.ts` may call `data/` functions — permissions are inherently data-dependent.
 - `lib/sync/` may call `data/` functions — sync pipelines orchestrate external data fetching and database persistence.
 - `lib/simulator.ts` may call `data/` functions — the off-season test simulator orchestrates sync + DB state and reads its own singleton state.
+- `lib/invites.ts` may call `data/` functions — the capacity-invariant cleanup crosses invite + league tables and is shared between mutations.
 
 ## Server Action Pattern
 

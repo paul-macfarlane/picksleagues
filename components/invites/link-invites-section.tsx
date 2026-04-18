@@ -50,11 +50,11 @@ type CreateLinkInviteOutput = z.output<typeof createLinkInviteSchema>;
 export function LinkInvitesSection({
   leagueId,
   existingInvites,
-  disabled,
+  disabledReason,
 }: {
   leagueId: string;
   existingInvites: LinkInvite[];
-  disabled: boolean;
+  disabledReason: string | null;
 }) {
   return (
     <section className="flex flex-col gap-3">
@@ -65,11 +65,13 @@ export function LinkInvitesSection({
             Share a link with anyone you want to invite.
           </p>
         </div>
-        {disabled ? null : <CreateLinkInviteDialog leagueId={leagueId} />}
+        {disabledReason === null ? (
+          <CreateLinkInviteDialog leagueId={leagueId} />
+        ) : null}
       </div>
-      {disabled ? (
+      {disabledReason !== null ? (
         <p className="rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
-          Link invites are paused while the league is in-season.
+          {disabledReason}
         </p>
       ) : null}
       {existingInvites.length > 0 ? (
