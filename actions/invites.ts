@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
 import { randomUUID } from "node:crypto";
+
+import { addDays } from "date-fns";
+import { revalidatePath } from "next/cache";
 
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
 import {
@@ -23,7 +24,7 @@ import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { insertLeagueStanding } from "@/data/standings";
 import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
-import type { LinkInvite } from "@/lib/db/schema/leagues";
+import type { League, LeagueRole, LinkInvite } from "@/lib/db/schema/leagues";
 import type { Profile } from "@/lib/db/schema/profiles";
 import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
@@ -39,12 +40,6 @@ import {
 
 const MAX_INVITE_CANDIDATES = 10;
 
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
-}
-
 async function cleanupInvitesIfFull(leagueId: string): Promise<void> {
   const league = await getLeagueById(leagueId);
   if (!league) return;
@@ -55,6 +50,60 @@ async function cleanupInvitesIfFull(leagueId: string): Promise<void> {
       removeLinkInvitesByLeague(leagueId),
     ]);
   }
+}
+
+type JoinSuccess = { alreadyMember: boolean };
+type JoinError = { error: string };
+
+async function joinLeague(
+  league: League,
+  userId: string,
+  role: LeagueRole,
+  options: { directInviteIdToDelete?: string } = {},
+): Promise<JoinSuccess | JoinError> {
+  const [activePhases, memberCount, existingMember] = await Promise.all([
+    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
+    getLeagueMemberCount(league.id),
+    getLeagueMember(league.id, userId),
+  ]);
+
+  if (existingMember) {
+    return { alreadyMember: true };
+  }
+
+  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
+    return {
+      error: "This league is already in-season. You can't join mid-season.",
+    };
+  }
+
+  if (memberCount >= league.size) {
+    return { error: "This league is already at capacity." };
+  }
+
+  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
+  const currentSeason = selectCurrentSeason(seasons);
+  if (!currentSeason) {
+    return { error: "No NFL season is synced yet. Try again later." };
+  }
+
+  await withTransaction(async (tx) => {
+    await insertLeagueMember({ leagueId: league.id, userId, role }, tx);
+    await insertLeagueStanding(
+      { leagueId: league.id, userId, seasonId: currentSeason.id },
+      tx,
+    );
+    if (options.directInviteIdToDelete) {
+      await removeDirectInvite(options.directInviteIdToDelete, tx);
+    }
+  });
+
+  await cleanupInvitesIfFull(league.id);
+  return { alreadyMember: false };
+}
+
+function isJoinError(result: JoinSuccess | JoinError): result is JoinError {
+  return "error" in result;
 }
 
 export async function createDirectInviteAction(
@@ -148,52 +197,12 @@ export async function respondToDirectInviteAction(
     return { success: false, error: "League not found." };
   }
 
-  const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
-    getLeagueMemberCount(league.id),
-  ]);
-
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
-    return {
-      success: false,
-      error: "This league is already in-season. You can't join mid-season.",
-    };
-  }
-
-  if (memberCount >= league.size) {
-    return { success: false, error: "This league is already at capacity." };
-  }
-
-  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
-  const currentSeason = selectCurrentSeason(seasons);
-  if (!currentSeason) {
-    return {
-      success: false,
-      error: "No NFL season is synced yet. Try again later.",
-    };
-  }
-
-  await withTransaction(async (tx) => {
-    await insertLeagueMember(
-      {
-        leagueId: league.id,
-        userId: session.user.id,
-        role: invite.role,
-      },
-      tx,
-    );
-    await insertLeagueStanding(
-      {
-        leagueId: league.id,
-        userId: session.user.id,
-        seasonId: currentSeason.id,
-      },
-      tx,
-    );
-    await removeDirectInvite(inviteId, tx);
+  const joinResult = await joinLeague(league, session.user.id, invite.role, {
+    directInviteIdToDelete: inviteId,
   });
-
-  await cleanupInvitesIfFull(league.id);
+  if (isJoinError(joinResult)) {
+    return { success: false, error: joinResult.error };
+  }
 
   revalidatePath(`/leagues/${league.id}`, "layout");
   revalidatePath("/leagues");
@@ -306,7 +315,7 @@ export async function revokeLinkInviteAction(
 
 export async function joinViaLinkInviteAction(
   input: unknown,
-): Promise<ActionResult<{ leagueId: string }>> {
+): Promise<ActionResult<{ leagueId: string; alreadyMember: boolean }>> {
   const parsed = joinViaLinkSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -332,63 +341,17 @@ export async function joinViaLinkInviteAction(
     return { success: false, error: "League not found." };
   }
 
-  const [activePhases, memberCount, existingMember] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, new Date()),
-    getLeagueMemberCount(league.id),
-    getLeagueMember(league.id, session.user.id),
-  ]);
-
-  if (existingMember) {
-    return {
-      success: true,
-      data: { leagueId: league.id },
-    };
+  const joinResult = await joinLeague(league, session.user.id, invite.role);
+  if (isJoinError(joinResult)) {
+    return { success: false, error: joinResult.error };
   }
-
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
-    return {
-      success: false,
-      error: "This league is already in-season. You can't join mid-season.",
-    };
-  }
-
-  if (memberCount >= league.size) {
-    return { success: false, error: "This league is already at capacity." };
-  }
-
-  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
-  const currentSeason = selectCurrentSeason(seasons);
-  if (!currentSeason) {
-    return {
-      success: false,
-      error: "No NFL season is synced yet. Try again later.",
-    };
-  }
-
-  await withTransaction(async (tx) => {
-    await insertLeagueMember(
-      {
-        leagueId: league.id,
-        userId: session.user.id,
-        role: invite.role,
-      },
-      tx,
-    );
-    await insertLeagueStanding(
-      {
-        leagueId: league.id,
-        userId: session.user.id,
-        seasonId: currentSeason.id,
-      },
-      tx,
-    );
-  });
-
-  await cleanupInvitesIfFull(league.id);
 
   revalidatePath(`/leagues/${league.id}`, "layout");
   revalidatePath("/leagues");
   revalidatePath("/home");
 
-  return { success: true, data: { leagueId: league.id } };
+  return {
+    success: true,
+    data: { leagueId: league.id, alreadyMember: joinResult.alreadyMember },
+  };
 }

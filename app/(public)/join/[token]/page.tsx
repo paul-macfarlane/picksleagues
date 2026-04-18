@@ -14,8 +14,7 @@ import {
 import { getLinkInviteByToken } from "@/data/invites";
 import { getLeagueById } from "@/data/leagues";
 import { getLeagueMember } from "@/data/members";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getOptionalSession } from "@/lib/auth";
 import { LEAGUE_ROLE_LABELS } from "@/lib/validators/invites";
 
 export const metadata: Metadata = {
@@ -26,7 +25,7 @@ export default async function JoinInvitePage(
   props: PageProps<"/join/[token]">,
 ) {
   const { token } = await props.params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getOptionalSession();
 
   const invite = await getLinkInviteByToken(token);
   if (!invite) {
