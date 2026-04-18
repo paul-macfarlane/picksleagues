@@ -46,6 +46,21 @@ app/api/cron/nfl/  — NFL cron route handlers
 
 Future sports add new directories (`lib/march-madness/`, `lib/espn/ncb/`, etc.) — they don't modify existing ones. Shared ESPN utilities live in `lib/espn/shared/`.
 
+## Time-Dependent Logic
+
+Every "is this happening right now?" check in Server Components and Server
+Actions must pull the current time from `lib/simulator.ts#getAppNow()`, not
+from `new Date()`. `getAppNow()` returns the simulator's `simNow` when the
+off-season simulator is initialized and real wall-clock time otherwise — so
+every in-season / current-phase / pick-lock check flips correctly as the
+simulator advances. Raw `new Date()` for "now" silently breaks every test
+plan that runs against simulated data.
+
+Pure helpers in `lib/` that depend on time keep accepting an optional `now`
+parameter (testing rule); callers fetch it from `getAppNow()` and pass it
+through. Time used for things outside simulation scope (invite expiration,
+audit log timestamps) stays on real wall-clock time.
+
 ## Key Prohibitions
 
 - **No business logic in components** — components render, functions compute
@@ -53,3 +68,4 @@ Future sports add new directories (`lib/march-madness/`, `lib/espn/ncb/`, etc.) 
 - **No `useEffect` + `fetch` for data** — Server Components fetch directly
 - **No client-side data fetching** except search-as-you-type and polling
 - **No manual type declarations** that mirror Drizzle/Zod schemas — infer types
+- **No raw `new Date()` for "now"** in server code — use `getAppNow()`

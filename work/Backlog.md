@@ -10,11 +10,11 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 30     |
+| Complete    | 31     |
 | In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 8      |
-| **Total**   | **38** |
+| **Total**   | **39** |
 
 ---
 
@@ -239,14 +239,16 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Phase navigation (prev/next)
   - Current phase resolution logic (lib/nfl/scheduling.ts)
   - Live score display (not started / in progress / final indicators)
+  - **Use `getAppNow()`** (lib/simulator) for current-phase resolution + lock status so the simulator controls the view state.
 
 - [ ] PL-028: Pick submission — straight up (BUSINESS_SPEC §7.1-7.2)
   - lib/validators/picks.ts — SubmitPicksSchema
-  - lib/nfl/scheduling.ts — isGameStarted(), isPhasePastLockTime()
+  - lib/nfl/scheduling.ts — isGameStarted(now?), isPhasePastLockTime(now?)
   - actions/picks.ts — submitPicks action
   - Interactive pick UI: clickable team cards, toggle selection, progress counter
   - Pick lock enforcement: phase lock time + individual game kickoff
   - Required pick count: min(picksPerPhase, unstartedGames)
+  - **Use `getAppNow()`** in the action — pass it into `isGameStarted` / `isPhasePastLockTime` so simulator advancement flips pick locks.
 
 - [ ] PL-029: Pick submission — against the spread (BUSINESS_SPEC §7.1, §9.3)
   - Extends PL-028 with spread display and spread snapshot at submission
@@ -272,11 +274,13 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Full integrity check (recompute from all scored picks)
   - Wire call from runLiveScoresSync when events finalize
   - **Admin event edits clear `pickResult` on affected picks** — `updateEventAction` (PL-073, shipped) must null out `pickResult` for every pick on the event whenever scores or status change on a `final` event (or status flips away from `final`). The next recalc run then re-scores them via step 2 of §8.5.
+  - **Cron-driven entry point uses real `new Date()`**. The simulator wires its own path through `advancePhase` — this job doesn't need `getAppNow()` because its triggers (cron + live-scores sync) are real-world events. Simulator already exercises this code via `lib/sync/nfl/live-scores.ts`.
 
 - [ ] PL-032: Phase navigation (BUSINESS_SPEC §6.3-6.4)
   - Prev/next phase browsing
   - Historical picks and results view
   - Current phase auto-detection
+  - **Use `getAppNow()`** for the "what phase am I on right now?" landing default.
 
 - [ ] PL-033: League picks view (BUSINESS_SPEC §7.3, §12.4)
   - Before lock: "picks will be visible after deadline" message
@@ -304,6 +308,11 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 - [ ] PL-055: Pick stats + trends
   - Advanced stats to help users make informed picks
   - Historical pick performance data
+
+- [x] PL-056: League season state badge (BUSINESS_SPEC §3.7)
+  - lib/nfl/leagues.ts — getLeagueSeasonState(phases, format, now) → "upcoming" | "in_progress" | "complete"
+  - Render on the league detail layout header: "YYYY {Format} · {State}"
+  - Uses getAppNow() for the "now" reference so the simulator controls the display
 
 ## 8. Deployment (depends on: Polish complete)
 

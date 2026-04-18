@@ -1,12 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import type { Season } from "@/lib/db/schema/sports";
+import type { Phase, Season } from "@/lib/db/schema/sports";
 
 import {
+  getLeagueSeasonState,
   isLeagueInSeason,
   seasonFormatToSeasonTypes,
   selectCurrentSeason,
 } from "./leagues";
+
+function phase(
+  overrides: Pick<Phase, "startDate" | "endDate" | "seasonType"> &
+    Partial<Phase>,
+): Phase {
+  return {
+    id:
+      overrides.id ??
+      `phase-${overrides.seasonType}-${overrides.startDate.toISOString()}`,
+    seasonId: overrides.seasonId ?? "season-x",
+    seasonType: overrides.seasonType,
+    weekNumber: overrides.weekNumber ?? 1,
+    label: overrides.label ?? "Week 1",
+    startDate: overrides.startDate,
+    endDate: overrides.endDate,
+    pickLockTime: overrides.pickLockTime ?? overrides.startDate,
+    lockedAt: overrides.lockedAt ?? null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
 
 function season(overrides: Partial<Season> & Pick<Season, "year">): Season {
   return {
@@ -106,5 +128,100 @@ describe("isLeagueInSeason", () => {
 
   it("returns false when there are no active phases", () => {
     expect(isLeagueInSeason([], "full_season")).toBe(false);
+  });
+});
+
+describe("getLeagueSeasonState", () => {
+  const regularWeek1 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-07T00:00:00Z"),
+    endDate: new Date("2025-09-14T00:00:00Z"),
+  });
+  const regularWeek18 = phase({
+    seasonType: "regular",
+    startDate: new Date("2026-01-04T00:00:00Z"),
+    endDate: new Date("2026-01-11T00:00:00Z"),
+  });
+  const wildCard = phase({
+    seasonType: "postseason",
+    startDate: new Date("2026-01-11T00:00:00Z"),
+    endDate: new Date("2026-01-18T00:00:00Z"),
+  });
+  const superBowl = phase({
+    seasonType: "postseason",
+    startDate: new Date("2026-02-08T00:00:00Z"),
+    endDate: new Date("2026-02-15T00:00:00Z"),
+  });
+
+  it("returns 'upcoming' before any relevant phase has started", () => {
+    const now = new Date("2025-08-01T00:00:00Z");
+    expect(
+      getLeagueSeasonState(
+        [regularWeek1, regularWeek18, wildCard, superBowl],
+        "regular_season",
+        now,
+      ),
+    ).toBe("upcoming");
+  });
+
+  it("returns 'in_progress' while any relevant phase contains now", () => {
+    const now = new Date("2025-09-10T12:00:00Z");
+    expect(
+      getLeagueSeasonState(
+        [regularWeek1, regularWeek18, wildCard, superBowl],
+        "regular_season",
+        now,
+      ),
+    ).toBe("in_progress");
+  });
+
+  it("returns 'in_progress' between format-relevant phases (gap inside the season)", () => {
+    const now = new Date("2025-10-01T00:00:00Z");
+    expect(
+      getLeagueSeasonState(
+        [regularWeek1, regularWeek18],
+        "regular_season",
+        now,
+      ),
+    ).toBe("in_progress");
+  });
+
+  it("returns 'complete' once every relevant phase has ended", () => {
+    const now = new Date("2026-03-01T00:00:00Z");
+    expect(
+      getLeagueSeasonState(
+        [regularWeek1, regularWeek18, wildCard, superBowl],
+        "full_season",
+        now,
+      ),
+    ).toBe("complete");
+  });
+
+  it("ignores phases outside the league's format", () => {
+    const now = new Date("2026-01-15T00:00:00Z");
+    // In postseason window but league is regular_season only — regular season
+    // ended before wildcard started.
+    expect(
+      getLeagueSeasonState(
+        [regularWeek1, regularWeek18, wildCard, superBowl],
+        "regular_season",
+        now,
+      ),
+    ).toBe("complete");
+    // And a postseason-only league treats the same moment as in_progress.
+    expect(
+      getLeagueSeasonState(
+        [regularWeek1, regularWeek18, wildCard, superBowl],
+        "postseason",
+        now,
+      ),
+    ).toBe("in_progress");
+  });
+
+  it("returns 'upcoming' when no phases of the format are synced yet", () => {
+    const now = new Date("2025-09-10T12:00:00Z");
+    expect(getLeagueSeasonState([regularWeek1], "postseason", now)).toBe(
+      "upcoming",
+    );
   });
 });
