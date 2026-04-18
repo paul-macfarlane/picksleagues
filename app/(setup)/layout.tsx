@@ -27,7 +27,7 @@ export default async function SetupLayout({
   }
 
   if (profile.setupComplete) {
-    redirect("/home");
+    redirect("/leagues");
   }
 
   return (

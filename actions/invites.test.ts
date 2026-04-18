@@ -24,6 +24,10 @@ vi.mock("@/data/invites", () => ({
   upsertDirectInvite: vi.fn(),
 }));
 
+vi.mock("@/lib/invites", () => ({
+  cleanupInvitesIfFull: vi.fn(),
+}));
+
 vi.mock("@/data/members", () => ({
   getLeagueMember: vi.fn(),
   insertLeagueMember: vi.fn(),
@@ -60,9 +64,7 @@ import {
   getLinkInviteByToken,
   insertLinkInvite,
   removeDirectInvite,
-  removeDirectInvitesByLeague,
   removeLinkInvite,
-  removeLinkInvitesByLeague,
   searchInviteCandidates,
   upsertDirectInvite,
 } from "@/data/invites";
@@ -71,6 +73,7 @@ import { getActivePhasesForSportsLeague } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { insertLeagueStanding } from "@/data/standings";
 import { getSession } from "@/lib/auth";
+import { cleanupInvitesIfFull } from "@/lib/invites";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 
 import {
@@ -78,6 +81,7 @@ import {
   createLinkInviteAction,
   joinViaLinkInviteAction,
   respondToDirectInviteAction,
+  revokeDirectInviteAction,
   revokeLinkInviteAction,
   searchInviteCandidatesAction,
 } from "./invites";
@@ -168,9 +172,8 @@ beforeEach(() => {
     updatedAt: new Date(),
   });
   vi.mocked(removeDirectInvite).mockResolvedValue(undefined);
-  vi.mocked(removeDirectInvitesByLeague).mockResolvedValue(undefined);
   vi.mocked(removeLinkInvite).mockResolvedValue(undefined);
-  vi.mocked(removeLinkInvitesByLeague).mockResolvedValue(undefined);
+  vi.mocked(cleanupInvitesIfFull).mockResolvedValue(undefined);
   vi.mocked(searchInviteCandidates).mockResolvedValue([]);
   vi.mocked(insertLinkInvite).mockResolvedValue({
     id: "55555555-5555-4555-8555-555555555555",
@@ -367,20 +370,7 @@ describe("respondToDirectInviteAction", () => {
     expect(insertLeagueMember).toHaveBeenCalled();
     expect(insertLeagueStanding).toHaveBeenCalled();
     expect(removeDirectInvite).toHaveBeenCalled();
-    expect(removeDirectInvitesByLeague).not.toHaveBeenCalled();
-  });
-
-  it("wipes remaining direct and link invites when the league hits capacity", async () => {
-    vi.mocked(getLeagueMemberCount)
-      .mockResolvedValueOnce(9)
-      .mockResolvedValueOnce(10);
-    const result = await respondToDirectInviteAction({
-      inviteId,
-      response: "accept",
-    });
-    expect(result.success).toBe(true);
-    expect(removeDirectInvitesByLeague).toHaveBeenCalledWith(leagueId);
-    expect(removeLinkInvitesByLeague).toHaveBeenCalledWith(leagueId);
+    expect(cleanupInvitesIfFull).toHaveBeenCalledWith(leagueId);
   });
 });
 
@@ -580,15 +570,50 @@ describe("joinViaLinkInviteAction", () => {
     expect(result.success).toBe(true);
     expect(insertLeagueMember).toHaveBeenCalled();
     expect(insertLeagueStanding).toHaveBeenCalled();
+    expect(cleanupInvitesIfFull).toHaveBeenCalledWith(leagueId);
+  });
+});
+
+describe("revokeDirectInviteAction", () => {
+  it("returns a business error when the invite is gone", async () => {
+    vi.mocked(getDirectInviteById).mockResolvedValueOnce(null);
+    const result = await revokeDirectInviteAction({ inviteId });
+    expect(result.success).toBe(false);
+    expect(removeDirectInvite).not.toHaveBeenCalled();
   });
 
-  it("wipes remaining invites when the league hits capacity on join", async () => {
-    vi.mocked(getLeagueMemberCount)
-      .mockResolvedValueOnce(9)
-      .mockResolvedValueOnce(10);
-    const result = await joinViaLinkInviteAction({ token });
+  it("propagates ForbiddenError for non-commissioners", async () => {
+    vi.mocked(getDirectInviteById).mockResolvedValueOnce({
+      id: inviteId,
+      leagueId,
+      inviteeUserId,
+      inviterUserId,
+      role: "member",
+      expiresAt: new Date(Date.now() + 86400_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(assertLeagueCommissioner).mockRejectedValueOnce(
+      new ForbiddenError("Must be a league commissioner"),
+    );
+    await expect(revokeDirectInviteAction({ inviteId })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it("deletes the invite on success", async () => {
+    vi.mocked(getDirectInviteById).mockResolvedValueOnce({
+      id: inviteId,
+      leagueId,
+      inviteeUserId,
+      inviterUserId,
+      role: "member",
+      expiresAt: new Date(Date.now() + 86400_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const result = await revokeDirectInviteAction({ inviteId });
     expect(result.success).toBe(true);
-    expect(removeDirectInvitesByLeague).toHaveBeenCalledWith(leagueId);
-    expect(removeLinkInvitesByLeague).toHaveBeenCalledWith(leagueId);
+    expect(removeDirectInvite).toHaveBeenCalledWith(inviteId);
   });
 });

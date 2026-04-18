@@ -10,7 +10,7 @@ import { DiscordIcon, GoogleIcon } from "@/components/auth/oauth-icons";
 type Provider = "google" | "discord";
 
 export function LoginButtons({
-  callbackURL = "/home",
+  callbackURL = "/leagues",
 }: {
   callbackURL?: string;
 }) {

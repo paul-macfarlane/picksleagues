@@ -36,7 +36,7 @@ export default async function LandingPage() {
   if (!profile || !profile.setupComplete) {
     redirect("/setup");
   }
-  redirect("/home");
+  redirect("/leagues");
 }
 
 function SplashContent() {

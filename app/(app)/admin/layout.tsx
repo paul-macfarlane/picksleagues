@@ -14,7 +14,7 @@ export default async function AdminLayout({
   } catch (err) {
     // Silent redirect — admin panel existence stays hidden from non-admins.
     if (err instanceof ForbiddenError || err instanceof NotFoundError) {
-      redirect("/home");
+      redirect("/leagues");
     }
     throw err;
   }

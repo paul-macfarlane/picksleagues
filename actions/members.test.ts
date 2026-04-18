@@ -23,6 +23,14 @@ vi.mock("@/data/phases", () => ({
   getActivePhasesForSportsLeague: vi.fn(),
 }));
 
+vi.mock("@/data/standings", () => ({
+  removeLeagueStandingsForUser: vi.fn(),
+}));
+
+vi.mock("@/data/utils", () => ({
+  withTransaction: vi.fn(<T>(fn: (tx: unknown) => Promise<T>) => fn({})),
+}));
+
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn(),
 }));
@@ -44,6 +52,7 @@ import {
   updateLeagueMemberRole,
 } from "@/data/members";
 import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { removeLeagueStandingsForUser } from "@/data/standings";
 import { getSession } from "@/lib/auth";
 import {
   assertLeagueCommissioner,
@@ -105,6 +114,7 @@ beforeEach(() => {
   );
   vi.mocked(updateLeagueMemberRole).mockResolvedValue(member("commissioner"));
   vi.mocked(removeLeagueMember).mockResolvedValue(undefined);
+  vi.mocked(removeLeagueStandingsForUser).mockResolvedValue(undefined);
   vi.mocked(getCommissionerCount).mockResolvedValue(2);
 });
 
@@ -342,12 +352,30 @@ describe("leaveLeagueAction", () => {
     if (result.success) {
       expect(result.data.leagueDeleted).toBe(false);
     }
-    expect(removeLeagueMember).toHaveBeenCalledWith(leagueId, sessionUserId);
+    expect(removeLeagueMember).toHaveBeenCalledWith(
+      leagueId,
+      sessionUserId,
+      expect.anything(),
+    );
+    expect(removeLeagueStandingsForUser).toHaveBeenCalledWith(
+      leagueId,
+      sessionUserId,
+      expect.anything(),
+    );
   });
 
-  it("lets a regular member leave", async () => {
+  it("lets a regular member leave and clears their standings", async () => {
     const result = await leaveLeagueAction({ leagueId });
     expect(result.success).toBe(true);
-    expect(removeLeagueMember).toHaveBeenCalledWith(leagueId, sessionUserId);
+    expect(removeLeagueMember).toHaveBeenCalledWith(
+      leagueId,
+      sessionUserId,
+      expect.anything(),
+    );
+    expect(removeLeagueStandingsForUser).toHaveBeenCalledWith(
+      leagueId,
+      sessionUserId,
+      expect.anything(),
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gt, notInArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
@@ -122,6 +123,42 @@ export async function getPendingDirectInvitesForUser(
     ...row.invite,
     league: row.league,
     inviter: row.inviterProfile,
+  }));
+}
+
+export interface DirectInviteWithProfiles extends DirectInvite {
+  invitee: Profile | null;
+  inviter: Profile | null;
+}
+
+export async function getDirectInvitesByLeague(
+  leagueId: string,
+  tx?: Transaction,
+): Promise<DirectInviteWithProfiles[]> {
+  const client = tx ?? db;
+  const inviteeProfile = alias(profile, "invitee_profile");
+  const inviterProfile = alias(profile, "inviter_profile");
+  const rows = await client
+    .select({
+      invite: directInvites,
+      invitee: inviteeProfile,
+      inviter: inviterProfile,
+    })
+    .from(directInvites)
+    .leftJoin(
+      inviteeProfile,
+      eq(directInvites.inviteeUserId, inviteeProfile.userId),
+    )
+    .leftJoin(
+      inviterProfile,
+      eq(directInvites.inviterUserId, inviterProfile.userId),
+    )
+    .where(eq(directInvites.leagueId, leagueId))
+    .orderBy(desc(directInvites.createdAt));
+  return rows.map((row) => ({
+    ...row.invite,
+    invitee: row.invitee,
+    inviter: row.inviter,
   }));
 }
 

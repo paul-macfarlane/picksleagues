@@ -22,7 +22,7 @@ function safeCallback(raw: string | string[] | undefined): string {
   if (value && /^\/[^/\\]/.test(value)) {
     return value;
   }
-  return "/home";
+  return "/leagues";
 }
 
 export default async function LoginPage(props: PageProps<"/login">) {

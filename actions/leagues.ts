@@ -17,6 +17,7 @@ import { insertLeagueStanding } from "@/data/standings";
 import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
+import { cleanupInvitesIfFull } from "@/lib/invites";
 import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 import type { ActionResult } from "@/lib/types";
@@ -103,7 +104,6 @@ export async function createLeagueAction(
   });
 
   revalidatePath("/leagues");
-  revalidatePath("/home");
 
   return { success: true, data: { leagueId: league.id } };
 }
@@ -176,9 +176,15 @@ export async function updateLeagueAction(
     pickType,
   });
 
+  // If the new size pushed the league to capacity, invalidate every
+  // outstanding invite — this is the §5.4 invariant extended to settings
+  // changes, not just joins.
+  if (size < league.size) {
+    await cleanupInvitesIfFull(leagueId);
+  }
+
   revalidatePath(`/leagues/${leagueId}`, "layout");
   revalidatePath("/leagues");
-  revalidatePath("/home");
 
   return { success: true, data: { leagueId } };
 }
@@ -210,7 +216,6 @@ export async function deleteLeagueAction(
 
   revalidatePath(`/leagues/${leagueId}`, "layout");
   revalidatePath("/leagues");
-  revalidatePath("/home");
 
   return { success: true, data: undefined };
 }

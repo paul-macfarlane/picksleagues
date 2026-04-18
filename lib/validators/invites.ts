@@ -39,6 +39,10 @@ export type RespondToDirectInviteInput = z.input<
   typeof respondToDirectInviteSchema
 >;
 
+export const revokeDirectInviteSchema = z.object({
+  inviteId: z.string().uuid({ error: "Invalid invite id." }),
+});
+
 export const searchProfilesSchema = z.object({
   leagueId: z.string().uuid({ error: "Invalid league id." }),
   query: z.string().trim().min(1).max(100),

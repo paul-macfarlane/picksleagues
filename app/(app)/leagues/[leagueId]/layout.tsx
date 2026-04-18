@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { LeagueAvatar } from "@/components/leagues/league-avatar";
 import { LeagueTabs } from "@/components/leagues/league-tabs";
 import { getLeagueById } from "@/data/leagues";
+import { getLeagueMember } from "@/data/members";
 import { getSession } from "@/lib/auth";
-import { assertLeagueMember } from "@/lib/permissions";
 
 export default async function LeagueLayout({
   children,
@@ -16,7 +16,13 @@ export default async function LeagueLayout({
   if (!league) {
     notFound();
   }
-  await assertLeagueMember(session.user.id, leagueId);
+  // Treat non-members as "page doesn't exist" rather than throwing a
+  // ForbiddenError — we don't want random users to be able to probe
+  // league IDs, and the 404 path avoids dumping a scary error boundary.
+  const member = await getLeagueMember(leagueId, session.user.id);
+  if (!member) {
+    notFound();
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4">

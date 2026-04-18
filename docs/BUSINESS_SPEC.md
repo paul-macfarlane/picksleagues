@@ -182,6 +182,8 @@ A member can leave a league under these conditions:
   - They are the **sole member** (which deletes the league), OR
   - They are **not the sole commissioner** (another commissioner exists)
 
+When a member leaves (non-delete path), their standings rows for this league are **deleted** across every season. If they re-join later, a fresh standing is created for whatever season is current at that time. This is different from §4.3 commissioner-initiated removal, where picks and standings are preserved — a voluntary departure is a clean slate, a forced removal preserves history for the league's record.
+
 ---
 
 ## 5. Invitations
