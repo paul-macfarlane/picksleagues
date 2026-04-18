@@ -1,10 +1,14 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
-import type { LeagueMember, NewLeagueMember } from "@/lib/db/schema/leagues";
-import { leagueMembers } from "@/lib/db/schema/leagues";
+import type {
+  LeagueMember,
+  LeagueRole,
+  NewLeagueMember,
+} from "@/lib/db/schema/leagues";
+import { leagueMembers, leagues } from "@/lib/db/schema/leagues";
 import { profile } from "@/lib/db/schema/profiles";
 import type { Profile } from "@/lib/db/schema/profiles";
 
@@ -111,4 +115,40 @@ export async function getCommissionerCount(
       ),
     );
   return rows.length;
+}
+
+export interface LeagueMembershipSummary {
+  leagueId: string;
+  leagueName: string;
+  role: LeagueRole;
+  memberCount: number;
+  commissionerCount: number;
+}
+
+export async function getLeagueMembershipSummaryForUser(
+  userId: string,
+  tx?: Transaction,
+): Promise<LeagueMembershipSummary[]> {
+  const client = tx ?? db;
+  const memberCount = sql<number>`(
+    SELECT count(*)::int FROM ${leagueMembers} AS inner_lm
+    WHERE inner_lm.league_id = ${leagues.id}
+  )`;
+  const commissionerCount = sql<number>`(
+    SELECT count(*)::int FROM ${leagueMembers} AS inner_lm
+    WHERE inner_lm.league_id = ${leagues.id}
+      AND inner_lm.role = 'commissioner'
+  )`;
+
+  return client
+    .select({
+      leagueId: leagues.id,
+      leagueName: leagues.name,
+      role: leagueMembers.role,
+      memberCount,
+      commissionerCount,
+    })
+    .from(leagueMembers)
+    .innerJoin(leagues, eq(leagueMembers.leagueId, leagues.id))
+    .where(eq(leagueMembers.userId, userId));
 }

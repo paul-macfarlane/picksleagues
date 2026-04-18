@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { getSession } from "@/lib/auth";
+import { DeleteAccountDialog } from "@/components/account/delete-account-dialog";
 import {
   Card,
   CardContent,
@@ -8,7 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DeleteAccountDialog } from "@/components/account/delete-account-dialog";
+import { getLeagueMembershipSummaryForUser } from "@/data/members";
+import { getSoleCommissionerBlockers } from "@/lib/account";
+import { getSession } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -16,6 +18,8 @@ export const metadata: Metadata = {
 
 export default async function AccountPage() {
   const session = await getSession();
+  const summary = await getLeagueMembershipSummaryForUser(session.user.id);
+  const blockers = getSoleCommissionerBlockers(summary);
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6">
@@ -38,8 +42,20 @@ export default async function AccountPage() {
             historical picks and standings in every league.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <DeleteAccountDialog />
+        <CardContent className="flex flex-col gap-3">
+          {blockers.length > 0 ? (
+            <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm">
+              <p className="font-medium">
+                You&apos;re the only commissioner of{" "}
+                {blockers.map((b) => b.leagueName).join(", ")}.
+              </p>
+              <p className="text-muted-foreground">
+                Promote another member before deleting your account so the
+                league isn&apos;t left without an owner.
+              </p>
+            </div>
+          ) : null}
+          <DeleteAccountDialog blocked={blockers.length > 0} />
         </CardContent>
       </Card>
     </div>
