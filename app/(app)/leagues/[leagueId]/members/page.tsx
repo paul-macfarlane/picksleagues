@@ -10,19 +10,26 @@ import {
 } from "@/data/invites";
 import { getLeagueById } from "@/data/leagues";
 import { getLeagueMember, getLeagueMembersWithProfiles } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
-import { isLeagueInSeason } from "@/lib/nfl/leagues";
+import {
+  hasLeagueStartLockPassed,
+  isLeagueInSeason,
+  leagueActivationTime,
+  selectCurrentSeason,
+} from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
 import { getAppNow } from "@/lib/simulator";
 
 function inviteDisabledReason(
   atCapacity: boolean,
-  inSeason: boolean,
+  startLocked: boolean,
 ): string | null {
   if (atCapacity)
     return "League is at capacity. Free up a spot to invite more members.";
-  if (inSeason) return "Invites are paused while the league is in-season.";
+  if (startLocked)
+    return "The league's first pick lock has passed — no more joining this season.";
   return null;
 }
 
@@ -37,23 +44,39 @@ export default async function LeagueMembersPage(
     notFound();
   }
 
-  const [member, members, activePhases] = await Promise.all([
+  const now = await getAppNow();
+  const [member, members, seasons] = await Promise.all([
     getLeagueMember(leagueId, session.user.id),
     getLeagueMembersWithProfiles(leagueId),
-    getActivePhasesForSportsLeague(league.sportsLeagueId, await getAppNow()),
+    getSeasonsBySportsLeague(league.sportsLeagueId),
   ]);
   if (!member) {
     notFound();
   }
+
+  const currentSeason = selectCurrentSeason(seasons, now);
+  const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
+  const activePhases = phases.filter(
+    (p) => p.startDate <= now && p.endDate > now,
+  );
+  const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
+  const activation = currentSeason
+    ? leagueActivationTime(league.createdAt, currentSeason.startDate)
+    : league.createdAt;
+  const startLocked = hasLeagueStartLockPassed(
+    phases,
+    league.seasonFormat,
+    activation,
+    now,
+  );
 
   const canInvite = canLeagueRoleDo(member.role, "invite_members");
   const canRevokeInvites = canLeagueRoleDo(member.role, "revoke_invites");
   const canLeave = canLeagueRoleDo(member.role, "leave_league");
   const viewerIsCommissioner = member.role === "commissioner";
 
-  const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
   const atCapacity = members.length >= league.size;
-  const disabledReason = inviteDisabledReason(atCapacity, inSeason);
+  const disabledReason = inviteDisabledReason(atCapacity, startLocked);
 
   const [linkInvites, directInvites] = await Promise.all([
     canRevokeInvites ? getLinkInvitesByLeague(leagueId) : Promise.resolve([]),

@@ -38,12 +38,12 @@ type UpdateLeagueOutput = z.output<typeof updateLeagueSchema>;
 
 export function EditLeagueForm({
   league,
-  inSeason,
+  structuralLocked,
   memberCount,
   readOnly = false,
 }: {
   league: League;
-  inSeason: boolean;
+  structuralLocked: boolean;
   memberCount: number;
   readOnly?: boolean;
 }) {
@@ -103,12 +103,12 @@ export function EditLeagueForm({
           <LockIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>Only commissioners can edit these settings.</span>
         </p>
-      ) : inSeason ? (
+      ) : structuralLocked ? (
         <p className="flex items-start gap-2 rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
           <LockIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
-            Structural settings are locked while the league is in-season. Name
-            and image stay editable.
+            Structural settings are locked once the season&apos;s first pick
+            lock has passed. Name and image stay editable.
           </span>
         </p>
       ) : null}
@@ -153,7 +153,7 @@ export function EditLeagueForm({
           <FieldLabel htmlFor="league-season-format">Season format</FieldLabel>
           <Select
             value={seasonFormat}
-            disabled={readOnly || inSeason}
+            disabled={readOnly || structuralLocked}
             onValueChange={(value) =>
               setValue(
                 "seasonFormat",
@@ -185,7 +185,7 @@ export function EditLeagueForm({
               inputMode="numeric"
               min={Math.max(2, memberCount)}
               max={20}
-              disabled={readOnly || inSeason}
+              disabled={readOnly || structuralLocked}
               {...register("size")}
               aria-invalid={errors.size ? true : undefined}
             />
@@ -204,7 +204,7 @@ export function EditLeagueForm({
               inputMode="numeric"
               min={1}
               max={16}
-              disabled={readOnly || inSeason}
+              disabled={readOnly || structuralLocked}
               {...register("picksPerPhase")}
               aria-invalid={errors.picksPerPhase ? true : undefined}
             />
@@ -217,7 +217,7 @@ export function EditLeagueForm({
           <FieldLabel htmlFor="league-pick-type">Pick type</FieldLabel>
           <Select
             value={pickType}
-            disabled={readOnly || inSeason}
+            disabled={readOnly || structuralLocked}
             onValueChange={(value) =>
               setValue("pickType", value as UpdateLeagueInput["pickType"], {
                 shouldDirty: true,

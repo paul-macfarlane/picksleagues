@@ -4,9 +4,12 @@ import type { Phase, Season } from "@/lib/db/schema/sports";
 
 import {
   getLeagueSeasonState,
+  hasLeagueStartLockPassed,
   isLeagueInSeason,
+  leagueActivationTime,
   seasonFormatToSeasonTypes,
   selectCurrentSeason,
+  selectLeagueStartPhase,
 } from "./leagues";
 
 function phase(
@@ -223,5 +226,165 @@ describe("getLeagueSeasonState", () => {
     expect(getLeagueSeasonState([regularWeek1], "postseason", now)).toBe(
       "upcoming",
     );
+  });
+});
+
+describe("leagueActivationTime", () => {
+  it("returns the season start date for leagues created pre-season", () => {
+    const createdAt = new Date("2025-05-01T00:00:00Z");
+    const seasonStart = new Date("2025-09-01T00:00:00Z");
+    expect(leagueActivationTime(createdAt, seasonStart)).toEqual(seasonStart);
+  });
+
+  it("returns createdAt for leagues created mid-season", () => {
+    const createdAt = new Date("2025-10-15T00:00:00Z");
+    const seasonStart = new Date("2025-09-01T00:00:00Z");
+    expect(leagueActivationTime(createdAt, seasonStart)).toEqual(createdAt);
+  });
+});
+
+describe("selectLeagueStartPhase", () => {
+  const week1 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-07T00:00:00Z"),
+    endDate: new Date("2025-09-14T00:00:00Z"),
+    pickLockTime: new Date("2025-09-07T17:00:00Z"),
+    weekNumber: 1,
+  });
+  const week2 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-14T00:00:00Z"),
+    endDate: new Date("2025-09-21T00:00:00Z"),
+    pickLockTime: new Date("2025-09-14T17:00:00Z"),
+    weekNumber: 2,
+  });
+  const wildCard = phase({
+    seasonType: "postseason",
+    startDate: new Date("2026-01-11T00:00:00Z"),
+    endDate: new Date("2026-01-18T00:00:00Z"),
+    pickLockTime: new Date("2026-01-10T18:00:00Z"),
+    weekNumber: 19,
+  });
+
+  it("picks Week 1 for pre-season activation", () => {
+    const activation = new Date("2025-05-01T00:00:00Z");
+    expect(
+      selectLeagueStartPhase(
+        [week1, week2, wildCard],
+        "regular_season",
+        activation,
+      ),
+    ).toEqual(week1);
+  });
+
+  it("picks the next upcoming week for a mid-Week-1 activation", () => {
+    // Activation is AFTER Week 1's pick lock → Week 1 is disqualified.
+    const activation = new Date("2025-09-08T00:00:00Z");
+    expect(
+      selectLeagueStartPhase(
+        [week1, week2, wildCard],
+        "regular_season",
+        activation,
+      ),
+    ).toEqual(week2);
+  });
+
+  it("ignores phases outside the league's format", () => {
+    const activation = new Date("2025-05-01T00:00:00Z");
+    expect(
+      selectLeagueStartPhase(
+        [week1, week2, wildCard],
+        "postseason",
+        activation,
+      ),
+    ).toEqual(wildCard);
+  });
+
+  it("returns null when every format-relevant pick lock has already fired", () => {
+    const activation = new Date("2026-06-01T00:00:00Z");
+    expect(
+      selectLeagueStartPhase(
+        [week1, week2, wildCard],
+        "regular_season",
+        activation,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("hasLeagueStartLockPassed", () => {
+  const week1 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-07T00:00:00Z"),
+    endDate: new Date("2025-09-14T00:00:00Z"),
+    pickLockTime: new Date("2025-09-07T17:00:00Z"),
+  });
+  const week2 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-14T00:00:00Z"),
+    endDate: new Date("2025-09-21T00:00:00Z"),
+    pickLockTime: new Date("2025-09-14T17:00:00Z"),
+    weekNumber: 2,
+  });
+
+  it("returns false before the start phase's pick lock", () => {
+    const activation = new Date("2025-05-01T00:00:00Z");
+    const now = new Date("2025-09-07T10:00:00Z"); // pre-lock
+    expect(
+      hasLeagueStartLockPassed(
+        [week1, week2],
+        "regular_season",
+        activation,
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("returns true at the exact pick lock time", () => {
+    const activation = new Date("2025-05-01T00:00:00Z");
+    const now = new Date("2025-09-07T17:00:00Z"); // exactly at lock
+    expect(
+      hasLeagueStartLockPassed(
+        [week1, week2],
+        "regular_season",
+        activation,
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("uses Week 2 as the start phase when activation is after Week 1's lock", () => {
+    const activation = new Date("2025-09-08T00:00:00Z"); // mid-Week-2 prep
+    // Before Week 2's lock, so not locked.
+    expect(
+      hasLeagueStartLockPassed(
+        [week1, week2],
+        "regular_season",
+        activation,
+        new Date("2025-09-14T10:00:00Z"),
+      ),
+    ).toBe(false);
+    // After Week 2's lock, locked.
+    expect(
+      hasLeagueStartLockPassed(
+        [week1, week2],
+        "regular_season",
+        activation,
+        new Date("2025-09-15T00:00:00Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("returns true when no eligible start phase remains", () => {
+    const activation = new Date("2026-06-01T00:00:00Z");
+    const now = new Date("2026-06-02T00:00:00Z");
+    expect(
+      hasLeagueStartLockPassed(
+        [week1, week2],
+        "regular_season",
+        activation,
+        now,
+      ),
+    ).toBe(true);
   });
 });

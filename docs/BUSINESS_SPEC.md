@@ -112,26 +112,28 @@ Instead of arbitrary start/end phases, leagues must choose one of three preset f
 
 A league can only have **one season per NFL year**.
 
+A league can only be **created** when the chosen format has at least one remaining phase whose pick lock hasn't passed yet. That phase becomes the league's **start phase** (see §3.8). A Regular Season league created mid-season simply starts at the next upcoming week; a Regular Season league created after every regular-season pick lock has fired can't be created that year.
+
 The creator automatically becomes the league's **commissioner** and is initialized with a standing of 0 points.
 
 ### 3.2 Updating a League
 
 - **Name and image** can be changed by commissioners at any time, including during the season.
-- **All other settings** (season format, size, picks per phase, pick type) can only be changed when the league is **not in-season**.
+- **All other settings** (season format, size, picks per phase, pick type) can only be changed while the league's **start lock** (see §3.8) has not yet passed **and** no picks have been submitted for the current season yet. Once picks exist, structural changes would retroactively affect already-submitted standings.
 - **League size** can never be set below the current number of members.
 
 ### 3.3 In-Season Detection
 
-A league is considered **"in-season"** when the current date falls within any NFL phase that is part of the league's chosen season format. For example, a "Regular Season" league is in-season from the start of Week 1 through the end of Week 18. This status gates many operations (see [Permissions](#13-permissions)).
+A league is considered **"in-season"** when the current date falls within any NFL phase that is part of the league's chosen season format. For example, a "Regular Season" league is in-season from the start of Week 1 through the end of Week 18. In-season status gates removing members (§4.3) and leaving the league (§4.4). See §3.8 for how this differs from the first-pick-lock boundary that gates joining, inviting, creating, and structural edits.
 
 ### 3.4 Offseason Behavior
 
-When a league is **not in-season** (offseason), the following activities are available:
+Before a season starts, the following activities are available:
 
 - Members can leave the league
-- Commissioners can edit all league settings (name, image, season format, size, picks per phase, pick type)
+- Commissioners can edit all league settings (subject to §3.2)
 - Commissioners can delete the league
-- New members can be invited and join
+- New members can be invited and join (until the first pick lock — see §3.8)
 - Commissioners can remove members
 
 Picks cannot be made during the offseason. The UI should clearly communicate when a league is in the offseason.
@@ -161,6 +163,26 @@ Every league shows a season-state badge on its detail page, derived from the lea
 | **Complete**    | Every phase in the league's format ended at or before "now"  |
 
 The badge displays the season year, the league's format label, and the state, e.g. "2025 Regular Season · In progress". "Now" is the app-scoped current time (see the Time-Dependent Logic rule in `rules/architecture.md`) so the badge honors simulator state during off-season testing.
+
+### 3.8 League Start Phase and Start Lock
+
+Each league computes a **start phase** for every season it participates in. The start phase is the earliest phase in the league's format whose `pickLockTime` is strictly after the league's **activation time** for that season:
+
+- **Activation time** = `max(league.createdAt, currentSeason.startDate)`.
+- For a league created before a season begins, activation = the season's start → start phase is the season's first format-relevant phase (Week 1 for Regular / Full; Wild Card for Postseason).
+- For a league created mid-season, activation = creation time → start phase is the next format-relevant phase whose pick lock hasn't fired yet.
+- For a league rolling into a new season, activation = that season's start → start phase resets to Week 1 / Wild Card as above.
+
+The **start lock** is the `pickLockTime` of the start phase. Joining (§5.3), creating invites (§5.6), structural edits (§3.2), and creating a league itself (§3.1) all stay open up to and including the start lock, then close for the rest of the season. The league's first scored phase is its start phase — any format phases that ended before activation don't count toward the league's standings.
+
+If no format-relevant phase has a `pickLockTime` after the activation time, the start phase is undefined: the league can't be created (§3.1) or, if it already exists, treats the season as already locked. This matches intuition — you can't start a Regular Season league in February once every regular-season pick lock has fired.
+
+Two separate time boundaries stay distinct:
+
+- **Phase start (§3.3 "in-season")** — still used to gate removing members (§4.3) and leaving the league (§4.4). Those are membership actions that disrupt other members mid-submission; they freeze at phase start regardless of pick-lock state.
+- **Start lock (this section)** — gates join / invite / create / structural-edit. More permissive for mid-season onboarding.
+
+All timestamps are compared against `getAppNow()` so the simulator drives state during off-season testing.
 
 ---
 
@@ -222,7 +244,7 @@ There are two types of invitations: **Direct** and **Link**.
 When any invite is accepted (direct or link), these checks apply:
 
 1. The league must **not be at capacity** (current members < max size).
-2. The league's season must **not be in progress**.
+2. The league's **start lock** for the current season (see §3.8) must not have passed yet. Joining stays open until the league's first scored phase locks, which may be mid-season for leagues created mid-season.
 3. The invite must **not be expired**.
 
 Upon joining, the new member is initialized with a standing of 0 points for the current season.
@@ -240,7 +262,7 @@ Commissioners can manually deactivate/delete any active invite at any time.
 Commissioners can only create new invites when:
 
 - The league is **not at capacity**
-- The league is **not in-season**
+- The league's **start lock has not passed** for the current season (§3.8)
 
 ---
 
@@ -551,15 +573,15 @@ The league page has 5 tabs:
 
 | Action                                                           | Who                  | Conditions                                                             |
 | ---------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------- |
-| Create a league                                                  | Any user             | —                                                                      |
+| Create a league                                                  | Any user             | Chosen format has an upcoming pick lock this season (§3.1, §3.8)       |
 | Delete a league                                                  | Commissioner         | —                                                                      |
 | Edit league name/image                                           | Commissioner         | —                                                                      |
-| Edit structural settings (season format, size, picks, pick type) | Commissioner         | Not in-season                                                          |
+| Edit structural settings (season format, size, picks, pick type) | Commissioner         | Start lock not yet passed (§3.8) AND no picks submitted yet (§3.2)     |
 | View league data (standings, picks, members)                     | Any league member    | —                                                                      |
 | Submit/edit picks                                                | Any league member    | Current phase, before lock time; individual picks lock at game kickoff |
 | View own picks                                                   | Any league member    | Always                                                                 |
 | View other members' picks                                        | Any league member    | Only after pick lock time                                              |
-| Create invites                                                   | Commissioner         | League not at capacity AND not in-season                               |
+| Create invites                                                   | Commissioner         | League not at capacity AND first pick lock not yet passed (§3.8)       |
 | Revoke invites                                                   | Commissioner         | —                                                                      |
 | View invite list                                                 | Commissioner         | —                                                                      |
 | Accept/decline a direct invite                                   | The invite recipient | —                                                                      |

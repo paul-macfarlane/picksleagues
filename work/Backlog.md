@@ -10,11 +10,11 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 31     |
+| Complete    | 32     |
 | In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 8      |
-| **Total**   | **39** |
+| **Total**   | **40** |
 
 ---
 
@@ -220,6 +220,10 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Commissioner-only management, removal only when not in-season
 
 - [x] PL-026: Leave league (BUSINESS_SPEC §4.4)
+  - actions/members.ts — leaveLeague
+  - Sole commissioner check (must not be sole commissioner unless sole member)
+  - Sole member deletes league entirely
+  - Only when not in-season
 
 - [x] PL-019: Account deletion league cleanup (BUSINESS_SPEC §2.3)
   - Catch-up for a PL-007 follow-up that was deferred to PL-020/022/025 and missed.
@@ -227,10 +231,15 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - On delete: remove user from every league membership, delete leagues where they were the sole member
   - Historical standings stay (tied to anonymized user id per §2.3)
   - Surface the blocker on the account page + via the action's business error
-  - actions/members.ts — leaveLeague
-  - Sole commissioner check (must not be sole commissioner unless sole member)
-  - Sole member deletes league entirely
-  - Only when not in-season
+
+- [x] PL-057: League start phase + start-lock gates (BUSINESS_SPEC §3.1, §3.2, §3.8, §5.3, §5.6)
+  - Each league has a dynamic "start phase" per season = earliest format phase whose pickLockTime > max(league.createdAt, season.startDate). A Regular Season league created mid-season simply starts at the next upcoming week.
+  - New `lib/nfl/leagues.ts#selectLeagueStartPhase(phases, format, activationTime)` + `hasLeagueStartLockPassed(phases, format, activationTime, now)`.
+  - createLeagueAction: error when selectLeagueStartPhase returns null (format has no upcoming pick lock this season).
+  - updateLeagueAction (structural): gated on hasLeagueStartLockPassed using league.createdAt. "No picks yet" second gate is a TODO — wires in once PL-028 ships.
+  - joinLeague, createDirectInviteAction, createLinkInviteAction: gated on hasLeagueStartLockPassed using league.createdAt.
+  - Remove-member + leave-league still gated on phase start (unchanged).
+  - Standings/picks downstream work (PL-015, PL-027) will respect the league's start phase — follow-ups, not this story.
 
 ## 6. Picks & Scoring (depends on: Leagues + Simulator ready for testing)
 

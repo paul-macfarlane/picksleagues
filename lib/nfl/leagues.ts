@@ -39,6 +39,63 @@ export function isLeagueInSeason(
   return activePhases.some((phase) => allowedTypes.has(phase.seasonType));
 }
 
+/**
+ * BUSINESS_SPEC §3.8: a league's "activation time" for a given season is
+ * `max(league.createdAt, season.startDate)`. Creation-season activation is
+ * the moment the league was created; every subsequent season's activation
+ * is that season's start date.
+ */
+export function leagueActivationTime(
+  leagueCreatedAt: Date,
+  seasonStartDate: Date,
+): Date {
+  return leagueCreatedAt.getTime() > seasonStartDate.getTime()
+    ? leagueCreatedAt
+    : seasonStartDate;
+}
+
+/**
+ * BUSINESS_SPEC §3.8: the league's "start phase" is the earliest phase in
+ * the league's format whose `pickLockTime` is strictly after the league's
+ * activation time. Returns null when every format-relevant pick lock has
+ * already fired for the season — in that case the league can't be created
+ * and any existing league treats the season as closed.
+ */
+export function selectLeagueStartPhase(
+  phases: Phase[],
+  format: SeasonFormat,
+  activationTime: Date,
+): Phase | null {
+  const allowedTypes = new Set(seasonFormatToSeasonTypes(format));
+  return (
+    phases
+      .filter(
+        (p) =>
+          allowedTypes.has(p.seasonType) &&
+          p.pickLockTime.getTime() > activationTime.getTime(),
+      )
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0] ?? null
+  );
+}
+
+/**
+ * BUSINESS_SPEC §3.8: true once the league has passed its own start lock.
+ * Joining, inviting, creating, and structural edits all freeze at this
+ * moment. When there's no eligible start phase (format is closed for the
+ * season), we treat the league as locked — no upcoming pick lock means no
+ * window to act in.
+ */
+export function hasLeagueStartLockPassed(
+  phases: Phase[],
+  format: SeasonFormat,
+  activationTime: Date,
+  now: Date,
+): boolean {
+  const start = selectLeagueStartPhase(phases, format, activationTime);
+  if (!start) return true;
+  return now.getTime() >= start.pickLockTime.getTime();
+}
+
 export type LeagueSeasonState = "upcoming" | "in_progress" | "complete";
 
 /**

@@ -5,13 +5,17 @@ import {
 } from "@/data/invites";
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
 import { getLeagueMember, insertLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { insertLeagueStanding } from "@/data/standings";
 import type { Transaction } from "@/data/utils";
 import { withTransaction } from "@/data/utils";
 import type { League, LeagueRole } from "@/lib/db/schema/leagues";
-import { isLeagueInSeason, selectCurrentSeason } from "@/lib/nfl/leagues";
+import {
+  hasLeagueStartLockPassed,
+  leagueActivationTime,
+  selectCurrentSeason,
+} from "@/lib/nfl/leagues";
 import { getAppNow } from "@/lib/simulator";
 
 /**
@@ -63,34 +67,41 @@ export async function joinLeague(
   options: { directInviteIdToDelete?: string } = {},
 ): Promise<JoinLeagueResult> {
   const now = await getAppNow();
-  const [activePhases, memberCount, existingMember] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, now),
+  const [memberCount, existingMember, seasons] = await Promise.all([
     getLeagueMemberCount(league.id),
     getLeagueMember(league.id, userId),
+    getSeasonsBySportsLeague(league.sportsLeagueId),
   ]);
 
   if (existingMember) {
     return { status: "already_member" };
   }
 
-  if (isLeagueInSeason(activePhases, league.seasonFormat)) {
-    return {
-      status: "error",
-      error: "This league is already in-season. You can't join mid-season.",
-    };
-  }
-
-  if (memberCount >= league.size) {
-    return { status: "error", error: "This league is already at capacity." };
-  }
-
-  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
   const currentSeason = selectCurrentSeason(seasons, now);
   if (!currentSeason) {
     return {
       status: "error",
       error: "No NFL season is synced yet. Try again later.",
     };
+  }
+
+  // §3.8 / §5.3: join is open until the league's start lock fires. For a
+  // mid-season-created league the start lock is the next upcoming pick
+  // lock, not Week 1's.
+  const phases = await getPhasesBySeason(currentSeason.id);
+  const activation = leagueActivationTime(
+    league.createdAt,
+    currentSeason.startDate,
+  );
+  if (hasLeagueStartLockPassed(phases, league.seasonFormat, activation, now)) {
+    return {
+      status: "error",
+      error: "The league's start lock has passed — you can't join this season.",
+    };
+  }
+
+  if (memberCount >= league.size) {
+    return { status: "error", error: "This league is already at capacity." };
   }
 
   await withTransaction(async (tx) => {

@@ -38,7 +38,11 @@ vi.mock("@/data/members", () => ({
 }));
 
 vi.mock("@/data/phases", () => ({
-  getActivePhasesForSportsLeague: vi.fn(),
+  getPhasesBySeason: vi.fn(),
+}));
+
+vi.mock("@/data/seasons", () => ({
+  getSeasonsBySportsLeague: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -61,7 +65,8 @@ import {
   upsertDirectInvite,
 } from "@/data/invites";
 import { getLeagueMember } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
 import { joinLeague } from "@/lib/invites";
 import { assertLeagueCommissioner } from "@/lib/permissions";
@@ -90,7 +95,7 @@ const league = {
   size: 10,
   picksPerPhase: 5,
   pickType: "straight_up" as const,
-  createdAt: new Date(),
+  createdAt: new Date("2025-06-01T00:00:00Z"),
   updatedAt: new Date(),
 };
 
@@ -103,6 +108,31 @@ const invite = {
   inviterUserId,
   role: "member" as const,
   expiresAt: new Date(Date.now() + 7 * 86400_000),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const season = {
+  id: "season-1",
+  sportsLeagueId: "nfl-id",
+  year: 2025,
+  startDate: new Date("2025-09-01T00:00:00Z"),
+  endDate: new Date("2026-02-28T00:00:00Z"),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// Future-dated pick lock keeps hasLeagueStartLockPassed=false by default.
+const openPhase = {
+  id: "phase-1",
+  seasonId: season.id,
+  seasonType: "regular" as const,
+  weekNumber: 1,
+  label: "Week 1",
+  startDate: new Date("2099-09-07T00:00:00Z"),
+  endDate: new Date("2099-09-14T00:00:00Z"),
+  pickLockTime: new Date("2099-09-07T17:00:00Z"),
+  lockedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -123,7 +153,8 @@ beforeEach(() => {
   vi.mocked(getLeagueById).mockResolvedValue(league);
   vi.mocked(getLeagueMember).mockResolvedValue(null);
   vi.mocked(getLeagueMemberCount).mockResolvedValue(1);
-  vi.mocked(getActivePhasesForSportsLeague).mockResolvedValue([]);
+  vi.mocked(getSeasonsBySportsLeague).mockResolvedValue([season]);
+  vi.mocked(getPhasesBySeason).mockResolvedValue([openPhase]);
   vi.mocked(upsertDirectInvite).mockResolvedValue(invite);
   vi.mocked(getDirectInviteById).mockResolvedValue({
     ...invite,
@@ -205,20 +236,11 @@ describe("createDirectInviteAction", () => {
     expect(upsertDirectInvite).not.toHaveBeenCalled();
   });
 
-  it("blocks when the league is in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
+  it("blocks once the league's start lock has passed", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
       {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        ...openPhase,
+        pickLockTime: new Date("2020-09-07T17:00:00Z"),
       },
     ]);
     const result = await createDirectInviteAction(validCreate);
@@ -288,7 +310,7 @@ describe("respondToDirectInviteAction", () => {
   it("surfaces joinLeague errors to the caller", async () => {
     vi.mocked(joinLeague).mockResolvedValueOnce({
       status: "error",
-      error: "This league is already in-season. You can't join mid-season.",
+      error: "The league's start lock has passed — you can't join this season.",
     });
     const result = await respondToDirectInviteAction({
       inviteId,
@@ -369,20 +391,11 @@ describe("createLinkInviteAction", () => {
     );
   });
 
-  it("blocks creation while in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
+  it("blocks creation once the league's start lock has passed", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
       {
-        id: "p-1",
-        seasonId: "season-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        ...openPhase,
+        pickLockTime: new Date("2020-09-07T17:00:00Z"),
       },
     ]);
     const result = await createLinkInviteAction(validCreate);
