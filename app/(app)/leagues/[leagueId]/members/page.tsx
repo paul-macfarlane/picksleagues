@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 
-import { CreateDirectInviteDialog } from "@/components/invites/create-direct-invite-dialog";
 import { DirectInvitesSection } from "@/components/invites/direct-invites-section";
 import { LinkInvitesSection } from "@/components/invites/link-invites-section";
 import { LeaveLeagueButton } from "@/components/leagues/leave-league-button";
@@ -87,32 +86,17 @@ export default async function LeagueMembersPage(
 
       {canInvite ? (
         <>
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Invite members</h2>
-                <p className="text-sm text-muted-foreground">
-                  Send a direct invite to a specific user.
-                </p>
-              </div>
-              {disabledReason === null ? (
-                <CreateDirectInviteDialog leagueId={leagueId} />
-              ) : null}
-            </div>
-            {disabledReason !== null ? (
-              <p className="rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
-                {disabledReason}
-              </p>
-            ) : null}
-          </section>
+          <DirectInvitesSection
+            leagueId={leagueId}
+            existingInvites={directInvites}
+            disabledReason={disabledReason}
+          />
 
           <LinkInvitesSection
             leagueId={leagueId}
             existingInvites={linkInvites}
             disabledReason={disabledReason}
           />
-
-          <DirectInvitesSection invites={directInvites} />
         </>
       ) : null}
 

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
 import { revokeDirectInviteAction } from "@/actions/invites";
+import { CreateDirectInviteDialog } from "@/components/invites/create-direct-invite-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { DirectInviteWithProfiles } from "@/data/invites";
@@ -14,31 +15,41 @@ import { getInitials } from "@/lib/utils";
 import { LEAGUE_ROLE_LABELS } from "@/lib/validators/invites";
 
 export function DirectInvitesSection({
-  invites,
+  leagueId,
+  existingInvites,
+  disabledReason,
 }: {
-  invites: DirectInviteWithProfiles[];
+  leagueId: string;
+  existingInvites: DirectInviteWithProfiles[];
+  disabledReason: string | null;
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Pending direct invites</h2>
-        <p className="text-sm text-muted-foreground">
-          Revoke anything you sent by mistake.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Invite members</h2>
+          <p className="text-sm text-muted-foreground">
+            Send a direct invite to a specific user.
+          </p>
+        </div>
+        {disabledReason === null ? (
+          <CreateDirectInviteDialog leagueId={leagueId} />
+        ) : null}
       </div>
-      {invites.length === 0 ? (
+      {disabledReason !== null ? (
         <p className="rounded-md border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
-          No pending direct invites.
+          {disabledReason}
         </p>
-      ) : (
+      ) : null}
+      {existingInvites.length > 0 ? (
         <ul className="flex flex-col gap-2">
-          {invites.map((invite) => (
+          {existingInvites.map((invite) => (
             <li key={invite.id}>
               <DirectInviteRow invite={invite} />
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }
