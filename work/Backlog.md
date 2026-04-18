@@ -10,11 +10,11 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 29     |
+| Complete    | 30     |
 | In Progress | 0      |
 | Blocked     | 0      |
 | Pending     | 8      |
-| **Total**   | **37** |
+| **Total**   | **38** |
 
 ---
 
@@ -220,6 +220,13 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Commissioner-only management, removal only when not in-season
 
 - [x] PL-026: Leave league (BUSINESS_SPEC §4.4)
+
+- [x] PL-019: Account deletion league cleanup (BUSINESS_SPEC §2.3)
+  - Catch-up for a PL-007 follow-up that was deferred to PL-020/022/025 and missed.
+  - Block deletion when the user is the sole commissioner of any multi-member league
+  - On delete: remove user from every league membership, delete leagues where they were the sole member
+  - Historical standings stay (tied to anonymized user id per §2.3)
+  - Surface the blocker on the account page + via the action's business error
   - actions/members.ts — leaveLeague
   - Sole commissioner check (must not be sole commissioner unless sole member)
   - Sole member deletes league entirely
