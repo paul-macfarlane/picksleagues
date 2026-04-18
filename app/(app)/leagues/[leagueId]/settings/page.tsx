@@ -9,6 +9,7 @@ import { getPhasesBySeason } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
 import {
+  comparePhasesByOrdinal,
   hasLeagueStartLockPassed,
   leagueActivationTime,
   selectCurrentSeason,
@@ -50,10 +51,12 @@ export default async function LeagueSettingsPage(
     : league.createdAt;
   const structuralLocked = hasLeagueStartLockPassed(
     phases,
-    league.seasonFormat,
+    league,
     activation,
     now,
   );
+
+  const orderedPhases = [...phases].sort(comparePhasesByOrdinal);
 
   return (
     <div className="flex flex-col gap-4">
@@ -67,6 +70,7 @@ export default async function LeagueSettingsPage(
       </header>
       <EditLeagueForm
         league={league}
+        phases={orderedPhases}
         structuralLocked={structuralLocked}
         memberCount={memberCount}
         readOnly={!canEdit}

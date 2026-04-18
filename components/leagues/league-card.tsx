@@ -5,10 +5,8 @@ import { LeagueAvatar } from "@/components/leagues/league-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LeagueWithMemberCount } from "@/data/leagues";
-import {
-  PICK_TYPE_LABELS,
-  SEASON_FORMAT_LABELS,
-} from "@/lib/validators/leagues";
+import { formatLeagueRange } from "@/lib/nfl/leagues";
+import { PICK_TYPE_LABELS } from "@/lib/validators/leagues";
 
 export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
   return (
@@ -36,7 +34,7 @@ export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
               </span>
             </div>
             <p className="truncate text-xs text-muted-foreground">
-              {SEASON_FORMAT_LABELS[league.seasonFormat]}
+              {formatLeagueRange(league)}
             </p>
           </div>
         </CardContent>

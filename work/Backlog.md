@@ -233,13 +233,21 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Surface the blocker on the account page + via the action's business error
 
 - [x] PL-057: League start phase + start-lock gates (BUSINESS_SPEC §3.1, §3.2, §3.8, §5.3, §5.6)
-  - Each league has a dynamic "start phase" per season = earliest format phase whose pickLockTime > max(league.createdAt, season.startDate). A Regular Season league created mid-season simply starts at the next upcoming week.
-  - New `lib/nfl/leagues.ts#selectLeagueStartPhase(phases, format, activationTime)` + `hasLeagueStartLockPassed(phases, format, activationTime, now)`.
-  - createLeagueAction: error when selectLeagueStartPhase returns null (format has no upcoming pick lock this season).
+  - Each league has a dynamic "start phase" per season = earliest in-range phase whose pickLockTime > max(league.createdAt, season.startDate). A mid-season league simply starts at the next upcoming in-range week.
+  - New `lib/nfl/leagues.ts#selectLeagueStartPhase(phases, range, activationTime)` + `hasLeagueStartLockPassed(phases, range, activationTime, now)`.
+  - createLeagueAction: error when selectLeagueStartPhase returns null (range has no upcoming pick lock this season).
   - updateLeagueAction (structural): gated on hasLeagueStartLockPassed using league.createdAt. "No picks yet" second gate is a TODO — wires in once PL-028 ships.
   - joinLeague, createDirectInviteAction, createLinkInviteAction: gated on hasLeagueStartLockPassed using league.createdAt.
   - Remove-member + leave-league still gated on phase start (unchanged).
   - Standings/picks downstream work (PL-015, PL-027) will respect the league's start phase — follow-ups, not this story.
+
+- [x] PL-058: Custom league schedule range (BUSINESS_SPEC §3.1, §3.2, §3.3, §3.5, §3.7, §3.8)
+  - Replaces the `seasonFormat` preset enum with explicit start/end phase tuples: `(startSeasonType, startWeekNumber)` → `(endSeasonType, endWeekNumber)`. Stored on the `leagues` table; carries over year-to-year because phase identifiers repeat.
+  - Lexicographic ordinal (regular weeks before postseason weeks) drives the "in range" check. `formatLeagueRange(range)` renders "Week 1 → Super Bowl" style labels (single-phase ranges collapse to the single label).
+  - Create/edit forms expose start/end selects populated from the current season's phases. Create page default start = earliest phase with future pickLockTime; default end = last regular-season week. Edit form keeps the league's existing endpoints selectable even when they aren't in the current season's phase list.
+  - createLeagueAction and updateLeagueAction validate that both endpoints exist in the current season's phase list and at least one phase falls in-range before committing.
+  - Postseason-only caveat: NFL postseason week numbers follow ESPN (Wild Card=1, Divisional=2, Conference=3, Pro Bowl=4 filtered out at sync, Super Bowl=5). `phaseLabel` special-cases the rounds.
+  - Migration 0008 backfills existing leagues from their prior `season_format` value to the equivalent range before dropping the enum + column.
 
 ## 6. Picks & Scoring (depends on: Leagues + Simulator ready for testing)
 

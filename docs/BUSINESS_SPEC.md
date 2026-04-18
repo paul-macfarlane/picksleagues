@@ -93,38 +93,36 @@ When creating a league, the user configures:
 | --------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Name            | Display name for the league                          | 3–50 characters                                                                              |
 | Image           | Optional logo/avatar URL                             | Valid URL or empty                                                                           |
-| Season Format   | Which portion of the NFL season the league covers    | One of three presets (see below)                                                             |
+| Schedule Range  | The first and last NFL phase the league covers       | A pair of (seasonType, weekNumber) tuples — see below                                        |
 | League Size     | Maximum number of members                            | 2–20, default 10                                                                             |
 | Picks Per Phase | Number of game picks each member must make per phase | 1–16, default 5                                                                              |
 | Pick Type       | How picks are evaluated                              | "Straight Up" (just pick the winner) or "Against the Spread" (pick against the point spread) |
 
 All leagues are **private** (invite-only).
 
-#### Season Format Options
+#### Schedule Range
 
-Instead of arbitrary start/end phases, leagues must choose one of three preset formats:
+A league's schedule range is an ordered pair of **(seasonType, weekNumber)** tuples that identifies its first and last covered phase. Because phase identifiers repeat year-over-year, the range carries over to every future season without re-configuration.
 
-| Format             | Phases Included                                  |
-| ------------------ | ------------------------------------------------ |
-| **Regular Season** | Week 1 through Week 18                           |
-| **Postseason**     | Wild Card through Super Bowl (Pro Bowl excluded) |
-| **Full Season**    | Week 1 through Super Bowl (Pro Bowl excluded)    |
+Ordering is lexicographic: regular-season weeks come first (Week 1 → Week 18), then postseason weeks (Wild Card → Divisional → Conference → Super Bowl; Pro Bowl is excluded at sync). Both endpoints must refer to phases that exist in the current NFL season, and the end must be on or after the start.
 
 A league can only have **one season per NFL year**.
 
-A league can only be **created** when the chosen format has at least one remaining phase whose pick lock hasn't passed yet. That phase becomes the league's **start phase** (see §3.8). A Regular Season league created mid-season simply starts at the next upcoming week; a Regular Season league created after every regular-season pick lock has fired can't be created that year.
+Common configurations the UI can offer as defaults — **Regular Season** (Week 1 → Week 18), **Postseason** (Wild Card → Super Bowl), **Full Season** (Week 1 → Super Bowl) — but users are free to pick any valid sub-range (e.g. "Weeks 5 through 12" or "Divisional through Super Bowl").
+
+A league can only be **created** when the chosen range has at least one phase whose pick lock hasn't passed yet. That phase becomes the league's **start phase** (see §3.8). A league created mid-range simply starts at the next upcoming in-range week; a league whose entire range has already passed can't be created that year.
 
 The creator automatically becomes the league's **commissioner** and is initialized with a standing of 0 points.
 
 ### 3.2 Updating a League
 
 - **Name and image** can be changed by commissioners at any time, including during the season.
-- **All other settings** (season format, size, picks per phase, pick type) can only be changed while the league's **start lock** (see §3.8) has not yet passed **and** no picks have been submitted for the current season yet. Once picks exist, structural changes would retroactively affect already-submitted standings.
+- **All other settings** (schedule range, size, picks per phase, pick type) can only be changed while the league's **start lock** (see §3.8) has not yet passed **and** no picks have been submitted for the current season yet. Once picks exist, structural changes would retroactively affect already-submitted standings.
 - **League size** can never be set below the current number of members.
 
 ### 3.3 In-Season Detection
 
-A league is considered **"in-season"** when the current date falls within any NFL phase that is part of the league's chosen season format. For example, a "Regular Season" league is in-season from the start of Week 1 through the end of Week 18. In-season status gates removing members (§4.3) and leaving the league (§4.4). See §3.8 for how this differs from the first-pick-lock boundary that gates joining, inviting, creating, and structural edits.
+A league is considered **"in-season"** when the current date falls within any NFL phase that is part of the league's configured schedule range. For example, a league covering Week 1 → Week 18 is in-season from the start of Week 1 through the end of Week 18. In-season status gates removing members (§4.3) and leaving the league (§4.4). See §3.8 for how this differs from the first-pick-lock boundary that gates joining, inviting, creating, and structural edits.
 
 ### 3.4 Offseason Behavior
 
@@ -142,7 +140,7 @@ Picks cannot be made during the offseason. The UI should clearly communicate whe
 
 Leagues are **persistent** — they carry over from one NFL year to the next automatically. When a new NFL season begins:
 
-- The league starts a new season based on its configured season format.
+- The league starts a new season based on its configured schedule range. Because the range is stored as (seasonType, weekNumber) tuples, "Week 1 → Week 18" means the same thing every year without re-configuration.
 - **Standings reset to 0** for all members (wins, losses, pushes, points, rank).
 - **Prior season standings are preserved** and can be viewed as historical records.
 - Membership and roles carry over unchanged.
@@ -154,28 +152,28 @@ Only commissioners can delete a league. Deletion removes all associated data: me
 
 ### 3.7 Season State Display
 
-Every league shows a season-state badge on its detail page, derived from the league's current season and the league's configured season format. The state is one of three values:
+Every league shows a season-state badge on its detail page, derived from the league's current season and the league's configured schedule range. The state is one of three values:
 
-| State           | Condition                                                    |
-| --------------- | ------------------------------------------------------------ |
-| **Upcoming**    | Every phase in the league's format starts after "now"        |
-| **In progress** | "Now" falls inside at least one phase in the league's format |
-| **Complete**    | Every phase in the league's format ended at or before "now"  |
+| State           | Condition                                                   |
+| --------------- | ----------------------------------------------------------- |
+| **Upcoming**    | Every phase in the league's range starts after "now"        |
+| **In progress** | "Now" falls inside at least one phase in the league's range |
+| **Complete**    | Every phase in the league's range ended at or before "now"  |
 
-The badge displays the season year, the league's format label, and the state, e.g. "2025 Regular Season · In progress". "Now" is the app-scoped current time (see the Time-Dependent Logic rule in `rules/architecture.md`) so the badge honors simulator state during off-season testing.
+The badge displays the season year, the league's range label, and the state, e.g. "2025 · Week 1 → Week 18 · In progress". "Now" is the app-scoped current time (see the Time-Dependent Logic rule in `rules/architecture.md`) so the badge honors simulator state during off-season testing.
 
 ### 3.8 League Start Phase and Start Lock
 
-Each league computes a **start phase** for every season it participates in. The start phase is the earliest phase in the league's format whose `pickLockTime` is strictly after the league's **activation time** for that season:
+Each league computes a **start phase** for every season it participates in. The start phase is the earliest phase in the league's schedule range whose `pickLockTime` is strictly after the league's **activation time** for that season:
 
 - **Activation time** = `max(league.createdAt, currentSeason.startDate)`.
-- For a league created before a season begins, activation = the season's start → start phase is the season's first format-relevant phase (Week 1 for Regular / Full; Wild Card for Postseason).
-- For a league created mid-season, activation = creation time → start phase is the next format-relevant phase whose pick lock hasn't fired yet.
-- For a league rolling into a new season, activation = that season's start → start phase resets to Week 1 / Wild Card as above.
+- For a league created before a season begins, activation = the season's start → start phase is the first in-range phase of the season (the configured range's start week).
+- For a league created mid-season, activation = creation time → start phase is the next in-range phase whose pick lock hasn't fired yet.
+- For a league rolling into a new season, activation = that season's start → start phase resets to the configured range's start week.
 
-The **start lock** is the `pickLockTime` of the start phase. Joining (§5.3), creating invites (§5.6), structural edits (§3.2), and creating a league itself (§3.1) all stay open up to and including the start lock, then close for the rest of the season. The league's first scored phase is its start phase — any format phases that ended before activation don't count toward the league's standings.
+The **start lock** is the `pickLockTime` of the start phase. Joining (§5.3), creating invites (§5.6), structural edits (§3.2), and creating a league itself (§3.1) all stay open up to and including the start lock, then close for the rest of the season. The league's first scored phase is its start phase — any in-range phases that ended before activation don't count toward the league's standings.
 
-If no format-relevant phase has a `pickLockTime` after the activation time, the start phase is undefined: the league can't be created (§3.1) or, if it already exists, treats the season as already locked. This matches intuition — you can't start a Regular Season league in February once every regular-season pick lock has fired.
+If no in-range phase has a `pickLockTime` after the activation time, the start phase is undefined: the league can't be created (§3.1) or, if it already exists, treats the season as already locked. This matches intuition — you can't start a "Week 1 → Week 18" league in February once every regular-season pick lock has fired.
 
 Two separate time boundaries stay distinct:
 
@@ -571,26 +569,26 @@ The league page has 5 tabs:
 
 ### 13.1 Action Matrix
 
-| Action                                                           | Who                  | Conditions                                                             |
-| ---------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------- |
-| Create a league                                                  | Any user             | Chosen format has an upcoming pick lock this season (§3.1, §3.8)       |
-| Delete a league                                                  | Commissioner         | —                                                                      |
-| Edit league name/image                                           | Commissioner         | —                                                                      |
-| Edit structural settings (season format, size, picks, pick type) | Commissioner         | Start lock not yet passed (§3.8) AND no picks submitted yet (§3.2)     |
-| View league data (standings, picks, members)                     | Any league member    | —                                                                      |
-| Submit/edit picks                                                | Any league member    | Current phase, before lock time; individual picks lock at game kickoff |
-| View own picks                                                   | Any league member    | Always                                                                 |
-| View other members' picks                                        | Any league member    | Only after pick lock time                                              |
-| Create invites                                                   | Commissioner         | League not at capacity AND first pick lock not yet passed (§3.8)       |
-| Revoke invites                                                   | Commissioner         | —                                                                      |
-| View invite list                                                 | Commissioner         | —                                                                      |
-| Accept/decline a direct invite                                   | The invite recipient | —                                                                      |
-| Join via link invite                                             | Any logged-in user   | —                                                                      |
-| Change a member's role                                           | Commissioner         | Cannot self-demote if sole commissioner                                |
-| Remove a member                                                  | Commissioner         | Not in-season                                                          |
-| Leave a league                                                   | Any member           | Not in-season; must not be sole commissioner (unless sole member)      |
-| Edit own profile                                                 | The user themselves  | —                                                                      |
-| Delete own account                                               | The user themselves  | Must not be sole commissioner of any league with 2+ members            |
+| Action                                                            | Who                  | Conditions                                                               |
+| ----------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------ |
+| Create a league                                                   | Any user             | Chosen schedule range has an upcoming pick lock this season (§3.1, §3.8) |
+| Delete a league                                                   | Commissioner         | —                                                                        |
+| Edit league name/image                                            | Commissioner         | —                                                                        |
+| Edit structural settings (schedule range, size, picks, pick type) | Commissioner         | Start lock not yet passed (§3.8) AND no picks submitted yet (§3.2)       |
+| View league data (standings, picks, members)                      | Any league member    | —                                                                        |
+| Submit/edit picks                                                 | Any league member    | Current phase, before lock time; individual picks lock at game kickoff   |
+| View own picks                                                    | Any league member    | Always                                                                   |
+| View other members' picks                                         | Any league member    | Only after pick lock time                                                |
+| Create invites                                                    | Commissioner         | League not at capacity AND first pick lock not yet passed (§3.8)         |
+| Revoke invites                                                    | Commissioner         | —                                                                        |
+| View invite list                                                  | Commissioner         | —                                                                        |
+| Accept/decline a direct invite                                    | The invite recipient | —                                                                        |
+| Join via link invite                                              | Any logged-in user   | —                                                                        |
+| Change a member's role                                            | Commissioner         | Cannot self-demote if sole commissioner                                  |
+| Remove a member                                                   | Commissioner         | Not in-season                                                            |
+| Leave a league                                                    | Any member           | Not in-season; must not be sole commissioner (unless sole member)        |
+| Edit own profile                                                  | The user themselves  | —                                                                        |
+| Delete own account                                                | The user themselves  | Must not be sole commissioner of any league with 2+ members              |
 
 ---
 
@@ -598,13 +596,13 @@ The league page has 5 tabs:
 
 ### Leagues
 
-| Rule                 | Value                                   |
-| -------------------- | --------------------------------------- |
-| League name length   | 3–50 characters                         |
-| League size range    | 2–20 members                            |
-| Default league size  | 10                                      |
-| Season formats       | Regular Season, Postseason, Full Season |
-| Seasons per NFL year | 1 per league                            |
+| Rule                 | Value                                                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| League name length   | 3–50 characters                                                                                                            |
+| League size range    | 2–20 members                                                                                                               |
+| Default league size  | 10                                                                                                                         |
+| Schedule range       | A pair of (seasonType, weekNumber) tuples; end ≥ start; both endpoints must be phases that exist in the current NFL season |
+| Seasons per NFL year | 1 per league                                                                                                               |
 
 ### Picks
 

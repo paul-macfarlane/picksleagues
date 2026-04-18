@@ -59,16 +59,11 @@ export default async function LeagueMembersPage(
   const activePhases = phases.filter(
     (p) => p.startDate <= now && p.endDate > now,
   );
-  const inSeason = isLeagueInSeason(activePhases, league.seasonFormat);
+  const inSeason = isLeagueInSeason(activePhases, league);
   const activation = currentSeason
     ? leagueActivationTime(league.createdAt, currentSeason.startDate)
     : league.createdAt;
-  const startLocked = hasLeagueStartLockPassed(
-    phases,
-    league.seasonFormat,
-    activation,
-    now,
-  );
+  const startLocked = hasLeagueStartLockPassed(phases, league, activation, now);
 
   const canInvite = canLeagueRoleDo(member.role, "invite_members");
   const canRevokeInvites = canLeagueRoleDo(member.role, "revoke_invites");

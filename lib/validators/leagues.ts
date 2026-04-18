@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-import { pickTypeEnum, seasonFormatEnum } from "@/lib/db/schema/leagues";
+import { pickTypeEnum } from "@/lib/db/schema/leagues";
+import { seasonTypeEnum } from "@/lib/db/schema/sports";
+import { isValidLeagueRange } from "@/lib/nfl/leagues";
 
 export const LEAGUE_NAME_MIN = 3;
 export const LEAGUE_NAME_MAX = 50;
@@ -36,27 +38,51 @@ const picksPerPhaseSchema = z.coerce
   .min(PICKS_PER_PHASE_MIN, `Must be at least ${PICKS_PER_PHASE_MIN}.`)
   .max(PICKS_PER_PHASE_MAX, `Must be at most ${PICKS_PER_PHASE_MAX}.`);
 
-export const createLeagueSchema = z.object({
-  name: nameSchema,
-  imageUrl: imageUrlSchema,
-  seasonFormat: z.enum(seasonFormatEnum.enumValues),
-  size: sizeSchema,
-  picksPerPhase: picksPerPhaseSchema,
-  pickType: z.enum(pickTypeEnum.enumValues),
-});
+const weekNumberSchema = z.coerce
+  .number({ error: "Week is required." })
+  .int("Week must be a whole number.")
+  .min(1, "Week must be at least 1.");
+
+const rangeFields = {
+  startSeasonType: z.enum(seasonTypeEnum.enumValues),
+  startWeekNumber: weekNumberSchema,
+  endSeasonType: z.enum(seasonTypeEnum.enumValues),
+  endWeekNumber: weekNumberSchema,
+};
+
+const rangeRefinement = {
+  check: isValidLeagueRange,
+  issue: {
+    message: "End week must be on or after the start week.",
+    path: ["endWeekNumber"],
+  },
+};
+
+export const createLeagueSchema = z
+  .object({
+    name: nameSchema,
+    imageUrl: imageUrlSchema,
+    ...rangeFields,
+    size: sizeSchema,
+    picksPerPhase: picksPerPhaseSchema,
+    pickType: z.enum(pickTypeEnum.enumValues),
+  })
+  .refine(rangeRefinement.check, rangeRefinement.issue);
 
 export type CreateLeagueInput = z.input<typeof createLeagueSchema>;
 export type CreateLeagueOutput = z.output<typeof createLeagueSchema>;
 
-export const updateLeagueSchema = z.object({
-  leagueId: z.string().uuid({ error: "Invalid league id." }),
-  name: nameSchema,
-  imageUrl: imageUrlSchema,
-  seasonFormat: z.enum(seasonFormatEnum.enumValues),
-  size: sizeSchema,
-  picksPerPhase: picksPerPhaseSchema,
-  pickType: z.enum(pickTypeEnum.enumValues),
-});
+export const updateLeagueSchema = z
+  .object({
+    leagueId: z.string().uuid({ error: "Invalid league id." }),
+    name: nameSchema,
+    imageUrl: imageUrlSchema,
+    ...rangeFields,
+    size: sizeSchema,
+    picksPerPhase: picksPerPhaseSchema,
+    pickType: z.enum(pickTypeEnum.enumValues),
+  })
+  .refine(rangeRefinement.check, rangeRefinement.issue);
 
 export type UpdateLeagueInput = z.input<typeof updateLeagueSchema>;
 export type UpdateLeagueOutput = z.output<typeof updateLeagueSchema>;
@@ -66,15 +92,6 @@ export const deleteLeagueSchema = z.object({
 });
 
 export type DeleteLeagueInput = z.input<typeof deleteLeagueSchema>;
-
-export const SEASON_FORMAT_LABELS: Record<
-  (typeof seasonFormatEnum.enumValues)[number],
-  string
-> = {
-  regular_season: "Regular Season",
-  postseason: "Postseason",
-  full_season: "Full Season",
-};
 
 export const PICK_TYPE_LABELS: Record<
   (typeof pickTypeEnum.enumValues)[number],

@@ -57,6 +57,13 @@
       "when": 1776487354365,
       "tag": "0007_yummy_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776621234567,
+      "tag": "0008_custom_league_schedules",
+      "breakpoints": true
     }
   ]
 }
