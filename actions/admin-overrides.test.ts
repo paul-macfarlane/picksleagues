@@ -17,9 +17,11 @@ import {
 } from "@/data/events";
 import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
 import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
+import { clearPickResultsForEvent } from "@/data/picks";
 import type { Profile } from "@/lib/db/schema/profiles";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "@/lib/errors";
 import { requireAdminSession } from "@/lib/permissions";
+import { runStandingsRecalcForEvent } from "@/lib/sync/nfl/standings";
 
 vi.mock("@/data/teams", () => ({
   setLockedTeam: vi.fn(),
@@ -44,6 +46,16 @@ vi.mock("@/data/events", () => ({
 
 vi.mock("@/lib/permissions", () => ({
   requireAdminSession: vi.fn(),
+}));
+
+vi.mock("@/data/picks", () => ({
+  clearPickResultsForEvent: vi.fn(),
+}));
+
+vi.mock("@/lib/sync/nfl/standings", () => ({
+  runStandingsRecalcForEvent: vi
+    .fn()
+    .mockResolvedValue({ leaguesAffected: 0, picksRescored: 0 }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -431,6 +443,23 @@ describe("updateEventAction", () => {
     const result = await updateEventAction(validInput());
 
     expect(result).toEqual({ success: false, error: "Event not found" });
+    // Failure path: pick results should NOT be cleared and the recalc
+    // should not run — otherwise an unrelated failure would silently
+    // invalidate pick history.
+    expect(clearPickResultsForEvent).not.toHaveBeenCalled();
+    expect(runStandingsRecalcForEvent).not.toHaveBeenCalled();
+  });
+
+  it("clears pick results and re-runs standings after a successful event update (§8.5)", async () => {
+    await updateEventAction({
+      ...validInput(),
+      status: "final",
+      homeScore: "24",
+      awayScore: "17",
+    });
+
+    expect(clearPickResultsForEvent).toHaveBeenCalledWith(UUID);
+    expect(runStandingsRecalcForEvent).toHaveBeenCalledWith(UUID);
   });
 });
 

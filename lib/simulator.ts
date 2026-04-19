@@ -19,6 +19,7 @@ import { fetchEventScore } from "@/lib/espn/nfl/scores";
 import { BadRequestError, NotFoundError } from "@/lib/errors";
 import { findActivePhase } from "@/lib/nfl/scheduling";
 import { runInitialSetup } from "@/lib/sync/nfl/setup";
+import { runStandingsRecalc } from "@/lib/sync/nfl/standings";
 
 // Years before `now.getFullYear() - SIMULATOR_MAX_YEAR_OFFSET` are rejected.
 // Five-year window keeps the selectable range aligned with reliable ESPN history.
@@ -161,6 +162,16 @@ export async function advancePhase(): Promise<SimulatorStatus> {
       }),
     ),
   );
+
+  const finalizedCount = fetchedScores.filter(
+    (s) => s.status === "final",
+  ).length;
+  if (finalizedCount > 0) {
+    const recalc = await runStandingsRecalc();
+    log(
+      `Standings recalc: ${recalc.leaguesAffected} pair(s), ${recalc.picksRescored} pick(s) rescored`,
+    );
+  }
 
   // Jump to the next phase's start. Phases come back ordered by startDate,
   // so a simple index+1 lookup skips any between-phase gap without risking

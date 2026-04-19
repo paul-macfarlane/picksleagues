@@ -286,7 +286,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Dense ranking
   - Season history (prior season standings preserved)
 
-- [~] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
+- [x] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
   - Re-slotted from Section 2 — depends on picks (PL-028), pick scoring (PL-030), standings schema (PL-031).
   - lib/sync/nfl/standings.ts
   - Score unscored picks, recalculate totals, recompute dense rankings

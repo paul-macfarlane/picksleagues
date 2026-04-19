@@ -6,6 +6,7 @@ import {
 import { getDataSourceByName } from "@/data/sports";
 import { fetchEventScore } from "@/lib/espn/nfl/scores";
 import { isGameWindowActive, isNflSeasonMonth } from "@/lib/nfl/scheduling";
+import { runStandingsRecalc } from "@/lib/sync/nfl/standings";
 
 export interface LiveScoresSyncResult {
   skipped: boolean;
@@ -112,8 +113,9 @@ export async function runLiveScoresSync(
   );
 
   if (eventsFinalized > 0) {
+    const recalc = await runStandingsRecalc();
     log(
-      `${eventsFinalized} events finalized — standings recalculation needed (PL-015)`,
+      `Recalculated ${recalc.leaguesAffected} (league, season) pair(s); ${recalc.picksRescored} pick(s) rescored`,
     );
   }
 

@@ -52,3 +52,30 @@ export async function removeLeagueStandingsForUser(
       ),
     );
 }
+
+export async function upsertLeagueStanding(
+  data: Omit<NewLeagueStanding, "id" | "createdAt" | "updatedAt">,
+  tx?: Transaction,
+): Promise<LeagueStanding> {
+  const client = tx ?? db;
+  const [result] = await client
+    .insert(leagueStandings)
+    .values(data)
+    .onConflictDoUpdate({
+      target: [
+        leagueStandings.leagueId,
+        leagueStandings.userId,
+        leagueStandings.seasonId,
+      ],
+      set: {
+        wins: data.wins ?? 0,
+        losses: data.losses ?? 0,
+        pushes: data.pushes ?? 0,
+        points: data.points ?? 0,
+        rank: data.rank ?? 1,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+  return result;
+}
