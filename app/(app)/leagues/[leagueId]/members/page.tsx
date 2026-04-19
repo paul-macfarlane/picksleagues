@@ -15,7 +15,6 @@ import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
 import {
   hasLeagueStartLockPassed,
-  isLeagueInSeason,
   selectCurrentSeason,
 } from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
@@ -55,10 +54,6 @@ export default async function LeagueMembersPage(
 
   const currentSeason = selectCurrentSeason(seasons, now);
   const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
-  const activePhases = phases.filter(
-    (p) => p.startDate <= now && p.endDate > now,
-  );
-  const inSeason = isLeagueInSeason(activePhases, league);
   const startLocked = hasLeagueStartLockPassed(phases, league, now);
 
   const canInvite = canLeagueRoleDo(member.role, "invite_members");
@@ -82,10 +77,10 @@ export default async function LeagueMembersPage(
             <h2 className="text-lg font-semibold">Members</h2>
             <p className="text-sm text-muted-foreground">
               {members.length} of {league.size}
-              {viewerIsCommissioner && !inSeason
+              {viewerIsCommissioner && !startLocked
                 ? " — you can promote, demote, or remove members."
                 : viewerIsCommissioner
-                  ? " — removals are paused while the league is in-season."
+                  ? " — removals are paused once the league's first pick lock has passed."
                   : ""}
             </p>
           </div>
@@ -95,7 +90,7 @@ export default async function LeagueMembersPage(
           members={members}
           viewerUserId={session.user.id}
           viewerIsCommissioner={viewerIsCommissioner}
-          canRemove={viewerIsCommissioner && !inSeason}
+          canRemove={viewerIsCommissioner && !startLocked}
         />
       </section>
 
@@ -115,7 +110,7 @@ export default async function LeagueMembersPage(
         </>
       ) : null}
 
-      {canLeave && !inSeason ? (
+      {canLeave && !startLocked ? (
         <section className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
           <div className="flex flex-col gap-1">
             <h2 className="text-base font-semibold">Leave league</h2>

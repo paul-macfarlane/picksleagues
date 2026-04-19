@@ -238,7 +238,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - createLeagueAction: error when the chosen start week's pickLockTime is in the past (no upcoming lock this season).
   - updateLeagueAction (structural): gated on hasLeagueStartLockPassed. "No picks yet" second gate is a TODO — wires in once PL-028 ships.
   - joinLeague, createDirectInviteAction, createLinkInviteAction: gated on hasLeagueStartLockPassed.
-  - Remove-member + leave-league still gated on phase start (unchanged).
+  - Remove-member + leave-league also switched to hasLeagueStartLockPassed in a follow-up — every league mutation now shares the single start-lock boundary. `isLeagueInSeason` + `getActivePhasesForSportsLeague` deleted as unused.
   - Standings/picks downstream work (PL-015, PL-027) will respect the league's start phase — follow-ups, not this story.
 
 - [x] PL-058: Custom league schedule range (BUSINESS_SPEC §3.1, §3.2, §3.3, §3.5, §3.7, §3.8)

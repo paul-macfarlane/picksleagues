@@ -13,11 +13,15 @@ import {
   removeLeagueMember,
   updateLeagueMemberRole,
 } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { removeLeagueStandingsForUser } from "@/data/standings";
 import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
-import { isLeagueInSeason } from "@/lib/nfl/leagues";
+import {
+  hasLeagueStartLockPassed,
+  selectCurrentSeason,
+} from "@/lib/nfl/leagues";
 import {
   assertLeagueCommissioner,
   assertLeagueMember,
@@ -125,14 +129,18 @@ export async function removeMemberAction(
     return { success: false, error: "League not found." };
   }
 
-  const activePhases = await getActivePhasesForSportsLeague(
-    league.sportsLeagueId,
-    await getAppNow(),
-  );
-  if (isLeagueInSeason(activePhases, league)) {
+  // §3.8 / §4.3: member management uses the same start-lock boundary as
+  // invites and structural edits. Once the start week's pick lock
+  // fires, the roster freezes until the next season's rollover.
+  const now = await getAppNow();
+  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
+  const currentSeason = selectCurrentSeason(seasons, now);
+  const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
+  if (hasLeagueStartLockPassed(phases, league, now)) {
     return {
       success: false,
-      error: "Members can't be removed while the league is in-season.",
+      error:
+        "Members can't be removed once the league's first pick lock has passed.",
     };
   }
 
@@ -167,15 +175,19 @@ export async function leaveLeagueAction(
     return { success: false, error: "League not found." };
   }
 
-  const [activePhases, memberCount] = await Promise.all([
-    getActivePhasesForSportsLeague(league.sportsLeagueId, await getAppNow()),
+  // §3.8 / §4.4: leaving uses the start-lock boundary to stay
+  // consistent with invites, joins, and structural edits.
+  const now = await getAppNow();
+  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
+  const currentSeason = selectCurrentSeason(seasons, now);
+  const [phases, memberCount] = await Promise.all([
+    currentSeason ? getPhasesBySeason(currentSeason.id) : Promise.resolve([]),
     getLeagueMemberCount(leagueId),
   ]);
-
-  if (isLeagueInSeason(activePhases, league)) {
+  if (hasLeagueStartLockPassed(phases, league, now)) {
     return {
       success: false,
-      error: "You can't leave the league while it's in-season.",
+      error: "You can't leave the league once its first pick lock has passed.",
     };
   }
 

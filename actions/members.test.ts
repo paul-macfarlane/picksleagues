@@ -20,7 +20,11 @@ vi.mock("@/data/members", () => ({
 }));
 
 vi.mock("@/data/phases", () => ({
-  getActivePhasesForSportsLeague: vi.fn(),
+  getPhasesBySeason: vi.fn(),
+}));
+
+vi.mock("@/data/seasons", () => ({
+  getSeasonsBySportsLeague: vi.fn(),
 }));
 
 vi.mock("@/data/standings", () => ({
@@ -55,7 +59,8 @@ import {
   removeLeagueMember,
   updateLeagueMemberRole,
 } from "@/data/members";
-import { getActivePhasesForSportsLeague } from "@/data/phases";
+import { getPhasesBySeason } from "@/data/phases";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { removeLeagueStandingsForUser } from "@/data/standings";
 import { getSession } from "@/lib/auth";
 import {
@@ -92,6 +97,40 @@ const league = {
   updatedAt: new Date(),
 };
 
+const season = {
+  id: "season-1",
+  sportsLeagueId: "nfl-id",
+  year: 2099,
+  startDate: new Date("2099-09-01T00:00:00Z"),
+  endDate: new Date("2100-02-28T00:00:00Z"),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// Future-dated pick lock keeps hasLeagueStartLockPassed=false by default,
+// so remove/leave stay open; tests override with a past-locked phase to
+// exercise the start-locked branch.
+const openPhase = {
+  id: "phase-1",
+  seasonId: season.id,
+  seasonType: "regular" as const,
+  weekNumber: 1,
+  label: "Week 1",
+  startDate: new Date("2099-09-07T00:00:00Z"),
+  endDate: new Date("2099-09-14T00:00:00Z"),
+  pickLockTime: new Date("2099-09-07T17:00:00Z"),
+  lockedAt: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const lockedPhase = {
+  ...openPhase,
+  startDate: new Date("2020-09-07T00:00:00Z"),
+  endDate: new Date("2020-09-14T00:00:00Z"),
+  pickLockTime: new Date("2020-09-07T17:00:00Z"),
+};
+
 function member(role: "commissioner" | "member", userId = targetUserId) {
   return {
     id: `m-${userId}`,
@@ -114,7 +153,8 @@ beforeEach(() => {
   vi.mocked(getLeagueById).mockResolvedValue(league);
   vi.mocked(getLeagueMemberCount).mockResolvedValue(3);
   vi.mocked(removeLeague).mockResolvedValue(undefined);
-  vi.mocked(getActivePhasesForSportsLeague).mockResolvedValue([]);
+  vi.mocked(getSeasonsBySportsLeague).mockResolvedValue([season]);
+  vi.mocked(getPhasesBySeason).mockResolvedValue([openPhase]);
   vi.mocked(getLeagueMember).mockResolvedValue(member("member"));
   vi.mocked(assertLeagueMember).mockResolvedValue(
     member("member", sessionUserId),
@@ -251,22 +291,8 @@ describe("removeMemberAction", () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it("blocks removal while in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
-      {
-        id: "p-1",
-        seasonId: "s-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+  it("blocks removal once the league's start lock has passed", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([lockedPhase]);
     const result = await removeMemberAction({
       leagueId,
       userId: targetUserId,
@@ -303,22 +329,8 @@ describe("leaveLeagueAction", () => {
     expect(removeLeague).not.toHaveBeenCalled();
   });
 
-  it("blocks leaving while in-season", async () => {
-    vi.mocked(getActivePhasesForSportsLeague).mockResolvedValueOnce([
-      {
-        id: "p-1",
-        seasonId: "s-1",
-        seasonType: "regular",
-        weekNumber: 2,
-        label: "Week 2",
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 86400_000),
-        pickLockTime: new Date(),
-        lockedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+  it("blocks leaving once the league's start lock has passed", async () => {
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([lockedPhase]);
     const result = await leaveLeagueAction({ leagueId });
     expect(result.success).toBe(false);
     expect(removeLeagueMember).not.toHaveBeenCalled();

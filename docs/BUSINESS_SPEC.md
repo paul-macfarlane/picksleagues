@@ -122,7 +122,7 @@ The creator automatically becomes the league's **commissioner** and is initializ
 
 ### 3.3 In-Season Detection
 
-A league is considered **"in-season"** when the current date falls within any NFL phase that is part of the league's configured schedule range. For example, a league covering Week 1 → Week 18 is in-season from the start of Week 1 through the end of Week 18. In-season status gates removing members (§4.3) and leaving the league (§4.4). See §3.8 for how this differs from the first-pick-lock boundary that gates joining, inviting, creating, and structural edits.
+"In-season" is an informal term meaning "a phase in the league's schedule range is currently active." It does not gate any mutation — every league mutation is gated by the start lock (§3.8). The authoritative display state lives in §3.7.
 
 ### 3.4 Offseason Behavior
 
@@ -166,14 +166,9 @@ The badge displays the season year, the league's range label, and the state, e.g
 
 Each league has a **start phase** for every season it participates in: the phase matching the league's configured `(startSeasonType, startWeekNumber)` tuple for that season. The commissioner chose the start week explicitly at creation (§3.1), so the start phase is always that exact week in whichever season the league is playing — 2025 Week 1, 2026 Week 1, etc.
 
-The **start lock** is the `pickLockTime` of the start phase. Joining (§5.3), creating invites (§5.6), structural edits (§3.2), and creating a league itself (§3.1) all stay open up to and including the start lock, then close for the rest of the season.
+The **start lock** is the `pickLockTime` of the start phase. All league mutation gates — joining (§5.3), creating invites (§5.6), structural edits (§3.2), creating a league itself (§3.1), removing members (§4.3), and leaving the league (§4.4) — stay open up to and including the start lock, then close for the rest of the season. This is deliberately a single boundary: once the league's first picks can lock, standings are in-flight and membership / structure must freeze together. The start lock reopens automatically on season rollover when the next season's start phase is still upcoming.
 
 League creation (§3.1) requires the chosen start week's pick lock to still be in the future — you can't create a "regular Week 5 → Week 18" league in November once Week 5 has already locked. For existing leagues on season rollover, the start phase naturally resets to the new season's instance of the configured start week.
-
-Two separate time boundaries stay distinct:
-
-- **Phase start (§3.3 "in-season")** — still used to gate removing members (§4.3) and leaving the league (§4.4). Those are membership actions that disrupt other members mid-submission; they freeze at phase start regardless of pick-lock state.
-- **Start lock (this section)** — gates join / invite / create / structural-edit. More permissive for mid-season onboarding.
 
 All timestamps are compared against `getAppNow()` so the simulator drives state during off-season testing.
 
@@ -197,14 +192,14 @@ A league can have multiple commissioners.
 
 ### 4.3 Removing Members
 
-- Commissioners can remove other members, but **only when the league is not in-season**.
+- Commissioners can remove other members, but **only while the league's start lock has not yet passed** (§3.8).
 - When a member is removed, their historical picks and standings data remains.
 
 ### 4.4 Leaving a League
 
 A member can leave a league under these conditions:
 
-- The league is **not in-season**
+- The league's **start lock has not yet passed** (§3.8)
 - AND either:
   - They are the **sole member** (which deletes the league), OR
   - They are **not the sole commissioner** (another commissioner exists)
@@ -564,26 +559,26 @@ The league page has 5 tabs:
 
 ### 13.1 Action Matrix
 
-| Action                                                            | Who                  | Conditions                                                               |
-| ----------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------ |
-| Create a league                                                   | Any user             | Chosen schedule range has an upcoming pick lock this season (§3.1, §3.8) |
-| Delete a league                                                   | Commissioner         | —                                                                        |
-| Edit league name/image                                            | Commissioner         | —                                                                        |
-| Edit structural settings (schedule range, size, picks, pick type) | Commissioner         | Start lock not yet passed (§3.8) AND no picks submitted yet (§3.2)       |
-| View league data (standings, picks, members)                      | Any league member    | —                                                                        |
-| Submit/edit picks                                                 | Any league member    | Current phase, before lock time; individual picks lock at game kickoff   |
-| View own picks                                                    | Any league member    | Always                                                                   |
-| View other members' picks                                         | Any league member    | Only after pick lock time                                                |
-| Create invites                                                    | Commissioner         | League not at capacity AND first pick lock not yet passed (§3.8)         |
-| Revoke invites                                                    | Commissioner         | —                                                                        |
-| View invite list                                                  | Commissioner         | —                                                                        |
-| Accept/decline a direct invite                                    | The invite recipient | —                                                                        |
-| Join via link invite                                              | Any logged-in user   | —                                                                        |
-| Change a member's role                                            | Commissioner         | Cannot self-demote if sole commissioner                                  |
-| Remove a member                                                   | Commissioner         | Not in-season                                                            |
-| Leave a league                                                    | Any member           | Not in-season; must not be sole commissioner (unless sole member)        |
-| Edit own profile                                                  | The user themselves  | —                                                                        |
-| Delete own account                                                | The user themselves  | Must not be sole commissioner of any league with 2+ members              |
+| Action                                                            | Who                  | Conditions                                                                           |
+| ----------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| Create a league                                                   | Any user             | Chosen schedule range has an upcoming pick lock this season (§3.1, §3.8)             |
+| Delete a league                                                   | Commissioner         | —                                                                                    |
+| Edit league name/image                                            | Commissioner         | —                                                                                    |
+| Edit structural settings (schedule range, size, picks, pick type) | Commissioner         | Start lock not yet passed (§3.8) AND no picks submitted yet (§3.2)                   |
+| View league data (standings, picks, members)                      | Any league member    | —                                                                                    |
+| Submit/edit picks                                                 | Any league member    | Current phase, before lock time; individual picks lock at game kickoff               |
+| View own picks                                                    | Any league member    | Always                                                                               |
+| View other members' picks                                         | Any league member    | Only after pick lock time                                                            |
+| Create invites                                                    | Commissioner         | League not at capacity AND first pick lock not yet passed (§3.8)                     |
+| Revoke invites                                                    | Commissioner         | —                                                                                    |
+| View invite list                                                  | Commissioner         | —                                                                                    |
+| Accept/decline a direct invite                                    | The invite recipient | —                                                                                    |
+| Join via link invite                                              | Any logged-in user   | —                                                                                    |
+| Change a member's role                                            | Commissioner         | Cannot self-demote if sole commissioner                                              |
+| Remove a member                                                   | Commissioner         | Start lock not yet passed (§3.8)                                                     |
+| Leave a league                                                    | Any member           | Start lock not yet passed (§3.8); must not be sole commissioner (unless sole member) |
+| Edit own profile                                                  | The user themselves  | —                                                                                    |
+| Delete own account                                                | The user themselves  | Must not be sole commissioner of any league with 2+ members                          |
 
 ---
 
