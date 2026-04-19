@@ -273,7 +273,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 - [x] PL-029: Pick submission — against the spread (BUSINESS_SPEC §7.1, §9.3)
   - **Absorbed into PL-028** — shipped with PL-028's commit.
 
-- [~] PL-030: Pick results calculation (BUSINESS_SPEC §8.1-8.2)
+- [x] PL-030: Pick results calculation (BUSINESS_SPEC §8.1-8.2)
   - lib/nfl/scoring.ts — calculatePickResult(), calculateStandingsPoints()
   - Straight up: compare scores
   - ATS: apply frozen spread, compare adjusted scores
