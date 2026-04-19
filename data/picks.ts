@@ -1,8 +1,8 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { Transaction } from "@/data/utils";
 import { db } from "@/lib/db";
-import type { Pick } from "@/lib/db/schema/picks";
+import type { NewPick, Pick } from "@/lib/db/schema/picks";
 import { picks } from "@/lib/db/schema/picks";
 
 export async function getPicksForLeaguePhase(
@@ -23,4 +23,32 @@ export async function getPicksForLeaguePhase(
       ),
     )
     .orderBy(asc(picks.createdAt));
+}
+
+export async function insertPicks(
+  data: Omit<NewPick, "id" | "createdAt" | "updatedAt">[],
+  tx?: Transaction,
+): Promise<Pick[]> {
+  if (data.length === 0) return [];
+  const client = tx ?? db;
+  return client.insert(picks).values(data).returning();
+}
+
+export async function deleteUserPicksForEvents(
+  leagueId: string,
+  userId: string,
+  eventIds: string[],
+  tx?: Transaction,
+): Promise<void> {
+  if (eventIds.length === 0) return;
+  const client = tx ?? db;
+  await client
+    .delete(picks)
+    .where(
+      and(
+        eq(picks.leagueId, leagueId),
+        eq(picks.userId, userId),
+        inArray(picks.eventId, eventIds),
+      ),
+    );
 }

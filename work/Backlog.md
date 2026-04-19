@@ -259,7 +259,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Live score display (not started / in progress / final indicators)
   - **Use `getAppNow()`** (lib/simulator) for current-phase resolution + lock status so the simulator controls the view state.
 
-- [~] PL-028: Pick submission — straight up + ATS (BUSINESS_SPEC §7.1-7.2, §9.3)
+- [x] PL-028: Pick submission — straight up + ATS (BUSINESS_SPEC §7.1-7.2, §9.3)
   - **Absorbs PL-029** — one submission action handles both pick types (epic decision).
   - lib/validators/picks.ts — SubmitPicksSchema
   - lib/nfl/leagues.ts — isPickLocked(phase, event, now)
@@ -270,8 +270,8 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - ATS spread frozen into pick at submission time (spreadAtLock field)
   - **Use `getAppNow()`** in the action so simulator advancement flips pick locks.
 
-- [~] PL-029: Pick submission — against the spread (BUSINESS_SPEC §7.1, §9.3)
-  - **Absorbed into PL-028** — will close with PL-028's commit.
+- [x] PL-029: Pick submission — against the spread (BUSINESS_SPEC §7.1, §9.3)
+  - **Absorbed into PL-028** — shipped with PL-028's commit.
 
 - [~] PL-030: Pick results calculation (BUSINESS_SPEC §8.1-8.2)
   - lib/nfl/scoring.ts — calculatePickResult(), calculateStandingsPoints()

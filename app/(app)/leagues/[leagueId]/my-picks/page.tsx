@@ -4,6 +4,7 @@ import { EventPickCard } from "@/components/picks/event-pick-card";
 import { MyPicksHeader } from "@/components/picks/my-picks-header";
 import { PhaseNavigation } from "@/components/picks/phase-navigation";
 import { PickLockBanner } from "@/components/picks/pick-lock-banner";
+import { SubmitPicksForm } from "@/components/picks/submit-picks-form";
 import {
   getEventsByPhaseWithTeams,
   getOddsForEventsWithSportsbook,
@@ -111,7 +112,7 @@ export default async function MyPicksPage(
         <EmptyState
           message={`No games scheduled for ${phaseLabel(selectedPhase.seasonType, selectedPhase.weekNumber)}.`}
         />
-      ) : (
+      ) : phaseLocked ? (
         <ul className="flex flex-col gap-3">
           {events.map((event) => {
             const pick = pickByEventId.get(event.id) ?? null;
@@ -124,13 +125,26 @@ export default async function MyPicksPage(
                   awayTeam={event.awayTeam}
                   odds={oddsByEventId.get(event.id) ?? null}
                   pickType={league.pickType}
-                  pick={pick}
+                  selectedTeamId={pick?.teamId ?? null}
+                  frozenSpread={pick?.spreadAtLock ?? null}
+                  pickResult={pick?.pickResult ?? null}
                   isLocked={locked}
                 />
               </li>
             );
           })}
         </ul>
+      ) : (
+        <SubmitPicksForm
+          leagueId={leagueId}
+          phaseId={selectedPhase.id}
+          events={events}
+          oddsByEventId={Object.fromEntries(oddsByEventId)}
+          pickType={league.pickType}
+          existingPicks={picks}
+          picksPerPhase={league.picksPerPhase}
+          nowMs={now.getTime()}
+        />
       )}
     </div>
   );

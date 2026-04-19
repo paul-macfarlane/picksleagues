@@ -57,6 +57,17 @@ export async function getPhasesBySeason(
     .orderBy(asc(phases.startDate));
 }
 
+export async function getPhaseById(
+  phaseId: string,
+  tx?: Transaction,
+): Promise<Phase | null> {
+  const client = tx ?? db;
+  const result = await client.query.phases.findFirst({
+    where: eq(phases.id, phaseId),
+  });
+  return result ?? null;
+}
+
 export async function setLockedPhase(
   phaseId: string,
   lockedAt: Date,

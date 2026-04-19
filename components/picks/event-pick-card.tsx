@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import { formatInTimeZone } from "date-fns-tz";
 import { Check, Lock } from "lucide-react";
@@ -6,7 +8,7 @@ import type { OddsWithSportsbookName } from "@/data/events";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { PickType } from "@/lib/db/schema/leagues";
-import type { Pick as UserPick, PickResult } from "@/lib/db/schema/picks";
+import type { PickResult } from "@/lib/db/schema/picks";
 import type { Event, Team } from "@/lib/db/schema/sports";
 import { cn } from "@/lib/utils";
 
@@ -30,32 +32,38 @@ export function EventPickCard({
   awayTeam,
   odds,
   pickType,
-  pick,
+  selectedTeamId,
+  frozenSpread,
+  pickResult,
   isLocked,
+  onSelect,
 }: {
   event: Event;
   homeTeam: Team;
   awayTeam: Team;
   odds: OddsWithSportsbookName | null;
   pickType: PickType;
-  pick: UserPick | null;
+  selectedTeamId: string | null;
+  frozenSpread: number | null;
+  pickResult: PickResult | null;
   isLocked: boolean;
+  onSelect?: (teamId: string) => void;
 }) {
   const showScores = event.status === "in_progress" || event.status === "final";
   const showSpread = pickType === "against_the_spread";
-  const displaySpread = (side: "home" | "away"): string | null => {
+  const interactive = !isLocked && typeof onSelect === "function";
+
+  const spreadFor = (side: "home" | "away"): string | null => {
     if (!showSpread) return null;
-    // Prefer the spread frozen on the pick for the picked side, otherwise
-    // show the current live spread.
-    const picked =
-      pick && pick.teamId === (side === "home" ? homeTeam.id : awayTeam.id);
-    const frozen =
-      picked && pick?.spreadAtLock != null ? pick.spreadAtLock : null;
+    const sideTeamId = side === "home" ? homeTeam.id : awayTeam.id;
+    const isPickedSide = selectedTeamId === sideTeamId;
+    // Frozen spread only applies to the picked side; other side + unpicked
+    // cards show the current live line.
+    if (isPickedSide && frozenSpread != null) return formatSpread(frozenSpread);
     const live =
       side === "home" ? (odds?.homeSpread ?? null) : (odds?.awaySpread ?? null);
-    const value = frozen ?? live;
-    if (value == null) return null;
-    return formatSpread(value);
+    if (live == null) return null;
+    return formatSpread(live);
   };
 
   return (
@@ -64,24 +72,28 @@ export function EventPickCard({
         <TeamRow
           team={awayTeam}
           score={showScores ? event.awayScore : null}
-          spread={displaySpread("away")}
-          picked={pick?.teamId === awayTeam.id}
-          pickResult={
-            pick?.teamId === awayTeam.id ? (pick?.pickResult ?? null) : null
-          }
+          spread={spreadFor("away")}
+          picked={selectedTeamId === awayTeam.id}
+          pickResult={selectedTeamId === awayTeam.id ? pickResult : null}
           isLocked={isLocked}
           isWinner={isFinalWinner(event, "away")}
+          interactive={interactive}
+          onClick={
+            interactive && onSelect ? () => onSelect(awayTeam.id) : undefined
+          }
         />
         <TeamRow
           team={homeTeam}
           score={showScores ? event.homeScore : null}
-          spread={displaySpread("home")}
-          picked={pick?.teamId === homeTeam.id}
-          pickResult={
-            pick?.teamId === homeTeam.id ? (pick?.pickResult ?? null) : null
-          }
+          spread={spreadFor("home")}
+          picked={selectedTeamId === homeTeam.id}
+          pickResult={selectedTeamId === homeTeam.id ? pickResult : null}
           isLocked={isLocked}
           isWinner={isFinalWinner(event, "home")}
+          interactive={interactive}
+          onClick={
+            interactive && onSelect ? () => onSelect(homeTeam.id) : undefined
+          }
         />
         <EventStatusLine event={event} />
         {showSpread && odds ? (
@@ -102,6 +114,8 @@ function TeamRow({
   pickResult,
   isLocked,
   isWinner,
+  interactive,
+  onClick,
 }: {
   team: Team;
   score: number | null;
@@ -110,16 +124,11 @@ function TeamRow({
   pickResult: PickResult | null;
   isLocked: boolean;
   isWinner: boolean;
+  interactive: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-2 rounded-md border px-3 py-2 transition-colors",
-        picked
-          ? "border-primary bg-primary/5"
-          : "border-transparent bg-muted/30",
-      )}
-    >
+  const body = (
+    <>
       <div className="flex min-w-0 items-center gap-2">
         {picked ? (
           isLocked ? (
@@ -161,8 +170,31 @@ function TeamRow({
           </span>
         ) : null}
       </div>
-    </div>
+    </>
   );
+
+  const baseClass = cn(
+    "flex items-center justify-between gap-2 rounded-md border px-3 py-2 transition-colors",
+    picked ? "border-primary bg-primary/5" : "border-transparent bg-muted/30",
+  );
+
+  if (interactive) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={picked}
+        className={cn(
+          baseClass,
+          "w-full text-left hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return <div className={baseClass}>{body}</div>;
 }
 
 function TeamLogo({ team }: { team: Team }) {
