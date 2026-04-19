@@ -9,9 +9,7 @@ import { getPhasesBySeason } from "@/data/phases";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
 import {
-  comparePhasesByOrdinal,
   hasLeagueStartLockPassed,
-  leagueActivationTime,
   selectCurrentSeason,
 } from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
@@ -46,17 +44,11 @@ export default async function LeagueSettingsPage(
   ]);
   const currentSeason = selectCurrentSeason(seasons, now);
   const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
-  const activation = currentSeason
-    ? leagueActivationTime(league.createdAt, currentSeason.startDate)
-    : league.createdAt;
-  const structuralLocked = hasLeagueStartLockPassed(
-    phases,
-    league,
-    activation,
-    now,
-  );
+  const structuralLocked = hasLeagueStartLockPassed(phases, league, now);
 
-  const orderedPhases = [...phases].sort(comparePhasesByOrdinal);
+  const selectablePhases = phases.filter(
+    (p) => p.pickLockTime.getTime() > now.getTime(),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,7 +62,7 @@ export default async function LeagueSettingsPage(
       </header>
       <EditLeagueForm
         league={league}
-        phases={orderedPhases}
+        selectablePhases={selectablePhases}
         structuralLocked={structuralLocked}
         memberCount={memberCount}
         readOnly={!canEdit}

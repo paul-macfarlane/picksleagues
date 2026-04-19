@@ -25,7 +25,6 @@ import type { Profile } from "@/lib/db/schema/profiles";
 import { joinLeague } from "@/lib/invites";
 import {
   hasLeagueStartLockPassed,
-  leagueActivationTime,
   selectCurrentSeason,
 } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
@@ -83,11 +82,7 @@ export async function createDirectInviteAction(
     };
   }
   const phases = await getPhasesBySeason(currentSeason.id);
-  const activation = leagueActivationTime(
-    league.createdAt,
-    currentSeason.startDate,
-  );
-  if (hasLeagueStartLockPassed(phases, league, activation, now)) {
+  if (hasLeagueStartLockPassed(phases, league, now)) {
     return {
       success: false,
       error:
@@ -220,11 +215,7 @@ export async function createLinkInviteAction(
     };
   }
   const phases = await getPhasesBySeason(currentSeason.id);
-  const activation = leagueActivationTime(
-    league.createdAt,
-    currentSeason.startDate,
-  );
-  if (hasLeagueStartLockPassed(phases, league, activation, now)) {
+  if (hasLeagueStartLockPassed(phases, league, now)) {
     return {
       success: false,
       error:

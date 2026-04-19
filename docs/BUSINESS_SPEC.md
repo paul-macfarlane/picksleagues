@@ -110,7 +110,7 @@ A league can only have **one season per NFL year**.
 
 Common configurations the UI can offer as defaults — **Regular Season** (Week 1 → Week 18), **Postseason** (Wild Card → Super Bowl), **Full Season** (Week 1 → Super Bowl) — but users are free to pick any valid sub-range (e.g. "Weeks 5 through 12" or "Divisional through Super Bowl").
 
-A league can only be **created** when the chosen range has at least one phase whose pick lock hasn't passed yet. That phase becomes the league's **start phase** (see §3.8). A league created mid-range simply starts at the next upcoming in-range week; a league whose entire range has already passed can't be created that year.
+A league can only be **created** when the chosen start week's pick lock is still in the future. The phase matching the configured `(startSeasonType, startWeekNumber)` tuple becomes the league's **start phase** (see §3.8). The creator can pick any valid start week, including one mid-range; a league whose chosen start week has already locked can't be created that year.
 
 The creator automatically becomes the league's **commissioner** and is initialized with a standing of 0 points.
 
@@ -164,16 +164,11 @@ The badge displays the season year, the league's range label, and the state, e.g
 
 ### 3.8 League Start Phase and Start Lock
 
-Each league computes a **start phase** for every season it participates in. The start phase is the earliest phase in the league's schedule range whose `pickLockTime` is strictly after the league's **activation time** for that season:
+Each league has a **start phase** for every season it participates in: the phase matching the league's configured `(startSeasonType, startWeekNumber)` tuple for that season. The commissioner chose the start week explicitly at creation (§3.1), so the start phase is always that exact week in whichever season the league is playing — 2025 Week 1, 2026 Week 1, etc.
 
-- **Activation time** = `max(league.createdAt, currentSeason.startDate)`.
-- For a league created before a season begins, activation = the season's start → start phase is the first in-range phase of the season (the configured range's start week).
-- For a league created mid-season, activation = creation time → start phase is the next in-range phase whose pick lock hasn't fired yet.
-- For a league rolling into a new season, activation = that season's start → start phase resets to the configured range's start week.
+The **start lock** is the `pickLockTime` of the start phase. Joining (§5.3), creating invites (§5.6), structural edits (§3.2), and creating a league itself (§3.1) all stay open up to and including the start lock, then close for the rest of the season.
 
-The **start lock** is the `pickLockTime` of the start phase. Joining (§5.3), creating invites (§5.6), structural edits (§3.2), and creating a league itself (§3.1) all stay open up to and including the start lock, then close for the rest of the season. The league's first scored phase is its start phase — any in-range phases that ended before activation don't count toward the league's standings.
-
-If no in-range phase has a `pickLockTime` after the activation time, the start phase is undefined: the league can't be created (§3.1) or, if it already exists, treats the season as already locked. This matches intuition — you can't start a "Week 1 → Week 18" league in February once every regular-season pick lock has fired.
+League creation (§3.1) requires the chosen start week's pick lock to still be in the future — you can't create a "regular Week 5 → Week 18" league in November once Week 5 has already locked. For existing leagues on season rollover, the start phase naturally resets to the new season's instance of the configured start week.
 
 Two separate time boundaries stay distinct:
 

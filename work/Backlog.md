@@ -233,11 +233,11 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Surface the blocker on the account page + via the action's business error
 
 - [x] PL-057: League start phase + start-lock gates (BUSINESS_SPEC §3.1, §3.2, §3.8, §5.3, §5.6)
-  - Each league has a dynamic "start phase" per season = earliest in-range phase whose pickLockTime > max(league.createdAt, season.startDate). A mid-season league simply starts at the next upcoming in-range week.
-  - New `lib/nfl/leagues.ts#selectLeagueStartPhase(phases, range, activationTime)` + `hasLeagueStartLockPassed(phases, range, activationTime, now)`.
-  - createLeagueAction: error when selectLeagueStartPhase returns null (range has no upcoming pick lock this season).
-  - updateLeagueAction (structural): gated on hasLeagueStartLockPassed using league.createdAt. "No picks yet" second gate is a TODO — wires in once PL-028 ships.
-  - joinLeague, createDirectInviteAction, createLinkInviteAction: gated on hasLeagueStartLockPassed using league.createdAt.
+  - Each league's start phase for a season is the phase matching its configured `(startSeasonType, startWeekNumber)` tuple — a simple lookup, no date arithmetic. (Initial version keyed off a computed activation time; PL-058 made the start week explicit and the activation-time shim was removed.)
+  - `lib/nfl/leagues.ts#selectLeagueStartPhase(phases, range)` + `hasLeagueStartLockPassed(phases, range, now)` drive the gates.
+  - createLeagueAction: error when the chosen start week's pickLockTime is in the past (no upcoming lock this season).
+  - updateLeagueAction (structural): gated on hasLeagueStartLockPassed. "No picks yet" second gate is a TODO — wires in once PL-028 ships.
+  - joinLeague, createDirectInviteAction, createLinkInviteAction: gated on hasLeagueStartLockPassed.
   - Remove-member + leave-league still gated on phase start (unchanged).
   - Standings/picks downstream work (PL-015, PL-027) will respect the league's start phase — follow-ups, not this story.
 

@@ -21,9 +21,7 @@ import { cleanupInvitesIfFull } from "@/lib/invites";
 import {
   hasLeagueStartLockPassed,
   isPhaseInLeagueRange,
-  leagueActivationTime,
   selectCurrentSeason,
-  selectLeagueStartPhase,
 } from "@/lib/nfl/leagues";
 import { assertLeagueCommissioner } from "@/lib/permissions";
 import { getAppNow } from "@/lib/simulator";
@@ -91,10 +89,8 @@ export async function createLeagueAction(
     endWeekNumber,
   };
 
-  // §3.1 + §3.8: league creation is only allowed when the chosen range has
-  // an upcoming pick lock this season. Activation for a new league is
-  // max(now, seasonStart) — using the helper keeps the invariant greppable
-  // and correct if the season hasn't started yet.
+  // §3.1 + §3.8: league creation is only allowed when the chosen start
+  // week's pick lock is still in the future for this season.
   const phases = await getPhasesBySeason(currentSeason.id);
 
   // Make sure both endpoints exist in this season — otherwise the user
@@ -118,13 +114,15 @@ export async function createLeagueAction(
     };
   }
 
-  const activation = leagueActivationTime(now, currentSeason.startDate);
-  const startPhase = selectLeagueStartPhase(phases, range, activation);
-  if (!startPhase) {
+  // `startExists` above already guarantees the start phase is in the
+  // list, so the "no start phase found" fall-through of
+  // hasLeagueStartLockPassed can't fire here — we're purely gating on
+  // pickLockTime > now.
+  if (hasLeagueStartLockPassed(phases, range, now)) {
     return {
       success: false,
       error:
-        "The selected range has no upcoming pick lock this season. Pick a later week or wait for next season.",
+        "The selected start week's pick lock has already passed. Pick a later week or wait for next season.",
     };
   }
 
@@ -212,10 +210,7 @@ export async function updateLeagueAction(
   const phases = currentSeason ? await getPhasesBySeason(currentSeason.id) : [];
   const memberCount = await getLeagueMemberCount(leagueId);
 
-  const activation = currentSeason
-    ? leagueActivationTime(league.createdAt, currentSeason.startDate)
-    : league.createdAt;
-  const startLocked = hasLeagueStartLockPassed(phases, league, activation, now);
+  const startLocked = hasLeagueStartLockPassed(phases, league, now);
 
   const rangeChanged =
     startSeasonType !== league.startSeasonType ||
@@ -265,6 +260,17 @@ export async function updateLeagueAction(
       return {
         success: false,
         error: "No phases fall within the selected range.",
+      };
+    }
+    // §3.1/§3.8 applied to edits: the new start week's pick lock must
+    // still be in the future. Without this gate, a commissioner could
+    // roll the start back to an already-locked earlier week — the
+    // top-level `startLocked` check above only tests the CURRENT
+    // start phase's lock.
+    if (hasLeagueStartLockPassed(phases, range, now)) {
+      return {
+        success: false,
+        error: "The selected start week's pick lock has already passed.",
       };
     }
   }

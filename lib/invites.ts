@@ -13,7 +13,6 @@ import { withTransaction } from "@/data/utils";
 import type { League, LeagueRole } from "@/lib/db/schema/leagues";
 import {
   hasLeagueStartLockPassed,
-  leagueActivationTime,
   selectCurrentSeason,
 } from "@/lib/nfl/leagues";
 import { getAppNow } from "@/lib/simulator";
@@ -85,15 +84,11 @@ export async function joinLeague(
     };
   }
 
-  // §3.8 / §5.3: join is open until the league's start lock fires. For a
-  // mid-season-created league the start lock is the next upcoming pick
-  // lock, not Week 1's.
+  // §3.8 / §5.3: join is open until the league's start-week pick lock
+  // fires. The commissioner picks the start week explicitly, so the start
+  // lock is that week's pickLockTime — no activation-time inference.
   const phases = await getPhasesBySeason(currentSeason.id);
-  const activation = leagueActivationTime(
-    league.createdAt,
-    currentSeason.startDate,
-  );
-  if (hasLeagueStartLockPassed(phases, league, activation, now)) {
+  if (hasLeagueStartLockPassed(phases, league, now)) {
     return {
       status: "error",
       error: "The league's start lock has passed — you can't join this season.",

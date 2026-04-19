@@ -16,7 +16,6 @@ import { getSession } from "@/lib/auth";
 import {
   hasLeagueStartLockPassed,
   isLeagueInSeason,
-  leagueActivationTime,
   selectCurrentSeason,
 } from "@/lib/nfl/leagues";
 import { canLeagueRoleDo } from "@/lib/permissions";
@@ -60,10 +59,7 @@ export default async function LeagueMembersPage(
     (p) => p.startDate <= now && p.endDate > now,
   );
   const inSeason = isLeagueInSeason(activePhases, league);
-  const activation = currentSeason
-    ? leagueActivationTime(league.createdAt, currentSeason.startDate)
-    : league.createdAt;
-  const startLocked = hasLeagueStartLockPassed(phases, league, activation, now);
+  const startLocked = hasLeagueStartLockPassed(phases, league, now);
 
   const canInvite = canLeagueRoleDo(member.role, "invite_members");
   const canRevokeInvites = canLeagueRoleDo(member.role, "revoke_invites");

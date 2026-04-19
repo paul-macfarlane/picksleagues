@@ -66,13 +66,13 @@ function parsePhaseValue(value: string): {
 
 export function EditLeagueForm({
   league,
-  phases,
+  selectablePhases,
   structuralLocked,
   memberCount,
   readOnly = false,
 }: {
   league: League;
-  phases: Phase[];
+  selectablePhases: Phase[];
   structuralLocked: boolean;
   memberCount: number;
   readOnly?: boolean;
@@ -80,11 +80,12 @@ export function EditLeagueForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Include the league's current endpoints even if they aren't in the
-  // current season's phase list (e.g. an old end-week that's already been
-  // cleaned up). Sort the combined list so appended endpoints don't render
-  // out of order below the in-season phases.
-  const options: PhaseOption[] = [...phases.map(toPhaseOption)];
+  // Both dropdowns draw from the same list — only phases whose pick lock
+  // is still in the future. The league's current endpoints are merged
+  // back in so the Selects always render their selected values, even
+  // when structural fields are disabled (e.g. the start has since locked
+  // or the current end was pruned between seasons).
+  const options: PhaseOption[] = selectablePhases.map(toPhaseOption);
   for (const endpoint of [
     { seasonType: league.startSeasonType, weekNumber: league.startWeekNumber },
     { seasonType: league.endSeasonType, weekNumber: league.endWeekNumber },

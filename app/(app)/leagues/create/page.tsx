@@ -13,11 +13,15 @@ export const metadata: Metadata = {
   title: "Create league",
 };
 
-type CreateLeagueData = {
-  phases: Phase[];
-  defaultStart: Phase;
-  defaultEnd: Phase;
-} | null;
+type CreateLeagueData =
+  | {
+      kind: "ready";
+      selectablePhases: Phase[];
+      defaultStart: Phase;
+      defaultEnd: Phase;
+    }
+  | { kind: "no-nfl" }
+  | { kind: "no-startable-weeks" };
 
 async function loadCreateLeagueData(): Promise<CreateLeagueData> {
   try {
@@ -25,20 +29,31 @@ async function loadCreateLeagueData(): Promise<CreateLeagueData> {
     const now = await getAppNow();
     const seasons = await getSeasonsBySportsLeague(sportsLeague.id);
     const currentSeason = selectCurrentSeason(seasons, now);
-    if (!currentSeason) return null;
+    if (!currentSeason) return { kind: "no-nfl" };
     const phases = await getPhasesBySeason(currentSeason.id);
-    if (phases.length === 0) return null;
+    if (phases.length === 0) return { kind: "no-nfl" };
     const ordered = [...phases].sort(comparePhasesByOrdinal);
-    const defaultStart =
-      ordered.find((p) => p.pickLockTime.getTime() > now.getTime()) ??
-      ordered[0];
-    const lastRegular = [...ordered]
+    const selectablePhases = ordered.filter(
+      (p) => p.pickLockTime.getTime() > now.getTime(),
+    );
+    if (selectablePhases.length === 0) return { kind: "no-startable-weeks" };
+    const defaultStart = selectablePhases[0];
+    // Prefer the last regular-season week (the common "Week 1 → Week 18"
+    // default) but only if it's still selectable; otherwise fall back to
+    // the last selectable phase of any type.
+    const lastSelectableRegular = [...selectablePhases]
       .reverse()
       .find((p) => p.seasonType === "regular");
-    const defaultEnd = lastRegular ?? ordered[ordered.length - 1];
-    return { phases: ordered, defaultStart, defaultEnd };
+    const defaultEnd =
+      lastSelectableRegular ?? selectablePhases[selectablePhases.length - 1];
+    return {
+      kind: "ready",
+      selectablePhases,
+      defaultStart,
+      defaultEnd,
+    };
   } catch (err) {
-    if (err instanceof NotFoundError) return null;
+    if (err instanceof NotFoundError) return { kind: "no-nfl" };
     throw err;
   }
 }
@@ -55,12 +70,17 @@ export default async function CreateLeaguePage() {
           after.
         </p>
       </header>
-      {data ? (
+      {data.kind === "ready" ? (
         <CreateLeagueForm
-          phases={data.phases}
+          selectablePhases={data.selectablePhases}
           defaultStartPhase={data.defaultStart}
           defaultEndPhase={data.defaultEnd}
         />
+      ) : data.kind === "no-startable-weeks" ? (
+        <p className="rounded-md border border-dashed bg-muted/40 p-4 text-sm text-muted-foreground">
+          Every week this season has already started. New leagues can be created
+          once the next season is synced.
+        </p>
       ) : (
         <p className="rounded-md border border-dashed bg-muted/40 p-4 text-sm text-muted-foreground">
           NFL isn&apos;t set up yet. Leagues can be created once the NFL setup
