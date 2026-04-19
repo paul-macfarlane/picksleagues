@@ -100,50 +100,33 @@ export function isLeagueInSeason(
 }
 
 /**
- * BUSINESS_SPEC §3.8: a league's "activation time" for a given season is
- * `max(league.createdAt, season.startDate)`. Creation-season activation is
- * the moment the league was created; every subsequent season's activation
- * is that season's start date.
- */
-export function leagueActivationTime(
-  leagueCreatedAt: Date,
-  seasonStartDate: Date,
-): Date {
-  return leagueCreatedAt.getTime() > seasonStartDate.getTime()
-    ? leagueCreatedAt
-    : seasonStartDate;
-}
-
-/**
- * BUSINESS_SPEC §3.8: the league's "start phase" is the earliest phase in
- * the league's range whose `pickLockTime` is strictly after the league's
- * activation time. Returns null when every in-range pick lock has already
- * fired for the season.
+ * BUSINESS_SPEC §3.8: the league's "start phase" for a given season is the
+ * phase matching the league's configured start tuple. The commissioner
+ * picks the start week explicitly (§3.1), so there's no date arithmetic —
+ * the start phase is whichever synced phase matches `(startSeasonType,
+ * startWeekNumber)`. Returns null when that phase isn't present in the
+ * supplied list (e.g. the season's phases haven't synced yet).
  */
 export function selectLeagueStartPhase(
   phases: Phase[],
   range: LeagueRange,
-  activationTime: Date,
 ): Phase | null {
   return (
-    phases
-      .filter(
-        (p) =>
-          isPhaseInLeagueRange(p, range) &&
-          p.pickLockTime.getTime() > activationTime.getTime(),
-      )
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0] ?? null
+    phases.find(
+      (p) =>
+        p.seasonType === range.startSeasonType &&
+        p.weekNumber === range.startWeekNumber,
+    ) ?? null
   );
 }
 
 export function hasLeagueStartLockPassed(
   phases: Phase[],
   range: LeagueRange,
-  activationTime: Date,
   now: Date,
 ): boolean {
-  const start = selectLeagueStartPhase(phases, range, activationTime);
-  if (!start) return true;
+  const start = selectLeagueStartPhase(phases, range);
+  if (!start) return false;
   return now.getTime() >= start.pickLockTime.getTime();
 }
 

@@ -65,18 +65,22 @@ function parsePhaseValue(value: string): {
 }
 
 export function CreateLeagueForm({
-  phases,
+  selectablePhases,
   defaultStartPhase,
   defaultEndPhase,
 }: {
-  phases: Phase[];
+  selectablePhases: Phase[];
   defaultStartPhase: Pick<Phase, "seasonType" | "weekNumber">;
   defaultEndPhase: Pick<Phase, "seasonType" | "weekNumber">;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const options = phases.map(toPhaseOption);
+  // Both dropdowns draw from the same list: only phases whose pick lock
+  // is still in the future. End ≥ start (enforced by the validator), so
+  // restricting the start to future locks implicitly restricts the end
+  // too.
+  const options = selectablePhases.map(toPhaseOption);
 
   const defaults: CreateLeagueInput = {
     name: "",

@@ -265,7 +265,6 @@ describe("updateLeagueAction", () => {
     ...createdLeague,
     id: leagueId,
     size: 10,
-    // Created well before Week 1 → activation defaults to season.startDate.
     createdAt: new Date("2099-06-01T00:00:00Z"),
   };
 
@@ -354,30 +353,48 @@ describe("updateLeagueAction", () => {
     expect(updateLeague).not.toHaveBeenCalled();
   });
 
-  it("blocks structural edits when the league's own start phase has locked mid-season", async () => {
-    // A phase whose pickLockTime IS > activation (so it would be the
-    // start phase) but is <= now (so it has already fired) exercises the
-    // "start phase exists but its lock is passed" branch of
-    // hasLeagueStartLockPassed — distinct from the "no eligible start
-    // phase at all" branch above.
-    const midSeasonLocked = {
+  it("blocks moving the start week to one whose pick lock already passed", async () => {
+    // Two phases this season: Week 1 has already locked (past pickLockTime),
+    // Week 2 is still open. The league currently starts at Week 2. Rolling
+    // the start back to Week 1 must be rejected even though the lock gate
+    // sees the league as unlocked (start phase is Week 2, still in the
+    // future).
+    const pastWeek1 = {
       ...openPhase,
+      id: "phase-0",
+      weekNumber: 1,
+      label: "Week 1",
+      startDate: new Date("2020-09-07T00:00:00Z"),
+      endDate: new Date("2020-09-14T00:00:00Z"),
+      pickLockTime: new Date("2020-09-07T17:00:00Z"),
+    };
+    const futureWeek2 = {
+      ...openPhase,
+      id: "phase-1",
+      weekNumber: 2,
+      label: "Week 2",
       startDate: new Date("2099-09-14T00:00:00Z"),
       endDate: new Date("2099-09-21T00:00:00Z"),
       pickLockTime: new Date("2099-09-14T17:00:00Z"),
     };
     vi.mocked(getLeagueById).mockResolvedValueOnce({
       ...existingLeague,
-      // Activation > season start → mid-season league.
-      createdAt: new Date("2099-09-10T00:00:00Z"),
+      startSeasonType: "regular",
+      startWeekNumber: 2,
+      endSeasonType: "regular",
+      endWeekNumber: 18,
     });
-    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([midSeasonLocked]);
-    // Pretend "now" is after the pickLockTime.
-    const { getAppNow } = await import("@/lib/simulator");
-    vi.mocked(getAppNow).mockResolvedValueOnce(
-      new Date("2099-09-15T00:00:00Z"),
-    );
-    const result = await updateLeagueAction({ ...validUpdate, size: 12 });
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
+      pastWeek1,
+      futureWeek2,
+    ]);
+    const result = await updateLeagueAction({
+      ...validUpdate,
+      startSeasonType: "regular",
+      startWeekNumber: 1,
+      endSeasonType: "regular",
+      endWeekNumber: 18,
+    });
     expect(result.success).toBe(false);
     expect(updateLeague).not.toHaveBeenCalled();
   });

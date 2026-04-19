@@ -52,8 +52,9 @@ import { cleanupInvitesIfFull, joinLeague } from "./invites";
 
 const leagueId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
-// League was created long before the season kicked off → activation
-// defaults to the season start, start phase defaults to Week 1.
+// Range is (regular, 1) → start phase resolves to Week 1 of the synced
+// season. Pick lock lives in 2099 so the start lock never fires under
+// wall-clock "now".
 const league: League = {
   id: leagueId,
   sportsLeagueId: "nfl-id",
