@@ -6,7 +6,6 @@ import {
   formatLeagueRange,
   getLeagueSeasonState,
   hasLeagueStartLockPassed,
-  isLeagueInSeason,
   isPhaseInLeagueRange,
   isValidLeagueRange,
   phaseLabel,
@@ -231,27 +230,6 @@ describe("selectCurrentSeason", () => {
     const newer = season({ year: 2024 });
     const now = new Date("2027-06-01");
     expect(selectCurrentSeason([older, newer], now)).toEqual(newer);
-  });
-});
-
-describe("isLeagueInSeason", () => {
-  const regularPhase = { seasonType: "regular" as const, weekNumber: 5 };
-  const postPhase = { seasonType: "postseason" as const, weekNumber: 2 };
-
-  it("returns true when an active phase matches the range", () => {
-    expect(isLeagueInSeason([regularPhase], regularSeasonRange)).toBe(true);
-    expect(isLeagueInSeason([regularPhase], fullSeasonRange)).toBe(true);
-    expect(isLeagueInSeason([postPhase], postseasonRange)).toBe(true);
-    expect(isLeagueInSeason([postPhase], fullSeasonRange)).toBe(true);
-  });
-
-  it("returns false when the active phase is outside the range", () => {
-    expect(isLeagueInSeason([postPhase], regularSeasonRange)).toBe(false);
-    expect(isLeagueInSeason([regularPhase], postseasonRange)).toBe(false);
-  });
-
-  it("returns false when there are no active phases", () => {
-    expect(isLeagueInSeason([], fullSeasonRange)).toBe(false);
   });
 });
 

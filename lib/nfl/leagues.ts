@@ -92,13 +92,6 @@ export function selectCurrentSeason(
 
 // --- Scheduling helpers ---
 
-export function isLeagueInSeason(
-  activePhases: Pick<Phase, "seasonType" | "weekNumber">[],
-  range: LeagueRange,
-): boolean {
-  return activePhases.some((phase) => isPhaseInLeagueRange(phase, range));
-}
-
 /**
  * BUSINESS_SPEC §3.8: the league's "start phase" for a given season is the
  * phase matching the league's configured start tuple. The commissioner
