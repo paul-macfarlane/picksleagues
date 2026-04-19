@@ -27,6 +27,19 @@ export async function getPicksForLeaguePhase(
     .orderBy(asc(picks.createdAt));
 }
 
+export async function getPicksForLeaguePhaseAllMembers(
+  leagueId: string,
+  phaseId: string,
+  tx?: Transaction,
+): Promise<Pick[]> {
+  const client = tx ?? db;
+  return client
+    .select()
+    .from(picks)
+    .where(and(eq(picks.leagueId, leagueId), eq(picks.phaseId, phaseId)))
+    .orderBy(asc(picks.userId), asc(picks.createdAt));
+}
+
 export async function insertPicks(
   data: Omit<NewPick, "id" | "createdAt" | "updatedAt">[],
   tx?: Transaction,

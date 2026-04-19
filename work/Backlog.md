@@ -298,7 +298,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 - [x] PL-032: Phase navigation (BUSINESS_SPEC §6.3-6.4)
   - **Absorbed into PL-027** — shipped with PL-027's commit.
 
-- [~] PL-033: League picks view (BUSINESS_SPEC §7.3, §12.4)
+- [x] PL-033: League picks view (BUSINESS_SPEC §7.3, §12.4)
   - Before lock: "picks will be visible after deadline" message
   - After lock: collapsible cards per member with picks, record, points
 
