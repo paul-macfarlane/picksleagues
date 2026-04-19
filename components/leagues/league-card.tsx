@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UsersIcon } from "lucide-react";
+import { ChevronRightIcon, UsersIcon } from "lucide-react";
 
 import { LeagueAvatar } from "@/components/leagues/league-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
       href={`/leagues/${league.id}`}
       className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
     >
-      <Card className="h-full transition-colors hover:border-primary/50">
+      <Card className="h-full transition-colors hover:border-primary/50 active:bg-muted/60">
         <CardContent className="flex items-center gap-4 p-4">
           <LeagueAvatar
             name={league.name}
@@ -37,6 +37,10 @@ export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
               {formatLeagueRange(league)}
             </p>
           </div>
+          <ChevronRightIcon
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
         </CardContent>
       </Card>
     </Link>
