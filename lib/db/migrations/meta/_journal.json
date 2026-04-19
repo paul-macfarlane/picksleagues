@@ -64,6 +64,13 @@
       "when": 1776621234567,
       "tag": "0008_custom_league_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776572867497,
+      "tag": "0009_picks_table",
+      "breakpoints": true
     }
   ]
 }

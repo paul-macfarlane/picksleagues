@@ -12,7 +12,7 @@ import type {
   Sportsbook,
   Team,
 } from "@/lib/db/schema/sports";
-import { events, odds, phases } from "@/lib/db/schema/sports";
+import { events, odds, phases, sportsbooks } from "@/lib/db/schema/sports";
 import { externalEvents } from "@/lib/db/schema/external";
 
 export async function insertEvent(
@@ -253,6 +253,38 @@ export async function getLockedEventIds(
 export interface OddsWithContext extends Odds {
   sportsbook: Sportsbook;
   event: EventWithTeams;
+}
+
+export interface OddsWithSportsbookName extends Odds {
+  sportsbookName: string;
+}
+
+export async function getOddsForEventsWithSportsbook(
+  eventIds: string[],
+  tx?: Transaction,
+): Promise<OddsWithSportsbookName[]> {
+  if (eventIds.length === 0) return [];
+  const client = tx ?? db;
+  const rows = await client
+    .select({
+      id: odds.id,
+      eventId: odds.eventId,
+      sportsbookId: odds.sportsbookId,
+      homeSpread: odds.homeSpread,
+      awaySpread: odds.awaySpread,
+      homeMoneyline: odds.homeMoneyline,
+      awayMoneyline: odds.awayMoneyline,
+      overUnder: odds.overUnder,
+      lockedAt: odds.lockedAt,
+      createdAt: odds.createdAt,
+      updatedAt: odds.updatedAt,
+      sportsbookName: sportsbooks.name,
+    })
+    .from(odds)
+    .innerJoin(sportsbooks, eq(odds.sportsbookId, sportsbooks.id))
+    .where(inArray(odds.eventId, eventIds))
+    .orderBy(asc(sportsbooks.name));
+  return rows;
 }
 
 export async function getOddsByPhaseWithContext(

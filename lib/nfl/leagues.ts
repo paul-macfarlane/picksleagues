@@ -1,5 +1,5 @@
 import type { League } from "@/lib/db/schema/leagues";
-import type { Phase, Season, SeasonType } from "@/lib/db/schema/sports";
+import type { Event, Phase, Season, SeasonType } from "@/lib/db/schema/sports";
 
 /**
  * A league's schedule range is an ordered pair of (seasonType, weekNumber)
@@ -139,4 +139,60 @@ export function getLeagueSeasonState(
   if (now.getTime() < earliestStart) return "upcoming";
   if (now.getTime() >= latestEnd) return "complete";
   return "in_progress";
+}
+
+// --- Phase resolution for the picks view ---
+
+/**
+ * BUSINESS_SPEC §6.3: picks views default to the currently-active phase;
+ * when nothing is active we show the nearest upcoming phase, and after the
+ * league's season is over we show its final phase.
+ *
+ * Only phases inside the league's range are considered — a postseason-only
+ * league never defaults to a regular-season week.
+ */
+export function selectLeagueCurrentPhase(
+  phases: Phase[],
+  range: LeagueRange,
+  now: Date,
+): Phase | null {
+  const relevant = phases.filter((p) => isPhaseInLeagueRange(p, range));
+  if (relevant.length === 0) return null;
+
+  const active = relevant.find((p) => now >= p.startDate && now < p.endDate);
+  if (active) return active;
+
+  const upcoming = relevant
+    .filter((p) => p.startDate.getTime() > now.getTime())
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0];
+  if (upcoming) return upcoming;
+
+  return [...relevant].sort(
+    (a, b) => b.startDate.getTime() - a.startDate.getTime(),
+  )[0];
+}
+
+// --- Pick lock gates ---
+
+export function isPhaseLocked(
+  phase: Pick<Phase, "pickLockTime">,
+  now: Date,
+): boolean {
+  return now.getTime() >= phase.pickLockTime.getTime();
+}
+
+/**
+ * BUSINESS_SPEC §7.1 / §7.2: picks are locked when either the phase's pick
+ * lock time has passed OR the specific game has already kicked off. The
+ * per-event kickoff gate fires ahead of the phase-wide lock for early
+ * games (e.g. Thursday Night Football in an NFL week).
+ */
+export function isPickLocked(
+  phase: Pick<Phase, "pickLockTime">,
+  event: Pick<Event, "startTime">,
+  now: Date,
+): boolean {
+  return (
+    isPhaseLocked(phase, now) || now.getTime() >= event.startTime.getTime()
+  );
 }

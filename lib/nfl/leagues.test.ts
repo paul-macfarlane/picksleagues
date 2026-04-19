@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import type { Phase, Season } from "@/lib/db/schema/sports";
+import type { Event, Phase, Season } from "@/lib/db/schema/sports";
 
 import {
   formatLeagueRange,
   getLeagueSeasonState,
   hasLeagueStartLockPassed,
   isPhaseInLeagueRange,
+  isPhaseLocked,
+  isPickLocked,
   isValidLeagueRange,
   phaseLabel,
   selectCurrentSeason,
+  selectLeagueCurrentPhase,
   selectLeagueStartPhase,
   type LeagueRange,
 } from "./leagues";
@@ -464,5 +467,138 @@ describe("hasLeagueStartLockPassed", () => {
         new Date("2099-01-01T00:00:00Z"),
       ),
     ).toBe(false);
+  });
+});
+
+describe("selectLeagueCurrentPhase", () => {
+  const week1 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-07T00:00:00Z"),
+    endDate: new Date("2025-09-14T00:00:00Z"),
+    weekNumber: 1,
+  });
+  const week2 = phase({
+    seasonType: "regular",
+    startDate: new Date("2025-09-14T00:00:00Z"),
+    endDate: new Date("2025-09-21T00:00:00Z"),
+    weekNumber: 2,
+  });
+  const week18 = phase({
+    seasonType: "regular",
+    startDate: new Date("2026-01-04T00:00:00Z"),
+    endDate: new Date("2026-01-11T00:00:00Z"),
+    weekNumber: 18,
+  });
+  const wildCard = phase({
+    seasonType: "postseason",
+    startDate: new Date("2026-01-11T00:00:00Z"),
+    endDate: new Date("2026-01-18T00:00:00Z"),
+    weekNumber: 1,
+  });
+
+  it("returns the active phase when now falls inside it", () => {
+    const now = new Date("2025-09-10T12:00:00Z");
+    expect(
+      selectLeagueCurrentPhase(
+        [week1, week2, week18, wildCard],
+        regularSeasonRange,
+        now,
+      ),
+    ).toEqual(week1);
+  });
+
+  it("returns the nearest upcoming phase between weeks", () => {
+    const now = new Date("2025-09-21T00:00:00Z");
+    expect(
+      selectLeagueCurrentPhase([week1, week2, week18], regularSeasonRange, now),
+    ).toEqual(week18);
+  });
+
+  it("returns the latest phase after the season ends", () => {
+    const now = new Date("2026-06-01T00:00:00Z");
+    expect(
+      selectLeagueCurrentPhase([week1, week2, week18], regularSeasonRange, now),
+    ).toEqual(week18);
+  });
+
+  it("returns the first phase before the season starts", () => {
+    const now = new Date("2025-08-01T00:00:00Z");
+    expect(
+      selectLeagueCurrentPhase([week1, week2, week18], regularSeasonRange, now),
+    ).toEqual(week1);
+  });
+
+  it("ignores phases outside the league range", () => {
+    // During the wild card week; regular-season-only league defaults back to
+    // its last week rather than jumping to the postseason phase.
+    const now = new Date("2026-01-15T00:00:00Z");
+    expect(
+      selectLeagueCurrentPhase(
+        [week1, week2, week18, wildCard],
+        regularSeasonRange,
+        now,
+      ),
+    ).toEqual(week18);
+    // Postseason-only league resolves to wild card during the same moment.
+    expect(
+      selectLeagueCurrentPhase(
+        [week1, week2, week18, wildCard],
+        postseasonRange,
+        now,
+      ),
+    ).toEqual(wildCard);
+  });
+
+  it("returns null when the range has no synced phases", () => {
+    expect(
+      selectLeagueCurrentPhase([week1], postseasonRange, new Date()),
+    ).toBeNull();
+  });
+});
+
+describe("isPhaseLocked", () => {
+  const phaseLock = {
+    pickLockTime: new Date("2025-09-07T17:00:00Z"),
+  } as Pick<Phase, "pickLockTime">;
+
+  it("returns false before pick lock time", () => {
+    expect(isPhaseLocked(phaseLock, new Date("2025-09-07T16:59:59Z"))).toBe(
+      false,
+    );
+  });
+
+  it("returns true at the pick lock time", () => {
+    expect(isPhaseLocked(phaseLock, new Date("2025-09-07T17:00:00Z"))).toBe(
+      true,
+    );
+  });
+});
+
+describe("isPickLocked", () => {
+  const sundayGame = {
+    startTime: new Date("2025-09-07T17:00:00Z"),
+  } as Pick<Event, "startTime">;
+  const thursdayNightGame = {
+    startTime: new Date("2025-09-04T00:20:00Z"),
+  } as Pick<Event, "startTime">;
+  const phaseLock = {
+    pickLockTime: new Date("2025-09-07T17:00:00Z"),
+  } as Pick<Phase, "pickLockTime">;
+
+  it("returns false before both the phase lock and the game start", () => {
+    const now = new Date("2025-09-03T00:00:00Z");
+    expect(isPickLocked(phaseLock, sundayGame, now)).toBe(false);
+  });
+
+  it("returns true at the phase lock time", () => {
+    const now = new Date("2025-09-07T17:00:00Z");
+    expect(isPickLocked(phaseLock, sundayGame, now)).toBe(true);
+  });
+
+  it("returns true when the individual game has kicked off before the phase lock", () => {
+    const now = new Date("2025-09-04T00:30:00Z");
+    expect(isPickLocked(phaseLock, thursdayNightGame, now)).toBe(true);
+    // But a Sunday game is still unlocked at the same moment.
+    expect(isPickLocked(phaseLock, sundayGame, now)).toBe(false);
   });
 });
