@@ -47,6 +47,12 @@ vi.mock("@/lib/sync/nfl/setup", () => ({
   runInitialSetup: vi.fn(),
 }));
 
+vi.mock("@/lib/sync/nfl/standings", () => ({
+  runStandingsRecalc: vi
+    .fn()
+    .mockResolvedValue({ leaguesAffected: 0, picksRescored: 0 }),
+}));
+
 vi.mock("@/lib/espn/nfl/scores", () => ({
   fetchEventScore: vi.fn(),
 }));
@@ -65,6 +71,7 @@ const {
   getLockedEventIds,
 } = await import("@/data/events");
 const { runInitialSetup } = await import("@/lib/sync/nfl/setup");
+const { runStandingsRecalc } = await import("@/lib/sync/nfl/standings");
 const { fetchEventScore } = await import("@/lib/espn/nfl/scores");
 
 const mockGetSimulatorState = vi.mocked(getSimulatorState);
@@ -400,6 +407,9 @@ describe("advancePhase", () => {
       homeScore: 24,
       awayScore: 17,
     });
+    // §8.5: finalizing events inside the simulator must kick standings
+    // recalc, same as the live-scores sync path.
+    expect(runStandingsRecalc).toHaveBeenCalledTimes(1);
   });
 
   it("skips locked events when advancing", async () => {

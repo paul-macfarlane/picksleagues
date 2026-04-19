@@ -29,11 +29,18 @@ vi.mock("@/lib/nfl/scheduling", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/sync/nfl/standings", () => ({
+  runStandingsRecalc: vi
+    .fn()
+    .mockResolvedValue({ leaguesAffected: 0, picksRescored: 0 }),
+}));
+
 const { getScorableEvents, updateEvent, getLockedEventIds } =
   await import("@/data/events");
 const { fetchEventScore } = await import("@/lib/espn/nfl/scores");
 const { isNflSeasonMonth, isGameWindowActive } =
   await import("@/lib/nfl/scheduling");
+const { runStandingsRecalc } = await import("@/lib/sync/nfl/standings");
 
 const mockGetScorableEvents = vi.mocked(getScorableEvents);
 const mockUpdateEvent = vi.mocked(updateEvent);
@@ -155,6 +162,9 @@ describe("runLiveScoresSync", () => {
       homeScore: 28,
       awayScore: 24,
     });
+    // §8.5: when any event finalizes, the live-scores sync must kick the
+    // standings recalc so scored picks flow into leaderboards.
+    expect(runStandingsRecalc).toHaveBeenCalledTimes(1);
   });
 
   it("handles mixed results — some final, some in-progress", async () => {
@@ -182,6 +192,22 @@ describe("runLiveScoresSync", () => {
     expect(result.eventsUpdated).toBe(3);
     expect(result.eventsFinalized).toBe(1);
     expect(mockUpdateEvent).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not recalc standings when nothing finalized", async () => {
+    const event = makeScorableEvent({
+      eventId: "event-3",
+      status: "in_progress",
+    });
+    mockGetScorableEvents.mockResolvedValue([event]);
+    mockFetchEventScore.mockResolvedValue(
+      makeScore({ status: "in_progress", homeScore: 10, awayScore: 7 }),
+    );
+
+    const result = await runLiveScoresSync(OCTOBER_SUNDAY);
+
+    expect(result.eventsFinalized).toBe(0);
+    expect(runStandingsRecalc).not.toHaveBeenCalled();
   });
 
   it("passes correct ESPN refs to fetchEventScore", async () => {

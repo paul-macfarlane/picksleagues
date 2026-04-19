@@ -11,9 +11,11 @@ import {
   updateOdds,
 } from "@/data/events";
 import { clearLockedPhase, setLockedPhase, updatePhase } from "@/data/phases";
+import { clearPickResultsForEvent } from "@/data/picks";
 import { clearLockedTeam, setLockedTeam, updateTeam } from "@/data/teams";
 import { NotFoundError } from "@/lib/errors";
 import { requireAdminSession } from "@/lib/permissions";
+import { runStandingsRecalcForEvent } from "@/lib/sync/nfl/standings";
 import type { ActionResult } from "@/lib/types";
 import {
   parseDecimal,
@@ -156,6 +158,14 @@ export async function updateEventAction(input: unknown): Promise<ActionResult> {
     }
     throw err;
   }
+
+  // §8.5: when an admin edits an event, picks on it are invalidated
+  // first (so a mid-flight recalc failure leaves the event's picks as
+  // "unscored" rather than carrying a stale cached result), then the
+  // scoped recalc re-scores them and recomputes standings for every
+  // league that has picks on this event.
+  await clearPickResultsForEvent(id);
+  await runStandingsRecalcForEvent(id);
 
   revalidatePath(OVERRIDES_PATH);
   return { success: true, data: undefined };
