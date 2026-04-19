@@ -11,9 +11,9 @@
 | Status      | Count  |
 | ----------- | ------ |
 | Complete    | 32     |
-| In Progress | 0      |
+| In Progress | 8      |
 | Blocked     | 0      |
-| Pending     | 8      |
+| Pending     | 0      |
 | **Total**   | **40** |
 
 ---
@@ -251,27 +251,29 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 ## 6. Picks & Scoring (depends on: Leagues + Simulator ready for testing)
 
-- [ ] PL-027: Phase picks view (BUSINESS_SPEC §6, §10, §12.4-12.5)
+- [~] PL-027: Phase picks view (BUSINESS_SPEC §6, §10, §12.4-12.5)
+  - **Absorbs PL-032** — phase navigation + historical viewing ship together in this story (epic decision).
   - Phase/event data display: teams, odds, scores, lock status
-  - Phase navigation (prev/next)
-  - Current phase resolution logic (lib/nfl/scheduling.ts)
+  - Phase navigation (prev/next) + historical picks/results view
+  - Current phase resolution logic (lib/nfl/leagues.ts#selectLeagueCurrentPhase)
   - Live score display (not started / in progress / final indicators)
   - **Use `getAppNow()`** (lib/simulator) for current-phase resolution + lock status so the simulator controls the view state.
 
-- [ ] PL-028: Pick submission — straight up (BUSINESS_SPEC §7.1-7.2)
+- [~] PL-028: Pick submission — straight up + ATS (BUSINESS_SPEC §7.1-7.2, §9.3)
+  - **Absorbs PL-029** — one submission action handles both pick types (epic decision).
   - lib/validators/picks.ts — SubmitPicksSchema
-  - lib/nfl/scheduling.ts — isGameStarted(now?), isPhasePastLockTime(now?)
-  - actions/picks.ts — submitPicks action
-  - Interactive pick UI: clickable team cards, toggle selection, progress counter
+  - lib/nfl/leagues.ts — isPickLocked(phase, event, now)
+  - actions/picks.ts — submitPicks action (upsert, preserves already-locked picks)
+  - Interactive pick UI: clickable team cards, toggle selection, progress counter, spread display for ATS leagues
   - Pick lock enforcement: phase lock time + individual game kickoff
   - Required pick count: min(picksPerPhase, unstartedGames)
-  - **Use `getAppNow()`** in the action — pass it into `isGameStarted` / `isPhasePastLockTime` so simulator advancement flips pick locks.
+  - ATS spread frozen into pick at submission time (spreadAtLock field)
+  - **Use `getAppNow()`** in the action so simulator advancement flips pick locks.
 
-- [ ] PL-029: Pick submission — against the spread (BUSINESS_SPEC §7.1, §9.3)
-  - Extends PL-028 with spread display and spread snapshot at submission
-  - Spread frozen into pick at submission time (spreadAtLock field)
+- [~] PL-029: Pick submission — against the spread (BUSINESS_SPEC §7.1, §9.3)
+  - **Absorbed into PL-028** — will close with PL-028's commit.
 
-- [ ] PL-030: Pick results calculation (BUSINESS_SPEC §8.1-8.2)
+- [~] PL-030: Pick results calculation (BUSINESS_SPEC §8.1-8.2)
   - lib/nfl/scoring.ts — calculatePickResult(), calculateStandingsPoints()
   - Straight up: compare scores
   - ATS: apply frozen spread, compare adjusted scores
@@ -279,12 +281,12 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - `calculatePickResult` is deterministic from the event's current score — no caching assumptions beyond the stored `pickResult` field, which is invalidated on admin event edits (see PL-015)
   - Tests for all scoring edge cases
 
-- [ ] PL-031: Standings + leaderboard UI (BUSINESS_SPEC §8.3-8.4, §12.4)
+- [~] PL-031: Standings + leaderboard UI (BUSINESS_SPEC §8.3-8.4, §12.4)
   - Standings tab: sortable table with rank, player, points, W/L/P
   - Dense ranking
   - Season history (prior season standings preserved)
 
-- [ ] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
+- [~] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
   - Re-slotted from Section 2 — depends on picks (PL-028), pick scoring (PL-030), standings schema (PL-031).
   - lib/sync/nfl/standings.ts
   - Score unscored picks, recalculate totals, recompute dense rankings
@@ -293,13 +295,10 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - **Admin event edits clear `pickResult` on affected picks** — `updateEventAction` (PL-073, shipped) must null out `pickResult` for every pick on the event whenever scores or status change on a `final` event (or status flips away from `final`). The next recalc run then re-scores them via step 2 of §8.5.
   - **Cron-driven entry point uses real `new Date()`**. The simulator wires its own path through `advancePhase` — this job doesn't need `getAppNow()` because its triggers (cron + live-scores sync) are real-world events. Simulator already exercises this code via `lib/sync/nfl/live-scores.ts`.
 
-- [ ] PL-032: Phase navigation (BUSINESS_SPEC §6.3-6.4)
-  - Prev/next phase browsing
-  - Historical picks and results view
-  - Current phase auto-detection
-  - **Use `getAppNow()`** for the "what phase am I on right now?" landing default.
+- [~] PL-032: Phase navigation (BUSINESS_SPEC §6.3-6.4)
+  - **Absorbed into PL-027** — will close with PL-027's commit.
 
-- [ ] PL-033: League picks view (BUSINESS_SPEC §7.3, §12.4)
+- [~] PL-033: League picks view (BUSINESS_SPEC §7.3, §12.4)
   - Before lock: "picks will be visible after deadline" message
   - After lock: collapsible cards per member with picks, record, points
 
