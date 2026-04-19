@@ -15,6 +15,7 @@ import {
   leagues,
   linkInvites,
 } from "./leagues";
+import { picks } from "./picks";
 import {
   dataSources,
   events,
@@ -48,6 +49,7 @@ export const phasesRelations = relations(phases, ({ one, many }) => ({
     references: [seasons.id],
   }),
   events: many(events),
+  picks: many(picks),
 }));
 
 export const teamsRelations = relations(teams, ({ one }) => ({
@@ -73,6 +75,7 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     relationName: "awayTeam",
   }),
   odds: many(odds),
+  picks: many(picks),
 }));
 
 export const oddsRelations = relations(odds, ({ one }) => ({
@@ -158,6 +161,7 @@ export const leaguesRelations = relations(leagues, ({ one, many }) => ({
   }),
   members: many(leagueMembers),
   standings: many(leagueStandings),
+  picks: many(picks),
 }));
 
 export const leagueMembersRelations = relations(leagueMembers, ({ one }) => ({
@@ -204,5 +208,28 @@ export const linkInvitesRelations = relations(linkInvites, ({ one }) => ({
   league: one(leagues, {
     fields: [linkInvites.leagueId],
     references: [leagues.id],
+  }),
+}));
+
+export const picksRelations = relations(picks, ({ one }) => ({
+  league: one(leagues, {
+    fields: [picks.leagueId],
+    references: [leagues.id],
+  }),
+  user: one(user, {
+    fields: [picks.userId],
+    references: [user.id],
+  }),
+  phase: one(phases, {
+    fields: [picks.phaseId],
+    references: [phases.id],
+  }),
+  event: one(events, {
+    fields: [picks.eventId],
+    references: [events.id],
+  }),
+  team: one(teams, {
+    fields: [picks.teamId],
+    references: [teams.id],
   }),
 }));
