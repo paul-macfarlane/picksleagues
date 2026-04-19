@@ -259,6 +259,24 @@ export interface OddsWithSportsbookName extends Odds {
   sportsbookName: string;
 }
 
+/**
+ * Dedupe the sportsbook-ordered output of `getOddsForEventsWithSportsbook`
+ * so each event maps to one primary row. The data function orders by
+ * sportsbook name ASC, so this keeps the alphabetically-first sportsbook
+ * per event — stable and deterministic.
+ */
+export function indexPrimaryOddsByEvent(
+  rows: OddsWithSportsbookName[],
+): Map<string, OddsWithSportsbookName> {
+  const map = new Map<string, OddsWithSportsbookName>();
+  for (const row of rows) {
+    if (!map.has(row.eventId)) {
+      map.set(row.eventId, row);
+    }
+  }
+  return map;
+}
+
 export async function getOddsForEventsWithSportsbook(
   eventIds: string[],
   tx?: Transaction,

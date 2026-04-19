@@ -32,8 +32,7 @@ export function MyPicksHeader({
           Record
         </span>
         <span className="text-sm font-medium tabular-nums">
-          {wins}-{losses}
-          {pushes > 0 ? `-${pushes}` : ""}
+          {wins}-{losses}-{pushes}
         </span>
       </div>
       <div className="flex flex-col items-end">

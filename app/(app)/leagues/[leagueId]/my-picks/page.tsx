@@ -8,7 +8,7 @@ import { SubmitPicksForm } from "@/components/picks/submit-picks-form";
 import {
   getEventsByPhaseWithTeams,
   getOddsForEventsWithSportsbook,
-  type OddsWithSportsbookName,
+  indexPrimaryOddsByEvent,
 } from "@/data/events";
 import { getLeagueById, getLeagueMemberCount } from "@/data/leagues";
 import { getPhasesBySeason } from "@/data/phases";
@@ -17,13 +17,11 @@ import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getLeagueStanding } from "@/data/standings";
 import { getSession } from "@/lib/auth";
 import {
-  comparePhasesByOrdinal,
-  isPhaseInLeagueRange,
   isPhaseLocked,
   isPickLocked,
   phaseLabel,
+  resolvePhaseView,
   selectCurrentSeason,
-  selectLeagueCurrentPhase,
 } from "@/lib/nfl/leagues";
 import { getAppNow } from "@/lib/simulator";
 
@@ -52,30 +50,18 @@ export default async function MyPicksPage(
   }
 
   const allPhases = await getPhasesBySeason(currentSeason.id);
-  const phasesInRange = allPhases
-    .filter((p) => isPhaseInLeagueRange(p, league))
-    .sort(comparePhasesByOrdinal);
-
-  const requestedPhase = requestedPhaseId
-    ? (phasesInRange.find((p) => p.id === requestedPhaseId) ?? null)
-    : null;
-  const selectedPhase =
-    requestedPhase ?? selectLeagueCurrentPhase(allPhases, league, now);
-
-  if (!selectedPhase) {
+  const resolved = resolvePhaseView({
+    league,
+    allPhases,
+    requestedPhaseId,
+    now,
+  });
+  if (resolved.kind === "no-phases-in-range") {
     return (
       <EmptyState message="This league's schedule range has no synced phases yet." />
     );
   }
-
-  const currentIndex = phasesInRange.findIndex(
-    (p) => p.id === selectedPhase.id,
-  );
-  const prevPhase = currentIndex > 0 ? phasesInRange[currentIndex - 1] : null;
-  const nextPhase =
-    currentIndex >= 0 && currentIndex < phasesInRange.length - 1
-      ? phasesInRange[currentIndex + 1]
-      : null;
+  const { selectedPhase, prevPhase, nextPhase } = resolved;
 
   const events = await getEventsByPhaseWithTeams(selectedPhase.id);
   const [standing, picks, oddsRows] = await Promise.all([
@@ -83,15 +69,7 @@ export default async function MyPicksPage(
     getPicksForLeaguePhase(leagueId, session.user.id, selectedPhase.id),
     getOddsForEventsWithSportsbook(events.map((e) => e.id)),
   ]);
-  // Deterministic dedupe: data layer orders by sportsbook name ascending,
-  // so the first row we see per event is the one we keep. When multiple
-  // sportsbooks get seeded this becomes the place to decide priority.
-  const oddsByEventId = new Map<string, OddsWithSportsbookName>();
-  for (const row of oddsRows) {
-    if (!oddsByEventId.has(row.eventId)) {
-      oddsByEventId.set(row.eventId, row);
-    }
-  }
+  const oddsByEventId = indexPrimaryOddsByEvent(oddsRows);
   const pickByEventId = new Map(picks.map((p) => [p.eventId, p]));
   const phaseLocked = isPhaseLocked(selectedPhase, now);
 

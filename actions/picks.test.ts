@@ -6,10 +6,14 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/data/events", () => ({
-  getEventsByPhaseWithTeams: vi.fn(),
-  getOddsForEventsWithSportsbook: vi.fn(),
-}));
+vi.mock("@/data/events", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/data/events")>();
+  return {
+    ...original,
+    getEventsByPhaseWithTeams: vi.fn(),
+    getOddsForEventsWithSportsbook: vi.fn(),
+  };
+});
 
 vi.mock("@/data/leagues", () => ({
   getLeagueById: vi.fn(),

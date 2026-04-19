@@ -1,9 +1,7 @@
-import { formatInTimeZone } from "date-fns-tz";
 import { Lock, Unlock } from "lucide-react";
 
+import { formatEasternDateTime } from "@/lib/nfl/scheduling";
 import { cn } from "@/lib/utils";
-
-const DISPLAY_TIME_ZONE = "America/New_York";
 
 export function PickLockBanner({
   pickLockTime,
@@ -12,11 +10,7 @@ export function PickLockBanner({
   pickLockTime: Date;
   isLocked: boolean;
 }) {
-  const formatted = formatInTimeZone(
-    pickLockTime,
-    DISPLAY_TIME_ZONE,
-    "EEE MMM d, h:mm a 'ET'",
-  );
+  const formatted = formatEasternDateTime(pickLockTime);
 
   return (
     <div

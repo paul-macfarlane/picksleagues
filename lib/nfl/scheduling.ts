@@ -1,8 +1,17 @@
-import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 
 import type { EventStatus, SeasonType } from "@/lib/db/schema/sports";
 
-const EASTERN_TZ = "America/New_York";
+export const EASTERN_TZ = "America/New_York";
+
+/**
+ * Shared Eastern-time formatter for pick-lock banners and event kickoff
+ * display. NFL game times + §6.2 pick locks are defined in ET, so the
+ * UI consistently renders in ET.
+ */
+export function formatEasternDateTime(date: Date): string {
+  return formatInTimeZone(date, EASTERN_TZ, "EEE MMM d, h:mm a 'ET'");
+}
 const LOCK_HOUR = 13; // 1:00 PM
 const BOUNDARY_HOUR = 2; // 2:00 AM
 
