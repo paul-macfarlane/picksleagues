@@ -141,6 +141,57 @@ export function getLeagueSeasonState(
   return "in_progress";
 }
 
+// --- Phase-view resolution (shared by My Picks / League Picks pages) ---
+
+export type PhaseViewResolution =
+  | {
+      kind: "ok";
+      phasesInRange: Phase[];
+      selectedPhase: Phase;
+      prevPhase: Phase | null;
+      nextPhase: Phase | null;
+    }
+  | { kind: "no-phases-in-range" };
+
+/**
+ * Shared phase-resolution for any page rendering "pick view for one phase
+ * in this league" — filters the season's phases to the league's range,
+ * honors `?phase=<id>` when it points at an in-range phase, falls back to
+ * `selectLeagueCurrentPhase`, and computes prev/next neighbors. Returns a
+ * discriminated result so the caller can render a distinct empty state
+ * when the league range has no synced phases.
+ */
+export function resolvePhaseView(params: {
+  league: LeagueRange;
+  allPhases: Phase[];
+  requestedPhaseId: string | null;
+  now: Date;
+}): PhaseViewResolution {
+  const phasesInRange = params.allPhases
+    .filter((p) => isPhaseInLeagueRange(p, params.league))
+    .sort(comparePhasesByOrdinal);
+
+  const requestedPhase = params.requestedPhaseId
+    ? (phasesInRange.find((p) => p.id === params.requestedPhaseId) ?? null)
+    : null;
+  const selectedPhase =
+    requestedPhase ??
+    selectLeagueCurrentPhase(params.allPhases, params.league, params.now);
+
+  if (!selectedPhase) return { kind: "no-phases-in-range" };
+
+  const currentIndex = phasesInRange.findIndex(
+    (p) => p.id === selectedPhase.id,
+  );
+  const prevPhase = currentIndex > 0 ? phasesInRange[currentIndex - 1] : null;
+  const nextPhase =
+    currentIndex >= 0 && currentIndex < phasesInRange.length - 1
+      ? phasesInRange[currentIndex + 1]
+      : null;
+
+  return { kind: "ok", phasesInRange, selectedPhase, prevPhase, nextPhase };
+}
+
 // --- Phase resolution for the picks view ---
 
 /**

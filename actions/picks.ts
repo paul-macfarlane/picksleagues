@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   getEventsByPhaseWithTeams,
   getOddsForEventsWithSportsbook,
-  type OddsWithSportsbookName,
+  indexPrimaryOddsByEvent,
 } from "@/data/events";
 import { getLeagueById } from "@/data/leagues";
 import { getPhaseById } from "@/data/phases";
@@ -123,15 +123,9 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
   // pick is scored against what the user saw — §9.3.
   const frozenSpreadByEventId = new Map<string, number>();
   if (league.pickType === "against_the_spread") {
-    const oddsByEventId = new Map<string, OddsWithSportsbookName>();
-    const rows = await getOddsForEventsWithSportsbook(
-      selections.map((s) => s.eventId),
+    const oddsByEventId = indexPrimaryOddsByEvent(
+      await getOddsForEventsWithSportsbook(selections.map((s) => s.eventId)),
     );
-    for (const row of rows) {
-      if (!oddsByEventId.has(row.eventId)) {
-        oddsByEventId.set(row.eventId, row);
-      }
-    }
     for (const sel of selections) {
       const odds = oddsByEventId.get(sel.eventId);
       const event = eventsById.get(sel.eventId);

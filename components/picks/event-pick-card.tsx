@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { formatInTimeZone } from "date-fns-tz";
 import { Check, Lock } from "lucide-react";
 
 import type { OddsWithSportsbookName } from "@/data/events";
@@ -10,9 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { PickType } from "@/lib/db/schema/leagues";
 import type { PickResult } from "@/lib/db/schema/picks";
 import type { Event, Team } from "@/lib/db/schema/sports";
+import { formatEasternDateTime } from "@/lib/nfl/scheduling";
 import { cn } from "@/lib/utils";
-
-const DISPLAY_TIME_ZONE = "America/New_York";
 
 const RESULT_LABELS: Record<PickResult, string> = {
   win: "Win",
@@ -223,7 +221,7 @@ function EventStatusLine({ event }: { event: Event }) {
       <div className="flex items-center gap-2 px-1 pt-1 text-xs uppercase tracking-wide text-muted-foreground">
         <span className="font-semibold text-foreground">Final</span>
         <span>·</span>
-        <span>{formatDateTime(event.startTime)}</span>
+        <span>{formatEasternDateTime(event.startTime)}</span>
       </div>
     );
   }
@@ -239,7 +237,7 @@ function EventStatusLine({ event }: { event: Event }) {
   }
   return (
     <div className="px-1 pt-1 text-xs text-muted-foreground">
-      {formatDateTime(event.startTime)}
+      {formatEasternDateTime(event.startTime)}
     </div>
   );
 }
@@ -247,10 +245,6 @@ function EventStatusLine({ event }: { event: Event }) {
 function formatSpread(value: number): string {
   if (value > 0) return `+${value}`;
   return `${value}`;
-}
-
-function formatDateTime(date: Date): string {
-  return formatInTimeZone(date, DISPLAY_TIME_ZONE, "EEE MMM d, h:mm a 'ET'");
 }
 
 function isFinalWinner(event: Event, side: "home" | "away"): boolean {
