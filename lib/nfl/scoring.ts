@@ -7,6 +7,17 @@ export const POINTS_PER_PUSH = 0.5;
 export const POINTS_PER_LOSS = 0;
 
 /**
+ * BUSINESS_SPEC §8.2 points are always `wins + 0.5 × pushes`, so values
+ * are either integer or ending in `.5`. Render whole numbers without a
+ * trailing decimal so the leaderboard doesn't read as "5.0" next to
+ * "4.5".
+ */
+export function formatPoints(points: number): string {
+  if (Number.isInteger(points)) return points.toString();
+  return points.toFixed(1);
+}
+
+/**
  * BUSINESS_SPEC §8.1.
  *
  * Returns null when the event isn't final or doesn't have both scores yet —

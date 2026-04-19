@@ -172,6 +172,44 @@ export function selectLeagueCurrentPhase(
   )[0];
 }
 
+// --- Standings season selection ---
+
+/**
+ * BUSINESS_SPEC §3.5 / §12.4: the Standings tab shows the current season
+ * by default and supports navigating to prior seasons. Resolution order:
+ * explicit `?season` param (if present in the historical list) → the
+ * current season (if the league has standings for it) → the most recent
+ * historical season with standings → the current season as a last resort
+ * so new leagues render an empty-standings state with the right year.
+ */
+export function selectStandingsSeason({
+  seasonsWithStandings,
+  currentSeason,
+  requestedSeasonId,
+}: {
+  seasonsWithStandings: Season[];
+  currentSeason: Season | null;
+  requestedSeasonId: string | null;
+}): Season | null {
+  if (requestedSeasonId) {
+    const requested = seasonsWithStandings.find(
+      (s) => s.id === requestedSeasonId,
+    );
+    if (requested) return requested;
+  }
+  if (currentSeason) {
+    const currentWithStandings = seasonsWithStandings.find(
+      (s) => s.id === currentSeason.id,
+    );
+    if (currentWithStandings) return currentWithStandings;
+  }
+  const mostRecentHistorical = [...seasonsWithStandings].sort(
+    (a, b) => b.year - a.year,
+  )[0];
+  if (mostRecentHistorical) return mostRecentHistorical;
+  return currentSeason;
+}
+
 // --- Pick lock gates ---
 
 export function isPhaseLocked(
