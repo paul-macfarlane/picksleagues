@@ -1,4 +1,5 @@
 import type { LeagueStanding } from "@/lib/db/schema/leagues";
+import { formatPoints } from "@/lib/nfl/scoring";
 
 export function MyPicksHeader({
   standing,
@@ -45,9 +46,4 @@ export function MyPicksHeader({
       </div>
     </section>
   );
-}
-
-function formatPoints(points: number): string {
-  if (Number.isInteger(points)) return points.toString();
-  return points.toFixed(1);
 }

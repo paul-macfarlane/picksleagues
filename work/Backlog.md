@@ -281,7 +281,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - `calculatePickResult` is deterministic from the event's current score — no caching assumptions beyond the stored `pickResult` field, which is invalidated on admin event edits (see PL-015)
   - Tests for all scoring edge cases
 
-- [~] PL-031: Standings + leaderboard UI (BUSINESS_SPEC §8.3-8.4, §12.4)
+- [x] PL-031: Standings + leaderboard UI (BUSINESS_SPEC §8.3-8.4, §12.4)
   - Standings tab: sortable table with rank, player, points, W/L/P
   - Dense ranking
   - Season history (prior season standings preserved)

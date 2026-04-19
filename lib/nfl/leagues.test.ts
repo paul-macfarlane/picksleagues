@@ -14,6 +14,7 @@ import {
   selectCurrentSeason,
   selectLeagueCurrentPhase,
   selectLeagueStartPhase,
+  selectStandingsSeason,
   type LeagueRange,
 } from "./leagues";
 
@@ -552,6 +553,62 @@ describe("selectLeagueCurrentPhase", () => {
   it("returns null when the range has no synced phases", () => {
     expect(
       selectLeagueCurrentPhase([week1], postseasonRange, new Date()),
+    ).toBeNull();
+  });
+});
+
+describe("selectStandingsSeason", () => {
+  const year2024 = season({ year: 2024 });
+  const year2025 = season({ year: 2025 });
+  const year2026 = season({ year: 2026 });
+
+  it("honors ?season when it's in the historical list", () => {
+    expect(
+      selectStandingsSeason({
+        seasonsWithStandings: [year2024, year2025],
+        currentSeason: year2026,
+        requestedSeasonId: year2024.id,
+      }),
+    ).toEqual(year2024);
+  });
+
+  it("ignores a stale ?season and falls back to the current season when it has standings", () => {
+    expect(
+      selectStandingsSeason({
+        seasonsWithStandings: [year2025, year2026],
+        currentSeason: year2026,
+        requestedSeasonId: "bogus-id",
+      }),
+    ).toEqual(year2026);
+  });
+
+  it("falls back to the most recent historical season when the current one has no standings", () => {
+    expect(
+      selectStandingsSeason({
+        seasonsWithStandings: [year2024, year2025],
+        currentSeason: year2026,
+        requestedSeasonId: null,
+      }),
+    ).toEqual(year2025);
+  });
+
+  it("returns the current season for a brand-new league (no standings yet)", () => {
+    expect(
+      selectStandingsSeason({
+        seasonsWithStandings: [],
+        currentSeason: year2026,
+        requestedSeasonId: null,
+      }),
+    ).toEqual(year2026);
+  });
+
+  it("returns null when no seasons are available at all", () => {
+    expect(
+      selectStandingsSeason({
+        seasonsWithStandings: [],
+        currentSeason: null,
+        requestedSeasonId: null,
+      }),
     ).toBeNull();
   });
 });

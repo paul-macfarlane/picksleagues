@@ -1,10 +1,88 @@
-import { ComingSoon } from "@/components/leagues/coming-soon";
+import { notFound } from "next/navigation";
 
-export default function LeagueStandingsPage() {
+import {
+  SeasonSwitcher,
+  type SeasonOption,
+} from "@/components/leagues/season-switcher";
+import { StandingsTable } from "@/components/leagues/standings-table";
+import { getLeagueById } from "@/data/leagues";
+import {
+  getSeasonsWithStandingsForLeague,
+  getStandingsForLeagueSeasonWithProfiles,
+} from "@/data/standings";
+import { getSeasonsBySportsLeague } from "@/data/seasons";
+import { getSession } from "@/lib/auth";
+import { selectCurrentSeason, selectStandingsSeason } from "@/lib/nfl/leagues";
+import { getAppNow } from "@/lib/simulator";
+
+export default async function LeagueStandingsPage(
+  props: PageProps<"/leagues/[leagueId]">,
+) {
+  const { leagueId } = await props.params;
+  const searchParams = await props.searchParams;
+  const session = await getSession();
+
+  const league = await getLeagueById(leagueId);
+  if (!league) notFound();
+
+  const now = await getAppNow();
+  const [seasons, seasonsWithStandings] = await Promise.all([
+    getSeasonsBySportsLeague(league.sportsLeagueId),
+    getSeasonsWithStandingsForLeague(leagueId),
+  ]);
+  const currentSeason = selectCurrentSeason(seasons, now);
+
+  const requestedSeasonId =
+    typeof searchParams.season === "string" ? searchParams.season : null;
+  const selectedSeason = selectStandingsSeason({
+    seasonsWithStandings,
+    currentSeason,
+    requestedSeasonId,
+  });
+
+  if (!selectedSeason) {
+    return (
+      <section className="rounded-lg border border-dashed p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          No season data available yet.
+        </p>
+      </section>
+    );
+  }
+
+  const standings = await getStandingsForLeagueSeasonWithProfiles(
+    leagueId,
+    selectedSeason.id,
+  );
+
+  // Dropdown draws from historical seasons; include the current season
+  // when it's not yet in the historical list so brand-new leagues still
+  // show the current year as an option rather than hiding the switcher.
+  const seasonOptions: SeasonOption[] = seasonsWithStandings.map((s) => ({
+    id: s.id,
+    year: s.year,
+  }));
+  if (
+    currentSeason &&
+    !seasonOptions.some((option) => option.id === currentSeason.id)
+  ) {
+    seasonOptions.push({ id: currentSeason.id, year: currentSeason.year });
+  }
+  // Newest first — matches every other "season list" in the app.
+  seasonOptions.sort((a, b) => b.year - a.year);
+
   return (
-    <ComingSoon
-      title="Standings"
-      description="The leaderboard shows up here once picks and scoring ship."
-    />
+    <div className="flex flex-col gap-4">
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Standings</h2>
+        {seasonOptions.length > 1 ? (
+          <SeasonSwitcher
+            options={seasonOptions}
+            selectedSeasonId={selectedSeason.id}
+          />
+        ) : null}
+      </header>
+      <StandingsTable standings={standings} viewerUserId={session.user.id} />
+    </div>
   );
 }
