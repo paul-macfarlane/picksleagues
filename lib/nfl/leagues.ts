@@ -271,6 +271,22 @@ export function isPhaseLocked(
 }
 
 /**
+ * A game is "started" once either its status has moved off `not_started`
+ * OR wall-clock time has reached its scheduled kickoff. Status is the
+ * authoritative signal — an admin can flip a game to `in_progress` /
+ * `final` via override without touching `startTime`, and we still need
+ * to lock picks. Time is the fallback that covers the common case of
+ * ESPN sync being slightly behind kickoff.
+ */
+export function hasEventStarted(
+  event: Pick<Event, "status" | "startTime">,
+  now: Date,
+): boolean {
+  if (event.status !== "not_started") return true;
+  return now.getTime() >= event.startTime.getTime();
+}
+
+/**
  * BUSINESS_SPEC §7.1 / §7.2: picks are locked when either the phase's pick
  * lock time has passed OR the specific game has already kicked off. The
  * per-event kickoff gate fires ahead of the phase-wide lock for early
@@ -278,10 +294,8 @@ export function isPhaseLocked(
  */
 export function isPickLocked(
   phase: Pick<Phase, "pickLockTime">,
-  event: Pick<Event, "startTime">,
+  event: Pick<Event, "status" | "startTime">,
   now: Date,
 ): boolean {
-  return (
-    isPhaseLocked(phase, now) || now.getTime() >= event.startTime.getTime()
-  );
+  return isPhaseLocked(phase, now) || hasEventStarted(event, now);
 }

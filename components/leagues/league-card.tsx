@@ -12,10 +12,10 @@ export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
   return (
     <Link
       href={`/leagues/${league.id}`}
-      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+      className="block h-full rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Card className="h-full transition-colors hover:border-primary/50 active:bg-muted/60">
-        <CardContent className="flex items-center gap-4 p-4">
+        <CardContent className="flex h-full items-center gap-4 p-4">
           <LeagueAvatar
             name={league.name}
             imageUrl={league.imageUrl}
@@ -23,19 +23,22 @@ export function LeagueCard({ league }: { league: LeagueWithMemberCount }) {
           />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h3 className="truncate text-base font-semibold">{league.name}</h3>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="secondary" className="font-normal">
                 {PICK_TYPE_LABELS[league.pickType]}
               </Badge>
-              <span>{league.picksPerPhase} picks / week</span>
-              <span className="flex items-center gap-1">
+              <span className="truncate">
+                {league.picksPerPhase} picks / week
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1">
                 <UsersIcon className="size-3" aria-hidden />
                 {league.memberCount}/{league.size}
               </span>
+              <span aria-hidden>·</span>
+              <span className="truncate">{formatLeagueRange(league)}</span>
             </div>
-            <p className="truncate text-xs text-muted-foreground">
-              {formatLeagueRange(league)}
-            </p>
           </div>
           <ChevronRightIcon
             className="size-4 shrink-0 text-muted-foreground"

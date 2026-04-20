@@ -168,6 +168,11 @@ export async function updateEventAction(input: unknown): Promise<ActionResult> {
   await runStandingsRecalcForEvent(id);
 
   revalidatePath(OVERRIDES_PATH);
+  // Status/score changes on an event affect every league page that
+  // renders that event (my-picks, league-picks, standings). Revalidate
+  // the whole `/leagues` subtree so users don't see a stale `not_started`
+  // row and bypass the pick lock.
+  revalidatePath("/leagues", "layout");
   return { success: true, data: undefined };
 }
 

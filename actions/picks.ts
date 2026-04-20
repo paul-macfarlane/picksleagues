@@ -8,16 +8,22 @@ import {
   indexPrimaryOddsByEvent,
 } from "@/data/events";
 import { getLeagueById } from "@/data/leagues";
-import { getPhaseById } from "@/data/phases";
-import { deleteUserPicksForEvents, insertPicks } from "@/data/picks";
+import { getPhasesBySeason } from "@/data/phases";
+import {
+  deleteUserPicksForEvents,
+  getPicksForLeaguePhase,
+  insertPicks,
+} from "@/data/picks";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { withTransaction } from "@/data/utils";
 import { getSession } from "@/lib/auth";
 import type { NewPick } from "@/lib/db/schema/picks";
 import {
+  hasEventStarted,
   isPhaseInLeagueRange,
   isPhaseLocked,
   selectCurrentSeason,
+  selectLeagueCurrentPhase,
 } from "@/lib/nfl/leagues";
 import { assertLeagueMember } from "@/lib/permissions";
 import { getAppNow } from "@/lib/simulator";
@@ -43,28 +49,30 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
     return { success: false, error: "League not found." };
   }
 
-  const phase = await getPhaseById(phaseId);
-  if (!phase) {
-    return { success: false, error: "Phase not found." };
+  const now = await getAppNow();
+
+  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
+  const currentSeason = selectCurrentSeason(seasons, now);
+  if (!currentSeason) {
+    return { success: false, error: "No active season for this league." };
   }
+
+  // §7.1 #2: picks can only be submitted for the current phase — the phase
+  // that §6.3 resolves given "now" and the league's range. Future and past
+  // phases in the range are view-only.
+  const seasonPhases = await getPhasesBySeason(currentSeason.id);
+  const currentPhase = selectLeagueCurrentPhase(seasonPhases, league, now);
+  if (!currentPhase || currentPhase.id !== phaseId) {
+    return {
+      success: false,
+      error: "You can only submit picks for the current week.",
+    };
+  }
+  const phase = currentPhase;
   if (!isPhaseInLeagueRange(phase, league)) {
     return {
       success: false,
       error: "That phase isn't part of this league's schedule.",
-    };
-  }
-
-  const now = await getAppNow();
-
-  // §7.1 #2: picks can only be submitted for the current phase. The phase
-  // must belong to the league's sport AND to the current season (not a
-  // prior year's "Week 3" whose tuple also matches the league's range).
-  const seasons = await getSeasonsBySportsLeague(league.sportsLeagueId);
-  const currentSeason = selectCurrentSeason(seasons, now);
-  if (!currentSeason || phase.seasonId !== currentSeason.id) {
-    return {
-      success: false,
-      error: "That phase isn't in the current season.",
     };
   }
 
@@ -74,13 +82,32 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
 
   const events = await getEventsByPhaseWithTeams(phase.id);
   const eventsById = new Map(events.map((e) => [e.id, e]));
-  const unstartedEvents = events.filter((e) => now < e.startTime);
-  const requiredCount = Math.min(league.picksPerPhase, unstartedEvents.length);
+  const unstartedEvents = events.filter((e) => !hasEventStarted(e, now));
+  const unstartedEventIds = new Set(unstartedEvents.map((e) => e.id));
+
+  // §7.1 #4: picks already locked in on started games consume the
+  // league's picksPerPhase budget. Required count for THIS submission is
+  // the remaining quota, clamped to the unstarted pool.
+  const existingPicks = await getPicksForLeaguePhase(
+    leagueId,
+    session.user.id,
+    phase.id,
+  );
+  const lockedPickCount = existingPicks.filter(
+    (p) => !unstartedEventIds.has(p.eventId),
+  ).length;
+  const requiredCount = Math.min(
+    Math.max(league.picksPerPhase - lockedPickCount, 0),
+    unstartedEvents.length,
+  );
 
   if (requiredCount === 0) {
     return {
       success: false,
-      error: "No games left to pick for this phase.",
+      error:
+        lockedPickCount >= league.picksPerPhase
+          ? "You've already locked in all your picks for this phase."
+          : "No games left to pick for this phase.",
     };
   }
 
@@ -105,7 +132,7 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
         error: "Pick references a game that isn't in this phase.",
       };
     }
-    if (now >= event.startTime) {
+    if (hasEventStarted(event, now)) {
       return {
         success: false,
         error: "Can't pick a game that has already started.",
@@ -120,7 +147,11 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
   }
 
   // For ATS leagues, freeze the current spread at submission time so the
-  // pick is scored against what the user saw — §9.3.
+  // pick is scored against what the user saw — §9.3. The client sends an
+  // `expectedSpread` per pick (the line it displayed when the user hit
+  // submit); if that doesn't match the server's current spread, we bail
+  // with STALE_ODDS so the client can refresh and show the moved line
+  // before the user commits.
   const frozenSpreadByEventId = new Map<string, number>();
   if (league.pickType === "against_the_spread") {
     const oddsByEventId = indexPrimaryOddsByEvent(
@@ -136,23 +167,30 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
             "Spreads aren't available yet for one of the games. Try again in a moment.",
         };
       }
-      const spread =
+      const serverSpread =
         sel.teamId === event.homeTeamId ? odds.homeSpread : odds.awaySpread;
-      if (spread == null) {
+      if (serverSpread == null) {
         return {
           success: false,
           error:
             "Spreads aren't available yet for one of the games. Try again in a moment.",
         };
       }
-      frozenSpreadByEventId.set(sel.eventId, spread);
+      if (sel.expectedSpread == null || sel.expectedSpread !== serverSpread) {
+        return {
+          success: false,
+          error:
+            "Lines moved while you were submitting — odds refreshed. Please review before re-submitting.",
+          code: "STALE_ODDS",
+        };
+      }
+      frozenSpreadByEventId.set(sel.eventId, serverSpread);
     }
   }
 
   // Replace the user's picks on unstarted events for this phase. Picks on
   // games that have already started are preserved automatically — they
   // aren't in `unstartedEvents`, so the delete leaves them untouched.
-  const unstartedEventIds = unstartedEvents.map((e) => e.id);
   const picksToInsert: Omit<NewPick, "id" | "createdAt" | "updatedAt">[] =
     selections.map((sel) => ({
       leagueId,
@@ -166,7 +204,7 @@ export async function submitPicksAction(input: unknown): Promise<ActionResult> {
     await deleteUserPicksForEvents(
       leagueId,
       session.user.id,
-      unstartedEventIds,
+      Array.from(unstartedEventIds),
       tx,
     );
     await insertPicks(picksToInsert, tx);

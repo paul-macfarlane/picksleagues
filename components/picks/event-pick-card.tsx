@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Lock } from "lucide-react";
+import { Check, CircleDot, Lock, Minus, X } from "lucide-react";
 
 import type { OddsWithSportsbookName } from "@/data/events";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,15 @@ const RESULT_CLASSES: Record<PickResult, string> = {
   push: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
 };
 
+// Border + background tint applied to the picked team row once the game
+// is scored. Mirrors the result badge colors so the outcome reads at a
+// glance without relying on the badge alone.
+const RESULT_ROW_CLASSES: Record<PickResult, string> = {
+  win: "border-emerald-500/70 bg-emerald-500/10",
+  loss: "border-destructive/70 bg-destructive/10",
+  push: "border-amber-500/70 bg-amber-500/10",
+};
+
 export function EventPickCard({
   event,
   homeTeam,
@@ -32,6 +41,7 @@ export function EventPickCard({
   pickType,
   selectedTeamId,
   frozenSpread,
+  priorFrozenSpread = null,
   pickResult,
   isLocked,
   onSelect,
@@ -43,6 +53,7 @@ export function EventPickCard({
   pickType: PickType;
   selectedTeamId: string | null;
   frozenSpread: number | null;
+  priorFrozenSpread?: number | null;
   pickResult: PickResult | null;
   isLocked: boolean;
   onSelect?: (teamId: string) => void;
@@ -51,18 +62,51 @@ export function EventPickCard({
   const showSpread = pickType === "against_the_spread";
   const interactive = !isLocked && typeof onSelect === "function";
 
-  const spreadFor = (side: "home" | "away"): string | null => {
+  const spreadFor = (
+    side: "home" | "away",
+  ): { value: string; hint: string | null } | null => {
     if (!showSpread) return null;
     const sideTeamId = side === "home" ? homeTeam.id : awayTeam.id;
     const isPickedSide = selectedTeamId === sideTeamId;
-    // Frozen spread only applies to the picked side; other side + unpicked
-    // cards show the current live line.
-    if (isPickedSide && frozenSpread != null) return formatSpread(frozenSpread);
+    // When a frozen spread exists (saved pick, clean state or post-lock),
+    // show it on BOTH sides — spreads are zero-sum, so the unpicked side's
+    // frozen value is the negation. This avoids the visual mismatch where
+    // the picked team would show -3.5 and the opponent would show the new
+    // live +7 after a line move.
+    if (frozenSpread != null && selectedTeamId != null) {
+      const signed = isPickedSide ? frozenSpread : -frozenSpread;
+      return { value: formatSpread(signed), hint: null };
+    }
     const live =
       side === "home" ? (odds?.homeSpread ?? null) : (odds?.awaySpread ?? null);
     if (live == null) return null;
-    return formatSpread(live);
+    // When we're rendering live on the picked side and a prior frozen spread
+    // exists (user has saved picks but is currently editing), surface the
+    // delta so they can see what re-submitting will change.
+    const hint =
+      isPickedSide && priorFrozenSpread != null && priorFrozenSpread !== live
+        ? `was ${formatSpread(priorFrozenSpread)}`
+        : null;
+    return { value: formatSpread(live), hint };
   };
+
+  // Pre-lock "line moved" indicator: when we're displaying the frozen
+  // spread on both sides but the current live line differs, surface the
+  // movement on the card itself so the user can see where the line is now.
+  // Suppressed post-lock — the live line isn't relevant once the pick is
+  // final.
+  const pickedLiveSpread =
+    !isLocked && frozenSpread != null && selectedTeamId != null
+      ? selectedTeamId === homeTeam.id
+        ? (odds?.homeSpread ?? null)
+        : selectedTeamId === awayTeam.id
+          ? (odds?.awaySpread ?? null)
+          : null
+      : null;
+  const lineMoved =
+    frozenSpread != null &&
+    pickedLiveSpread != null &&
+    pickedLiveSpread !== frozenSpread;
 
   return (
     <Card size="sm" className="gap-0">
@@ -94,6 +138,12 @@ export function EventPickCard({
           }
         />
         <EventStatusLine event={event} />
+        {lineMoved && frozenSpread != null && pickedLiveSpread != null ? (
+          <div className="px-1 pt-1 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            Spread moved · {formatSpread(frozenSpread)} →{" "}
+            {formatSpread(pickedLiveSpread)}
+          </div>
+        ) : null}
         {showSpread && odds ? (
           <div className="px-1 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
             Odds by {odds.sportsbookName}
@@ -117,7 +167,7 @@ function TeamRow({
 }: {
   team: Team;
   score: number | null;
-  spread: string | null;
+  spread: { value: string; hint: string | null } | null;
   picked: boolean;
   pickResult: PickResult | null;
   isLocked: boolean;
@@ -129,13 +179,25 @@ function TeamRow({
     <>
       <div className="flex min-w-0 items-center gap-2">
         {picked ? (
-          isLocked ? (
+          pickResult === "win" ? (
+            <Check className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+          ) : pickResult === "loss" ? (
+            <X className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
+          ) : pickResult === "push" ? (
+            <Minus
+              className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden
+            />
+          ) : isLocked ? (
             <Lock
               className="h-4 w-4 shrink-0 text-muted-foreground"
               aria-hidden
             />
           ) : (
-            <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            // Unscored + editable — radio-dot glyph rather than a check so
+            // "selected" doesn't read as "correct" once other rows show the
+            // result-colored Check.
+            <CircleDot className="h-4 w-4 shrink-0 text-primary" aria-hidden />
           )
         ) : null}
         <TeamLogo team={team} />
@@ -148,8 +210,13 @@ function TeamRow({
           {team.location} {team.name}
         </span>
         {spread ? (
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {spread}
+          <span className="flex items-baseline gap-1 text-xs tabular-nums">
+            <span className="text-muted-foreground">{spread.value}</span>
+            {spread.hint ? (
+              <span className="text-amber-600 dark:text-amber-400">
+                ({spread.hint})
+              </span>
+            ) : null}
           </span>
         ) : null}
       </div>
@@ -171,9 +238,12 @@ function TeamRow({
     </>
   );
 
+  const pickedClasses = pickResult
+    ? RESULT_ROW_CLASSES[pickResult]
+    : "border-primary bg-primary/5";
   const baseClass = cn(
     "flex items-center justify-between gap-2 rounded-md border px-3 py-2 transition-colors",
-    picked ? "border-primary bg-primary/5" : "border-transparent bg-muted/30",
+    picked ? pickedClasses : "border-transparent bg-muted/30",
   );
 
   if (interactive) {

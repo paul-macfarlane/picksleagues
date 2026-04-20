@@ -284,7 +284,10 @@ When a user views their league, the system determines the "current phase":
 
 ### 6.4 Phase Navigation
 
-Users can browse to previous and future phases using prev/next navigation. This allows viewing historical picks and results.
+Users can browse to previous and future phases using prev/next navigation. Both are **view-only**:
+
+- **Past phases** show locked picks and scored results.
+- **Future phases** show their game schedule (and odds, if synced) but **do not accept pick submissions** — the submit form is hidden and the action rejects any attempt. Users pick one week at a time, for the current phase only. This avoids carrying forward a pick made against a line that moves, and avoids asking users to commit to games before odds stabilize.
 
 ### 6.5 Excluded Phases
 
@@ -300,9 +303,9 @@ Users can browse to previous and future phases using prev/next navigation. This 
 All of the following must be true for picks to be accepted:
 
 1. The user **is a member** of the league.
-2. Picks are for the **current phase only** — users cannot submit picks for past or future phases.
+2. Picks are for the **current phase only** — users cannot submit picks for past or future phases. The current phase is the one §6.3 resolves to; all other phases in the league's range are view-only (§6.4). Attempting to submit picks against a non-current phaseId is rejected.
 3. The phase's **pick lock time has not passed**.
-4. The user must submit picks for **exactly** `min(league's picks-per-phase setting, number of games that haven't started yet this phase)` games.
+4. The user must submit picks for **exactly** `min(picksPerPhase − lockedPickCount, unstartedEvents)` games, where `lockedPickCount` is the number of picks the user already has on games that have started this phase. The league's `picksPerPhase` setting is the total per-phase budget — picks locked in on earlier games (e.g. Thursday Night Football) consume that budget, so a re-submission only asks for the remaining quota. When the budget is exhausted, no further picks can be submitted for the phase even if unstarted games remain.
 5. No **duplicate games** — each game can only be picked once per submission.
 6. Every picked game must be in the current phase and must **not have started yet**.
 7. The selected team must be a valid participant (home or away) in the corresponding game.

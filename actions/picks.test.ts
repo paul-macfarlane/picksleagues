@@ -20,12 +20,13 @@ vi.mock("@/data/leagues", () => ({
 }));
 
 vi.mock("@/data/phases", () => ({
-  getPhaseById: vi.fn(),
+  getPhasesBySeason: vi.fn(),
 }));
 
 vi.mock("@/data/picks", () => ({
   deleteUserPicksForEvents: vi.fn(),
   insertPicks: vi.fn(),
+  getPicksForLeaguePhase: vi.fn(),
 }));
 
 vi.mock("@/data/seasons", () => ({
@@ -53,8 +54,12 @@ import {
   getOddsForEventsWithSportsbook,
 } from "@/data/events";
 import { getLeagueById } from "@/data/leagues";
-import { getPhaseById } from "@/data/phases";
-import { deleteUserPicksForEvents, insertPicks } from "@/data/picks";
+import { getPhasesBySeason } from "@/data/phases";
+import {
+  deleteUserPicksForEvents,
+  getPicksForLeaguePhase,
+  insertPicks,
+} from "@/data/picks";
 import { getSeasonsBySportsLeague } from "@/data/seasons";
 import { getSession } from "@/lib/auth";
 import { assertLeagueMember } from "@/lib/permissions";
@@ -177,12 +182,13 @@ beforeEach(() => {
     updatedAt: new Date(),
   });
   vi.mocked(getLeagueById).mockResolvedValue(straightUpLeague);
-  vi.mocked(getPhaseById).mockResolvedValue(openPhase);
+  vi.mocked(getPhasesBySeason).mockResolvedValue([openPhase]);
   vi.mocked(getSeasonsBySportsLeague).mockResolvedValue([currentSeason]);
   vi.mocked(getAppNow).mockResolvedValue(nowBeforeLock);
   vi.mocked(getOddsForEventsWithSportsbook).mockResolvedValue([]);
   vi.mocked(deleteUserPicksForEvents).mockResolvedValue(undefined);
   vi.mocked(insertPicks).mockResolvedValue([]);
+  vi.mocked(getPicksForLeaguePhase).mockResolvedValue([]);
 });
 
 describe("submitPicksAction", () => {
@@ -218,28 +224,61 @@ describe("submitPicksAction", () => {
     expect(result).toEqual({ success: false, error: "League not found." });
   });
 
-  it("rejects a phase that isn't in the league's range", async () => {
-    vi.mocked(getPhaseById).mockResolvedValueOnce({
-      ...openPhase,
-      seasonType: "postseason",
-      weekNumber: 1,
-    });
+  it("rejects a future phase (§7.1 #2 — current phase only)", async () => {
+    // The submitted phase is Week 4, but Week 3 is the current phase given
+    // `now` is inside Week 3's active window.
+    const futurePhaseId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
+      openPhase,
+      {
+        ...openPhase,
+        id: futurePhaseId,
+        weekNumber: 4,
+        startDate: new Date("2099-09-27T00:00:00Z"),
+        endDate: new Date("2099-10-04T00:00:00Z"),
+        pickLockTime: new Date("2099-09-28T17:00:00Z"),
+      },
+    ]);
     const result = await submitPicksAction({
       leagueId,
-      phaseId,
+      phaseId: futurePhaseId,
       picks: [{ eventId: eventAId, teamId: homeTeamId }],
     });
-    expect(result.success).toBe(false);
     expect(result).toMatchObject({
-      error: expect.stringContaining("isn't part of this league"),
+      success: false,
+      error: expect.stringContaining("current week"),
     });
+    expect(insertPicks).not.toHaveBeenCalled();
   });
 
-  it("rejects a phase whose seasonId doesn't match the current season", async () => {
-    vi.mocked(getPhaseById).mockResolvedValueOnce({
-      ...openPhase,
-      seasonId: "99999999-9999-4999-8999-999999999999",
+  it("rejects a past phase (§7.1 #2 — current phase only)", async () => {
+    // Week 2 already ended; Week 3 is the current phase.
+    const pastPhaseId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    vi.mocked(getPhasesBySeason).mockResolvedValueOnce([
+      {
+        ...openPhase,
+        id: pastPhaseId,
+        weekNumber: 2,
+        startDate: new Date("2099-09-13T00:00:00Z"),
+        endDate: new Date("2099-09-20T00:00:00Z"),
+        pickLockTime: new Date("2099-09-14T17:00:00Z"),
+      },
+      openPhase,
+    ]);
+    const result = await submitPicksAction({
+      leagueId,
+      phaseId: pastPhaseId,
+      picks: [{ eventId: eventAId, teamId: homeTeamId }],
     });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining("current week"),
+    });
+    expect(insertPicks).not.toHaveBeenCalled();
+  });
+
+  it("returns 'No active season' when the league has no current season", async () => {
+    vi.mocked(getSeasonsBySportsLeague).mockResolvedValueOnce([]);
     const result = await submitPicksAction({
       leagueId,
       phaseId,
@@ -247,7 +286,7 @@ describe("submitPicksAction", () => {
     });
     expect(result).toMatchObject({
       success: false,
-      error: expect.stringContaining("isn't in the current season"),
+      error: expect.stringContaining("No active season"),
     });
     expect(insertPicks).not.toHaveBeenCalled();
   });
@@ -297,6 +336,97 @@ describe("submitPicksAction", () => {
     expect(tooMany).toMatchObject({
       success: false,
       error: expect.stringContaining("exactly 2"),
+    });
+  });
+
+  it("locked picks consume the picksPerPhase budget — required = min(picksPerPhase − lockedPickCount, unstartedGames)", async () => {
+    // picksPerPhase=2. Viewer has 1 existing pick on a started game, so
+    // locked quota is used. Required count for this submission = 1.
+    vi.mocked(getEventsByPhaseWithTeams).mockResolvedValue([
+      makeEvent(eventAId, new Date("2099-09-20T00:00:00Z")), // started
+      makeEvent(eventBId, new Date("2099-09-21T16:00:00Z")), // unstarted
+      makeEvent(eventCId, new Date("2099-09-21T16:00:00Z")), // unstarted
+    ]);
+    vi.mocked(getPicksForLeaguePhase).mockResolvedValue([
+      {
+        id: "pick-A",
+        leagueId,
+        userId,
+        phaseId,
+        eventId: eventAId,
+        teamId: homeTeamId,
+        spreadAtLock: null,
+        pickResult: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    // Submitting 2 should be rejected — budget is 2, 1 locked, 1 remaining.
+    const tooMany = await submitPicksAction({
+      leagueId,
+      phaseId,
+      picks: [
+        { eventId: eventBId, teamId: homeTeamId },
+        { eventId: eventCId, teamId: homeTeamId },
+      ],
+    });
+    expect(tooMany).toMatchObject({
+      success: false,
+      error: expect.stringContaining("exactly 1"),
+    });
+
+    // Submitting 1 succeeds.
+    const justRight = await submitPicksAction({
+      leagueId,
+      phaseId,
+      picks: [{ eventId: eventBId, teamId: homeTeamId }],
+    });
+    expect(justRight).toEqual({ success: true, data: undefined });
+  });
+
+  it("rejects submissions when all picks for the phase are already locked (budget exhausted)", async () => {
+    vi.mocked(getEventsByPhaseWithTeams).mockResolvedValue([
+      makeEvent(eventAId, new Date("2099-09-20T00:00:00Z")), // started
+      makeEvent(eventBId, new Date("2099-09-20T00:00:00Z")), // started
+      makeEvent(eventCId, new Date("2099-09-21T16:00:00Z")), // unstarted
+    ]);
+    vi.mocked(getPicksForLeaguePhase).mockResolvedValue([
+      {
+        id: "pick-A",
+        leagueId,
+        userId,
+        phaseId,
+        eventId: eventAId,
+        teamId: homeTeamId,
+        spreadAtLock: null,
+        pickResult: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: "pick-B",
+        leagueId,
+        userId,
+        phaseId,
+        eventId: eventBId,
+        teamId: homeTeamId,
+        spreadAtLock: null,
+        pickResult: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    // picksPerPhase=2, 2 locked → 0 remaining. Any submission is rejected.
+    const result = await submitPicksAction({
+      leagueId,
+      phaseId,
+      picks: [{ eventId: eventCId, teamId: homeTeamId }],
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining("already locked in all your picks"),
     });
   });
 
@@ -454,7 +584,7 @@ describe("submitPicksAction", () => {
     const result = await submitPicksAction({
       leagueId,
       phaseId,
-      picks: [{ eventId: eventAId, teamId: awayTeamId }],
+      picks: [{ eventId: eventAId, teamId: awayTeamId, expectedSpread: 3.5 }],
     });
 
     expect(result).toEqual({ success: true, data: undefined });
@@ -481,11 +611,84 @@ describe("submitPicksAction", () => {
     const result = await submitPicksAction({
       leagueId,
       phaseId,
-      picks: [{ eventId: eventAId, teamId: homeTeamId }],
+      picks: [{ eventId: eventAId, teamId: homeTeamId, expectedSpread: -3.5 }],
     });
     expect(result).toMatchObject({
       success: false,
       error: expect.stringContaining("Spreads aren't available"),
+    });
+    expect(insertPicks).not.toHaveBeenCalled();
+  });
+
+  it("rejects ATS submission with STALE_ODDS when expectedSpread doesn't match current spread", async () => {
+    vi.mocked(getLeagueById).mockResolvedValueOnce(atsLeague);
+    vi.mocked(getEventsByPhaseWithTeams).mockResolvedValue([
+      makeEvent(eventAId, new Date("2099-09-21T16:00:00Z")),
+    ]);
+    // Server-side spread is -7, but client sends -3.5 (loaded the page
+    // before the line moved).
+    vi.mocked(getOddsForEventsWithSportsbook).mockResolvedValueOnce([
+      {
+        id: "odds-1",
+        eventId: eventAId,
+        sportsbookId: "sb-1",
+        sportsbookName: "ESPN Bet",
+        homeSpread: -7,
+        awaySpread: 7,
+        homeMoneyline: -250,
+        awayMoneyline: 210,
+        overUnder: 46,
+        lockedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const result = await submitPicksAction({
+      leagueId,
+      phaseId,
+      picks: [{ eventId: eventAId, teamId: homeTeamId, expectedSpread: -3.5 }],
+    });
+    expect(result).toMatchObject({
+      success: false,
+      code: "STALE_ODDS",
+      error: expect.stringContaining("Lines moved"),
+    });
+    expect(insertPicks).not.toHaveBeenCalled();
+  });
+
+  it("rejects ATS submission with STALE_ODDS when expectedSpread is missing", async () => {
+    vi.mocked(getLeagueById).mockResolvedValueOnce(atsLeague);
+    vi.mocked(getEventsByPhaseWithTeams).mockResolvedValue([
+      makeEvent(eventAId, new Date("2099-09-21T16:00:00Z")),
+    ]);
+    vi.mocked(getOddsForEventsWithSportsbook).mockResolvedValueOnce([
+      {
+        id: "odds-1",
+        eventId: eventAId,
+        sportsbookId: "sb-1",
+        sportsbookName: "ESPN Bet",
+        homeSpread: -3.5,
+        awaySpread: 3.5,
+        homeMoneyline: -150,
+        awayMoneyline: 130,
+        overUnder: 45.5,
+        lockedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const result = await submitPicksAction({
+      leagueId,
+      phaseId,
+      // No expectedSpread on an ATS league — safer to treat this as
+      // STALE_ODDS so the client refetches instead of freezing blind.
+      picks: [{ eventId: eventAId, teamId: homeTeamId }],
+    });
+    expect(result).toMatchObject({
+      success: false,
+      code: "STALE_ODDS",
     });
     expect(insertPicks).not.toHaveBeenCalled();
   });
@@ -569,7 +772,7 @@ describe("submitPicksAction", () => {
     const first = await submitPicksAction({
       leagueId,
       phaseId,
-      picks: [{ eventId: eventAId, teamId: homeTeamId }],
+      picks: [{ eventId: eventAId, teamId: homeTeamId, expectedSpread: -3.5 }],
     });
     expect(first).toEqual({ success: true, data: undefined });
     expect(insertPicks).toHaveBeenNthCalledWith(
@@ -578,10 +781,13 @@ describe("submitPicksAction", () => {
       {},
     );
 
+    // On the second submission the server's spread is -7. Client sends -7
+    // (it saw the moved line) — e.g. "Take latest odds" — so the refresh
+    // succeeds and freezes -7.
     const second = await submitPicksAction({
       leagueId,
       phaseId,
-      picks: [{ eventId: eventAId, teamId: homeTeamId }],
+      picks: [{ eventId: eventAId, teamId: homeTeamId, expectedSpread: -7 }],
     });
     expect(second).toEqual({ success: true, data: undefined });
     expect(insertPicks).toHaveBeenNthCalledWith(
