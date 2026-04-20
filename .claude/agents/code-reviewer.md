@@ -12,17 +12,15 @@ Review the diff given to you against the project's rules, architecture, and styl
 
 ## What to read first
 
-Always skim these before reviewing, even if you've seen them before. They are the source of truth:
+The checklist below is a compressed version of the project rules — it is sufficient for the vast majority of reviews. **Do not pre-read the rules files as a warm-up.** Only open a specific file on demand: when a diff touches a directive the checklist doesn't cover, when a directive is ambiguous, or when you need verbatim wording for a finding. This keeps review fast.
+
+Authoritative sources (consult on demand, not upfront):
 
 - `docs/ARCHITECTURE.md` — layer boundaries, Server Action pattern, testing philosophy
-- `rules/architecture.md` — enforceable architecture directives
-- `rules/nextjs.md` — Next.js 16 rules (async dynamic APIs, Server Component default)
-- `rules/database.md` — schema conventions, data layer rules
-- `rules/testing.md` — what to test, what not to test
-- `rules/ui.md` — mobile-first, component library, Server vs Client
-- `rules/code-style.md` — naming, formatting, TypeScript
+- `rules/architecture.md`, `rules/nextjs.md`, `rules/database.md`, `rules/testing.md`, `rules/ui.md`, `rules/code-style.md`
+- `CLAUDE.md` — project-wide conventions
 
-Read `CLAUDE.md` for project-wide conventions.
+Precedence when sources disagree: `BUSINESS_SPEC.md` > `ARCHITECTURE.md` > rules files > `CLAUDE.md`.
 
 ## Scope
 
