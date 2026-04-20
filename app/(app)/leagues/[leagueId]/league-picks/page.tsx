@@ -21,6 +21,7 @@ import {
   resolvePhaseView,
   selectCurrentSeason,
 } from "@/lib/nfl/leagues";
+import { calculateWeeklyStandings } from "@/lib/nfl/scoring";
 import { getAppNow } from "@/lib/simulator";
 
 export default async function LeaguePicksPage(
@@ -67,6 +68,7 @@ export default async function LeaguePicksPage(
       />
       <PickLockBanner
         pickLockTime={selectedPhase.pickLockTime}
+        phaseStartDate={selectedPhase.startDate}
         isLocked={phaseLocked}
       />
       {!phaseLocked ? (
@@ -123,12 +125,36 @@ async function LockedPhaseContent({
     );
   }
 
+  // Compute per-member weekly standings and re-sort members by weekly
+  // points (desc) with overall points as tiebreaker — the league picks
+  // view is "who's doing best THIS week," with season-long standings
+  // breaking ties. Mirrors My Picks: the weekly column is only meaningful
+  // once at least one pick this phase is scored; until then fall back to
+  // the overall standings order and hide the weekly cell on cards.
+  const hasAnyScoredThisPhase = picks.some((p) => p.pickResult != null);
+  const weeklyStandings = hasAnyScoredThisPhase
+    ? calculateWeeklyStandings(
+        picks,
+        standings.map((s) => s.userId),
+      )
+    : [];
+  const weeklyByUserId = new Map(weeklyStandings.map((w) => [w.userId, w]));
+  const sortedStandings = hasAnyScoredThisPhase
+    ? [...standings].sort((a, b) => {
+        const wa = weeklyByUserId.get(a.userId)?.points ?? 0;
+        const wb = weeklyByUserId.get(b.userId)?.points ?? 0;
+        if (wa !== wb) return wb - wa;
+        return b.points - a.points;
+      })
+    : standings;
+
   return (
     <ul className="flex flex-col gap-2">
-      {standings.map((standing) => (
+      {sortedStandings.map((standing) => (
         <li key={standing.id}>
           <MemberPicksCard
             standing={standing}
+            weekly={weeklyByUserId.get(standing.userId) ?? null}
             picks={picksByUserId.get(standing.userId) ?? []}
             events={events}
             oddsByEventId={oddsByEventId}

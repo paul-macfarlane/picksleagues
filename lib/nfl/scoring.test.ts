@@ -5,6 +5,7 @@ import type { EventStatus } from "@/lib/db/schema/sports";
 import {
   calculatePickResult,
   calculateStandingsPoints,
+  calculateWeeklyStandings,
   denseRank,
 } from "./scoring";
 
@@ -301,5 +302,90 @@ describe("denseRank (§8.4)", () => {
 
   it("returns an empty list when given no entries", () => {
     expect(denseRank([], (e: { p: number }) => e.p)).toEqual([]);
+  });
+});
+
+describe("calculateWeeklyStandings", () => {
+  it("aggregates per-user wins/losses/pushes and ranks by points", () => {
+    const standings = calculateWeeklyStandings(
+      [
+        // user-a: 2 wins, 1 push → 2.5 pts
+        { userId: "user-a", pickResult: "win" },
+        { userId: "user-a", pickResult: "win" },
+        { userId: "user-a", pickResult: "push" },
+        // user-b: 1 win, 2 losses → 1 pt
+        { userId: "user-b", pickResult: "win" },
+        { userId: "user-b", pickResult: "loss" },
+        { userId: "user-b", pickResult: "loss" },
+        // user-c: 2 wins → 2 pts
+        { userId: "user-c", pickResult: "win" },
+        { userId: "user-c", pickResult: "win" },
+      ],
+      ["user-a", "user-b", "user-c"],
+    );
+
+    expect(standings).toEqual([
+      {
+        userId: "user-a",
+        wins: 2,
+        losses: 0,
+        pushes: 1,
+        points: 2.5,
+        rank: 1,
+      },
+      { userId: "user-c", wins: 2, losses: 0, pushes: 0, points: 2, rank: 2 },
+      { userId: "user-b", wins: 1, losses: 2, pushes: 0, points: 1, rank: 3 },
+    ]);
+  });
+
+  it("includes members with no picks at 0-0-0 so ranks account for them", () => {
+    const standings = calculateWeeklyStandings(
+      [{ userId: "user-a", pickResult: "win" }],
+      ["user-a", "user-b"],
+    );
+    expect(standings).toEqual([
+      { userId: "user-a", wins: 1, losses: 0, pushes: 0, points: 1, rank: 1 },
+      { userId: "user-b", wins: 0, losses: 0, pushes: 0, points: 0, rank: 2 },
+    ]);
+  });
+
+  it("ignores picks from users not in the member list (§4.3 former members)", () => {
+    const standings = calculateWeeklyStandings(
+      [
+        { userId: "user-a", pickResult: "win" },
+        { userId: "removed-member", pickResult: "win" },
+      ],
+      ["user-a"],
+    );
+    expect(standings).toEqual([
+      { userId: "user-a", wins: 1, losses: 0, pushes: 0, points: 1, rank: 1 },
+    ]);
+  });
+
+  it("treats unscored (null) picks as 0 points without counting W/L/P", () => {
+    const standings = calculateWeeklyStandings(
+      [
+        { userId: "user-a", pickResult: null },
+        { userId: "user-a", pickResult: "win" },
+      ],
+      ["user-a"],
+    );
+    expect(standings[0]).toEqual({
+      userId: "user-a",
+      wins: 1,
+      losses: 0,
+      pushes: 0,
+      points: 1,
+      rank: 1,
+    });
+  });
+
+  it("all-tied members share rank 1", () => {
+    const standings = calculateWeeklyStandings(
+      [],
+      ["user-a", "user-b", "user-c"],
+    );
+    expect(standings.every((s) => s.rank === 1)).toBe(true);
+    expect(standings.every((s) => s.points === 0)).toBe(true);
   });
 });

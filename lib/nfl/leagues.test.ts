@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Event, Phase, Season } from "@/lib/db/schema/sports";
+import type { Phase, Season } from "@/lib/db/schema/sports";
 
 import {
   formatLeagueRange,
@@ -8,6 +8,7 @@ import {
   hasLeagueStartLockPassed,
   isPhaseInLeagueRange,
   isPhaseLocked,
+  hasEventStarted,
   isPickLocked,
   isValidLeagueRange,
   phaseLabel,
@@ -633,11 +634,13 @@ describe("isPhaseLocked", () => {
 
 describe("isPickLocked", () => {
   const sundayGame = {
+    status: "not_started" as const,
     startTime: new Date("2025-09-07T17:00:00Z"),
-  } as Pick<Event, "startTime">;
+  };
   const thursdayNightGame = {
+    status: "not_started" as const,
     startTime: new Date("2025-09-04T00:20:00Z"),
-  } as Pick<Event, "startTime">;
+  };
   const phaseLock = {
     pickLockTime: new Date("2025-09-07T17:00:00Z"),
   } as Pick<Phase, "pickLockTime">;
@@ -657,5 +660,52 @@ describe("isPickLocked", () => {
     expect(isPickLocked(phaseLock, thursdayNightGame, now)).toBe(true);
     // But a Sunday game is still unlocked at the same moment.
     expect(isPickLocked(phaseLock, sundayGame, now)).toBe(false);
+  });
+
+  it("returns true when status is in_progress or final even if startTime is still in the future", () => {
+    // Admin override can flip status without touching startTime. Status
+    // must win over the time-based fallback.
+    const now = new Date("2025-09-03T00:00:00Z");
+    const inProgress = { ...sundayGame, status: "in_progress" as const };
+    const final = { ...sundayGame, status: "final" as const };
+    expect(isPickLocked(phaseLock, inProgress, now)).toBe(true);
+    expect(isPickLocked(phaseLock, final, now)).toBe(true);
+  });
+});
+
+describe("hasEventStarted", () => {
+  const scheduled = {
+    status: "not_started" as const,
+    startTime: new Date("2025-09-07T17:00:00Z"),
+  };
+
+  it("returns false for a not_started game before its startTime", () => {
+    expect(hasEventStarted(scheduled, new Date("2025-09-03T00:00:00Z"))).toBe(
+      false,
+    );
+  });
+
+  it("returns true for a not_started game at/after its startTime", () => {
+    expect(hasEventStarted(scheduled, new Date("2025-09-07T17:00:00Z"))).toBe(
+      true,
+    );
+  });
+
+  it("returns true for in_progress status even before startTime", () => {
+    expect(
+      hasEventStarted(
+        { ...scheduled, status: "in_progress" },
+        new Date("2025-09-03T00:00:00Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("returns true for final status even before startTime", () => {
+    expect(
+      hasEventStarted(
+        { ...scheduled, status: "final" },
+        new Date("2025-09-03T00:00:00Z"),
+      ),
+    ).toBe(true);
   });
 });

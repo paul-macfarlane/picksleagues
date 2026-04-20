@@ -87,6 +87,42 @@ export function calculateStandingsPoints(
   return { wins, losses, pushes, points };
 }
 
+export interface WeeklyStanding {
+  userId: string;
+  wins: number;
+  losses: number;
+  pushes: number;
+  points: number;
+  rank: number;
+}
+
+/**
+ * Per-phase standings for the given league members. Picks whose owner
+ * isn't in `userIds` are ignored (former-member picks are preserved in
+ * the DB per §4.3 but don't contribute to current standings). Members
+ * with no picks this phase appear with a zero row so ranks are consistent
+ * across everyone who should be compared.
+ */
+export function calculateWeeklyStandings(
+  picks: readonly { userId: string; pickResult: PickResult | null }[],
+  userIds: readonly string[],
+): WeeklyStanding[] {
+  const resultsByUser = new Map<string, (PickResult | null)[]>();
+  for (const id of userIds) resultsByUser.set(id, []);
+  for (const pick of picks) {
+    const bucket = resultsByUser.get(pick.userId);
+    if (bucket) bucket.push(pick.pickResult);
+  }
+  const rows = Array.from(resultsByUser.entries()).map(([userId, results]) => ({
+    userId,
+    ...calculateStandingsPoints(results),
+  }));
+  return denseRank(rows, (r) => r.points).map(({ entry, rank }) => ({
+    ...entry,
+    rank,
+  }));
+}
+
 export interface RankedEntry<T> {
   entry: T;
   rank: number;

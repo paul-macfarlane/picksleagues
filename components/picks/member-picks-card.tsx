@@ -7,11 +7,12 @@ import type { EventWithTeams } from "@/data/events";
 import type { LeagueStandingWithProfile } from "@/data/standings";
 import type { PickType } from "@/lib/db/schema/leagues";
 import type { Pick } from "@/lib/db/schema/picks";
-import { formatPoints } from "@/lib/nfl/scoring";
+import { formatPoints, type WeeklyStanding } from "@/lib/nfl/scoring";
 import { getInitials } from "@/lib/utils";
 
 export function MemberPicksCard({
   standing,
+  weekly,
   picks,
   events,
   oddsByEventId,
@@ -20,6 +21,7 @@ export function MemberPicksCard({
   defaultOpen,
 }: {
   standing: LeagueStandingWithProfile;
+  weekly: WeeklyStanding | null;
   picks: Pick[];
   events: EventWithTeams[];
   oddsByEventId: Map<string, OddsWithSportsbookName>;
@@ -28,6 +30,10 @@ export function MemberPicksCard({
   defaultOpen: boolean;
 }) {
   const pickByEventId = new Map(picks.map((p) => [p.eventId, p]));
+  // Only show games this member actually picked — the other events on the
+  // phase are noise once picks are locked. Same rationale as the My Picks
+  // filter.
+  const pickedEvents = events.filter((e) => pickByEventId.has(e.id));
 
   return (
     <details
@@ -51,11 +57,17 @@ export function MemberPicksCard({
           </span>
         </div>
         <div className="flex flex-col items-end text-right">
-          <span className="text-base font-semibold tabular-nums">
-            {formatPoints(standing.points)} pts
-          </span>
+          {weekly ? (
+            <span className="text-base font-semibold tabular-nums">
+              {weekly.wins}-{weekly.losses}-{weekly.pushes}
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                wk · {formatPoints(weekly.points)}
+              </span>
+            </span>
+          ) : null}
           <span className="text-xs text-muted-foreground tabular-nums">
-            {standing.wins}-{standing.losses}-{standing.pushes}
+            {standing.wins}-{standing.losses}-{standing.pushes} overall ·{" "}
+            {formatPoints(standing.points)}
           </span>
         </div>
         <ChevronDown
@@ -66,9 +78,13 @@ export function MemberPicksCard({
       <div className="border-t p-3">
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">No games this phase.</p>
+        ) : pickedEvents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No picks submitted for this week.
+          </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {events.map((event) => {
+            {pickedEvents.map((event) => {
               const pick = pickByEventId.get(event.id) ?? null;
               return (
                 <li key={event.id}>

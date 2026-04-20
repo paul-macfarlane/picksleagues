@@ -253,6 +253,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 - [x] PL-027: Phase picks view (BUSINESS_SPEC §6, §10, §12.4-12.5)
   - **Absorbs PL-032** — phase navigation + historical viewing ship together in this story (epic decision).
+  - **Follow-up**: after lock, My Picks filters the event list down to the games the viewer picked (other games are noise on that surface). League Picks keeps the full schedule so member cards are comparable.
   - Phase/event data display: teams, odds, scores, lock status
   - Phase navigation (prev/next) + historical picks/results view
   - Current phase resolution logic (lib/nfl/leagues.ts#selectLeagueCurrentPhase)
@@ -261,6 +262,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 - [x] PL-028: Pick submission — straight up + ATS (BUSINESS_SPEC §7.1-7.2, §9.3)
   - **Absorbs PL-029** — one submission action handles both pick types (epic decision).
+  - **Current-phase-only submission (follow-up to the initial PR)**: `submitPicksAction` rejects any phaseId that isn't the phase §6.3 resolves to — no past, no future. My-picks UI mirrors it by rendering future phases view-only (no submit form). Codified in §6.4 / §7.1 #2.
   - lib/validators/picks.ts — SubmitPicksSchema
   - lib/nfl/leagues.ts — isPickLocked(phase, event, now)
   - actions/picks.ts — submitPicks action (upsert, preserves already-locked picks)
@@ -285,6 +287,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Standings tab: sortable table with rank, player, points, W/L/P
   - Dense ranking
   - Season history (prior season standings preserved)
+  - **Follow-up**: My Picks header and League Picks member cards now show a per-phase "weekly" row (W-L-P + points + rank) alongside overall — the weekly view uses `calculateWeeklyStandings(picks, userIds)` in `lib/nfl/scoring.ts`. League Picks sorts members by weekly points desc with overall points as tiebreaker (best this-week first). Weekly row is hidden until at least one pick in the phase is scored.
 
 - [x] PL-015: Standings recalculation service (BUSINESS_SPEC §8.5, BACKGROUND_JOBS §5)
   - Re-slotted from Section 2 — depends on picks (PL-028), pick scoring (PL-030), standings schema (PL-031).
@@ -324,6 +327,19 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 - [ ] PL-055: Pick stats + trends
   - Advanced stats to help users make informed picks
   - Historical pick performance data
+
+- [ ] PL-080: Phase-over-phase standings delta (BUSINESS_SPEC §8.3-8.4)
+  - On the standings tab, show each member's rank change vs. the end of the previous phase — up/down/flat arrow with magnitude.
+  - Needs historical standings-per-phase: either persist a snapshot at the end of each recalc (new `league_standings_history` table keyed by phase), or compute on demand by replaying scored picks up to phase N-1.
+  - Inspiration: the BracketsBall legacy app's March Madness standings use this pattern.
+
+- [ ] PL-081: Live game period + clock (BUSINESS_SPEC §10.3, §10.5, §11.1)
+  - Spec says in-progress games should display current period + game clock alongside the "LIVE" chip; today the schema doesn't persist those fields and the UI renders only the chip + running score.
+  - Schema: add `period` (smallint) and `clock` (text) nullable columns to `events`; migration.
+  - ESPN client (`lib/espn/nfl/scores.ts`): parse `period` + `clock` off the scoreboard response.
+  - Sync (`lib/sync/nfl/live-scores.ts`): thread both fields through `updateEvent` on each poll.
+  - UI (`components/picks/event-pick-card.tsx`): extend `EventStatusLine`'s `in_progress` branch to render e.g. `LIVE · Q3 · 4:12`.
+  - Not blocking MVP — scoring and ranking don't depend on these fields, so it's a polish item.
 
 - [x] PL-056: League season state badge (BUSINESS_SPEC §3.7)
   - lib/nfl/leagues.ts — getLeagueSeasonState(phases, format, now) → "upcoming" | "in_progress" | "complete"
