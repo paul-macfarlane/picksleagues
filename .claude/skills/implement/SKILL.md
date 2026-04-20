@@ -19,11 +19,13 @@ Implements a backlog story end-to-end following the project's ways of working.
 - If `$ARGUMENTS` is provided, find that story. Otherwise, find the first `[ ]` (pending) story in the file.
 - Mark it `[~]` (in progress) in the backlog.
 
-### 2. Understand Requirements
+### 2. Understand Requirements (delegated)
 
-- Read the relevant section(s) of `docs/BUSINESS_SPEC.md` that the story traces to.
-- Read any related existing code to understand current patterns.
-- Identify edge cases explicitly called out in the spec.
+Spawn an **Explore** subagent at `model: "haiku"`:
+
+> Read the BUSINESS_SPEC sections cited by <story ID> and the current state of files in the areas likely to be touched. Return a structured brief: (1) exact rules to enforce, quoted verbatim; (2) current file layout in the target area; (3) closest existing pattern to mirror; (4) edge cases explicitly called out in the spec.
+
+Plan off the brief, not the raw files — keeps the orchestrator context lean for the implementation that follows.
 
 ### 3. Ask Clarifying Questions
 
@@ -77,9 +79,9 @@ Provide a summary:
 
 **Do not commit until the user approves.** If changes are requested, make them and re-run steps 6-7.
 
-### 10. Write Task Notes
+### 10. Write Task Notes (delegated)
 
-Before committing, create `work/tasks/<ID>.md` following the template in `docs/WAYS_OF_WORKING.md` §4 (Task Notes). Record decisions, deviations from the story as written, and any gotchas a future reader should know. Keep it terse — link commits rather than restating diffs.
+Delegate to a **general-purpose** subagent at `model: "haiku"`. Give it: the story ID, the staged diff (`git diff --cached`), any decisions or deviations you noted during implementation, gotchas a future reader should know, and the template from `docs/WAYS_OF_WORKING.md §4`. Ask it to write `work/tasks/<ID>.md`. Terse — link commits rather than restating diffs.
 
 ### 11. Commit and Push
 

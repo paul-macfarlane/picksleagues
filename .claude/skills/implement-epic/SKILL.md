@@ -30,12 +30,32 @@ Before Phase 1, verify:
 
 Read `work/Backlog.md`. Map `$ARGUMENTS` to a section. List the stories in the epic and the BUSINESS_SPEC sections they cite. Report this resolution to the user in one short message before proceeding.
 
-### 1.2 Read all context
+### 1.2 Read all context (delegated)
+
+Spawn an **Explore** subagent at `model: "haiku"` to gather context. Read targets:
 
 - Every story's linked BUSINESS_SPEC section.
 - Related ARCHITECTURE sections.
 - Any existing code in the file areas the epic will touch.
 - Prior task notes (`work/tasks/*.md`) for upstream work that this epic builds on.
+
+Ask it to return a **structured digest**, not raw file contents, in this format:
+
+```
+## Per-story briefs
+### PL-XXX — <title>
+- BUSINESS_SPEC quotes (verbatim, only the rule-bearing bullets): ...
+- Files likely to be touched: ...
+- Existing patterns to follow: ...
+- Ambiguities / edge cases to surface in the clarification round: ...
+
+## Cross-cutting observations
+- Shared schema touch-points: ...
+- Shared lib modules / validators: ...
+- Upstream task-note context: ...
+```
+
+The orchestrator plans off the digest, not the raw files — this keeps the parent context lean across the whole epic loop.
 
 ### 1.3 Clarification round
 
@@ -93,31 +113,33 @@ For each story in dependency order, do all of the following without asking for h
 
 ### 3.1 Implement
 
-Follow layer order: schema → `data/` → `lib/` → `actions/` → `components/` → `app/` → tests. Respect every rule in `rules/*.md`. Use patterns in `docs/ARCHITECTURE.md`.
+Before writing code, spawn an **Explore** subagent at `model: "haiku"` with a per-story brief prompt:
 
-### 3.2 Code review
+> Read the BUSINESS_SPEC sections cited by PL-XXX and the current state of the files likely to be touched (use the epic digest from Phase 1.2 as a starting point). Return a structured brief: (1) exact rules to enforce, quoted verbatim; (2) current file layout in the target area; (3) closest existing pattern to mirror; (4) edge cases explicitly called out in the spec.
 
-Invoke the `code-reviewer` agent via the Agent tool. Prompt:
+Implement against the brief. Follow layer order: schema → `data/` → `lib/` → `actions/` → `components/` → `app/` → tests. Respect every rule in `rules/*.md`. Use patterns in `docs/ARCHITECTURE.md`.
+
+### 3.2 + 3.3 Review (parallel)
+
+Run **`code-reviewer` and `spec-tracer` in parallel** — one message, two Agent tool calls. They review the same diff for different things.
+
+**`code-reviewer`** at `model: "sonnet"`:
 
 > Review the uncommitted changes against project rules. Story: PL-XXX (<title>). Scope: files changed since HEAD. Return blockers and non-blockers.
 
-Fix every **blocker**. Record **non-blockers** in the story's task notes under "Follow-ups" or "Notable / Gotchas".
-
-### 3.3 Spec trace
-
-If the story cites any BUSINESS_SPEC sections, invoke the `spec-tracer` agent. Prompt:
+**`spec-tracer`** at `model: "haiku"` (skip entirely if the story cites no BUSINESS_SPEC sections):
 
 > Verify the implementation of PL-XXX matches BUSINESS_SPEC sections <list>. Scope: files changed since HEAD. Flag any divergence.
 
-Fix divergences. If a divergence looks like a spec bug rather than an implementation bug, **halt**.
+Fix every **blocker** from either agent. Record **non-blockers** in the story's task notes under "Follow-ups" or "Notable / Gotchas". If a spec-tracer divergence looks like a spec bug rather than an implementation bug, **halt**.
 
 ### 3.4 Checks
 
 Run `pnpm check`. If `format:check` fails, run `pnpm format` and re-run. If anything else fails, attempt one round of self-repair. If it still fails, **halt**.
 
-### 3.5 Task notes
+### 3.5 Task notes (delegated)
 
-Write `work/tasks/PL-XXX.md` using the template from WAYS_OF_WORKING.md §4. Terse; link commits rather than restating diffs. Include non-blocker findings from 3.2 that weren't fixed.
+Delegate to a **general-purpose** subagent at `model: "haiku"`. Give it: the story ID, the staged diff (`git diff --cached`), the story's backlog entry, the non-blocker findings from 3.2 that weren't fixed, and the template from `docs/WAYS_OF_WORKING.md §4`. Ask it to write `work/tasks/PL-XXX.md`. Terse; link commits rather than restating diffs.
 
 ### 3.6 Commit
 
@@ -138,7 +160,7 @@ Flip the story to `[x]` in `work/Backlog.md`. Include this change either in the 
 After the last story:
 
 1. Run `pnpm check` against the whole diff from `main`.
-2. Invoke `code-reviewer` on the **full epic diff** (`git diff main...HEAD`). Prompt:
+2. Invoke `code-reviewer` on the **full epic diff** (`git diff main...HEAD`). Keep the **default (parent) model** for this one — do not downgrade. Cross-story judgment is the main safety net and is worth the spend. Prompt:
 
    > Review the full epic diff for cross-story issues: duplicated logic, inconsistent patterns introduced across stories, helpers that should have been shared, regressions in adjacent code. Scope: `git diff main...HEAD`.
 

@@ -15,12 +15,14 @@ Run `git diff` and `git diff --cached` to see all modified and staged files.
 
 ### 2. Spawn Review Agent
 
-Launch a subagent using the prompt in `subagents/self-review.md` to review the changes. The agent will check against:
+Invoke the **`code-reviewer`** agent at `model: "sonnet"` via the Agent tool. Scope: the current uncommitted diff. The agent checks against:
 
 - Business logic correctness (does it match BUSINESS_SPEC.md?)
 - Architecture compliance (layer boundaries, action pattern, sport-specific modules)
 - Code style (naming, TypeScript, no `any`, no business logic in components)
 - Testing (business logic tested, mocks at import boundaries, edge cases covered)
+
+Fix every **blocker** the agent reports. Surface **non-blockers** in the final summary (step 4).
 
 ### 3. Run Automated Checks
 
