@@ -4,6 +4,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -169,6 +170,8 @@ export const events = pgTable(
     status: eventStatusEnum("status").notNull().default("not_started"),
     homeScore: integer("home_score"),
     awayScore: integer("away_score"),
+    period: smallint("period"),
+    clock: text("clock"),
     lockedAt: timestamp("locked_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

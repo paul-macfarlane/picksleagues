@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 41     |
+| Complete    | 42     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 7      |
+| Pending     | 6      |
 | **Total**   | **48** |
 
 ---
@@ -320,10 +320,6 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Touch-friendly interactions, bottom sheet nav
   - Performance optimization (minimize client JS)
 
-- [ ] PL-054: Standings scenarios (what-if calculations)
-  - "What if team X wins?" scenario modeling
-  - Carry forward pattern from BracketsBall
-
 - [ ] PL-055: Pick stats + trends
   - Advanced stats to help users make informed picks
   - Historical pick performance data
@@ -333,7 +329,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Needs historical standings-per-phase: either persist a snapshot at the end of each recalc (new `league_standings_history` table keyed by phase), or compute on demand by replaying scored picks up to phase N-1.
   - Inspiration: the BracketsBall legacy app's March Madness standings use this pattern.
 
-- [ ] PL-081: Live game period + clock (BUSINESS_SPEC §10.3, §10.5, §11.1)
+- [x] PL-081: Live game period + clock (BUSINESS_SPEC §10.3, §10.5, §11.1)
   - Spec says in-progress games should display current period + game clock alongside the "LIVE" chip; today the schema doesn't persist those fields and the UI renders only the chip + running score.
   - Schema: add `period` (smallint) and `clock` (text) nullable columns to `events`; migration.
   - ESPN client (`lib/espn/nfl/scores.ts`): parse `period` + `clock` off the scoreboard response.

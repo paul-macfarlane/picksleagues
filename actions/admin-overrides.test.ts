@@ -354,6 +354,8 @@ describe("updateEventAction", () => {
       status: "not_started" as const,
       homeScore: "",
       awayScore: "",
+      period: "",
+      clock: "",
     };
   }
 
@@ -411,9 +413,31 @@ describe("updateEventAction", () => {
       status: "not_started",
       homeScore: null,
       awayScore: null,
+      period: null,
+      clock: null,
       lockedAt: expect.any(Date),
     });
     expect(revalidatePath).toHaveBeenCalledWith("/admin/overrides");
+  });
+
+  it("passes period and clock when provided (in-progress edit)", async () => {
+    const result = await updateEventAction({
+      ...validInput(),
+      status: "in_progress",
+      homeScore: "7",
+      awayScore: "10",
+      period: "3",
+      clock: "4:12",
+    });
+
+    expect(result.success).toBe(true);
+    expect(updateEvent).toHaveBeenCalledWith(
+      UUID,
+      expect.objectContaining({
+        period: 3,
+        clock: "4:12",
+      }),
+    );
   });
 
   it("parses final with scores", async () => {

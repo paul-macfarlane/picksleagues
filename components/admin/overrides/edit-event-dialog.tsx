@@ -73,6 +73,8 @@ export function EditEventDialog({
     status: event.status,
     homeScore: numberToInput(event.homeScore),
     awayScore: numberToInput(event.awayScore),
+    period: numberToInput(event.period),
+    clock: event.clock ?? "",
   };
 
   const form = useForm<UpdateEventInput, unknown, UpdateEventOutput>({
@@ -236,6 +238,32 @@ export function EditEventDialog({
                 aria-invalid={errors.homeScore ? true : undefined}
               />
               <FieldError errors={[errors.homeScore]} />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="event-period">Period</FieldLabel>
+              <Input
+                id="event-period"
+                inputMode="numeric"
+                placeholder="e.g. 3"
+                {...register("period")}
+                aria-invalid={errors.period ? true : undefined}
+              />
+              <FieldDescription>1–4 regular, 5+ overtime.</FieldDescription>
+              <FieldError errors={[errors.period]} />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="event-clock">Clock</FieldLabel>
+              <Input
+                id="event-clock"
+                placeholder="e.g. 4:12"
+                {...register("clock")}
+                aria-invalid={errors.clock ? true : undefined}
+              />
+              <FieldError errors={[errors.clock]} />
             </Field>
           </div>
 

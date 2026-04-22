@@ -290,18 +290,31 @@ function EventStatusLine({ event }: { event: Event }) {
     return (
       <div className="flex items-center gap-2 px-1 pt-1 text-xs uppercase tracking-wide text-muted-foreground">
         <span className="font-semibold text-foreground">Final</span>
-        <span>·</span>
-        <span>{formatEasternDateTime(event.startTime)}</span>
       </div>
     );
   }
   if (event.status === "in_progress") {
+    const periodLabel =
+      event.period != null ? formatPeriod(event.period) : null;
+    const clockLabel = event.clock || null;
     return (
       <div className="flex items-center gap-2 px-1 pt-1 text-xs uppercase tracking-wide">
         <span className="inline-flex items-center gap-1 font-semibold text-emerald-500">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
           Live
         </span>
+        {periodLabel && (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-semibold text-foreground">{periodLabel}</span>
+          </>
+        )}
+        {clockLabel && (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-semibold text-foreground">{clockLabel}</span>
+          </>
+        )}
       </div>
     );
   }
@@ -315,6 +328,12 @@ function EventStatusLine({ event }: { event: Event }) {
 function formatSpread(value: number): string {
   if (value > 0) return `+${value}`;
   return `${value}`;
+}
+
+function formatPeriod(period: number): string {
+  if (period <= 4) return `Q${period}`;
+  if (period === 5) return "OT";
+  return `OT${period - 4}`;
 }
 
 function isFinalWinner(event: Event, side: "home" | "away"): boolean {

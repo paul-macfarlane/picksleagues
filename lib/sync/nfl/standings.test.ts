@@ -114,6 +114,8 @@ function makePick(
       status: "final",
       homeScore: 24,
       awayScore: 17,
+      period: null,
+      clock: null,
       lockedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),

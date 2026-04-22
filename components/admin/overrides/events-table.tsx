@@ -172,6 +172,11 @@ function EventDetailDialog({
             value={formatScore(event.homeScore, event.awayScore)}
           />
           <DetailRow
+            label="Period"
+            value={event.period === null ? "—" : String(event.period)}
+          />
+          <DetailRow label="Clock" value={event.clock ?? "—"} />
+          <DetailRow
             label="Locked"
             value={
               event.lockedAt ? (

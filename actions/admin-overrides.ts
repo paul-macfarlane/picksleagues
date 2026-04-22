@@ -20,6 +20,7 @@ import type { ActionResult } from "@/lib/types";
 import {
   parseDecimal,
   parseInteger,
+  parsePeriod,
   parseScore,
   parseUtcDatetime,
   toggleLockSchema,
@@ -140,6 +141,8 @@ export async function updateEventAction(input: unknown): Promise<ActionResult> {
     status,
     homeScore,
     awayScore,
+    period,
+    clock,
   } = parsed.data;
 
   try {
@@ -150,6 +153,8 @@ export async function updateEventAction(input: unknown): Promise<ActionResult> {
       status,
       homeScore: parseScore(homeScore),
       awayScore: parseScore(awayScore),
+      period: parsePeriod(period),
+      clock: clock === "" ? null : clock,
       lockedAt: new Date(),
     });
   } catch (err) {

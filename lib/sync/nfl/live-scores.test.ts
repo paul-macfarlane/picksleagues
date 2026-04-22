@@ -135,7 +135,24 @@ describe("runLiveScoresSync", () => {
       status: "in_progress",
       homeScore: 21,
       awayScore: 14,
+      period: 2,
+      clock: "8:42",
     });
+  });
+
+  it("forwards period and clock for in-progress events", async () => {
+    const event = makeScorableEvent({ eventId: "event-clock" });
+    mockGetScorableEvents.mockResolvedValue([event]);
+    mockFetchEventScore.mockResolvedValue(
+      makeScore({ status: "in_progress", period: 3, clock: "4:12" }),
+    );
+
+    await runLiveScoresSync(OCTOBER_SUNDAY);
+
+    expect(mockUpdateEvent).toHaveBeenCalledWith(
+      "event-clock",
+      expect.objectContaining({ period: 3, clock: "4:12" }),
+    );
   });
 
   it("counts finalized events when status becomes final", async () => {
@@ -161,6 +178,8 @@ describe("runLiveScoresSync", () => {
       status: "final",
       homeScore: 28,
       awayScore: 24,
+      period: null,
+      clock: null,
     });
     // §8.5: when any event finalizes, the live-scores sync must kick the
     // standings recalc so scored picks flow into leaderboards.

@@ -158,6 +158,8 @@ function makeEvent(
     status: "not_started" as const,
     homeScore: null,
     awayScore: null,
+    period: null,
+    clock: null,
     lockedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),

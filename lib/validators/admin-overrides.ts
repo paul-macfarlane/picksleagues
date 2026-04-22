@@ -105,6 +105,17 @@ export function parseScore(value: string): number | null {
   return value === "" ? null : Number.parseInt(value, 10);
 }
 
+const periodString = z
+  .string()
+  .trim()
+  .regex(/^\d*$/, "Enter a non-negative whole number or leave empty.");
+
+export function parsePeriod(value: string): number | null {
+  return value === "" ? null : Number.parseInt(value, 10);
+}
+
+const clockString = z.string().trim().max(20, "At most 20 characters.");
+
 export const eventStatusValues = eventStatusEnum.enumValues;
 
 export const updateEventSchema = z
@@ -116,6 +127,8 @@ export const updateEventSchema = z
     status: z.enum(eventStatusValues),
     homeScore: scoreString,
     awayScore: scoreString,
+    period: periodString,
+    clock: clockString,
   })
   .refine((data) => data.homeTeamId !== data.awayTeamId, {
     message: "Home and away teams must be different.",

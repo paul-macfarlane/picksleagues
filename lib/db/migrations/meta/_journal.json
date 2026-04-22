@@ -5,71 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1776029552850,
-      "tag": "0000_cheerful_wolf_cub",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1776310889522,
-      "tag": "0001_flashy_bedlam",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1776371820698,
-      "tag": "0002_bizarre_stepford_cuckoos",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1776399301410,
-      "tag": "0003_nasty_venom",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1776453558982,
-      "tag": "0004_third_enchantress",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1776455100640,
-      "tag": "0005_low_joshua_kane",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1776455747420,
-      "tag": "0006_breezy_karma",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1776487354365,
-      "tag": "0007_yummy_madripoor",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1776621234567,
-      "tag": "0008_custom_league_schedules",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1776572867497,
-      "tag": "0009_picks_table",
+      "when": 1776828806228,
+      "tag": "0000_smiling_the_enforcers",
       "breakpoints": true
     }
   ]

@@ -100,6 +100,8 @@ export async function runLiveScoresSync(
       status: score.status,
       homeScore: score.homeScore,
       awayScore: score.awayScore,
+      period: score.period,
+      clock: score.clock,
     });
     eventsUpdated++;
 
