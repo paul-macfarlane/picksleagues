@@ -1,3 +1,5 @@
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
@@ -8,14 +10,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { LeagueStandingWithProfile } from "@/data/standings";
-import { formatPoints } from "@/lib/nfl/scoring";
-import { getInitials } from "@/lib/utils";
+import { formatPoints, type StandingsDelta } from "@/lib/nfl/scoring";
+import { cn, getInitials } from "@/lib/utils";
 
 export function StandingsTable({
   standings,
+  deltas,
   viewerUserId,
 }: {
   standings: LeagueStandingWithProfile[];
+  deltas?: ReadonlyMap<string, StandingsDelta>;
   viewerUserId: string;
 }) {
   if (standings.length === 0) {
@@ -33,7 +37,7 @@ export function StandingsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">#</TableHead>
+            <TableHead className="w-16">#</TableHead>
             <TableHead>Player</TableHead>
             <TableHead className="text-right tabular-nums">Pts</TableHead>
             <TableHead className="text-right tabular-nums">W-L-P</TableHead>
@@ -42,13 +46,17 @@ export function StandingsTable({
         <TableBody>
           {standings.map((standing) => {
             const isViewer = standing.userId === viewerUserId;
+            const delta = deltas?.get(standing.userId);
             return (
               <TableRow
                 key={standing.id}
                 className={isViewer ? "bg-primary/5" : undefined}
               >
                 <TableCell className="font-semibold tabular-nums">
-                  {standing.rank}
+                  <div className="flex flex-col items-start gap-0.5">
+                    <span>{standing.rank}</span>
+                    {delta ? <RankDelta delta={delta.delta} /> : null}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -83,5 +91,29 @@ export function StandingsTable({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function RankDelta({ delta }: { delta: number }) {
+  if (delta === 0) {
+    return (
+      <Minus
+        aria-label="Rank unchanged"
+        className="size-3 text-muted-foreground"
+      />
+    );
+  }
+  const Icon = delta > 0 ? ArrowUp : ArrowDown;
+  return (
+    <span
+      aria-label={`Rank ${delta > 0 ? "up" : "down"} ${Math.abs(delta)}`}
+      className={cn(
+        "flex items-center gap-0.5 text-xs font-medium tabular-nums",
+        delta > 0 ? "text-green-500" : "text-red-500",
+      )}
+    >
+      <Icon className="size-3" />
+      {Math.abs(delta)}
+    </span>
   );
 }

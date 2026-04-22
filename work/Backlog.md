@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 42     |
+| Complete    | 43     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 6      |
+| Pending     | 5      |
 | **Total**   | **48** |
 
 ---
@@ -324,7 +324,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Advanced stats to help users make informed picks
   - Historical pick performance data
 
-- [ ] PL-080: Phase-over-phase standings delta (BUSINESS_SPEC §8.3-8.4)
+- [x] PL-080: Phase-over-phase standings delta (BUSINESS_SPEC §8.3-8.4)
   - On the standings tab, show each member's rank change vs. the end of the previous phase — up/down/flat arrow with magnitude.
   - Needs historical standings-per-phase: either persist a snapshot at the end of each recalc (new `league_standings_history` table keyed by phase), or compute on demand by replaying scored picks up to phase N-1.
   - Inspiration: the BracketsBall legacy app's March Madness standings use this pattern.

@@ -68,6 +68,29 @@ export async function deleteUserPicksForEvents(
     );
 }
 
+export interface PickResultRow {
+  userId: string;
+  phaseId: string;
+  pickResult: PickResult | null;
+}
+
+export async function getPickResultsForLeagueSeason(
+  leagueId: string,
+  seasonId: string,
+  tx?: Transaction,
+): Promise<PickResultRow[]> {
+  const client = tx ?? db;
+  return client
+    .select({
+      userId: picks.userId,
+      phaseId: picks.phaseId,
+      pickResult: picks.pickResult,
+    })
+    .from(picks)
+    .innerJoin(phases, eq(picks.phaseId, phases.id))
+    .where(and(eq(picks.leagueId, leagueId), eq(phases.seasonId, seasonId)));
+}
+
 export interface PickWithEvent {
   pick: Pick;
   event: Event;

@@ -123,6 +123,74 @@ export function calculateWeeklyStandings(
   }));
 }
 
+export interface StandingsDelta {
+  priorRank: number;
+  /** priorRank - currentRank: positive = moved up, negative = down, 0 = flat. */
+  delta: number;
+}
+
+/**
+ * Phase-over-phase rank delta for the current standings vs. the state at
+ * the end of the previous phase. "Previous phase" = the phase immediately
+ * before the latest phase that has at least one scored pick, ordered by
+ * `phaseOrdinal` (lib/nfl/leagues). Returns an empty map when fewer than
+ * two phases have any scored picks (nothing to compare against yet).
+ *
+ * Prior ranks are recomputed from scratch via the same §8.4 dense-rank
+ * pipeline the recalc job uses, so the delta always reflects the current
+ * state of stored pick results — admin edits that clear results via
+ * PL-015 flow through without an extra invalidation path.
+ */
+export function calculatePhaseOverPhaseDeltas(
+  currentStandings: readonly { userId: string; rank: number }[],
+  picks: readonly {
+    userId: string;
+    phaseId: string;
+    pickResult: PickResult | null;
+  }[],
+  phaseOrdinalById: ReadonlyMap<string, number>,
+): Map<string, StandingsDelta> {
+  const deltas = new Map<string, StandingsDelta>();
+  const scoredOrdinals = new Set<number>();
+  for (const pick of picks) {
+    if (pick.pickResult === null) continue;
+    const ordinal = phaseOrdinalById.get(pick.phaseId);
+    if (ordinal === undefined) continue;
+    scoredOrdinals.add(ordinal);
+  }
+  if (scoredOrdinals.size < 2) return deltas;
+
+  const cutoff = Math.max(...scoredOrdinals);
+
+  const priorResultsByUser = new Map<string, (PickResult | null)[]>();
+  for (const { userId } of currentStandings) priorResultsByUser.set(userId, []);
+  for (const pick of picks) {
+    if (pick.pickResult === null) continue;
+    const ordinal = phaseOrdinalById.get(pick.phaseId);
+    if (ordinal === undefined) continue;
+    if (ordinal >= cutoff) continue;
+    const bucket = priorResultsByUser.get(pick.userId);
+    if (bucket) bucket.push(pick.pickResult);
+  }
+
+  const priorTotals = Array.from(priorResultsByUser, ([userId, results]) => ({
+    userId,
+    ...calculateStandingsPoints(results),
+  }));
+  const priorRanks = new Map<string, number>();
+  for (const { entry, rank } of denseRank(priorTotals, (t) => t.points)) {
+    priorRanks.set(entry.userId, rank);
+  }
+
+  for (const { userId, rank: currentRank } of currentStandings) {
+    // Every currentStandings user seeded priorResultsByUser above, so they
+    // all produce a prior rank — ! is sound.
+    const priorRank = priorRanks.get(userId)!;
+    deltas.set(userId, { priorRank, delta: priorRank - currentRank });
+  }
+  return deltas;
+}
+
 export interface RankedEntry<T> {
   entry: T;
   rank: number;

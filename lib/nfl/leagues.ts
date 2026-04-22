@@ -16,7 +16,10 @@ export type LeagueRange = Pick<
  * come before postseason weeks; within a season type the weekNumber orders
  * naturally. Used to compare phase positions without caring about real dates.
  */
-function phaseOrdinal(seasonType: SeasonType, weekNumber: number): number {
+export function phaseOrdinal(
+  seasonType: SeasonType,
+  weekNumber: number,
+): number {
   return seasonType === "regular" ? weekNumber : 100 + weekNumber;
 }
 

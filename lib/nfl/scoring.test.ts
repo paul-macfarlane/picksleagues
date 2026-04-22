@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { EventStatus } from "@/lib/db/schema/sports";
 
 import {
+  calculatePhaseOverPhaseDeltas,
   calculatePickResult,
   calculateStandingsPoints,
   calculateWeeklyStandings,
@@ -387,5 +388,138 @@ describe("calculateWeeklyStandings", () => {
     );
     expect(standings.every((s) => s.rank === 1)).toBe(true);
     expect(standings.every((s) => s.points === 0)).toBe(true);
+  });
+});
+
+describe("calculatePhaseOverPhaseDeltas", () => {
+  const ordinals = new Map<string, number>([
+    ["phase-1", 1],
+    ["phase-2", 2],
+    ["phase-3", 3],
+  ]);
+
+  it("returns empty when no picks are scored", () => {
+    const deltas = calculatePhaseOverPhaseDeltas(
+      [
+        { userId: "user-a", rank: 1 },
+        { userId: "user-b", rank: 1 },
+      ],
+      [
+        { userId: "user-a", phaseId: "phase-1", pickResult: null },
+        { userId: "user-b", phaseId: "phase-1", pickResult: null },
+      ],
+      ordinals,
+    );
+    expect(deltas.size).toBe(0);
+  });
+
+  it("returns empty when only one phase has scored picks", () => {
+    const deltas = calculatePhaseOverPhaseDeltas(
+      [
+        { userId: "user-a", rank: 1 },
+        { userId: "user-b", rank: 2 },
+      ],
+      [
+        { userId: "user-a", phaseId: "phase-1", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-1", pickResult: "loss" },
+      ],
+      ordinals,
+    );
+    expect(deltas.size).toBe(0);
+  });
+
+  it("signs delta so positive means moved up and negative means moved down", () => {
+    // Phase 1: A=1 win (rank 1), B=0 (rank 2), C=0 (rank 2)
+    // Phase 2: B wins, C wins, A loses → A=1, B=1, C=1 (all tied rank 1)
+    // Current (at phase 2 end, tied at 1): A moved 0, B moved +1 (2→1), C moved +1 (2→1)
+    const deltas = calculatePhaseOverPhaseDeltas(
+      [
+        { userId: "user-a", rank: 1 },
+        { userId: "user-b", rank: 1 },
+        { userId: "user-c", rank: 1 },
+      ],
+      [
+        { userId: "user-a", phaseId: "phase-1", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-1", pickResult: "loss" },
+        { userId: "user-c", phaseId: "phase-1", pickResult: "loss" },
+        { userId: "user-a", phaseId: "phase-2", pickResult: "loss" },
+        { userId: "user-b", phaseId: "phase-2", pickResult: "win" },
+        { userId: "user-c", phaseId: "phase-2", pickResult: "win" },
+      ],
+      ordinals,
+    );
+    expect(deltas.get("user-a")).toEqual({ priorRank: 1, delta: 0 });
+    expect(deltas.get("user-b")).toEqual({ priorRank: 2, delta: 1 });
+    expect(deltas.get("user-c")).toEqual({ priorRank: 2, delta: 1 });
+  });
+
+  it("reports negative delta when a user falls in rank", () => {
+    // Phase 1: A=1 (rank 1), B=0 (rank 2)
+    // Phase 2: B wins twice, A loses → B=2 (rank 1), A=1 (rank 2)
+    const deltas = calculatePhaseOverPhaseDeltas(
+      [
+        { userId: "user-b", rank: 1 },
+        { userId: "user-a", rank: 2 },
+      ],
+      [
+        { userId: "user-a", phaseId: "phase-1", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-1", pickResult: "loss" },
+        { userId: "user-a", phaseId: "phase-2", pickResult: "loss" },
+        { userId: "user-b", phaseId: "phase-2", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-2", pickResult: "win" },
+      ],
+      ordinals,
+    );
+    expect(deltas.get("user-a")).toEqual({ priorRank: 1, delta: -1 });
+    expect(deltas.get("user-b")).toEqual({ priorRank: 2, delta: 1 });
+  });
+
+  it("ignores unscored picks in the latest phase (cutoff uses scored ordinals only)", () => {
+    // Phase 3 picks exist but are null — cutoff falls back to phase 2,
+    // so prior = phase 1. A moved from rank 1 to rank 2 in current standings.
+    const deltas = calculatePhaseOverPhaseDeltas(
+      [
+        { userId: "user-b", rank: 1 },
+        { userId: "user-a", rank: 2 },
+      ],
+      [
+        { userId: "user-a", phaseId: "phase-1", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-1", pickResult: "loss" },
+        { userId: "user-a", phaseId: "phase-2", pickResult: "loss" },
+        { userId: "user-b", phaseId: "phase-2", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-2", pickResult: "win" },
+        { userId: "user-a", phaseId: "phase-3", pickResult: null },
+        { userId: "user-b", phaseId: "phase-3", pickResult: null },
+      ],
+      ordinals,
+    );
+    // Prior = phase-1 only → A rank 1 (1 pt), B rank 2 (0 pt).
+    expect(deltas.get("user-a")).toEqual({ priorRank: 1, delta: -1 });
+    expect(deltas.get("user-b")).toEqual({ priorRank: 2, delta: 1 });
+  });
+
+  it("ranks members with no prior picks as zero-point lasts", () => {
+    // user-c has no prior picks — seeded at 0 points. A leads prior, then
+    // C wins phase 2 and jumps ahead in current standings.
+    const deltas = calculatePhaseOverPhaseDeltas(
+      [
+        { userId: "user-c", rank: 1 },
+        { userId: "user-a", rank: 2 },
+        { userId: "user-b", rank: 3 },
+      ],
+      [
+        { userId: "user-a", phaseId: "phase-1", pickResult: "win" },
+        { userId: "user-b", phaseId: "phase-1", pickResult: "loss" },
+        { userId: "user-a", phaseId: "phase-2", pickResult: "loss" },
+        { userId: "user-b", phaseId: "phase-2", pickResult: "loss" },
+        { userId: "user-c", phaseId: "phase-2", pickResult: "win" },
+        { userId: "user-c", phaseId: "phase-2", pickResult: "win" },
+      ],
+      ordinals,
+    );
+    // Prior phase-1 ranks: A=1 (1 pt), B=C=2 (0 pts tied)
+    expect(deltas.get("user-a")).toEqual({ priorRank: 1, delta: -1 });
+    expect(deltas.get("user-b")).toEqual({ priorRank: 2, delta: -1 });
+    expect(deltas.get("user-c")).toEqual({ priorRank: 2, delta: 1 });
   });
 });
