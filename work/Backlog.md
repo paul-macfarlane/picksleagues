@@ -350,5 +350,5 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
   - Configure all sync endpoints with schedules
   - Set Bearer token auth headers
 
-- [ ] PL-063: Domain + DNS setup
+- [X] PL-063: Domain + DNS setup
   - Custom domain, SSL, cross-subdomain cookies
