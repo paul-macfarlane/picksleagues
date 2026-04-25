@@ -108,12 +108,36 @@ Standings can also be triggered manually if needed (e.g., if a score was correct
 
 ## Job Schedule Summary
 
-| Job           | Route                          | Schedule                  | Self-Gated        |
-| ------------- | ------------------------------ | ------------------------- | ----------------- |
-| Initial Setup | `app/api/cron/nfl/setup`       | Manual                    | No                |
-| Weekly Sync   | `app/api/cron/nfl/weekly-sync` | Weekly (e.g., Tue 6am ET) | Yes               |
-| Odds Sync     | `app/api/cron/nfl/odds-sync`   | Every 15 min              | Yes (game window) |
-| Live Scores   | `app/api/cron/nfl/live-scores` | Every 5 min               | Yes (game window) |
+All jobs are triggered by POST requests from cron-job.org with the header `Authorization: Bearer <CRON_SECRET>` (same value as the `CRON_SECRET` set in Vercel).
+
+| Job           | Route                          | Method | Cron Expression       | Timezone         | Self-Gated        |
+| ------------- | ------------------------------ | ------ | --------------------- | ---------------- | ----------------- |
+| Initial Setup | `app/api/cron/nfl/setup`       | POST   | Disabled (manual run) | America/New_York | No                |
+| Weekly Sync   | `app/api/cron/nfl/weekly-sync` | POST   | `0 6 * * 2`           | America/New_York | Yes               |
+| Odds Sync     | `app/api/cron/nfl/odds-sync`   | POST   | `*/15 * * * *`        | America/New_York | Yes (game window) |
+| Live Scores   | `app/api/cron/nfl/live-scores` | POST   | `*/5 * * * *`         | America/New_York | Yes (game window) |
+
+All jobs are pinned to `America/New_York` (DST-aware) so operators read one timezone across the cron-job.org dashboard and Vercel logs. The NFL schedule is ET-native, so game windows, pick lock times, and "Tuesday 6:00 AM" all live in the same clock. Timezone on the every-N-minutes jobs is cosmetic — they fire every N minutes regardless — but keeping it consistent avoids the "wait, which job is in which tz?" tax.
+
+### cron-job.org configuration
+
+For each scheduled job:
+
+- **URL**: `https://<production-host>/api/cron/nfl/<route>`
+- **Request method**: POST
+- **Headers**: `Authorization: Bearer <CRON_SECRET>` (single header, value matches the Vercel env var exactly)
+- **Schedule**: use the cron expression + timezone from the table above
+- **Request timeout**: 30s default is fine — routes set `maxDuration = 60` on the Vercel side and typical runs stay well under 30s
+- **Retry on failure**: one retry — absorbs transient ESPN / database blips without masking persistent failures
+- **Notifications**: enable failure notifications on the cron-job.org account so repeated non-200 responses page the operator
+
+The Initial Setup job is kept **disabled** in cron-job.org and fired via the "Run now" button when seeding a new season — it should never run on a schedule.
+
+After creating each job, smoke-test it with "Run now":
+
+- Expected: `200 OK` with a JSON body summarizing the sync result (or a no-op `200 OK` if the self-gate short-circuits outside season or a game window).
+- `401`: bearer token mismatch — check `CRON_SECRET` in both Vercel and the cron-job.org header.
+- `5xx`: inspect Vercel function logs; the route logs the underlying error.
 
 ---
 

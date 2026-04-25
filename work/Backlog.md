@@ -10,10 +10,10 @@
 
 | Status      | Count  |
 | ----------- | ------ |
-| Complete    | 43     |
+| Complete    | 44     |
 | In Progress | 0      |
 | Blocked     | 0      |
-| Pending     | 5      |
+| Pending     | 4      |
 | **Total**   | **48** |
 
 ---
@@ -346,7 +346,7 @@ Admin Overrides is a parallel track off Simulator — it reuses the admin gate a
 
 > PL-060 and PL-061 were pulled up into Foundation so we can deploy and test in production continuously.
 
-- [ ] PL-062: cron-job.org configuration
+- [x] PL-062: cron-job.org configuration
   - Configure all sync endpoints with schedules
   - Set Bearer token auth headers
 
