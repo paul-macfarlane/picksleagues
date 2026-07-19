@@ -1,0 +1,105 @@
+# Green CI is the merge gate to staging; the staging -> main promotion PR
+# re-runs this same suite (branch protection is configured in the GitHub UI).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - staging
+      - main
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          # Matches DATABASE_URL below; the integration suite creates/migrates
+          # its own picksleagues_test database against this same server.
+          POSTGRES_DB: picksleagues
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d picksleagues"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write CI env file
+        # apps/api's dev script (used by test:e2e's webServer) hard-requires a
+        # root .env; loadEnv validates it at boot (packages/core/src/env.ts).
+        # These are CI-only throwaway values, never real secrets.
+        run: |
+          cat > .env <<EOF
+          APP_ENV=local
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/picksleagues
+          BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+          BETTER_AUTH_URL=http://localhost:5173
+          GOOGLE_CLIENT_ID=ci-placeholder-google-client-id
+          GOOGLE_CLIENT_SECRET=ci-placeholder-google-client-secret
+          DISCORD_CLIENT_ID=ci-placeholder-discord-client-id
+          DISCORD_CLIENT_SECRET=ci-placeholder-discord-client-secret
+          JOB_SECRET=$(openssl rand -hex 32)
+          ADMIN_USER_IDS=
+          EOF
+
+      - name: Run database migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/picksleagues
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Integration tests
+        run: pnpm test:integration
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/picksleagues_test
+
+      - name: OpenAPI contract check
+        run: pnpm contract:check
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
