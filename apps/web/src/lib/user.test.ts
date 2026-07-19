@@ -14,6 +14,7 @@ describe("displayNameOf", () => {
 describe("initialsOf", () => {
   it.each([
     { name: "Jane Doe", expected: "JD" },
+    { name: "Mary Jane Watson", expected: "MJ" },
     { name: "Jane", expected: "J" },
     { name: "", expected: "?" },
     { name: "jane@example.com", expected: "J" },
