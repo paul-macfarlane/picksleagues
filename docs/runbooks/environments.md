@@ -31,12 +31,13 @@ config anywhere — add it only if a real cross-origin consumer ever appears.
 
 1. Create/link the Vercel project to this repo (`vercel link`).
 2. Production branch: `main`. Enable preview deployments for the `staging` branch only.
-3. Add a fixed domain alias for the staging branch deployment (e.g. `staging.picksleagues.app`
+3. Add a fixed domain alias for the staging branch deployment (e.g. `staging.picksleagues.com`
    → branch `staging`) under Project → Domains.
-4. Functions deploy via the Build Output API (`.vercel/output/`), not framework auto-detect —
-   the API is bundled by `scripts/build-vercel-output.sh` (esbuild, ESM format **with the
-   `createRequire` banner** so CJS deps like `pg` can `require` Node built-ins at runtime;
-   removing the banner crashes prod at cold start).
+4. Functions deploy via the Build Output API (`.vercel/output/`), not framework auto-detect.
+   The build script (`scripts/build-vercel-output.sh`, **to be written during provisioning** —
+   it doesn't exist yet) bundles the API with esbuild in ESM format **with the `createRequire`
+   banner** so CJS deps like `pg` can `require` Node built-ins at runtime; omitting the banner
+   crashes prod at cold start.
 
 ### Neon — one project, branch per environment
 
@@ -52,8 +53,8 @@ Separate Google and Discord OAuth apps per environment; the redirect URI is
 | Environment | Origin (`BETTER_AUTH_URL`)        | Redirect URIs                                                    |
 | ----------- | --------------------------------- | ---------------------------------------------------------------- |
 | Local       | `http://localhost:5173`           | `http://localhost:5173/api/auth/callback/{google,discord}`       |
-| Staging     | `https://staging.picksleagues.app` | `https://staging.picksleagues.app/api/auth/callback/{google,discord}` |
-| Production  | `https://picksleagues.app`        | `https://picksleagues.app/api/auth/callback/{google,discord}`    |
+| Staging     | `https://staging.picksleagues.com` | `https://staging.picksleagues.com/api/auth/callback/{google,discord}` |
+| Production  | `https://picksleagues.com`        | `https://picksleagues.com/api/auth/callback/{google,discord}`    |
 
 Local gotcha: `BETTER_AUTH_URL` must be the **SPA origin** (`:5173`, not `:3000`) — the
 session cookie has to be scoped where the SPA can see it; registering `:3000` silently breaks

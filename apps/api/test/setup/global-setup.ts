@@ -9,8 +9,9 @@ const migrationsFolder = new URL("../../../../packages/db/migrations", import.me
  * Runs once before the `integration` project's test files (vitest global
  * setup). Creates the test database against the server's maintenance
  * `postgres` DB if it doesn't exist yet, then applies the committed drizzle
- * migrations — idempotent, so reruns and concurrent local runs are safe
- * (engineering rules §Jobs are idempotent, applied here to test setup).
+ * migrations — idempotent, so reruns are safe, and the create-database race
+ * against a concurrent run is absorbed below (engineering rules §Jobs are
+ * idempotent, applied here to test setup).
  */
 export default async function setup(): Promise<void> {
   const testDatabaseUrl = getTestDatabaseUrl();
@@ -30,7 +31,15 @@ export default async function setup(): Promise<void> {
     if (rowCount === 0) {
       // CREATE DATABASE can't be parameterized or run in a transaction; dbName
       // comes from our own env config (TEST_DATABASE_URL), never external input.
-      await maintenanceClient.query(`CREATE DATABASE "${dbName}"`);
+      try {
+        await maintenanceClient.query(`CREATE DATABASE "${dbName}"`);
+      } catch (error) {
+        // 42P04 duplicate_database: a concurrent run won the check-then-act race —
+        // the database exists, which is all we need.
+        if (!(error instanceof pg.DatabaseError && error.code === "42P04")) {
+          throw error;
+        }
+      }
     }
   } finally {
     await maintenanceClient.end();

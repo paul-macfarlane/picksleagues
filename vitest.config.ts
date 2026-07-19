@@ -14,7 +14,9 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: ["packages/*/src/**/*.test.ts"],
+          // apps/*/src covers colocated unit tests too (convention: apps/api/test/
+          // is integration-only); a test outside these globs silently never runs.
+          include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts"],
         },
       },
       {

@@ -68,7 +68,13 @@ function SessionMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={async () => {
-            await authClient.signOut();
+            // Navigate regardless of the result: /sign-in's beforeLoad bounces a
+            // still-live session back to "/", so a failed sign-out can't strand
+            // the user on a page they shouldn't see.
+            const { error } = await authClient.signOut();
+            if (error) {
+              console.error("Sign-out failed", error);
+            }
             navigate({ to: "/sign-in" });
           }}
         >
