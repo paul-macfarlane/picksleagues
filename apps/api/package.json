@@ -1,0 +1,24 @@
+{
+  "name": "@picksleagues/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/dev.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "^1.5.1",
+    "@picksleagues/core": "workspace:*",
+    "@picksleagues/db": "workspace:*",
+    "@picksleagues/schemas": "workspace:*",
+    "hono": "^4.12.30",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^2.0.10",
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,16 @@
+# prose lives outside prettier — docs are locked at v0.3 and backlog lines are hand-managed
+docs
+backlog
+.claude
+CLAUDE.md
+README.md
+node_modules
+dist
+.vercel
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+openapi/openapi.json
+openapi/client
+packages/db/migrations
