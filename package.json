@@ -16,7 +16,9 @@
     "db:up": "docker compose up -d db --wait",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @picksleagues/db generate",
-    "db:migrate": "pnpm --filter @picksleagues/db migrate"
+    "db:migrate": "pnpm --filter @picksleagues/db migrate",
+    "contract:generate": "pnpm --filter @picksleagues/api generate:openapi",
+    "contract:check": "pnpm contract:generate && git diff --exit-code -- openapi || (echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
