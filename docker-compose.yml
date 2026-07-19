@@ -1,0 +1,23 @@
+# Local Postgres, major version matching Neon (17) so local ↔ Neon parity is a
+# non-issue (arch §Environments).
+services:
+  db:
+    image: postgres:17
+    ports:
+      # 5433: the host's 5432 is taken by a local Postgres install and 5434 by
+      # the paulitakes dev DB.
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: picksleagues
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d picksleagues"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  pgdata:
