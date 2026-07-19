@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/dev.ts",
+    "dev": "tsx watch --env-file=../../.env src/dev.ts",
     "typecheck": "tsc",
     "generate:openapi": "tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts"
   },
@@ -13,6 +13,7 @@
     "@picksleagues/core": "workspace:*",
     "@picksleagues/db": "workspace:*",
     "@picksleagues/schemas": "workspace:*",
+    "better-auth": "^1.6.23",
     "hono": "^4.12.30",
     "zod": "^4.4.3"
   },
