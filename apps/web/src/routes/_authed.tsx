@@ -1,5 +1,7 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { authClient } from "@/lib/auth";
+import { displayNameOf, initialsOf } from "@/lib/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -42,15 +44,8 @@ function SessionMenu() {
   // observe a brief null while it fetches on mount.
   if (!session) return null;
 
-  const displayName = session.user.name || session.user.email;
-  const initials =
-    displayName
-      .split(" ")
-      .map((part) => part[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "?";
+  const displayName = displayNameOf(session.user);
+  const initials = initialsOf(displayName);
 
   return (
     <DropdownMenu>
@@ -74,6 +69,7 @@ function SessionMenu() {
             const { error } = await authClient.signOut();
             if (error) {
               console.error("Sign-out failed", error);
+              toast.error("Sign out failed — please try again.");
             }
             navigate({ to: "/sign-in" });
           }}
