@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { APP_ENV } from "./env.js";
-import { FixedClock, OffsetClock, SystemClock, resolveClock } from "./clock.js";
+import { APP_ENV } from "./env";
+import { FixedClock, OffsetClock, SystemClock, resolveClock } from "./clock";
 
 describe("FixedClock", () => {
   it("returns the pinned instant", () => {

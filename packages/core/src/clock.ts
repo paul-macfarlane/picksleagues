@@ -1,4 +1,4 @@
-import { APP_ENV, type AppEnv } from "./env.js";
+import { APP_ENV, type AppEnv } from "./env";
 
 /**
  * All "now" reads in domain logic go through a Clock (arch D13, lint-enforced).

@@ -1,2 +1,2 @@
-export * from "./health.js";
-export * from "./username.js";
+export * from "./health";
+export * from "./username";

@@ -2,7 +2,7 @@
 // document — the routes are the source of truth, never a hand-edited file.
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createApp } from "../src/app.js";
+import { createApp } from "../src/app";
 
 const outDir = path.resolve(import.meta.dirname, "../../../openapi");
 const res = await createApp().request("/api/openapi.json");

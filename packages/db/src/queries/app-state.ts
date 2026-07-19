@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import type { Db } from "../client.js";
-import { APP_STATE_SINGLETON_ID, appState } from "../schema/app-state.js";
+import type { Db } from "../client";
+import { APP_STATE_SINGLETON_ID, appState } from "../schema/app-state";
 
 /** Missing row means no scenario has ever touched the clock — offset 0. */
 export async function getSimClockOffsetMs(db: Db): Promise<number> {

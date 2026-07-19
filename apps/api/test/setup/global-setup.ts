@@ -1,7 +1,7 @@
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { getTestDatabaseUrl } from "./test-database-url.js";
+import { getTestDatabaseUrl } from "./test-database-url";
 
 const migrationsFolder = new URL("../../../../packages/db/migrations", import.meta.url).pathname;
 

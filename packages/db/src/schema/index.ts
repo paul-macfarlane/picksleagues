@@ -1,2 +1,2 @@
-export * from "./app-state.js";
-export * from "./auth.js";
+export * from "./app-state";
+export * from "./auth";

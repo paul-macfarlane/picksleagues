@@ -1,5 +1,5 @@
 import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { citext } from "./column-types.js";
+import { citext } from "./column-types";
 
 /**
  * Better Auth's core tables (user/session/account/verification), shaped for

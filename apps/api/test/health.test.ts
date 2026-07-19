@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, appState, getSimClockOffsetMs, setSimClockOffsetMs } from "@picksleagues/db";
-import { createApp } from "../src/app.js";
-import { getTestDatabaseUrl } from "./setup/test-database-url.js";
+import { createApp } from "../src/app";
+import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 describe("GET /api/health", () => {
   it("responds 200 with status ok, in-process (no HTTP server, no auth)", async () => {

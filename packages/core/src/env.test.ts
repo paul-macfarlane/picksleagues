@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { loadEnv, resetEnvCache } from "./env.js";
+import { loadEnv, resetEnvCache } from "./env";
 
 const validSource: Record<string, string | undefined> = {
   APP_ENV: "local",

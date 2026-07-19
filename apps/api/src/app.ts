@@ -1,5 +1,5 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { healthRoutes } from "./routes/health.js";
+import { healthRoutes } from "./routes/health";
 
 export type AppDeps = {
   auth?: { handler: (req: Request) => Response | Promise<Response> };

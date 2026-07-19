@@ -1,8 +1,8 @@
 import { serve } from "@hono/node-server";
 import { loadEnv } from "@picksleagues/core";
 import { createDb } from "@picksleagues/db";
-import { createApp } from "./app.js";
-import { createAuth } from "./auth.js";
+import { createApp } from "./app";
+import { createAuth } from "./auth";
 
 const port = 3000;
 
