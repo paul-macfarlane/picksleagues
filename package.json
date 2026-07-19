@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r --if-present test",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
     "db:up": "docker compose up -d db --wait",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @picksleagues/db generate",
@@ -22,12 +24,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "prettier": "^3.9.5",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.64.0"
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^4.1.10"
   }
 }

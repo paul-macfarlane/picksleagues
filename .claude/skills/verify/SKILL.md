@@ -5,23 +5,40 @@ description: Build/launch/drive recipe for runtime-verifying changes in this rep
 
 # Verifying Picks Leagues changes at runtime
 
-> **Stub — the code scaffold doesn't exist yet.** Fill in each section with real commands, ports, and env-var names as the corresponding tasks land (FND-1/2 launch, FND-4 auth, SIM epic simulator). Keeping this file current is part of closing those tasks. The intended shape below comes from `docs/architecture.md`.
+## Launch
 
-## Launch (fill in at FND-1/FND-2)
+Prereqs: root `.env` (copy `.env.example`; `BETTER_AUTH_SECRET`/`JOB_SECRET` = `openssl rand -base64 32`; placeholder OAuth creds are fine for everything except completing a real OAuth sign-in).
 
-- DB: Docker Postgres via the repo compose file (`pnpm db:up` or similar); apply migrations with drizzle-kit. Record container name, host port, and credentials here.
-- API: Hono dev server. Web: Vite dev server. Record start commands, ports, and a readiness check (`curl -s -o /dev/null -w "%{http_code}" ...`).
+```sh
+pnpm db:up          # Docker Postgres 17 → localhost:5433 (postgres/postgres, db picksleagues); waits for healthy
+pnpm db:migrate     # applies packages/db/migrations
+pnpm dev            # both dev servers: web http://localhost:5173 (Vite), api http://localhost:3000 (tsx watch, loads ../../.env)
+```
+
+Readiness: `curl -s http://localhost:3000/api/health` → `{"status":"ok"}`. The SPA is served at :5173 and proxies `/api` to :3000 (same-origin — always drive auth/cookie flows through :5173, never :3000). Auth liveness: `curl -s http://localhost:3000/api/auth/ok`.
+
+## Test layers
+
+```sh
+pnpm test               # unit (vitest, packages/*/src/**/*.test.ts) — no DB needed
+pnpm test:integration   # in-process Hono + real Postgres; auto-creates + migrates picksleagues_test on :5433 (override with TEST_DATABASE_URL)
+pnpm test:e2e           # Playwright chromium against the full local stack; starts (or reuses) both dev servers itself
+pnpm typecheck && pnpm lint && pnpm contract:check   # static gates; contract:check fails if openapi/ is stale
+```
 
 ## Drive
 
-- The SPA consumes the generated OpenAPI client, so most behavior is verifiable straight against the API — `curl` routes per the committed spec in `openapi/`.
-- **The simulator is the primary verification harness** (non-prod only): load a scenario (`POST /sim/fixtures`), set or advance time (`POST /sim/clock`), run settlement (`POST /sim/settle`), then assert via ordinary API reads. Record the shared-secret header/env-var name and the scenario file locations here once SIM lands. Time-dependent behavior (locking, cutoffs, deadlines) must be verified by moving the simulated clock, never by editing kickoff timestamps.
-- DB state setup/inspection without the UI: `docker exec <container> psql ...` — record specifics; clean up synthetic rows afterward.
+- The SPA consumes the generated OpenAPI client, so most behavior is verifiable straight against the API — `curl` routes per the committed spec in `openapi/openapi.json`.
+- **The simulator is the primary verification harness once SIM lands** (non-prod only): load a scenario (`POST /sim/fixtures`), set or advance time (`POST /sim/clock`), run settlement (`POST /sim/settle`), then assert via ordinary API reads. Record the shared-secret header/env-var name and scenario file locations here when SIM lands. Time-dependent behavior (locking, cutoffs, deadlines) must be verified by moving the simulated clock, never by editing kickoff timestamps. Until SIM lands, the clock offset can be set directly on the `app_state` row (`id='singleton'`, `sim_clock_offset_ms`).
+- DB inspection: `docker compose exec db psql -U postgres -d picksleagues` (`-d picksleagues_test` for the integration DB). Clean up synthetic rows afterward.
 
-## Auth-gated flows (fill in at FND-4)
+## Auth-gated flows (helper TBD)
 
-Sign-in is OAuth-only (Google/Discord), so headless verification needs a minted session: follow the paulitakes pattern — an e2e helper that inserts user + session rows and signs the Better Auth session cookie with the local secret. Record the helper path and usage (Playwright `addCookies`, or curl with the cookie) here once built.
+Sign-in is OAuth-only (Google/Discord), so headless verification needs a minted session: follow the paulitakes pattern — an e2e helper that inserts user + session rows and signs the Better Auth session cookie with the local secret. Record the helper path and usage (Playwright `addCookies`, or curl with the cookie) here once built. Smoke-level checks that don't need a session: `POST /api/auth/sign-in/social` with `{"provider":"google","callbackURL":"/"}` returns a provider redirect URL even with placeholder creds.
 
 ## Gotchas
 
-- (accumulate as discovered)
+- Host port is **5433** (5432 is taken by a local Postgres install, 5434 by paulitakes).
+- `BETTER_AUTH_URL` must be `http://localhost:5173` (the SPA origin), or the session cookie lands where the SPA can't see it.
+- `apps/web/src/routeTree.gen.ts` is regenerated by the router plugin on dev/build; it's ignored by ESLint/Prettier — never hand-edit or reformat it.
+- Playwright reuses already-running dev servers locally; if a run leaves stray servers behind, check `lsof -nP -iTCP:3000 -iTCP:5173 -sTCP:LISTEN`.
