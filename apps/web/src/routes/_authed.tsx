@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -56,10 +57,14 @@ function SessionMenu() {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
-        <DropdownMenuLabel className="font-normal text-muted-foreground">
-          {session.user.email}
-        </DropdownMenuLabel>
+        {/* This dropdown-menu is the Base UI flavor: DropdownMenuLabel is a
+            Menu.GroupLabel and throws at runtime unless nested in a Group. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            <span className="block text-sm text-foreground">{displayName}</span>
+            <span className="block font-normal text-muted-foreground">{session.user.email}</span>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={async () => {
