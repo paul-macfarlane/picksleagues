@@ -1,0 +1,21 @@
+# deps & build
+node_modules/
+dist/
+.vercel/
+*.tsbuildinfo
+
+# env
+.env
+.env.*
+!.env.example
+
+# test artifacts
+test-results/
+playwright-report/
+coverage/
+
+# local review feedback (never committed — see /feedback)
+/feedback.md
+
+# os
+.DS_Store
