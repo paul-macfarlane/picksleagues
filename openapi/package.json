@@ -1,0 +1,11 @@
+{
+  "name": "@picksleagues/openapi",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./client/schema.d.ts"
+    }
+  }
+}

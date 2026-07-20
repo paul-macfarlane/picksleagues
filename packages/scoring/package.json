@@ -1,0 +1,15 @@
+{
+  "name": "@picksleagues/scoring",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

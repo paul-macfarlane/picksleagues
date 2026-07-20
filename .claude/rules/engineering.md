@@ -44,7 +44,9 @@ Standards for all code in this repo. When a rule and `docs/architecture.md` conf
 - **Mobile-first.** Design and verify layouts at phone width first, then scale up. All kickoff times and deadlines display in the user's local timezone; standings show a "last updated" timestamp; the UI never claims real-time freshness.
 - **Theme tokens only.** No arbitrary color values in components — CSS-variable tokens so light/dark both work. Sole exception: third-party brand-mandated colors (OAuth buttons), with the guideline cited in a comment.
 - **Accessibility:** semantic HTML, labelled controls, keyboard-operable interactions, sufficient contrast.
-- **Errors are handled,** not swallowed. User-facing failures show a clear message; server failures are logged with context; repeated ingestion failures alert (Discord webhook).
+- **Errors are handled,** not swallowed. User-facing failures show a clear message; server failures are logged with context; repeated ingestion failures alert (Discord webhook). In the SPA, a failed user action surfaces via the shared sonner toast (`toast.error`) — one mechanism, every action, no bespoke error UI.
+- **Derived user-display values have one home.** Formatting derived from user/session data (display name fallback, initials, and the like) lives in shared helpers (`apps/web/src/lib/user.ts`), never inline in components — inline copies drift.
+- **Extensionless relative imports.** The repo resolves with `moduleResolution: "bundler"` and every runtime path goes through a transpiler (tsx/vite/vitest/esbuild) — never write NodeNext-style `.js` suffixes on relative imports.
 - **Match surrounding code** in naming, structure, and idiom. Consistency over personal preference.
 - **Prefer the latest stable versions.** Upgrade when there's no breaking change; call out and schedule breaking upgrades rather than silently pinning old.
 

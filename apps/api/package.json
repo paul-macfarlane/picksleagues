@@ -1,0 +1,30 @@
+{
+  "name": "@picksleagues/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/dev.ts",
+    "typecheck": "tsc",
+    "generate:openapi": "tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "^1.5.1",
+    "@picksleagues/core": "workspace:*",
+    "@picksleagues/db": "workspace:*",
+    "@picksleagues/schemas": "workspace:*",
+    "better-auth": "^1.6.23",
+    "hono": "^4.12.30",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^2.0.10",
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.20.0",
+    "drizzle-orm": "^0.45.2",
+    "openapi-typescript": "^7.13.0",
+    "pg": "^8.22.0",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3"
+  }
+}
