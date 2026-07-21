@@ -28,13 +28,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get the caller's own profile */
+        get: operations["getMe"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Claim or change the caller's username */
+        /** Claim/change the caller's username and/or edit their display name */
         patch: operations["updateMe"];
         trace?: never;
     };
@@ -59,9 +60,11 @@ export interface components {
             message: string;
         };
         UpdateMeRequest: {
-            username: components["schemas"]["Username"];
+            username?: components["schemas"]["Username"];
+            displayName?: components["schemas"]["DisplayName"];
         };
         Username: string;
+        DisplayName: string;
     };
     responses: never;
     parameters: never;
@@ -91,6 +94,44 @@ export interface operations {
             };
         };
     };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     updateMe: {
         parameters: {
             query?: never;
@@ -104,7 +145,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Username claimed or changed */
+            /** @description Profile updated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -113,7 +154,7 @@ export interface operations {
                     "application/json": components["schemas"]["MeResponse"];
                 };
             };
-            /** @description Username fails the format rule */
+            /** @description No fields supplied, or a supplied field fails its format rule */
             400: {
                 headers: {
                     [name: string]: unknown;

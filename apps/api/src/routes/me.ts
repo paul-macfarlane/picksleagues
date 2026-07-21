@@ -9,7 +9,7 @@ import type { users } from "@picksleagues/db";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { sessionMiddleware, type SessionVariables } from "../middleware/session";
-import { claimUsername } from "../services/users";
+import { getUser, updateProfile } from "../services/users";
 
 function serializeMe(user: typeof users.$inferSelect): MeResponse {
   return {
@@ -21,11 +21,33 @@ function serializeMe(user: typeof users.$inferSelect): MeResponse {
   };
 }
 
+const getMe = createRoute({
+  method: "get",
+  path: "/me",
+  operationId: "getMe",
+  summary: "Get the caller's own profile",
+  responses: {
+    200: {
+      description: "The caller's profile",
+      content: { "application/json": { schema: MeResponseSchema } },
+    },
+    401: {
+      description: "No valid session",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: {
+      description:
+        "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
 const updateMe = createRoute({
   method: "patch",
   path: "/me",
   operationId: "updateMe",
-  summary: "Claim or change the caller's username",
+  summary: "Claim/change the caller's username and/or edit their display name",
   request: {
     body: {
       content: { "application/json": { schema: UpdateMeRequestSchema } },
@@ -33,11 +55,11 @@ const updateMe = createRoute({
   },
   responses: {
     200: {
-      description: "Username claimed or changed",
+      description: "Profile updated",
       content: { "application/json": { schema: MeResponseSchema } },
     },
     400: {
-      description: "Username fails the format rule",
+      description: "No fields supplied, or a supplied field fails its format rule",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     401: {
@@ -69,6 +91,34 @@ export function meRoutes(deps: AppDeps) {
     return sessionMiddleware(deps.auth)(c, next);
   });
 
+  app.openapi(getMe, async (c) => {
+    if (!deps.db) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database is not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const user = await getUser(deps.db, sessionUser.id);
+    if (!user) {
+      // Session cookie is still valid but the user row is gone (e.g. deleted
+      // mid-session) — treat it as unauthenticated rather than 404ing /me.
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "unauthenticated",
+          message: "Sign in to continue.",
+        }),
+        401,
+      );
+    }
+
+    return c.json(serializeMe(user), 200);
+  });
+
   app.openapi(updateMe, async (c) => {
     if (!deps.db || !deps.clock) {
       return c.json(
@@ -82,9 +132,9 @@ export function meRoutes(deps: AppDeps) {
 
     const sessionUser = c.get("sessionUser");
     const clock = await deps.clock();
-    const { username } = c.req.valid("json");
+    const { username, displayName } = c.req.valid("json");
 
-    const result = await claimUsername(deps.db, clock, sessionUser.id, username);
+    const result = await updateProfile(deps.db, clock, sessionUser.id, { username, displayName });
     if (!result.ok) {
       return c.json(
         ErrorResponseSchema.parse({

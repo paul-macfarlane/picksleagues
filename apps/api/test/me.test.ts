@@ -29,29 +29,77 @@ const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: testEnv, db });
 const app = createApp({ auth, db, clock: async () => new FixedClock(FIXED_NOW) });
 
-function patchMe(cookie: string | undefined, username: string) {
+function getMe(cookie: string | undefined) {
+  return app.request("/api/me", {
+    method: "GET",
+    headers: {
+      ...(cookie ? { cookie } : {}),
+    },
+  });
+}
+
+function patchMeBody(cookie: string | undefined, body: Record<string, unknown>) {
   return app.request("/api/me", {
     method: "PATCH",
     headers: {
       "content-type": "application/json",
       ...(cookie ? { cookie } : {}),
     },
-    body: JSON.stringify({ username }),
+    body: JSON.stringify(body),
   });
 }
 
+function patchMe(cookie: string | undefined, username: string) {
+  return patchMeBody(cookie, { username });
+}
+
+beforeEach(async () => {
+  // FK order: sessions/accounts reference users.
+  await db.delete(sessions);
+  await db.delete(accounts);
+  await db.delete(users);
+});
+
+afterAll(async () => {
+  await db.$client.end();
+});
+
+describe("GET /api/me", () => {
+  it("401s with no session cookie", async () => {
+    const res = await getMe(undefined);
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "unauthenticated" });
+  });
+
+  it("200s with the full profile shape for a user who hasn't claimed a username yet", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await getMe(cookie);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      id: user.id,
+      username: null,
+      displayName: "Test User",
+      email: user.email,
+      image: null,
+    });
+  });
+
+  it("200s reflecting a claimed username", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    await patchMe(cookie, "paulm");
+
+    const res = await getMe(cookie);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as MeResponse;
+    expect(body.username).toBe("paulm");
+  });
+});
+
 describe("PATCH /api/me", () => {
-  beforeEach(async () => {
-    // FK order: sessions/accounts reference users.
-    await db.delete(sessions);
-    await db.delete(accounts);
-    await db.delete(users);
-  });
-
-  afterAll(async () => {
-    await db.$client.end();
-  });
-
   it("401s with no session cookie", async () => {
     const res = await patchMe(undefined, "paulm");
 
@@ -126,5 +174,64 @@ describe("PATCH /api/me", () => {
     expect(claimRes.status).toBe(200);
     const claimBody = (await claimRes.json()) as MeResponse;
     expect(claimBody.username).toBe("oldname");
+  });
+
+  it("updates only the display name, leaving username untouched, stamping updatedAt from the clock", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth, { username: "paulm" });
+
+    const res = await patchMeBody(cookie, { displayName: "New Name" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      id: user.id,
+      username: "paulm",
+      displayName: "New Name",
+      email: user.email,
+      image: null,
+    });
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.username).toBe("paulm");
+    expect(row?.display_name).toBe("New Name");
+    expect(row?.updatedAt).toEqual(FIXED_NOW);
+  });
+
+  it("updates both username and display name together", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await patchMeBody(cookie, { username: "paulm", displayName: "New Name" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      id: user.id,
+      username: "paulm",
+      displayName: "New Name",
+      email: user.email,
+      image: null,
+    });
+  });
+
+  it("400s when no fields are supplied", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await patchMeBody(cookie, {});
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
+    expect(body).toHaveProperty("message");
+  });
+
+  it("stores the display name trimmed", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await patchMeBody(cookie, { displayName: "  padded  " });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as MeResponse;
+    expect(body.displayName).toBe("padded");
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.display_name).toBe("padded");
   });
 });

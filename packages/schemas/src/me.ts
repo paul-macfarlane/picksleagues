@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { DisplayNameSchema } from "./display-name";
 import { UsernameSchema } from "./username";
 
 // mvp-spec §Users & Identity: the authenticated caller's own profile.
@@ -20,12 +21,17 @@ export const MeResponseSchema = z
 
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
-// Claiming a username (first sign-in) and changing it later (mvp-spec: username
-// is changeable anytime, old name released immediately) are the same operation —
-// one PATCH /me. ID-2 will extend this schema with an optional displayName field.
+// Claiming a username (first sign-in), changing it later (mvp-spec: username
+// is changeable anytime, old name released immediately), and editing the
+// freely-editable display name are all the same partial-update operation —
+// one PATCH /me. At least one field must be present or there's nothing to do.
 export const UpdateMeRequestSchema = z
   .object({
-    username: UsernameSchema,
+    username: UsernameSchema.optional(),
+    displayName: DisplayNameSchema.optional(),
+  })
+  .refine((data) => data.username !== undefined || data.displayName !== undefined, {
+    message: "At least one of username or displayName is required",
   })
   .openapi("UpdateMeRequest");
 

@@ -77,15 +77,20 @@
         "properties": {
           "username": {
             "$ref": "#/components/schemas/Username"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
           }
-        },
-        "required": [
-          "username"
-        ]
+        }
       },
       "Username": {
         "type": "string",
         "pattern": "^[a-z0-9_]{3,20}$"
+      },
+      "DisplayName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
       }
     },
     "parameters": {}
@@ -110,9 +115,45 @@
       }
     },
     "/api/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Get the caller's own profile",
+        "responses": {
+          "200": {
+            "description": "The caller's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "operationId": "updateMe",
-        "summary": "Claim or change the caller's username",
+        "summary": "Claim/change the caller's username and/or edit their display name",
         "requestBody": {
           "content": {
             "application/json": {
@@ -124,7 +165,7 @@
         },
         "responses": {
           "200": {
-            "description": "Username claimed or changed",
+            "description": "Profile updated",
             "content": {
               "application/json": {
                 "schema": {
@@ -134,7 +175,7 @@
             }
           },
           "400": {
-            "description": "Username fails the format rule",
+            "description": "No fields supplied, or a supplied field fails its format rule",
             "content": {
               "application/json": {
                 "schema": {
