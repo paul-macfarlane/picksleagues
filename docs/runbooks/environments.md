@@ -41,6 +41,10 @@ config anywhere — add it only if a real cross-origin consumer ever appears.
    **with the `createRequire` banner** so CJS deps like `pg` can `require` Node built-ins at
    runtime (omitting the banner builds fine and crashes prod at cold start), and writes the
    route table (hashed assets → static files → `/api/*` → function → SPA fallback).
+5. Settings → Deployment Protection → set **Vercel Authentication** to Disabled. Previews
+   only ever build the `staging` branch (the `ignoreCommand`), and staging must be publicly
+   reachable — left on, `staging.picksleagues.com` 302s every request to Vercel SSO and the
+   OAuth callback flows can't complete.
 
 ### Neon — one project, branch per environment
 
