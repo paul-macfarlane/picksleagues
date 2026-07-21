@@ -54,6 +54,16 @@ config anywhere — add it only if a real cross-origin consumer ever appears.
 4. Use the **direct** (non-pooler) URL when running Drizzle migrations — DDL and
    session-level features don't mix with transaction pooling.
 
+### Migrations (ADR-0003)
+
+The `Migrate` workflow (`.github/workflows/migrate.yml`) applies drizzle migrations on every
+push to `staging`/`main`, using GitHub repo secrets holding each branch's **direct** Neon
+URL: `STAGING_DATABASE_URL` and `PROD_DATABASE_URL` (`gh secret set <NAME>`). No fallback
+between them; a missing secret skips green. CI's own migrate step only touches its
+throwaway Postgres container — deployed databases are migrated by this workflow alone.
+The workflow races the Vercel deploy, so migrations must stay backward-compatible with the
+previously deployed code (expand/contract).
+
 The API talks to Neon with plain `pg` over TCP — no Neon-specific driver. Fluid Compute is a
 full Node runtime, so the same driver serves Docker Postgres locally/in tests and Neon in
 deployed envs; `@neondatabase/serverless` is only for TCP-less runtimes (edge/workers) and
