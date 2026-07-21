@@ -13,6 +13,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -33,15 +34,22 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedProfileRoute = AuthedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/profile': typeof AuthedProfileRoute
 }
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/profile': typeof AuthedProfileRoute
   '/': typeof AuthedIndexRoute
 }
 export interface FileRoutesById {
@@ -49,14 +57,21 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/_authed/profile': typeof AuthedProfileRoute
   '/_authed/': typeof AuthedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/claim-username' | '/sign-in'
+  fullPaths: '/' | '/claim-username' | '/sign-in' | '/profile'
   fileRoutesByTo: FileRoutesByTo
-  to: '/claim-username' | '/sign-in' | '/'
-  id: '__root__' | '/_authed' | '/claim-username' | '/sign-in' | '/_authed/'
+  to: '/claim-username' | '/sign-in' | '/profile' | '/'
+  id:
+    | '__root__'
+    | '/_authed'
+    | '/claim-username'
+    | '/sign-in'
+    | '/_authed/profile'
+    | '/_authed/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,14 +110,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/profile': {
+      id: '/_authed/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthedProfileRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
+  AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,
 }
 

@@ -72,6 +72,7 @@ function SessionMenu() {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>Profile</DropdownMenuItem>
         <DropdownMenuItem
           onClick={async () => {
             // Navigate regardless of the result: /sign-in's beforeLoad bounces a
