@@ -1,14 +1,25 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DisplayNameSchema, UsernameSchema, type MeResponse } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
 import { initialsOf } from "@/lib/user";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -213,6 +224,71 @@ function ProfileForm({
           </form>
         </CardContent>
       </Card>
+      <DangerZone />
     </main>
+  );
+}
+
+function DangerZone() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const deleteAccount = useMutation({
+    mutationFn: async () => {
+      // 204 has no body — success is "no error", not a `data` payload.
+      const { error } = await api.DELETE("/api/me");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // The account and every session are already gone server-side, so there's
+      // nothing left for authClient.signOut() to revoke; clearing the query
+      // cache drops every stale fetch, and /sign-in's beforeLoad re-checks
+      // getSession() itself, which will find no session to bounce back from.
+      queryClient.clear();
+      navigate({ to: "/sign-in" });
+    },
+    onError: () => {
+      toast.error("Couldn't delete your account — please try again.");
+    },
+  });
+
+  return (
+    <Card className="w-full max-w-sm ring-destructive/30">
+      <CardHeader>
+        <CardTitle className="text-destructive">Danger zone</CardTitle>
+        <CardDescription>Deleting your account is permanent and immediate.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={<Button variant="destructive" size="lg" className="w-full justify-center" />}
+          >
+            Delete account
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This can&apos;t be undone. Your account is anonymized immediately: your username is
+                released, your display name and avatar are replaced with a &quot;Deleted User&quot;
+                placeholder, and your sign-in identities are removed. Your picks and league history
+                stay under that placeholder. You&apos;ll be signed out everywhere, and signing in
+                again with the same provider creates a brand-new account.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteAccount.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={deleteAccount.isPending}
+                onClick={() => deleteAccount.mutate()}
+              >
+                {deleteAccount.isPending ? "Deleting…" : "Delete account"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
   );
 }
