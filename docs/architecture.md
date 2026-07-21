@@ -323,6 +323,7 @@ PUT    /leagues/:id/picks/elimination/:week
 POST   /leagues/:id/brackets             submit bracket (all 63 + tiebreaker)
 GET    /leagues/:id/picks/week/:week     own always; others' filtered by kickoff
 GET/PATCH /me                            username claim/change, display name
+DELETE /me                               account deletion: anonymize in place (guarded by ADR-0004 once leagues exist)
 POST   /jobs/*                           secret-protected job triggers (prod cron)
 PUT    /admin/games/:id/override         set/clear overrides (admin allowlist; audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
