@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClaimUsernameRoute = ClaimUsernameRouteImport.update({
+  id: '/claim-username',
+  path: '/claim-username',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInRoute = SignInRouteImport.update({
@@ -30,28 +36,32 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
+  '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
 }
 export interface FileRoutesByTo {
+  '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
   '/': typeof AuthedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
+  '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
   '/_authed/': typeof AuthedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sign-in'
+  fullPaths: '/' | '/claim-username' | '/sign-in'
   fileRoutesByTo: FileRoutesByTo
-  to: '/sign-in' | '/'
-  id: '__root__' | '/_authed' | '/sign-in' | '/_authed/'
+  to: '/claim-username' | '/sign-in' | '/'
+  id: '__root__' | '/_authed' | '/claim-username' | '/sign-in' | '/_authed/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
+  ClaimUsernameRoute: typeof ClaimUsernameRoute
   SignInRoute: typeof SignInRoute
 }
 
@@ -62,6 +72,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/claim-username': {
+      id: '/claim-username'
+      path: '/claim-username'
+      fullPath: '/claim-username'
+      preLoaderRoute: typeof ClaimUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in': {
@@ -94,6 +111,7 @@ const AuthedRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
+  ClaimUsernameRoute: ClaimUsernameRoute,
   SignInRoute: SignInRoute,
 }
 export const routeTree = rootRouteImport

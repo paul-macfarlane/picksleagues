@@ -16,10 +16,16 @@ import {
 // Pathless layout gating every signed-in route (mvp-spec has no anonymous browsing):
 // beforeLoad re-checks the session on every navigation into this subtree.
 export const Route = createFileRoute("/_authed")({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data: session } = await authClient.getSession();
     if (!session) {
       throw redirect({ to: "/sign-in" });
+    }
+    // First-time-only claim step per spec onboarding flow (OAuth → claim
+    // username → dashboard): every route in this subtree stays gated until
+    // claimed, then returns here via the preserved redirect.
+    if (!session.user.username) {
+      throw redirect({ to: "/claim-username", search: { redirect: location.href } });
     }
   },
   component: AuthedLayout,

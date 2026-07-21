@@ -1,23 +1,34 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
+import { safeInternalPath } from "@/lib/redirect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { GoogleIcon, DiscordIcon } from "@/components/icons";
 
+const searchSchema = z.object({
+  // Invite-link return path (mvp-spec §Users & Identity onboarding; LG-3's
+  // /join/:code) — threaded through OAuth → claim username → dashboard.
+  redirect: z.string().optional(),
+});
+
 export const Route = createFileRoute("/sign-in")({
-  // Signed-in users have nothing to do here — send them straight to the dashboard.
-  beforeLoad: async () => {
+  validateSearch: searchSchema,
+  // Signed-in users have nothing to do here — send them on to wherever they
+  // were headed.
+  beforeLoad: async ({ search }) => {
     const { data: session } = await authClient.getSession();
     if (session) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: safeInternalPath(search.redirect) });
     }
   },
   component: SignIn,
 });
 
 function SignIn() {
+  const { redirect: redirectParam } = Route.useSearch();
   const health = useQuery({
     queryKey: ["health"],
     queryFn: async () => {
@@ -42,7 +53,12 @@ function SignIn() {
             variant="outline"
             size="lg"
             className="w-full justify-center gap-3 border-[#747775] bg-white text-[#1F1F1F] hover:bg-white/90"
-            onClick={() => authClient.signIn.social({ provider: "google", callbackURL: "/" })}
+            onClick={() =>
+              authClient.signIn.social({
+                provider: "google",
+                callbackURL: safeInternalPath(redirectParam),
+              })
+            }
           >
             <GoogleIcon className="h-5 w-5" />
             Continue with Google
@@ -53,7 +69,12 @@ function SignIn() {
             type="button"
             size="lg"
             className="w-full justify-center gap-3 bg-[#5865F2] text-white hover:bg-[#4752C4]"
-            onClick={() => authClient.signIn.social({ provider: "discord", callbackURL: "/" })}
+            onClick={() =>
+              authClient.signIn.social({
+                provider: "discord",
+                callbackURL: safeInternalPath(redirectParam),
+              })
+            }
           >
             <DiscordIcon className="h-5 w-5" />
             Continue with Discord
