@@ -1,0 +1,64 @@
+# Applies drizzle migrations to the environment matching the pushed branch
+# (ADR-0003: PRs merge to staging → Neon staging; staging merges to main →
+# Neon primary; the promotion flow means staging always migrates before prod
+# reaches the same commit).
+#
+# Required repo secrets (docs/runbooks/environments.md §Migrations) — use the
+# DIRECT (non-pooler) Neon URLs; DDL doesn't mix with transaction pooling:
+#   STAGING_DATABASE_URL — Neon `staging` branch connection string
+#   PROD_DATABASE_URL    — Neon primary branch connection string
+#
+# Each branch maps to exactly one secret — no fallback, so main can never
+# migrate the staging database. Until the branch's secret exists the job
+# logs a notice and exits green before installing anything.
+name: Migrate
+
+on:
+  push:
+    branches: [staging, main]
+
+concurrency:
+  group: migrate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+    steps:
+      - name: Resolve target database
+        id: guard
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            url="$PROD_DATABASE_URL"
+          else
+            url="$STAGING_DATABASE_URL"
+          fi
+          if [ -z "$url" ]; then
+            echo "::notice::No database secret configured for $GITHUB_REF_NAME yet — skipping migrations."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - if: steps.guard.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+
+      - if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - if: steps.guard.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm db:migrate
