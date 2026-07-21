@@ -82,11 +82,16 @@ Separate Google and Discord OAuth apps per environment; the redirect URI is
 | ----------- | --------------------------------- | ---------------------------------------------------------------- |
 | Local       | `http://localhost:5173`           | `http://localhost:5173/api/auth/callback/{google,discord}`       |
 | Staging     | `https://staging.picksleagues.com` | `https://staging.picksleagues.com/api/auth/callback/{google,discord}` |
-| Production  | `https://picksleagues.com`        | `https://picksleagues.com/api/auth/callback/{google,discord}`    |
+| Production  | `https://www.picksleagues.com`    | `https://www.picksleagues.com/api/auth/callback/{google,discord}` |
 
 Local gotcha: `BETTER_AUTH_URL` must be the **SPA origin** (`:5173`, not `:3000`) — the
 session cookie has to be scoped where the SPA can see it; registering `:3000` silently breaks
 post-sign-in sessions.
+
+Production gotcha: the canonical origin is **www** — Vercel 308-redirects the apex to
+`www.picksleagues.com`. `BETTER_AUTH_URL` must match the canonical origin exactly: Better
+Auth only trusts origins matching its `baseURL`, so a `www`/apex mismatch 403s every social
+sign-in request before any provider is contacted.
 
 ### Vercel env vars — per scope
 
