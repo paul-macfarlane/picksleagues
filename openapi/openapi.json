@@ -215,6 +215,35 @@
             }
           }
         }
+      },
+      "delete": {
+        "operationId": "deleteMe",
+        "summary": "Delete (anonymize) the caller's own account",
+        "responses": {
+          "204": {
+            "description": "Account deleted — profile anonymized, OAuth identities and sessions removed"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },

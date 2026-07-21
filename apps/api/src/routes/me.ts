@@ -9,7 +9,7 @@ import type { users } from "@picksleagues/db";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { sessionMiddleware, type SessionVariables } from "../middleware/session";
-import { getUser, updateProfile } from "../services/users";
+import { deleteAccount, getUser, updateProfile } from "../services/users";
 
 function serializeMe(user: typeof users.$inferSelect): MeResponse {
   return {
@@ -68,6 +68,27 @@ const updateMe = createRoute({
     },
     409: {
       description: "Username already taken by another user",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: {
+      description:
+        "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const deleteMe = createRoute({
+  method: "delete",
+  path: "/me",
+  operationId: "deleteMe",
+  summary: "Delete (anonymize) the caller's own account",
+  responses: {
+    204: {
+      description: "Account deleted — profile anonymized, OAuth identities and sessions removed",
+    },
+    401: {
+      description: "No valid session",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     500: {
@@ -146,6 +167,25 @@ export function meRoutes(deps: AppDeps) {
     }
 
     return c.json(serializeMe(result.user), 200);
+  });
+
+  app.openapi(deleteMe, async (c) => {
+    if (!deps.db || !deps.clock) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database/clock are not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const clock = await deps.clock();
+
+    await deleteAccount(deps.db, clock, sessionUser.id);
+
+    return c.body(null, 204);
   });
 
   return app;

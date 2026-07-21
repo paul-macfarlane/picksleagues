@@ -36,3 +36,10 @@ export const UpdateMeRequestSchema = z
   .openapi("UpdateMeRequest");
 
 export type UpdateMeRequest = z.infer<typeof UpdateMeRequestSchema>;
+
+// Account deletion (mvp-spec §Users & Identity, ID-3) anonymizes the user row
+// in place rather than removing it — future picks/results/standings FK to it
+// and must survive. This is the single home for the placeholder display name;
+// the API writes it on deletion and future UI (standings, league members)
+// renders deleted users with it.
+export const DELETED_USER_DISPLAY_NAME = "Deleted User";

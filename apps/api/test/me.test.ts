@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { accounts, createDb, sessions, users } from "@picksleagues/db";
 import { FixedClock, type Env } from "@picksleagues/core";
-import type { MeResponse } from "@picksleagues/schemas";
+import { DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
@@ -51,6 +52,32 @@ function patchMeBody(cookie: string | undefined, body: Record<string, unknown>) 
 
 function patchMe(cookie: string | undefined, username: string) {
   return patchMeBody(cookie, { username });
+}
+
+function deleteMe(cookie: string | undefined) {
+  return app.request("/api/me", {
+    method: "DELETE",
+    headers: {
+      ...(cookie ? { cookie } : {}),
+    },
+  });
+}
+
+/**
+ * `createAuthenticatedUser` goes through Better Auth's internal adapter's
+ * `createUser`, which only inserts the `users` row — it never links an
+ * `accounts` row the way a real OAuth sign-in would. Tests that need to
+ * exercise account-row deletion insert one directly.
+ */
+async function insertAccount(userId: string) {
+  await db.insert(accounts).values({
+    id: randomUUID(),
+    accountId: randomUUID(),
+    providerId: "google",
+    userId,
+    createdAt: FIXED_NOW,
+    updatedAt: FIXED_NOW,
+  });
 }
 
 beforeEach(async () => {
@@ -233,5 +260,67 @@ describe("PATCH /api/me", () => {
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
     expect(row?.display_name).toBe("padded");
+  });
+});
+
+describe("DELETE /api/me", () => {
+  it("401s with no session cookie", async () => {
+    const res = await deleteMe(undefined);
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "unauthenticated" });
+  });
+
+  it("204s and anonymizes the profile, removes accounts/sessions, and signs the caller out everywhere", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth, { username: "paulm" });
+    await insertAccount(user.id);
+
+    const res = await deleteMe(cookie);
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe("");
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row).toMatchObject({
+      username: null,
+      display_name: DELETED_USER_DISPLAY_NAME,
+      image: null,
+      email: `deleted-${user.id}@deleted.invalid`,
+      emailVerified: false,
+    });
+    expect(row?.updatedAt).toEqual(FIXED_NOW);
+
+    const remainingAccounts = await db.select().from(accounts).where(eq(accounts.userId, user.id));
+    expect(remainingAccounts).toHaveLength(0);
+    const remainingSessions = await db.select().from(sessions).where(eq(sessions.userId, user.id));
+    expect(remainingSessions).toHaveLength(0);
+
+    const followUp = await getMe(cookie);
+    expect(followUp.status).toBe(401);
+  });
+
+  it("releases the deleted user's username immediately, so another user can claim it", async () => {
+    const first = await createAuthenticatedUser(auth, { username: "recycled" });
+    const second = await createAuthenticatedUser(auth);
+
+    const deleteRes = await deleteMe(first.cookie);
+    expect(deleteRes.status).toBe(204);
+
+    const claimRes = await patchMe(second.cookie, "recycled");
+    expect(claimRes.status).toBe(200);
+    const claimBody = (await claimRes.json()) as MeResponse;
+    expect(claimBody.username).toBe("recycled");
+  });
+
+  it("deletes two accounts without an email placeholder collision", async () => {
+    const first = await createAuthenticatedUser(auth);
+    const second = await createAuthenticatedUser(auth);
+
+    expect((await deleteMe(first.cookie)).status).toBe(204);
+    expect((await deleteMe(second.cookie)).status).toBe(204);
+
+    const [firstRow] = await db.select().from(users).where(eq(users.id, first.user.id));
+    const [secondRow] = await db.select().from(users).where(eq(users.id, second.user.id));
+    expect(firstRow?.email).toBe(`deleted-${first.user.id}@deleted.invalid`);
+    expect(secondRow?.email).toBe(`deleted-${second.user.id}@deleted.invalid`);
   });
 });
