@@ -30,20 +30,34 @@ config anywhere — add it only if a real cross-origin consumer ever appears.
 ### Vercel — one project
 
 1. Create/link the Vercel project to this repo (`vercel link`).
-2. Production branch: `main`. Enable preview deployments for the `staging` branch only.
+2. Production branch: `main`. Preview deploys are restricted to the `staging` branch by the
+   `ignoreCommand` in `vercel.json` (feature-branch pushes skip the build) — no console
+   toggle needed.
 3. Add a fixed domain alias for the staging branch deployment (e.g. `staging.picksleagues.com`
    → branch `staging`) under Project → Domains.
-4. Functions deploy via the Build Output API (`.vercel/output/`), not framework auto-detect.
-   The build script (`scripts/build-vercel-output.sh`, **to be written during provisioning** —
-   it doesn't exist yet) bundles the API with esbuild in ESM format **with the `createRequire`
-   banner** so CJS deps like `pg` can `require` Node built-ins at runtime; omitting the banner
-   crashes prod at cold start.
+4. Functions deploy via the Build Output API (`.vercel/output/`), not framework auto-detect:
+   `vercel.json` pins `buildCommand` to `scripts/build-vercel-output.sh`, which builds the SPA
+   into `static/`, bundles the API entry (`apps/api/src/vercel.ts`) with esbuild in ESM format
+   **with the `createRequire` banner** so CJS deps like `pg` can `require` Node built-ins at
+   runtime (omitting the banner builds fine and crashes prod at cold start), and writes the
+   route table (hashed assets → static files → `/api/*` → function → SPA fallback).
 
 ### Neon — one project, branch per environment
 
 1. Primary branch = production database.
 2. Create a long-lived `staging` branch (copy-on-write from primary; resettable from seed).
-3. Copy each branch's connection string into the matching Vercel env scope as `DATABASE_URL`.
+3. Copy each branch's **pooled** connection string into the matching Vercel env scope as
+   `DATABASE_URL`. Pooled = the `-pooler` hostname (PgBouncer in transaction mode) — in the
+   console's Connect widget, toggle "Connection pooling" on, or just insert `-pooler` after
+   the endpoint ID (`ep-xxx-123-pooler.<region>.aws.neon.tech`). Serverless instances can
+   spike connection counts past the direct limit; the pooler absorbs that.
+4. Use the **direct** (non-pooler) URL when running Drizzle migrations — DDL and
+   session-level features don't mix with transaction pooling.
+
+The API talks to Neon with plain `pg` over TCP — no Neon-specific driver. Fluid Compute is a
+full Node runtime, so the same driver serves Docker Postgres locally/in tests and Neon in
+deployed envs; `@neondatabase/serverless` is only for TCP-less runtimes (edge/workers) and
+would fork the driver between test and prod for no benefit.
 
 ### OAuth apps — one pair per environment
 
