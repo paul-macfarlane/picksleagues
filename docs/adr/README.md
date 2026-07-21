@@ -13,3 +13,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions        | Accepted |
 | [0002](0002-baseline-architecture-v0-3.md)    | Adopt architecture v0.3 as baseline  | Accepted |
 | [0003](0003-migrations-via-github-actions.md) | Deployed-DB migrations via GH Actions | Accepted |
+| [0004](0004-multi-commissioner-leagues.md)    | Multi-commissioner leagues; no mid-season leaving | Accepted |

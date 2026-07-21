@@ -226,9 +226,9 @@ Settlement is **recompute-friendly** (see D10). Vercel function limits are a non
 
 ```
 users                       # Better Auth + username (citext unique), display_name
-leagues                     # mode discriminator, visibility, name, commissioner_id, status
+leagues                     # mode discriminator, visibility, name, status
 league_settings             # 1:1 with leagues; JSONB validated by per-mode Zod schema
-league_members              # role (commissioner/member), joined_at
+league_members              # role (commissioner/member), joined_at; ≥1 commissioner per league (ADR-0004)
 league_invites              # invite code, created_by, expires_at?, max_uses?, revoked_at?
 
 sport_seasons               # NFL 2026, NCAAMB 2027, ...
@@ -253,7 +253,7 @@ admin_audit                 # override/rebuild actions: admin, action, target, p
 
 Spec-driven notes:
 - **Username:** unique case-insensitive (Postgres `citext` or lower-index), 3–20 chars `a-z0-9_`, validated in the schemas package so the same rule serves API and UI.
-- **Commissioner cap:** "max 10 active leagues as commissioner" is enforced at league-create and commissioner-transfer endpoints with a counted query inside the transaction — no denormalized counter needed at this scale.
+- **Commissioner cap:** "max 10 active leagues as commissioner" is enforced at league-create and commissioner-promote endpoints with a counted query inside the transaction — no denormalized counter needed at this scale. Commissionership lives only in `league_members.role` — leagues may have several commissioners and must keep ≥1; demote/kick/leave/deletion guard the invariant (ADR-0004).
 - **Deferred-feature columns:** `elimination_state.lives_remaining` exists with default 1 even though MVP fixes lives at 1, and `pickem_picks` omits confidence/money-pick columns entirely (added by migration when those features ship). Rule of thumb: keep a column only when it's free (a default), not speculatively.
 - **Rules guide:** static content in the SPA (MD/MDX per mode), no backend surface.
 
@@ -308,8 +308,10 @@ The settlement job orchestrates: load inputs → call pure functions → persist
 ```
 POST   /leagues                          create (mode + settings; enforces commissioner cap)
 GET    /leagues/:id                      league + settings + members
-PATCH  /leagues/:id                      cosmetics anytime; settings pre-start; transfer
+PATCH  /leagues/:id                      cosmetics anytime; settings pre-start
 DELETE /leagues/:id                      pre-start only
+PATCH  /leagues/:id/members/:memberId    promote/demote commissioner (ADR-0004)
+DELETE /leagues/:id/members/me           leave league (pre-start only, ADR-0004)
 POST   /leagues/:id/invites              generate invite code (commissioner)
 DELETE /leagues/:id/invites/:code        revoke
 POST   /join/:code                       join via invite link
