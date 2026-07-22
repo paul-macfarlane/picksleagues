@@ -5,6 +5,7 @@ export * from "./game-status";
 export * from "./health";
 export * from "./invites";
 export * from "./job";
+export * from "./league-actions";
 export * from "./league-mode";
 export * from "./league-settings";
 export * from "./league-status";

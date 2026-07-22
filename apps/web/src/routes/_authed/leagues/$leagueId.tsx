@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import {
+  canPerformLeagueAction,
   ELIMINATION_PUSH_TIE_RESOLUTION,
   INVITE_STATUS,
+  LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   MARCH_MADNESS_SCORING_MODEL,
@@ -16,6 +18,7 @@ import {
   type EliminationPushTieResolution,
   type EliminationSettings,
   type Invite,
+  type LeagueAction,
   type LeagueMember,
   type LeagueResponse,
   type LeagueVisibility,
@@ -145,6 +148,12 @@ function LeagueHome() {
 
 function LeagueHomeContent({ league }: { league: LeagueResponse }) {
   const isCommissioner = league.myRole === MEMBER_ROLE.COMMISSIONER;
+  // Section visibility runs on the LEAGUE_ACTION matrix's role axis only:
+  // `preStart: true` renders controls optimistically, and the server's 409
+  // (league_started) enforces the window — the client never computes "now"
+  // (arch D11).
+  const canAct = (action: LeagueAction) =>
+    canPerformLeagueAction(action, { role: league.myRole, preStart: true });
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
@@ -163,13 +172,15 @@ function LeagueHomeContent({ league }: { league: LeagueResponse }) {
         </CardContent>
       </Card>
 
-      <MembersSection league={league} isCommissioner={isCommissioner} />
+      <MembersSection league={league} isCommissioner={canAct(LEAGUE_ACTION.KICK_MEMBER)} />
 
-      {isCommissioner && <InvitePanel leagueId={league.id} isCommissioner={isCommissioner} />}
+      {canAct(LEAGUE_ACTION.MANAGE_INVITES) && (
+        <InvitePanel leagueId={league.id} isCommissioner={isCommissioner} />
+      )}
 
-      {isCommissioner && <LeagueSettingsSection league={league} />}
+      {canAct(LEAGUE_ACTION.EDIT_SETTINGS) && <LeagueSettingsSection league={league} />}
 
-      <DangerZoneSection league={league} isCommissioner={isCommissioner} />
+      <DangerZoneSection league={league} isCommissioner={canAct(LEAGUE_ACTION.DELETE_LEAGUE)} />
     </main>
   );
 }

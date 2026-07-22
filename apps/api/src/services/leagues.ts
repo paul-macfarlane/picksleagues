@@ -13,6 +13,7 @@ import {
 import type { Clock } from "@picksleagues/core";
 import {
   JOIN_BLOCKED_REASON,
+  LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
@@ -21,8 +22,11 @@ import {
   MAX_LEAGUE_SIZE,
   MEMBER_ROLE,
   SPORT,
+  leagueActionIsPreStartOnly,
+  leagueActionRequiresCommissioner,
   type CreateLeagueRequest,
   type JoinBlockedReason,
+  type LeagueAction,
   type LeagueMember,
   type LeagueResponse,
   type LeagueSettings,
@@ -378,11 +382,22 @@ export async function updateLeague(
   input: { name?: string; visibility?: LeagueVisibility; settings?: unknown },
 ): Promise<UpdateLeagueResult> {
   const refusal = await db.transaction(async (tx): Promise<UpdateLeagueResult | null> => {
-    const membership = await getMembership(tx, leagueId, userId);
-    if (!membership) return { ok: false, reason: "league_not_found" };
-    if (membership.role !== MEMBER_ROLE.COMMISSIONER) {
-      return { ok: false, reason: "not_commissioner" };
-    }
+    // One PATCH can carry several field-level actions; all share the
+    // commissioner role axis, but only some carry the pre-start window —
+    // the matrix decides which (name is the lone anytime edit).
+    const requestedActions: LeagueAction[] = [
+      ...(input.name !== undefined ? [LEAGUE_ACTION.EDIT_NAME] : []),
+      ...(input.visibility !== undefined ? [LEAGUE_ACTION.EDIT_VISIBILITY] : []),
+      ...(input.settings !== undefined ? [LEAGUE_ACTION.EDIT_SETTINGS] : []),
+    ];
+    const gate = await authorizeLeagueAction(
+      tx,
+      leagueId,
+      userId,
+      // The request schema guarantees at least one field.
+      requestedActions[0] ?? LEAGUE_ACTION.EDIT_NAME,
+    );
+    if (!gate.ok) return gate;
 
     const [row] = await tx
       .select({ league: leagues, settings: leagueSettings.settings })
@@ -391,8 +406,7 @@ export async function updateLeague(
       .where(eq(leagues.id, leagueId));
     if (!row) return { ok: false, reason: "league_not_found" };
 
-    const wantsLockedEdit = input.visibility !== undefined || input.settings !== undefined;
-    if (wantsLockedEdit) {
+    if (requestedActions.some(leagueActionIsPreStartOnly)) {
       const startsAt = await leagueStartAt(tx, row.league, row.settings);
       if (!isPreStart(startsAt, clock)) {
         return { ok: false, reason: "league_started" };
@@ -453,11 +467,8 @@ export async function deleteLeague(
   userId: string,
 ): Promise<DeleteLeagueResult> {
   return db.transaction(async (tx) => {
-    const membership = await getMembership(tx, leagueId, userId);
-    if (!membership) return { ok: false, reason: "league_not_found" as const };
-    if (membership.role !== MEMBER_ROLE.COMMISSIONER) {
-      return { ok: false, reason: "not_commissioner" as const };
-    }
+    const gate = await authorizeLeagueAction(tx, leagueId, userId, LEAGUE_ACTION.DELETE_LEAGUE);
+    if (!gate.ok) return gate;
 
     const [row] = await tx
       .select({ league: leagues, settings: leagueSettings.settings })
@@ -466,9 +477,11 @@ export async function deleteLeague(
       .where(eq(leagues.id, leagueId));
     if (!row) return { ok: false, reason: "league_not_found" as const };
 
-    const startsAt = await leagueStartAt(tx, row.league, row.settings);
-    if (!isPreStart(startsAt, clock)) {
-      return { ok: false, reason: "league_started" as const };
+    if (leagueActionIsPreStartOnly(LEAGUE_ACTION.DELETE_LEAGUE)) {
+      const startsAt = await leagueStartAt(tx, row.league, row.settings);
+      if (!isPreStart(startsAt, clock)) {
+        return { ok: false, reason: "league_started" as const };
+      }
     }
 
     await tx.delete(leagues).where(eq(leagues.id, leagueId));
@@ -487,6 +500,34 @@ export async function getMembership(
     .from(leagueMembers)
     .where(and(eq(leagueMembers.leagueId, leagueId), eq(leagueMembers.userId, userId)));
   return row ?? null;
+}
+
+export type LeagueActionGate =
+  | { ok: true; membership: typeof leagueMembers.$inferSelect }
+  | { ok: false; reason: "league_not_found" | "not_commissioner" };
+
+/**
+ * The one role-axis gate for league actions, consulting the LEAGUE_ACTION
+ * matrix (spec §Commissioner Powers): non-members get league_not_found
+ * (404 — private leagues stay hidden), members lacking the required role get
+ * not_commissioner (403). The window axis is deliberately NOT checked here —
+ * it needs the Clock + leagueStartAt inside each mutation's transaction and
+ * maps to a different refusal (409 league_started); callers consult
+ * leagueActionIsPreStartOnly there so the matrix stays the source of truth
+ * for both axes.
+ */
+export async function authorizeLeagueAction(
+  db: Db,
+  leagueId: string,
+  userId: string,
+  action: LeagueAction,
+): Promise<LeagueActionGate> {
+  const membership = await getMembership(db, leagueId, userId);
+  if (!membership) return { ok: false, reason: "league_not_found" };
+  if (leagueActionRequiresCommissioner(action) && membership.role !== MEMBER_ROLE.COMMISSIONER) {
+    return { ok: false, reason: "not_commissioner" };
+  }
+  return { ok: true, membership };
 }
 
 export async function countMembers(db: Db, leagueId: string): Promise<number> {

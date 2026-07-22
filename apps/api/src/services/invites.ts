@@ -6,9 +6,9 @@ import type { Clock } from "@picksleagues/core";
 import {
   INVITE_STATUS,
   JOIN_BLOCKED_REASON,
+  LEAGUE_ACTION,
   LEAGUE_STATUS,
   MAX_LEAGUE_SIZE,
-  MEMBER_ROLE,
   type Invite,
   type InviteStatus,
   type JoinBlockedReason,
@@ -16,6 +16,7 @@ import {
   type LeagueResponse,
 } from "@picksleagues/schemas";
 import {
+  authorizeLeagueAction,
   countMembers,
   getLeague,
   getMembership,
@@ -53,26 +54,10 @@ const INVITE_STATUS_TO_REASON: Record<
   [INVITE_STATUS.EXHAUSTED]: JOIN_BLOCKED_REASON.INVITE_EXHAUSTED,
 };
 
+// MANAGE_INVITES is an anytime power in the matrix (spec §Commissioner
+// Powers) — the shared gate covers the role axis and there is no window axis
+// to check here.
 type CommissionerGateFailure = { ok: false; reason: "league_not_found" | "not_commissioner" };
-
-/**
- * Shared guard for invite management: only members see the league at all
- * (404 otherwise, hiding private leagues) and only commissioners manage
- * invites. Generation/revocation is an anytime power (spec §Commissioner
- * Powers) — no pre-start window here.
- */
-async function requireCommissioner(
-  db: Db,
-  leagueId: string,
-  userId: string,
-): Promise<CommissionerGateFailure | { ok: true }> {
-  const membership = await getMembership(db, leagueId, userId);
-  if (!membership) return { ok: false, reason: "league_not_found" };
-  if (membership.role !== MEMBER_ROLE.COMMISSIONER) {
-    return { ok: false, reason: "not_commissioner" };
-  }
-  return { ok: true };
-}
 
 export type CreateInviteResult =
   { ok: true; invite: Invite } | CommissionerGateFailure | { ok: false; reason: "expiry_in_past" };
@@ -84,7 +69,7 @@ export async function createInvite(
   userId: string,
   input: { expiresAt?: Date; maxUses?: number },
 ): Promise<CreateInviteResult> {
-  const gate = await requireCommissioner(db, leagueId, userId);
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.MANAGE_INVITES);
   if (!gate.ok) return gate;
 
   const now = clock.now();
@@ -122,7 +107,7 @@ export async function listInvites(
   leagueId: string,
   userId: string,
 ): Promise<ListInvitesResult> {
-  const gate = await requireCommissioner(db, leagueId, userId);
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.MANAGE_INVITES);
   if (!gate.ok) return gate;
 
   const rows = await db
@@ -148,7 +133,7 @@ export async function revokeInvite(
   code: string,
   userId: string,
 ): Promise<RevokeInviteResult> {
-  const gate = await requireCommissioner(db, leagueId, userId);
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.MANAGE_INVITES);
   if (!gate.ok) return gate;
 
   const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));

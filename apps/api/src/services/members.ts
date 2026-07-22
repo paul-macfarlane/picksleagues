@@ -3,14 +3,16 @@ import type { Db } from "@picksleagues/db";
 import { leagueMembers, leagues, leagueSettings } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  LEAGUE_ACTION,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
+  leagueActionIsPreStartOnly,
   type MemberRole,
 } from "@picksleagues/schemas";
 import {
+  authorizeLeagueAction,
   countActiveCommissionerships,
   countMembers,
-  getMembership,
   isPreStart,
   leagueStartAt,
   lockLeagueRow,
@@ -66,11 +68,15 @@ export async function updateMemberRole(
       // count below is only meaningful once we hold the league lock.
       await lockLeagueRow(tx, leagueId);
 
-      const actor = await getMembership(tx, leagueId, actorId);
-      if (!actor) return { ok: false, reason: "league_not_found" as const };
-      if (actor.role !== MEMBER_ROLE.COMMISSIONER) {
-        return { ok: false, reason: "not_commissioner" as const };
-      }
+      const gate = await authorizeLeagueAction(
+        tx,
+        leagueId,
+        actorId,
+        role === MEMBER_ROLE.COMMISSIONER
+          ? LEAGUE_ACTION.PROMOTE_MEMBER
+          : LEAGUE_ACTION.DEMOTE_COMMISSIONER,
+      );
+      if (!gate.ok) return gate;
 
       const [target] = await tx
         .select()
@@ -140,14 +146,13 @@ export async function kickMember(
     return await db.transaction(async (tx) => {
       await lockLeagueRow(tx, leagueId);
 
-      const actor = await getMembership(tx, leagueId, actorId);
-      if (!actor) return { ok: false, reason: "league_not_found" as const };
-      if (actor.role !== MEMBER_ROLE.COMMISSIONER) {
-        return { ok: false, reason: "not_commissioner" as const };
-      }
+      const gate = await authorizeLeagueAction(tx, leagueId, actorId, LEAGUE_ACTION.KICK_MEMBER);
+      if (!gate.ok) return gate;
       // Kicking yourself would dodge LG-8's leave rules (sole-member
       // commissioners must delete the league, not empty it) — route them there.
-      if (actor.id === memberId) return { ok: false, reason: "cannot_kick_self" as const };
+      if (gate.membership.id === memberId) {
+        return { ok: false, reason: "cannot_kick_self" as const };
+      }
 
       const [target] = await tx
         .select()
@@ -155,7 +160,10 @@ export async function kickMember(
         .where(and(eq(leagueMembers.id, memberId), eq(leagueMembers.leagueId, leagueId)));
       if (!target) return { ok: false, reason: "member_not_found" as const };
 
-      if (!(await leagueIsPreStart(tx, clock, leagueId))) {
+      if (
+        leagueActionIsPreStartOnly(LEAGUE_ACTION.KICK_MEMBER) &&
+        !(await leagueIsPreStart(tx, clock, leagueId))
+      ) {
         return { ok: false, reason: "league_started" as const };
       }
 
@@ -197,10 +205,16 @@ export async function leaveLeague(
     return await db.transaction(async (tx) => {
       await lockLeagueRow(tx, leagueId);
 
-      const membership = await getMembership(tx, leagueId, userId);
-      if (!membership) return { ok: false, reason: "league_not_found" as const };
+      // LEAVE_LEAGUE is the one non-commissioner action in the matrix — the
+      // gate only 404s non-members here.
+      const gate = await authorizeLeagueAction(tx, leagueId, userId, LEAGUE_ACTION.LEAVE_LEAGUE);
+      if (!gate.ok) return { ok: false, reason: "league_not_found" as const };
+      const membership = gate.membership;
 
-      if (!(await leagueIsPreStart(tx, clock, leagueId))) {
+      if (
+        leagueActionIsPreStartOnly(LEAGUE_ACTION.LEAVE_LEAGUE) &&
+        !(await leagueIsPreStart(tx, clock, leagueId))
+      ) {
         return { ok: false, reason: "league_started" as const };
       }
 
