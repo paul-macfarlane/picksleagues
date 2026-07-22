@@ -91,6 +91,48 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 50
+      },
+      "JobRunResponse": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "status",
+          "durationMs"
+        ]
       }
     },
     "parameters": {}
@@ -239,6 +281,126 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/sync-schedule": {
+      "post": {
+        "operationId": "runSyncSchedule",
+        "summary": "Ingest the NFL schedule from the provider into our tables",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong x-job-secret header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/sync-odds": {
+      "post": {
+        "operationId": "runSyncOdds",
+        "summary": "Snapshot spreads for unstarted games in the current NFL week",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong x-job-secret header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
                 }
               }
             }
