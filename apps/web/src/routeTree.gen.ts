@@ -14,6 +14,7 @@ import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
+import { Route as AuthedLeaguesNewRouteImport } from './routes/_authed/leagues/new'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -39,18 +40,25 @@ const AuthedProfileRoute = AuthedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedLeaguesNewRoute = AuthedLeaguesNewRouteImport.update({
+  id: '/leagues/new',
+  path: '/leagues/new',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
   '/profile': typeof AuthedProfileRoute
+  '/leagues/new': typeof AuthedLeaguesNewRoute
 }
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
   '/profile': typeof AuthedProfileRoute
   '/': typeof AuthedIndexRoute
+  '/leagues/new': typeof AuthedLeaguesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +67,13 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/leagues/new': typeof AuthedLeaguesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/claim-username' | '/sign-in' | '/profile'
+  fullPaths: '/' | '/claim-username' | '/sign-in' | '/profile' | '/leagues/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/claim-username' | '/sign-in' | '/profile' | '/'
+  to: '/claim-username' | '/sign-in' | '/profile' | '/' | '/leagues/new'
   id:
     | '__root__'
     | '/_authed'
@@ -72,6 +81,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/_authed/profile'
     | '/_authed/'
+    | '/_authed/leagues/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,17 +127,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedProfileRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/leagues/new': {
+      id: '/_authed/leagues/new'
+      path: '/leagues/new'
+      fullPath: '/leagues/new'
+      preLoaderRoute: typeof AuthedLeaguesNewRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
   AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedLeaguesNewRoute: typeof AuthedLeaguesNewRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedLeaguesNewRoute: AuthedLeaguesNewRoute,
 }
 
 const AuthedRouteWithChildren =
