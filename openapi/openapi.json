@@ -140,6 +140,537 @@
           "regular",
           "postseason"
         ]
+      },
+      "LeagueResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/LeagueVisibility"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeagueStatus"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LeagueSettings"
+          },
+          "startsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "myRole": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueMember"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "visibility",
+          "status",
+          "seasonYear",
+          "settings",
+          "startsAt",
+          "myRole",
+          "members"
+        ]
+      },
+      "LeagueName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "LeagueMode": {
+        "type": "string",
+        "enum": [
+          "pickem",
+          "elimination",
+          "march_madness"
+        ]
+      },
+      "LeagueVisibility": {
+        "type": "string",
+        "enum": [
+          "public",
+          "private"
+        ]
+      },
+      "LeagueStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "concluded"
+        ]
+      },
+      "LeagueSettings": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PickemSettings"
+          },
+          {
+            "$ref": "#/components/schemas/EliminationSettings"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "standard_doubling"
+                ]
+              }
+            },
+            "required": [
+              "scoringModel"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "custom"
+                ]
+              },
+              "roundValues": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "required": [
+              "scoringModel",
+              "roundValues"
+            ]
+          }
+        ]
+      },
+      "PickemSettings": {
+        "type": "object",
+        "properties": {
+          "startWeek": {
+            "$ref": "#/components/schemas/NflWeekRef"
+          },
+          "endWeek": {
+            "$ref": "#/components/schemas/NflWeekRef"
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 5
+          },
+          "pushTieResolution": {
+            "$ref": "#/components/schemas/PickemPushTieResolution"
+          }
+        },
+        "required": [
+          "startWeek",
+          "endWeek",
+          "pickType"
+        ]
+      },
+      "NflWeekRef": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regular"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "postseason"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          }
+        ]
+      },
+      "PickType": {
+        "type": "string",
+        "enum": [
+          "straight_up",
+          "against_the_spread"
+        ]
+      },
+      "PickemPushTieResolution": {
+        "type": "string",
+        "enum": [
+          "half_point",
+          "zero_points",
+          "full_point"
+        ],
+        "default": "half_point"
+      },
+      "EliminationSettings": {
+        "type": "object",
+        "properties": {
+          "startWeek": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regular"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          "endWeek": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regular"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "pushTieResolution": {
+            "$ref": "#/components/schemas/EliminationPushTieResolution"
+          }
+        },
+        "required": [
+          "startWeek",
+          "endWeek",
+          "pickType"
+        ]
+      },
+      "EliminationPushTieResolution": {
+        "type": "string",
+        "enum": [
+          "advance",
+          "eliminate"
+        ],
+        "default": "advance"
+      },
+      "MemberRole": {
+        "type": "string",
+        "enum": [
+          "commissioner",
+          "member"
+        ]
+      },
+      "LeagueMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "role",
+          "joinedAt"
+        ]
+      },
+      "CreateLeagueRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "pickem"
+                ]
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "settings": {
+                "$ref": "#/components/schemas/PickemSettings"
+              }
+            },
+            "required": [
+              "mode",
+              "name",
+              "visibility",
+              "settings"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "elimination"
+                ]
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "settings": {
+                "$ref": "#/components/schemas/EliminationSettings"
+              }
+            },
+            "required": [
+              "mode",
+              "name",
+              "visibility",
+              "settings"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "march_madness"
+                ]
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "settings": {
+                "$ref": "#/components/schemas/MarchMadnessSettings"
+              }
+            },
+            "required": [
+              "mode",
+              "name",
+              "visibility",
+              "settings"
+            ]
+          }
+        ]
+      },
+      "MarchMadnessSettings": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "standard_doubling"
+                ]
+              }
+            },
+            "required": [
+              "scoringModel"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "custom"
+                ]
+              },
+              "roundValues": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "required": [
+              "scoringModel",
+              "roundValues"
+            ]
+          }
+        ]
+      },
+      "MyLeaguesResponse": {
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueSummary"
+            }
+          }
+        },
+        "required": [
+          "leagues"
+        ]
+      },
+      "LeagueSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/LeagueVisibility"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeagueStatus"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "myRole": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "startsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "visibility",
+          "status",
+          "memberCount",
+          "myRole",
+          "startsAt"
+        ]
       }
     },
     "parameters": {}
@@ -522,6 +1053,168 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues": {
+      "post": {
+        "operationId": "createLeague",
+        "summary": "Create a league; the creator becomes a commissioner",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeagueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "League created in a pre-start state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name, mode, visibility, or mode settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), or the mode's sport has no ingested season to bind to (no_active_season)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listMyLeagues",
+        "summary": "List the caller's leagues (dashboard)",
+        "responses": {
+          "200": {
+            "description": "The caller's leagues, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyLeaguesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}": {
+      "get": {
+        "operationId": "getLeague",
+        "summary": "Get a league with settings and members (members only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The league, its settings, and its members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

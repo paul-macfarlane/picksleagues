@@ -151,6 +151,12 @@ export type MarchMadnessSettings = z.infer<typeof MarchMadnessSettingsSchema>;
 
 export type LeagueSettings = PickemSettings | EliminationSettings | MarchMadnessSettings;
 
+// Read-side shape for responses, where the mode discriminant lives on the
+// league itself — clients narrow by `league.mode`, not by inspecting settings.
+export const LeagueSettingsSchema = z
+  .union([PickemSettingsSchema, EliminationSettingsSchema, MarchMadnessSettingsSchema])
+  .openapi("LeagueSettings");
+
 /**
  * Write-side dispatch: the schema a given league's settings must satisfy,
  * selected by `leagues.mode`. Every settings write (create + pre-start edit)

@@ -3,6 +3,7 @@ import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
 import { healthRoutes } from "./routes/health";
 import { jobRoutes } from "./routes/jobs";
+import { leagueRoutes } from "./routes/leagues";
 import { meRoutes } from "./routes/me";
 
 export type { AppDeps };
@@ -22,6 +23,8 @@ export function createApp(deps: AppDeps = {}) {
   // above. No concrete job routes exist yet (DATA-4/5/6 add them), so this
   // currently contributes nothing to the generated spec beyond the guard.
   app.route("/", jobRoutes(deps));
+
+  app.route("/", leagueRoutes(deps));
 
   // Better Auth owns /api/auth/* as its own typed surface (client generated
   // from the auth instance, not this OpenAPI doc) — deliberately outside the

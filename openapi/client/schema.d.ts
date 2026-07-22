@@ -91,6 +91,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/leagues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the caller's leagues (dashboard) */
+        get: operations["listMyLeagues"];
+        put?: never;
+        /** Create a league; the creator becomes a commissioner */
+        post: operations["createLeague"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a league with settings and members (members only) */
+        get: operations["getLeague"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -129,6 +164,138 @@ export interface components {
         };
         /** @enum {string} */
         WeekType: "regular" | "postseason";
+        LeagueResponse: {
+            id: string;
+            name: components["schemas"]["LeagueName"];
+            mode: components["schemas"]["LeagueMode"];
+            visibility: components["schemas"]["LeagueVisibility"];
+            status: components["schemas"]["LeagueStatus"];
+            seasonYear: number;
+            settings: components["schemas"]["LeagueSettings"];
+            /** Format: date-time */
+            startsAt: string | null;
+            myRole: components["schemas"]["MemberRole"];
+            members: components["schemas"]["LeagueMember"][];
+        };
+        LeagueName: string;
+        /** @enum {string} */
+        LeagueMode: "pickem" | "elimination" | "march_madness";
+        /** @enum {string} */
+        LeagueVisibility: "public" | "private";
+        /** @enum {string} */
+        LeagueStatus: "active" | "concluded";
+        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["EliminationSettings"] | {
+            /** @default 5 */
+            maxBracketsPerMember: number;
+            /** @enum {string} */
+            scoringModel: "standard_doubling";
+        } | {
+            /** @default 5 */
+            maxBracketsPerMember: number;
+            /** @enum {string} */
+            scoringModel: "custom";
+            roundValues: number[];
+        };
+        PickemSettings: {
+            startWeek: components["schemas"]["NflWeekRef"];
+            endWeek: components["schemas"]["NflWeekRef"];
+            pickType: components["schemas"]["PickType"];
+            /** @default 5 */
+            picksPerWeek: number;
+            pushTieResolution?: components["schemas"]["PickemPushTieResolution"];
+        };
+        NflWeekRef: {
+            /** @enum {string} */
+            type: "regular";
+            number: number;
+        } | {
+            /** @enum {string} */
+            type: "postseason";
+            number: number;
+        };
+        /** @enum {string} */
+        PickType: "straight_up" | "against_the_spread";
+        /**
+         * @default half_point
+         * @enum {string}
+         */
+        PickemPushTieResolution: "half_point" | "zero_points" | "full_point";
+        EliminationSettings: {
+            startWeek: {
+                /** @enum {string} */
+                type: "regular";
+                number: number;
+            };
+            endWeek: {
+                /** @enum {string} */
+                type: "regular";
+                number: number;
+            };
+            pickType: components["schemas"]["PickType"];
+            pushTieResolution?: components["schemas"]["EliminationPushTieResolution"];
+        };
+        /**
+         * @default advance
+         * @enum {string}
+         */
+        EliminationPushTieResolution: "advance" | "eliminate";
+        /** @enum {string} */
+        MemberRole: "commissioner" | "member";
+        LeagueMember: {
+            id: string;
+            userId: string;
+            username: string | null;
+            displayName: string;
+            image: string | null;
+            role: components["schemas"]["MemberRole"];
+            /** Format: date-time */
+            joinedAt: string;
+        };
+        CreateLeagueRequest: {
+            /** @enum {string} */
+            mode: "pickem";
+            name: components["schemas"]["LeagueName"];
+            visibility: components["schemas"]["LeagueVisibility"];
+            settings: components["schemas"]["PickemSettings"];
+        } | {
+            /** @enum {string} */
+            mode: "elimination";
+            name: components["schemas"]["LeagueName"];
+            visibility: components["schemas"]["LeagueVisibility"];
+            settings: components["schemas"]["EliminationSettings"];
+        } | {
+            /** @enum {string} */
+            mode: "march_madness";
+            name: components["schemas"]["LeagueName"];
+            visibility: components["schemas"]["LeagueVisibility"];
+            settings: components["schemas"]["MarchMadnessSettings"];
+        };
+        MarchMadnessSettings: {
+            /** @default 5 */
+            maxBracketsPerMember: number;
+            /** @enum {string} */
+            scoringModel: "standard_doubling";
+        } | {
+            /** @default 5 */
+            maxBracketsPerMember: number;
+            /** @enum {string} */
+            scoringModel: "custom";
+            roundValues: number[];
+        };
+        MyLeaguesResponse: {
+            leagues: components["schemas"]["LeagueSummary"][];
+        };
+        LeagueSummary: {
+            id: string;
+            name: components["schemas"]["LeagueName"];
+            mode: components["schemas"]["LeagueMode"];
+            visibility: components["schemas"]["LeagueVisibility"];
+            status: components["schemas"]["LeagueStatus"];
+            memberCount: number;
+            myRole: components["schemas"]["MemberRole"];
+            /** Format: date-time */
+            startsAt: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -441,6 +608,153 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    listMyLeagues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's leagues, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyLeaguesResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateLeagueRequest"];
+            };
+        };
+        responses: {
+            /** @description League created in a pre-start state */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueResponse"];
+                };
+            };
+            /** @description Invalid name, mode, visibility, or mode settings */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), or the mode's sport has no ingested season to bind to (no_active_season) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The league, its settings, and its members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

@@ -1,0 +1,179 @@
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import {
+  CreateLeagueRequestSchema,
+  ErrorResponseSchema,
+  LeagueResponseSchema,
+  MyLeaguesResponseSchema,
+} from "@picksleagues/schemas";
+import type { AppDeps } from "../deps";
+import { zodValidationHook } from "../lib/default-hook";
+import { sessionMiddleware, type SessionVariables } from "../middleware/session";
+import { createLeague, getLeague, listMyLeagues } from "../services/leagues";
+
+const MISCONFIGURED_500 = {
+  description:
+    "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+  content: { "application/json": { schema: ErrorResponseSchema } },
+};
+
+const UNAUTHENTICATED_401 = {
+  description: "No valid session",
+  content: { "application/json": { schema: ErrorResponseSchema } },
+};
+
+const LeagueIdParamsSchema = z.object({ leagueId: z.uuid() });
+
+const postLeagues = createRoute({
+  method: "post",
+  path: "/leagues",
+  operationId: "createLeague",
+  summary: "Create a league; the creator becomes a commissioner",
+  request: {
+    body: { content: { "application/json": { schema: CreateLeagueRequestSchema } } },
+  },
+  responses: {
+    201: {
+      description: "League created in a pre-start state",
+      content: { "application/json": { schema: LeagueResponseSchema } },
+    },
+    400: {
+      description: "Invalid name, mode, visibility, or mode settings",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    409: {
+      description:
+        "Creator is already commissioner of 10 active leagues (cap_exceeded), or the mode's sport has no ingested season to bind to (no_active_season)",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: MISCONFIGURED_500,
+  },
+});
+
+const getMyLeagues = createRoute({
+  method: "get",
+  path: "/leagues",
+  operationId: "listMyLeagues",
+  summary: "List the caller's leagues (dashboard)",
+  responses: {
+    200: {
+      description: "The caller's leagues, oldest first",
+      content: { "application/json": { schema: MyLeaguesResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    500: MISCONFIGURED_500,
+  },
+});
+
+const getLeagueById = createRoute({
+  method: "get",
+  path: "/leagues/{leagueId}",
+  operationId: "getLeague",
+  summary: "Get a league with settings and members (members only)",
+  request: { params: LeagueIdParamsSchema },
+  responses: {
+    200: {
+      description: "The league, its settings, and its members",
+      content: { "application/json": { schema: LeagueResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    404: {
+      description:
+        "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: MISCONFIGURED_500,
+  },
+});
+
+export function leagueRoutes(deps: AppDeps) {
+  const app = new OpenAPIHono<{ Variables: SessionVariables }>({ defaultHook: zodValidationHook });
+
+  app.use("/leagues/*", async (c, next) => {
+    if (!deps.auth) {
+      return c.json(
+        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
+        500,
+      );
+    }
+    return sessionMiddleware(deps.auth)(c, next);
+  });
+  app.use("/leagues", async (c, next) => {
+    if (!deps.auth) {
+      return c.json(
+        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
+        500,
+      );
+    }
+    return sessionMiddleware(deps.auth)(c, next);
+  });
+
+  app.openapi(postLeagues, async (c) => {
+    if (!deps.db || !deps.clock) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database/clock are not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const clock = await deps.clock();
+    const input = c.req.valid("json");
+
+    const result = await createLeague(deps.db, clock, sessionUser.id, input);
+    if (!result.ok) {
+      const message =
+        result.reason === "cap_exceeded"
+          ? "You already run 10 active leagues — conclude or delete one first."
+          : "That game mode has no season available yet.";
+      return c.json(ErrorResponseSchema.parse({ error: result.reason, message }), 409);
+    }
+
+    return c.json(result.league, 201);
+  });
+
+  app.openapi(getMyLeagues, async (c) => {
+    if (!deps.db) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database is not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const leagues = await listMyLeagues(deps.db, sessionUser.id);
+    return c.json({ leagues }, 200);
+  });
+
+  app.openapi(getLeagueById, async (c) => {
+    if (!deps.db) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database is not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const { leagueId } = c.req.valid("param");
+    const league = await getLeague(deps.db, leagueId, sessionUser.id);
+    if (!league) {
+      return c.json(
+        ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+        404,
+      );
+    }
+
+    return c.json(league, 200);
+  });
+
+  return app;
+}

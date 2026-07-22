@@ -7,6 +7,7 @@ export * from "./league-mode";
 export * from "./league-settings";
 export * from "./league-status";
 export * from "./league-visibility";
+export * from "./leagues";
 export * from "./me";
 export * from "./member-role";
 export * from "./pick-type";
