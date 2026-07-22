@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
+import { createDb, games } from "@picksleagues/db";
 import {
   FixedClock,
   type Env,
@@ -13,6 +13,7 @@ import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@pic
 import { createApp } from "../src/app";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflScores } from "../src/services/nfl/sync-scores";
+import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -111,11 +112,7 @@ async function seedSchedule(
 }
 
 beforeEach(async () => {
-  // FK order: odds_snapshots → games → weeks → sport_seasons.
-  await db.delete(oddsSnapshots);
-  await db.delete(games);
-  await db.delete(weeks);
-  await db.delete(sportSeasons);
+  await resetDb(db);
   provider.structure = { seasonYear: SEASON_YEAR, weeks: [] };
   provider.gamesByWeek = new Map();
   provider.fetchCalls = [];

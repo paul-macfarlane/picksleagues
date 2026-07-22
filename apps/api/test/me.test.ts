@@ -7,6 +7,7 @@ import { DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schema
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 // Matches packages/core's Env shape without going through loadEnv (which
@@ -81,10 +82,7 @@ async function insertAccount(userId: string) {
 }
 
 beforeEach(async () => {
-  // FK order: sessions/accounts reference users.
-  await db.delete(sessions);
-  await db.delete(accounts);
-  await db.delete(users);
+  await resetDb(db);
 });
 
 afterAll(async () => {

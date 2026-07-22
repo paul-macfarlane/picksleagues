@@ -13,6 +13,7 @@ import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@pic
 import { createApp } from "../src/app";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
+import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -105,10 +106,7 @@ async function seedSchedule(
 }
 
 beforeEach(async () => {
-  await db.delete(oddsSnapshots);
-  await db.delete(games);
-  await db.delete(weeks);
-  await db.delete(sportSeasons);
+  await resetDb(db);
   provider.structure = { seasonYear: SEASON_YEAR, weeks: [] };
   provider.gamesByWeek = new Map();
 });

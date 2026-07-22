@@ -1,24 +1,14 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import {
-  createDb,
-  leagueInvites,
-  leagueMembers,
-  leagues,
-  leagueSettings,
-  sessions,
-  sportSeasons,
-  users,
-  weeks,
-  games,
-} from "@picksleagues/db";
+import { createDb, leagueMembers, leagues, leagueSettings, users } from "@picksleagues/db";
 import { FixedClock, type Env } from "@picksleagues/core";
 import { LEAGUE_STATUS, MEMBER_ROLE, type LeagueResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, seedSeason } from "./setup/league-helpers";
+import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -126,15 +116,7 @@ async function seedLeague() {
 }
 
 beforeEach(async () => {
-  await db.delete(leagueInvites);
-  await db.delete(leagueMembers);
-  await db.delete(leagueSettings);
-  await db.delete(leagues);
-  await db.delete(games);
-  await db.delete(weeks);
-  await db.delete(sportSeasons);
-  await db.delete(sessions);
-  await db.delete(users);
+  await resetDb(db);
 });
 
 afterAll(async () => {
