@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth";
-import { displayNameOf, initialsOf } from "@/lib/user";
+import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,10 +16,19 @@ import {
 // Pathless layout gating every signed-in route (mvp-spec has no anonymous browsing):
 // beforeLoad re-checks the session on every navigation into this subtree.
 export const Route = createFileRoute("/_authed")({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data: session } = await authClient.getSession();
     if (!session) {
-      throw redirect({ to: "/sign-in" });
+      // Preserve the deep link so sign-in returns here afterward (mvp-spec
+      // §Invites: "Visiting a link while signed out routes through sign-in
+      // and back").
+      throw redirect({ to: "/sign-in", search: { redirect: location.href } });
+    }
+    // First-time-only claim step per spec onboarding flow (OAuth → claim
+    // username → dashboard): every route in this subtree stays gated until
+    // claimed, then returns here via the preserved redirect.
+    if (!session.user.username) {
+      throw redirect({ to: "/claim-username", search: { redirect: location.href } });
     }
   },
   component: AuthedLayout,
@@ -56,16 +65,19 @@ function SessionMenu() {
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="min-w-56 max-w-72">
         {/* This dropdown-menu is the Base UI flavor: DropdownMenuLabel is a
             Menu.GroupLabel and throws at runtime unless nested in a Group. */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <span className="block text-sm text-foreground">{displayName}</span>
-            <span className="block font-normal text-muted-foreground">{session.user.email}</span>
+            <span className="block truncate text-sm text-foreground">{displayName}</span>
+            <span className="block truncate font-normal text-muted-foreground">
+              {handleOf(session.user)}
+            </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>Profile</DropdownMenuItem>
         <DropdownMenuItem
           onClick={async () => {
             // Navigate regardless of the result: /sign-in's beforeLoad bounces a

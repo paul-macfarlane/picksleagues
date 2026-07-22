@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayNameOf, initialsOf } from "./user";
+import { displayNameOf, handleOf, initialsOf } from "./user";
 
 describe("displayNameOf", () => {
   it.each([
@@ -8,6 +8,16 @@ describe("displayNameOf", () => {
     { user: { name: "", email: "jane@example.com" }, expected: "jane@example.com" },
   ])("returns $expected for $user", ({ user, expected }) => {
     expect(displayNameOf(user)).toBe(expected);
+  });
+});
+
+describe("handleOf", () => {
+  it.each([
+    { user: { username: "janedoe", email: "jane@example.com" }, expected: "@janedoe" },
+    { user: { username: null, email: "jane@example.com" }, expected: "jane@example.com" },
+    { user: { email: "jane@example.com" }, expected: "jane@example.com" },
+  ])("returns $expected for $user", ({ user, expected }) => {
+    expect(handleOf(user)).toBe(expected);
   });
 });
 

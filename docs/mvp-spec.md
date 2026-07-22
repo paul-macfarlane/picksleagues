@@ -36,6 +36,11 @@ A web app where friends create and compete in sports pick'em leagues. MVP ships 
 - A user may **join** unlimited leagues (one membership per user per league; self-competition is impossible by construction).
 - A user may be **commissioner of at most 10 active leagues** (active = created and not yet concluded). Creating a league — or being promoted to commissioner — beyond the cap is blocked with a clear message. Deleting a pre-start league, a league concluding, or being demoted frees a slot. (ADR-0004)
 
+**Account deletion:** permanent and immediate; the profile is **anonymized in place** rather than removed, so picks, results, and standings history survive in every league.
+- Username is released (immediately claimable by others); display name is replaced with a "Deleted User" placeholder; the email is replaced with a non-identifying placeholder; avatar, OAuth identities, and all sessions are removed.
+- Signing in again with the same provider afterward creates a brand-new account — there is no undelete or reconnection.
+- Deletion is **blocked** while the user is the last commissioner of any non-empty active league — they must promote a replacement first (same ≥1-commissioner guard as leaving; ADR-0004).
+
 ## Leagues (global rules, all game modes)
 
 ### Creation

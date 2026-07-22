@@ -12,7 +12,7 @@ Web app where friends create and compete in sports pick'em leagues. Solo project
 
 ## Stack (see docs/architecture.md for rationale)
 
-pnpm workspaces monorepo · Vite + React + TanStack Router/Query SPA · Hono + `@hono/zod-openapi` on Vercel Functions · OpenAPI contract → generated `openapi-fetch` client · Neon Postgres (Docker locally) + Drizzle · Better Auth (Google + Discord) · Tailwind + shadcn/ui · cron-job.org → idempotent job endpoints · Vitest + Playwright.
+pnpm workspaces monorepo · Vite + React + TanStack Router/Query/Form SPA · Hono + `@hono/zod-openapi` on Vercel Functions · OpenAPI contract → generated `openapi-fetch` client · Neon Postgres (Docker locally) + Drizzle · Better Auth (Google + Discord) · Tailwind + shadcn/ui · cron-job.org → idempotent job endpoints · Vitest + Playwright.
 
 ## Layout (target — scaffolded in FND-1)
 

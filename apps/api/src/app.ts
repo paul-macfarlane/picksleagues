@@ -1,14 +1,21 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
+import type { AppDeps } from "./deps";
+import { zodValidationHook } from "./lib/default-hook";
 import { healthRoutes } from "./routes/health";
+import { meRoutes } from "./routes/me";
 
-export type AppDeps = {
-  auth?: { handler: (req: Request) => Response | Promise<Response> };
-};
+export type { AppDeps };
 
 export function createApp(deps: AppDeps = {}) {
-  const app = new OpenAPIHono().basePath("/api");
+  const app = new OpenAPIHono({ defaultHook: zodValidationHook }).basePath("/api");
 
   app.route("/", healthRoutes);
+
+  // Mounted unconditionally (deps or not) so generate-openapi.ts — which calls
+  // createApp() with no deps — still emits this route in the committed spec;
+  // meRoutes' handlers 500 defensively if a dep is actually missing at request
+  // time, which real deployments (dev.ts, vercel.ts) never hit.
+  app.route("/", meRoutes(deps));
 
   // Better Auth owns /api/auth/* as its own typed surface (client generated
   // from the auth instance, not this OpenAPI doc) — deliberately outside the

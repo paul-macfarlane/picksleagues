@@ -5,6 +5,12 @@ export function displayNameOf(user: { name?: string | null; email: string }): st
   return user.name || user.email;
 }
 
+// The @-handle is the app's identity concept (unique username per spec); email
+// only appears while the username is unclaimed (pre-claim screens).
+export function handleOf(user: { username?: string | null; email: string }): string {
+  return user.username ? `@${user.username}` : user.email;
+}
+
 export function initialsOf(name: string): string {
   return (
     name
