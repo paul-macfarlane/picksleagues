@@ -50,6 +50,10 @@ function NewLeague() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Stated deviation from the TanStack-Form rule: everything below is
+  // select/radio/stepper state with no per-field validation to run — the
+  // schemas constrain the option sets, and the assembled union is parsed once
+  // at submit. Free-text entry (the name field) does go through TanStack Form.
   const [mode, setMode] = useState<LeagueMode>(LEAGUE_MODE.PICKEM);
   const [visibility, setVisibility] = useState<LeagueVisibility>(LEAGUE_VISIBILITY.PRIVATE);
 
@@ -92,9 +96,7 @@ function NewLeague() {
       if (!data) return;
       toast.success("League created");
       await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
-      // League home page arrives in LG-7 — the dashboard is the deliberate
-      // landing spot until then.
-      navigate({ to: "/" });
+      navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },
     onError: () => {
       toast.error("Couldn't create that league — please try again.");

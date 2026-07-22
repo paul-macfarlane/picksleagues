@@ -6,6 +6,7 @@ import { FixedClock, type Env } from "@picksleagues/core";
 import { LEAGUE_STATUS, MEMBER_ROLE, type LeagueResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
+import { updateMemberRole } from "../src/services/members";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, seedSeason } from "./setup/league-helpers";
 import { resetDb } from "./setup/reset-db";
@@ -455,11 +456,17 @@ describe("concurrency", () => {
     await patchMember(commish.cookie, league.id, target!.id, "commissioner");
     const self = await membershipOf(league.id, commish.user.id);
 
+    // Service-level race (not HTTP): the request stack's overhead tends to
+    // serialize Promise.all accidentally, which would let a missing league
+    // lock pass — two direct transactions keep the race window real.
+    const clock = new FixedClock(PRE_START_NOW);
     const [resA, resB] = await Promise.all([
-      patchMember(commish.cookie, league.id, self!.id, "member"),
-      patchMember(member.cookie, league.id, target!.id, "member"),
+      updateMemberRole(db, clock, league.id, commish.user.id, self!.id, MEMBER_ROLE.MEMBER),
+      updateMemberRole(db, clock, league.id, member.user.id, target!.id, MEMBER_ROLE.MEMBER),
     ]);
-    expect([resA.status, resB.status].sort()).toEqual([204, 409]);
+    expect([resA.ok, resB.ok].sort()).toEqual([false, true]);
+    const refused = [resA, resB].find((r) => !r.ok);
+    expect(refused).toMatchObject({ reason: "last_commissioner" });
 
     const commissioners = (
       await db.select().from(leagueMembers).where(eq(leagueMembers.leagueId, league.id))

@@ -247,7 +247,9 @@ function MembersSection({
       return true;
     },
     onSuccess: async () => {
+      // Role changes alter the dashboard's commissioner badge too.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
+      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
     },
     onError: () => toast.error("Couldn't update that member's role — please try again."),
   });
@@ -267,7 +269,9 @@ function MembersSection({
       return true;
     },
     onSuccess: async () => {
+      // Kicks change the member count the dashboard card shows.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
+      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
     },
     onError: () => toast.error("Couldn't remove that member — please try again."),
   });
@@ -522,6 +526,9 @@ function InviteRow({
   );
 }
 
+// Stated deviation from the TanStack-Form rule: two optional scalar inputs
+// (expiry, max uses) with no per-field validation — the schema-bounded body
+// is assembled once at submit, mirroring the settings editors below.
 function NewInviteForm({
   onCreate,
   isPending,
@@ -602,7 +609,9 @@ function LeagueSettingsSection({ league }: { league: LeagueResponse }) {
       return data;
     },
     onSuccess: async (data) => {
+      // Renames show on the dashboard card too.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
+      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
       if (data) toast.success("League updated");
     },
     onError: () => toast.error("Couldn't update this league — please try again."),
@@ -757,6 +766,9 @@ function SettingsFieldsSection({
   );
 }
 
+// The three settings editors below share new.tsx's stated deviation from the
+// TanStack-Form rule: select/radio/stepper state whose option sets are already
+// schema-constrained, parsed as one object at submit (server re-validates).
 function PickemSettingsEditor({
   settings,
   onSave,

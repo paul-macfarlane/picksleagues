@@ -81,7 +81,12 @@ export async function updateMemberRole(
 
       if (role === MEMBER_ROLE.COMMISSIONER) {
         // Serializes the recipient's cross-league cap count against their
-        // concurrent creates/promotes elsewhere.
+        // concurrent creates/promotes elsewhere. Lock order here is
+        // league→user while deleteAccount takes user→leagues — a concurrent
+        // promote-of-U vs U-deletes-account can in principle deadlock, which
+        // Postgres resolves by aborting one tx (rolled back, invariant
+        // intact, surfaces as a 500). Accepted: the window is one query wide
+        // and reordering would require reading the target before locking.
         await lockUserRow(tx, target.userId);
       }
 

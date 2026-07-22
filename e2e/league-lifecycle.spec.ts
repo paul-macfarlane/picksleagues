@@ -30,12 +30,15 @@ test.describe("league lifecycle", () => {
       await pageA.locator("#name").fill(leagueName);
       await pageA.getByRole("button", { name: "Create league" }).click();
 
-      // Success navigates to the dashboard; the new card links to league home.
-      await expect(pageA).toHaveURL("/");
-      await pageA.getByRole("link", { name: leagueName }).click();
+      // Success lands directly on the new league's home page.
       await expect(pageA).toHaveURL(/\/leagues\/[0-9a-f-]{36}$/);
       const leagueId = new URL(pageA.url()).pathname.split("/").at(-1)!;
       await expect(pageA.getByText(`@${commishName}`)).toBeVisible();
+
+      // The dashboard card links back to it.
+      await pageA.goto("/");
+      await pageA.getByRole("link", { name: leagueName }).click();
+      await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}$`));
 
       // Commissioner: mint an invite link. The UI only offers copy-to-
       // clipboard (unavailable headless), so the code is read from the DB.

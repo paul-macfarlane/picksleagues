@@ -478,13 +478,21 @@ describe("boundary instants", () => {
 
 describe("concurrency", () => {
   it("two concurrent joins can't blow past the 100-member cap", async () => {
-    const { commissioner, league } = await seedLeagueWithCommissioner();
+    // Public joins, deliberately NOT the same invite code: same-code joins
+    // already serialize on the invite row's guarded use-count UPDATE, which
+    // would mask a missing league lock — this path exercises the league row
+    // lock in joinLeagueInTx alone.
+    const { league } = await seedLeagueWithCommissioner({
+      visibility: LEAGUE_VISIBILITY.PUBLIC,
+    });
     await fillLeague(league.id, 98); // 99 members; exactly one seat left
-    const code = await createCode(commissioner.cookie, league.id);
     const a = await createAuthenticatedUser(auth, { username: "racer_a" });
     const b = await createAuthenticatedUser(auth, { username: "racer_b" });
 
-    const [resA, resB] = await Promise.all([postJoin(a.cookie, code), postJoin(b.cookie, code)]);
+    const [resA, resB] = await Promise.all([
+      postPublicJoin(a.cookie, league.id),
+      postPublicJoin(b.cookie, league.id),
+    ]);
     expect([resA.status, resB.status].sort()).toEqual([201, 409]);
 
     const members = await db
