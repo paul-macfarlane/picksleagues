@@ -1,7 +1,13 @@
 import { and, count, eq, gt, sql } from "drizzle-orm";
-import { DatabaseError } from "pg";
 import type { Db } from "@picksleagues/db";
-import { accounts, leagueMembers, leagues, sessions, users } from "@picksleagues/db";
+import {
+  accounts,
+  isUniqueViolation,
+  leagueMembers,
+  leagues,
+  sessions,
+  users,
+} from "@picksleagues/db";
 import { lockUserRow } from "./leagues";
 import type { Clock } from "@picksleagues/core";
 import {
@@ -51,14 +57,7 @@ export async function updateProfile(
     }
     return { ok: true, user };
   } catch (error) {
-    // drizzle-orm wraps the driver error in a DrizzleQueryError; the pg
-    // DatabaseError we care about is its `.cause`.
-    const cause = error instanceof Error ? error.cause : undefined;
-    if (
-      cause instanceof DatabaseError &&
-      cause.code === "23505" &&
-      cause.constraint === USERNAME_UNIQUE_CONSTRAINT
-    ) {
+    if (isUniqueViolation(error, USERNAME_UNIQUE_CONSTRAINT)) {
       return { ok: false, reason: "username_taken" };
     }
     throw error;
