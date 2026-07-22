@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { GAME_STATUS, type GameStatus } from "@picksleagues/schemas";
-import type { GameDataProvider, ProviderGame, ProviderSeasonStructure, ProviderWeek } from "./game-data-provider";
+import type {
+  GameDataProvider,
+  ProviderGame,
+  ProviderSeasonStructure,
+  ProviderWeek,
+} from "./game-data-provider";
 
 const DEFAULT_SITE_API_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports";
 const DEFAULT_CORE_API_BASE_URL = "https://sports.core.api.espn.com/v2/sports";
@@ -91,11 +96,16 @@ function parseScoreStrict(raw: string, context: string): number {
   return parsed;
 }
 
-function mapCompetitionToGame(weekNumber: number, competition: z.infer<typeof CompetitionSchema>): ProviderGame {
+function mapCompetitionToGame(
+  weekNumber: number,
+  competition: z.infer<typeof CompetitionSchema>,
+): ProviderGame {
   const home = competition.competitors.find((competitor) => competitor.homeAway === "home");
   const away = competition.competitors.find((competitor) => competitor.homeAway === "away");
   if (!home || !away) {
-    throw new Error(`EspnProvider: competition ${competition.id} is missing a home or away competitor`);
+    throw new Error(
+      `EspnProvider: competition ${competition.id} is missing a home or away competitor`,
+    );
   }
 
   const status = mapStatus(competition.status.type);
@@ -139,7 +149,11 @@ export class EspnProvider implements GameDataProvider {
   readonly #siteApiBaseUrl: string;
   readonly #coreApiBaseUrl: string;
 
-  constructor(options?: { fetchImpl?: typeof fetch; siteApiBaseUrl?: string; coreApiBaseUrl?: string }) {
+  constructor(options?: {
+    fetchImpl?: typeof fetch;
+    siteApiBaseUrl?: string;
+    coreApiBaseUrl?: string;
+  }) {
     this.#fetchImpl = options?.fetchImpl ?? globalThis.fetch;
     this.#siteApiBaseUrl = options?.siteApiBaseUrl ?? DEFAULT_SITE_API_BASE_URL;
     this.#coreApiBaseUrl = options?.coreApiBaseUrl ?? DEFAULT_CORE_API_BASE_URL;

@@ -113,7 +113,11 @@ afterAll(async () => {
 describe("syncScores", () => {
   it("no-ops without a single provider call when nothing has kicked off", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     const details = await syncScores(db, beforeClock, provider, {});
@@ -123,7 +127,11 @@ describe("syncScores", () => {
 
   it("updates scores for an in-progress game", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     provider.gamesByWeek.set(1, [
@@ -155,7 +163,11 @@ describe("syncScores", () => {
 
   it("counts a transition to final and writes the final score", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     provider.gamesByWeek.set(1, [
@@ -179,7 +191,11 @@ describe("syncScores", () => {
 
   it("never clobbers admin override fields on re-sync (arch D15)", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     const overriddenAt = new Date("2026-09-11T18:00:00.000Z");
@@ -219,7 +235,11 @@ describe("syncScores", () => {
 
   it("ignores a provider game that isn't in our tables (never creates games)", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     provider.gamesByWeek.set(1, [
@@ -240,8 +260,16 @@ describe("syncScores", () => {
 
   it("leaves a game the provider no longer returns untouched and counts it", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g1", weekNumber: 1, kickoffAt: new Date("2026-09-10T17:00:00.000Z") }),
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g1",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-10T17:00:00.000Z"),
+      }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     // Provider only returns g1 now.
@@ -267,7 +295,11 @@ describe("syncScores", () => {
 
   it("bypasses the active gate when an explicit season/week is given", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     provider.gamesByWeek.set(1, [
@@ -292,7 +324,11 @@ describe("syncScores", () => {
 
   it("takes the explicit path for a lone week (season derived), not the active-games gate", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     provider.gamesByWeek.set(1, [
@@ -315,7 +351,11 @@ describe("syncScores", () => {
 
   it("is idempotent: a second run with identical provider data updates nothing", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
 
     provider.gamesByWeek.set(1, [
@@ -353,7 +393,11 @@ describe("POST /api/jobs/sync-scores", () => {
 
   it("returns the job envelope with the score counters", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
     ]);
     provider.gamesByWeek.set(1, [
       providerGame({

@@ -104,8 +104,18 @@ afterAll(async () => {
 describe("syncOdds", () => {
   it("snapshots only unstarted games (a game past its kickoff is excluded)", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g1", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z"), spread: -3.5 }),
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g1",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+        spread: -3.5,
+      }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     const details = await syncOdds(db, oddsClock, provider, {});
@@ -125,7 +135,12 @@ describe("syncOdds", () => {
 
   it("stamps capturedAt from the injected clock, not the DB clock", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     await syncOdds(db, oddsClock, provider, {});
@@ -137,8 +152,18 @@ describe("syncOdds", () => {
 
   it("counts unstarted games without a provider line and inserts no snapshot for them", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
-      providerGame({ providerGameId: "g3", weekNumber: 1, kickoffAt: new Date("2026-09-14T20:00:00.000Z"), spread: null }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
+      providerGame({
+        providerGameId: "g3",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T20:00:00.000Z"),
+        spread: null,
+      }),
     ]);
 
     const details = await syncOdds(db, oddsClock, provider, {});
@@ -148,7 +173,12 @@ describe("syncOdds", () => {
 
   it("appends a fresh snapshot per game on every run (odds history is intentional)", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     await syncOdds(db, oddsClock, provider, {});
@@ -159,7 +189,12 @@ describe("syncOdds", () => {
 
   it("pre-season: with no in-progress week, falls back to the next upcoming week and snapshots it", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     // Clock sits before week 1 starts (2026-09-08), so there is no in-progress
@@ -172,7 +207,12 @@ describe("syncOdds", () => {
 
   it("off-season: after every week has ended with no explicit week, no_current_week and writes nothing", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     // Clock sits after week 1 ends (2026-09-15) with no later week to fall to.
@@ -184,7 +224,12 @@ describe("syncOdds", () => {
 
   it("explicit week: snapshots the requested week's unstarted games", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     const details = await syncOdds(db, oddsClock, provider, { weekNumber: 1 });
@@ -194,7 +239,12 @@ describe("syncOdds", () => {
 
   it("explicit week that isn't synced returns week_not_synced (distinct from the derived no_current_week)", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     const details = await syncOdds(db, oddsClock, provider, { weekNumber: 5 });
@@ -212,13 +262,28 @@ describe("syncOdds", () => {
 
   it("ignores a provider game that isn't in our tables (never creates games/weeks)", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     // Provider now reports an extra game we never ingested.
     provider.gamesByWeek.set(1, [
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
-      providerGame({ providerGameId: "unknown", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: -7 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
+      providerGame({
+        providerGameId: "unknown",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: -7,
+      }),
     ]);
 
     const details = await syncOdds(db, oddsClock, provider, {});
@@ -238,7 +303,12 @@ describe("POST /api/jobs/sync-odds", () => {
 
   it("returns the job envelope with the odds counters", async () => {
     await seedSchedule([
-      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
     ]);
 
     const res = await app.request("/api/jobs/sync-odds", {

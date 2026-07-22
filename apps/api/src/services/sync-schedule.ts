@@ -148,9 +148,7 @@ export async function syncSchedule(
         .select()
         .from(games)
         .where(inArray(games.providerGameId, providerGameIds));
-      const existingByProviderId = new Map(
-        existingRows.map((row) => [row.providerGameId, row]),
-      );
+      const existingByProviderId = new Map(existingRows.map((row) => [row.providerGameId, row]));
 
       const newGameValues: (typeof games.$inferInsert)[] = [];
 

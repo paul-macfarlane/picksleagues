@@ -22,10 +22,7 @@ const EnvSchema = z.object({
   // Data). Optional — alerting no-ops (logs only) when unset. `.env` templates
   // ship the key with an empty value, so treat "" as absent rather than letting
   // z.url() reject it and crash startup.
-  DISCORD_ALERT_WEBHOOK_URL: z.preprocess(
-    (v) => (v === "" ? undefined : v),
-    z.url().optional(),
-  ),
+  DISCORD_ALERT_WEBHOOK_URL: z.preprocess((v) => (v === "" ? undefined : v), z.url().optional()),
   // Comma-separated Better Auth user ids; admin capability is this allowlist (arch §Overrides).
   ADMIN_USER_IDS: z
     .string()

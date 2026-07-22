@@ -81,8 +81,16 @@ describe("EspnProvider.fetchSeasonStructure", () => {
 
     expect(structure.seasonYear).toBe(2026);
     expect(structure.weeks).toEqual([
-      { weekNumber: 1, startsAt: new Date("2026-09-10T07:00Z"), endsAt: new Date("2026-09-17T06:59Z") },
-      { weekNumber: 2, startsAt: new Date("2026-09-17T07:00Z"), endsAt: new Date("2026-09-24T06:59Z") },
+      {
+        weekNumber: 1,
+        startsAt: new Date("2026-09-10T07:00Z"),
+        endsAt: new Date("2026-09-17T06:59Z"),
+      },
+      {
+        weekNumber: 2,
+        startsAt: new Date("2026-09-17T07:00Z"),
+        endsAt: new Date("2026-09-24T06:59Z"),
+      },
     ]);
   });
 
@@ -124,8 +132,18 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "PHI", displayName: "Philadelphia Eagles", score: "0" }),
-                  competitor({ homeAway: "away", abbreviation: "DAL", displayName: "Dallas Cowboys", score: "0" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "PHI",
+                    displayName: "Philadelphia Eagles",
+                    score: "0",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "DAL",
+                    displayName: "Dallas Cowboys",
+                    score: "0",
+                  }),
                 ],
                 odds: [{ spread: -3.5, provider: { name: "ESPN BET" } }],
               },
@@ -167,8 +185,18 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_IN_PROGRESS", state: "in" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "BUF", displayName: "Buffalo Bills", score: "14" }),
-                  competitor({ homeAway: "away", abbreviation: "NYJ", displayName: "New York Jets", score: "7" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "BUF",
+                    displayName: "Buffalo Bills",
+                    score: "14",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "NYJ",
+                    displayName: "New York Jets",
+                    score: "7",
+                  }),
                 ],
               },
             ],
@@ -180,7 +208,12 @@ describe("EspnProvider.fetchWeekGames", () => {
     const provider = makeProvider(fetchImpl);
     const [game] = await provider.fetchWeekGames(2026, 1);
 
-    expect(game).toMatchObject({ status: GAME_STATUS.IN_PROGRESS, homeScore: 14, awayScore: 7, spread: null });
+    expect(game).toMatchObject({
+      status: GAME_STATUS.IN_PROGRESS,
+      homeScore: 14,
+      awayScore: 7,
+      spread: null,
+    });
   });
 
   it("parses scores for a final game", async () => {
@@ -195,8 +228,18 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_FINAL", state: "post" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "KC", displayName: "Kansas City Chiefs", score: "24" }),
-                  competitor({ homeAway: "away", abbreviation: "DEN", displayName: "Denver Broncos", score: "20" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "KC",
+                    displayName: "Kansas City Chiefs",
+                    score: "24",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "DEN",
+                    displayName: "Denver Broncos",
+                    score: "20",
+                  }),
                 ],
               },
             ],
@@ -223,8 +266,18 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_IN_PROGRESS", state: "in" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "BUF", displayName: "Buffalo Bills", score: "abc" }),
-                  competitor({ homeAway: "away", abbreviation: "NYJ", displayName: "New York Jets", score: "7" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "BUF",
+                    displayName: "Buffalo Bills",
+                    score: "abc",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "NYJ",
+                    displayName: "New York Jets",
+                    score: "7",
+                  }),
                 ],
               },
             ],
@@ -250,8 +303,16 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_POSTPONED", state: "pre" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "MIA", displayName: "Miami Dolphins" }),
-                  competitor({ homeAway: "away", abbreviation: "NE", displayName: "New England Patriots" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "MIA",
+                    displayName: "Miami Dolphins",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "NE",
+                    displayName: "New England Patriots",
+                  }),
                 ],
               },
             ],
@@ -278,8 +339,16 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: statusName, state: "post" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "SF", displayName: "San Francisco 49ers" }),
-                  competitor({ homeAway: "away", abbreviation: "SEA", displayName: "Seattle Seahawks" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "SF",
+                    displayName: "San Francisco 49ers",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "SEA",
+                    displayName: "Seattle Seahawks",
+                  }),
                 ],
               },
             ],
@@ -306,8 +375,16 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_SOME_FUTURE_ESPN_VALUE", state: "weird" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "GB", displayName: "Green Bay Packers" }),
-                  competitor({ homeAway: "away", abbreviation: "CHI", displayName: "Chicago Bears" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "GB",
+                    displayName: "Green Bay Packers",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "CHI",
+                    displayName: "Chicago Bears",
+                  }),
                 ],
               },
             ],
@@ -334,8 +411,16 @@ describe("EspnProvider.fetchWeekGames", () => {
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
                 competitors: [
-                  competitor({ homeAway: "home", abbreviation: "LAR", displayName: "Los Angeles Rams" }),
-                  competitor({ homeAway: "away", abbreviation: "ARI", displayName: "Arizona Cardinals" }),
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "LAR",
+                    displayName: "Los Angeles Rams",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "ARI",
+                    displayName: "Arizona Cardinals",
+                  }),
                 ],
               },
             ],
@@ -361,7 +446,13 @@ describe("EspnProvider.fetchWeekGames", () => {
                 id: "408",
                 date: "2026-09-14T17:00Z",
                 status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
-                competitors: [competitor({ homeAway: "away", abbreviation: "ARI", displayName: "Arizona Cardinals" })],
+                competitors: [
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "ARI",
+                    displayName: "Arizona Cardinals",
+                  }),
+                ],
               },
             ],
           },
@@ -371,7 +462,9 @@ describe("EspnProvider.fetchWeekGames", () => {
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow(/missing a home or away competitor/);
+    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow(
+      /missing a home or away competitor/,
+    );
   });
 
   it("throws naming the endpoint and status on a non-OK response", async () => {

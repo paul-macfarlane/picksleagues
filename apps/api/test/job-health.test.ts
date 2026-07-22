@@ -114,7 +114,11 @@ describe("runJob health tracking", () => {
       lastBody = (await res.json()) as JobRunResponse;
     }
 
-    expect(lastBody).toMatchObject({ job: "brittle-webhook-job", status: "error", message: "kaboom" });
+    expect(lastBody).toMatchObject({
+      job: "brittle-webhook-job",
+      status: "error",
+      message: "kaboom",
+    });
     const row = await healthRow("brittle-webhook-job");
     expect(row?.consecutiveFailures).toBe(3);
     expect(row?.lastAlertedAt).toEqual(FIXED_NOW);

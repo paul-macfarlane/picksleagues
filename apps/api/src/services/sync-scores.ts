@@ -91,9 +91,7 @@ export async function syncScores(
   const fetched = await Promise.all(
     targets.map((target) => provider.fetchWeekGames(target.seasonYear, target.weekNumber)),
   );
-  const providerGamesById = new Map(
-    fetched.flat().map((game) => [game.providerGameId, game]),
-  );
+  const providerGamesById = new Map(fetched.flat().map((game) => [game.providerGameId, game]));
 
   const weekIds = targets.map((target) => target.weekId);
 

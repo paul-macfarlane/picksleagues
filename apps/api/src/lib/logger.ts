@@ -20,7 +20,8 @@ type LogLevel = (typeof LOG_LEVEL)[keyof typeof LOG_LEVEL];
 function serializeFields(fields: Record<string, unknown>): Record<string, unknown> {
   const serialized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields)) {
-    serialized[key] = value instanceof Error ? { message: value.message, stack: value.stack } : value;
+    serialized[key] =
+      value instanceof Error ? { message: value.message, stack: value.stack } : value;
   }
   return serialized;
 }
