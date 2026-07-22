@@ -13,8 +13,10 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
+import { Route as AuthedLeaguesLeagueIdRouteImport } from './routes/_authed/leagues/$leagueId'
 import { Route as AuthedLeaguesNewRouteImport } from './routes/_authed/leagues/new'
 
 const AuthedRoute = AuthedRouteImport.update({
@@ -36,6 +38,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedDiscoveryRoute = AuthedDiscoveryRouteImport.update({
+  id: '/discovery',
+  path: '/discovery',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedProfileRoute = AuthedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -45,6 +52,11 @@ const JoinCodeRoute = JoinCodeRouteImport.update({
   id: '/join/$code',
   path: '/join/$code',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedLeaguesLeagueIdRoute = AuthedLeaguesLeagueIdRouteImport.update({
+  id: '/leagues/$leagueId',
+  path: '/leagues/$leagueId',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedLeaguesNewRoute = AuthedLeaguesNewRouteImport.update({
   id: '/leagues/new',
@@ -56,16 +68,20 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
 }
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/': typeof AuthedIndexRoute
+  '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
 }
 export interface FileRoutesById {
@@ -73,9 +89,11 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/_authed/discovery': typeof AuthedDiscoveryRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRoute
   '/_authed/leagues/new': typeof AuthedLeaguesNewRoute
 }
 export interface FileRouteTypes {
@@ -84,25 +102,31 @@ export interface FileRouteTypes {
     | '/'
     | '/claim-username'
     | '/sign-in'
+    | '/discovery'
     | '/profile'
     | '/join/$code'
+    | '/leagues/$leagueId'
     | '/leagues/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim-username'
     | '/sign-in'
+    | '/discovery'
     | '/profile'
     | '/join/$code'
     | '/'
+    | '/leagues/$leagueId'
     | '/leagues/new'
   id:
     | '__root__'
     | '/_authed'
     | '/claim-username'
     | '/sign-in'
+    | '/_authed/discovery'
     | '/_authed/profile'
     | '/join/$code'
     | '/_authed/'
+    | '/_authed/leagues/$leagueId'
     | '/_authed/leagues/new'
   fileRoutesById: FileRoutesById
 }
@@ -143,6 +167,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/discovery': {
+      id: '/_authed/discovery'
+      path: '/discovery'
+      fullPath: '/discovery'
+      preLoaderRoute: typeof AuthedDiscoveryRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/profile': {
       id: '/_authed/profile'
       path: '/profile'
@@ -157,6 +188,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authed/leagues/$leagueId': {
+      id: '/_authed/leagues/$leagueId'
+      path: '/leagues/$leagueId'
+      fullPath: '/leagues/$leagueId'
+      preLoaderRoute: typeof AuthedLeaguesLeagueIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/leagues/new': {
       id: '/_authed/leagues/new'
       path: '/leagues/new'
@@ -168,14 +206,18 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedRouteChildren {
+  AuthedDiscoveryRoute: typeof AuthedDiscoveryRoute
   AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedLeaguesLeagueIdRoute: typeof AuthedLeaguesLeagueIdRoute
   AuthedLeaguesNewRoute: typeof AuthedLeaguesNewRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedDiscoveryRoute: AuthedDiscoveryRoute,
   AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedLeaguesLeagueIdRoute: AuthedLeaguesLeagueIdRoute,
   AuthedLeaguesNewRoute: AuthedLeaguesNewRoute,
 }
 

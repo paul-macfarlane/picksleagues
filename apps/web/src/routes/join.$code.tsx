@@ -80,7 +80,7 @@ function JoinByCode() {
       }
       toast.success(`Joined ${data.name}`);
       await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
-      navigate({ to: "/" });
+      navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },
     onError: () => {
       toast.error("Couldn't join that league — please try again.");

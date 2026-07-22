@@ -66,16 +66,16 @@ function Dashboard() {
             >
               Create a league
             </Link>
-            {/* TODO(LG-5 web): swap for a Link once /discovery exists. */}
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full justify-center"
-              disabled
-              title="Coming soon"
+            <Link
+              to="/discovery"
+              className={buttonVariants({
+                variant: "outline",
+                size: "lg",
+                className: "w-full justify-center",
+              })}
             >
               Browse public leagues
-            </Button>
+            </Link>
           </CardContent>
         </Card>
       </main>
@@ -105,9 +105,15 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
   return (
     <Card className="h-full">
       <CardHeader>
-        {/* League home page arrives in LG-7 — plain text stands in until the
-            route exists. */}
-        <CardTitle>{league.name}</CardTitle>
+        <CardTitle>
+          <Link
+            to="/leagues/$leagueId"
+            params={{ leagueId: league.id }}
+            className="hover:underline"
+          >
+            {league.name}
+          </Link>
+        </CardTitle>
         <CardDescription>{leagueModeLabel(league.mode)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
