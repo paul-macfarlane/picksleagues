@@ -2,7 +2,7 @@
 
 League lifecycle, membership, invites, discovery, and commissioner powers — the mode-agnostic core. Ref: spec §Leagues; arch §Invites, §Domain Model, §API Surface.
 
-- [ ] **LG-1** — Drizzle schema: `leagues` (mode, visibility, status), `league_settings` (JSONB validated by per-mode Zod schema, typed via `$type<>`), `league_members` (role carries commissionership — no `commissioner_id` on `leagues`, ADR-0004), `league_invites`. _(deps: FND-2)_
+- [~] **LG-1** — Drizzle schema: `leagues` (mode, visibility, status), `league_settings` (JSONB validated by per-mode Zod schema, typed via `$type<>`), `league_members` (role carries commissionership — no `commissioner_id` on `leagues`, ADR-0004), `league_invites`. _(deps: FND-2)_
 - [ ] **LG-2** — League creation flow (mode → name → visibility → mode settings → pre-start league) with the 10-active-commissioner cap enforced in-transaction. _(deps: LG-1, ID-1)_
 - [ ] **LG-3** — Invites: generate/revoke links with opaque codes, optional expiry + max-use; `/join/:code` with signed-out → auth → back-to-join round-trip. _(deps: LG-2)_
 - [ ] **LG-4** — Membership rules at the join endpoint: 2–100 size, one membership per user, clock-derived join cutoff (first week started / Round of 64 tipped). _(deps: LG-3, DATA-4, FND-6)_
