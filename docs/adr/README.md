@@ -16,3 +16,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0004](0004-multi-commissioner-leagues.md)    | Multi-commissioner leagues; no mid-season leaving | Accepted |
 | [0005](0005-tanstack-form.md)                 | TanStack Form for SPA forms          | Accepted |
 | [0006](0006-minted-session-e2e.md)            | Minted-session E2E ahead of the simulator | Accepted |
+| [0007](0007-game-data-ingestion-model.md)     | Game-data ingestion model            | Accepted |
