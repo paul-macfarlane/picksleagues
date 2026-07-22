@@ -20,6 +20,7 @@ const handler = handle(
     auth,
     db,
     clock: () => resolveClock(env.APP_ENV, () => getSimClockOffsetMs(db)),
+    env,
   }),
 );
 

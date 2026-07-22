@@ -16,6 +16,7 @@ serve(
       auth,
       db,
       clock: () => resolveClock(env.APP_ENV, () => getSimClockOffsetMs(db)),
+      env,
     }).fetch,
     port,
   },
