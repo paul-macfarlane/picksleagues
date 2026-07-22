@@ -67,11 +67,13 @@ function buildDummyJobApp() {
   });
 
   app.openapi(succeedRoute, (c) =>
-    runJob(c, "dummy-succeed", async () => ({ rowsUpserted: 3, ok: true })),
+    // No db/clock in ctx → health bookkeeping is skipped, exercising the
+    // generate-openapi/no-deps path.
+    runJob(c, "dummy-succeed", {}, async () => ({ rowsUpserted: 3, ok: true })),
   );
 
   app.openapi(failRoute, (c) =>
-    runJob(c, "dummy-fail", async () => {
+    runJob(c, "dummy-fail", {}, async () => {
       throw new Error("boom");
     }),
   );

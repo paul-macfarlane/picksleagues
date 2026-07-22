@@ -18,6 +18,9 @@ const EnvSchema = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   JOB_SECRET: z.string().min(32),
+  // Discord webhook for repeated ingestion-failure alerts (arch §External
+  // Data). Optional — alerting no-ops (logs only) when unset.
+  DISCORD_ALERT_WEBHOOK_URL: z.url().optional(),
   // Comma-separated Better Auth user ids; admin capability is this allowlist (arch §Overrides).
   ADMIN_USER_IDS: z
     .string()

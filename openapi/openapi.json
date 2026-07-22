@@ -407,6 +407,66 @@
           }
         }
       }
+    },
+    "/api/jobs/sync-scores": {
+      "post": {
+        "operationId": "runSyncScores",
+        "summary": "Refresh live scores/statuses for in-flight NFL games from the provider",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong x-job-secret header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "webhooks": {}

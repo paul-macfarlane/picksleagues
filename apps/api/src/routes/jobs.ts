@@ -11,6 +11,7 @@ import { runJob } from "../lib/job-runner";
 import { jobSecretMiddleware } from "../middleware/job-secret";
 import { syncSchedule } from "../services/sync-schedule";
 import { syncOdds } from "../services/sync-odds";
+import { syncScores } from "../services/sync-scores";
 
 /**
  * Optional overrides for the manual/simulator trigger path — cron fires the
@@ -52,6 +53,15 @@ const syncOddsRoute = createRoute({
   path: "/jobs/sync-odds",
   operationId: "runSyncOdds",
   summary: "Snapshot spreads for unstarted games in the current NFL week",
+  request: { query: SyncQuerySchema },
+  responses: jobResponses,
+});
+
+const syncScoresRoute = createRoute({
+  method: "post",
+  path: "/jobs/sync-scores",
+  operationId: "runSyncScores",
+  summary: "Refresh live scores/statuses for in-flight NFL games from the provider",
   request: { query: SyncQuerySchema },
   responses: jobResponses,
 });
@@ -102,7 +112,7 @@ export function jobRoutes(deps: AppDeps) {
     }
     const clock = await resolveClock();
     const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-schedule", () =>
+    return runJob(c, "sync-schedule", { db, clock, alerter: deps.alerter }, () =>
       syncSchedule(db, clock, provider, { seasonYear: season, weekNumber: week }),
     );
   });
@@ -114,8 +124,20 @@ export function jobRoutes(deps: AppDeps) {
     }
     const clock = await resolveClock();
     const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-odds", () =>
+    return runJob(c, "sync-odds", { db, clock, alerter: deps.alerter }, () =>
       syncOdds(db, clock, provider, { seasonYear: season, weekNumber: week }),
+    );
+  });
+
+  app.openapi(syncScoresRoute, async (c) => {
+    const { db, provider, clock: resolveClock } = deps;
+    if (!db || !resolveClock || !provider) {
+      return c.json(misconfigured("sync-scores"), 500);
+    }
+    const clock = await resolveClock();
+    const { season, week } = c.req.valid("query");
+    return runJob(c, "sync-scores", { db, clock, alerter: deps.alerter }, () =>
+      syncScores(db, clock, provider, { seasonYear: season, weekNumber: week }),
     );
   });
 

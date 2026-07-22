@@ -1,5 +1,6 @@
 import type { Db } from "@picksleagues/db";
 import type { Clock, Env, GameDataProvider } from "@picksleagues/core";
+import type { Alerter } from "./lib/alerting";
 import type { Auth } from "./auth";
 
 /**
@@ -16,4 +17,7 @@ export type AppDeps = {
   // The sports-data source sync jobs ingest from (arch §External Data). ESPN in
   // every environment today; the future SimulatedProvider swaps in here.
   provider?: GameDataProvider;
+  // Fires on repeated job failure (arch §External Data). Optional — the no-op
+  // Discord alerter is constructed even when the webhook env var is unset.
+  alerter?: Alerter;
 };
