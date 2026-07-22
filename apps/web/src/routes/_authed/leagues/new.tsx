@@ -23,6 +23,7 @@ import {
   type PickemPushTieResolution,
 } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
+import { leagueModeLabel } from "@/lib/league";
 import { FormTextField } from "@/components/form-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,9 +43,9 @@ export const Route = createFileRoute("/_authed/leagues/new")({
 });
 
 const MODE_OPTIONS: { value: LeagueMode; label: string }[] = [
-  { value: LEAGUE_MODE.PICKEM, label: "NFL Pick'em" },
-  { value: LEAGUE_MODE.ELIMINATION, label: "NFL Elimination" },
-  { value: LEAGUE_MODE.MARCH_MADNESS, label: "March Madness Pool" },
+  { value: LEAGUE_MODE.PICKEM, label: leagueModeLabel(LEAGUE_MODE.PICKEM) },
+  { value: LEAGUE_MODE.ELIMINATION, label: leagueModeLabel(LEAGUE_MODE.ELIMINATION) },
+  { value: LEAGUE_MODE.MARCH_MADNESS, label: leagueModeLabel(LEAGUE_MODE.MARCH_MADNESS) },
 ];
 
 const VISIBILITY_OPTIONS: { value: LeagueVisibility; label: string; description: string }[] = [
