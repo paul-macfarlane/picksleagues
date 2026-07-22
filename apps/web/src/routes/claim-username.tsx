@@ -1,16 +1,15 @@
-import { useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
+import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { UsernameSchema } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
+import { FormTextField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const searchSchema = z.object({
   // Invite-link return path threaded through sign-in → claim (mvp-spec
@@ -40,8 +39,6 @@ export const Route = createFileRoute("/claim-username")({
 function ClaimUsername() {
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
-  const [fieldError, setFieldError] = useState<string | null>(null);
 
   const claim = useMutation({
     mutationFn: async (value: string) => {
@@ -49,7 +46,9 @@ function ClaimUsername() {
       if (error) {
         // Taken is field-level feedback, not a toast — surface inline and stop.
         if (response.status === 409) {
-          setFieldError("That username is already taken.");
+          form.setErrorMap({
+            onSubmit: { fields: { username: "That username is already taken." } },
+          });
           return null;
         }
         throw error;
@@ -65,16 +64,14 @@ function ClaimUsername() {
     },
   });
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsed = UsernameSchema.safeParse(username);
-    if (!parsed.success) {
-      setFieldError(parsed.error.issues[0]?.message ?? "Invalid username.");
-      return;
-    }
-    setFieldError(null);
-    claim.mutate(parsed.data);
-  }
+  const form = useForm({
+    defaultValues: { username: "" },
+    onSubmit: async ({ value }) => {
+      // The field validator below already confirmed this passes UsernameSchema;
+      // parse again to send the trimmed+lowercased canonical value the API expects.
+      await claim.mutateAsync(UsernameSchema.parse(value.username));
+    },
+  });
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
@@ -87,28 +84,26 @@ function ClaimUsername() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                value={username}
-                onChange={(event) => {
-                  setUsername(event.target.value);
-                  if (fieldError) setFieldError(null);
-                }}
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={fieldError ? "username-error" : undefined}
-              />
-              {fieldError && (
-                <p id="username-error" className="text-sm text-destructive">
-                  {fieldError}
-                </p>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+            noValidate
+          >
+            <form.Field name="username" validators={{ onSubmit: UsernameSchema }}>
+              {(field) => (
+                <FormTextField
+                  field={field}
+                  label="Username"
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                />
               )}
-            </div>
+            </form.Field>
             <Button
               type="submit"
               size="lg"

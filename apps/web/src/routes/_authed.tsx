@@ -19,7 +19,10 @@ export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ location }) => {
     const { data: session } = await authClient.getSession();
     if (!session) {
-      throw redirect({ to: "/sign-in" });
+      // Preserve the deep link so sign-in returns here afterward (mvp-spec
+      // §Invites: "Visiting a link while signed out routes through sign-in
+      // and back").
+      throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }
     // First-time-only claim step per spec onboarding flow (OAuth → claim
     // username → dashboard): every route in this subtree stays gated until

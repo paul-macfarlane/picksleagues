@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { DisplayNameSchema, UsernameSchema, type MeResponse } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
 import { initialsOf } from "@/lib/user";
+import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,10 +91,6 @@ function ProfileForm({
   refetchSession: () => Promise<void>;
 }) {
   const queryClient = useQueryClient();
-  const [displayName, setDisplayName] = useState(profile.displayName);
-  const [username, setUsername] = useState(profile.username ?? "");
-  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
-  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const update = useMutation({
     mutationFn: async (body: { username?: string; displayName?: string }) => {
@@ -100,7 +98,9 @@ function ProfileForm({
       if (error) {
         // Taken is field-level feedback, not a toast — mirrors claim-username.
         if (response.status === 409) {
-          setUsernameError("That username is already taken.");
+          form.setErrorMap({
+            onSubmit: { fields: { username: "That username is already taken." } },
+          });
           return null;
         }
         throw error;
@@ -118,45 +118,28 @@ function ProfileForm({
     },
   });
 
-  const trimmedUsername = username.trim();
-  // Compare trimmed: the server stores the trimmed value, so a whitespace-only
-  // edit must not enable Save or fire an identical re-save.
-  const displayNameChanged = displayName.trim() !== profile.displayName;
-  const usernameChanged = trimmedUsername.toLowerCase() !== (profile.username ?? "");
-  const hasChanges = displayNameChanged || usernameChanged;
+  const form = useForm({
+    defaultValues: {
+      displayName: profile.displayName,
+      username: profile.username ?? "",
+    },
+    onSubmit: async ({ value }) => {
+      // Each field's own onSubmit validator (below) already confirmed it's
+      // either unchanged or passes its schema — safe to parse again here for
+      // the canonical (trimmed/lowercased) value to send.
+      const displayNameChanged = value.displayName.trim() !== profile.displayName;
+      const usernameChanged = value.username.trim().toLowerCase() !== (profile.username ?? "");
+
+      const body: { username?: string; displayName?: string } = {};
+      if (displayNameChanged) body.displayName = DisplayNameSchema.parse(value.displayName);
+      if (usernameChanged) body.username = UsernameSchema.parse(value.username);
+
+      if (Object.keys(body).length === 0) return;
+      await update.mutateAsync(body);
+    },
+  });
+
   const initials = initialsOf(profile.displayName);
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setDisplayNameError(null);
-    setUsernameError(null);
-
-    const body: { username?: string; displayName?: string } = {};
-
-    if (displayNameChanged) {
-      const parsed = DisplayNameSchema.safeParse(displayName);
-      if (!parsed.success) {
-        setDisplayNameError(parsed.error.issues[0]?.message ?? "Invalid display name.");
-        return;
-      }
-      body.displayName = parsed.data;
-    }
-
-    // Only validate username when it actually changed — an untouched blank
-    // field (shouldn't happen post-claim, but stay defensive) must never send
-    // `username: ""` to the PATCH.
-    if (usernameChanged) {
-      const parsed = UsernameSchema.safeParse(trimmedUsername);
-      if (!parsed.success) {
-        setUsernameError(parsed.error.issues[0]?.message ?? "Invalid username.");
-        return;
-      }
-      body.username = parsed.data;
-    }
-
-    if (Object.keys(body).length === 0) return;
-    update.mutate(body);
-  }
 
   return (
     <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
@@ -170,57 +153,79 @@ function ProfileForm({
           <CardDescription>Your avatar comes from your sign-in provider.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+            noValidate
+          >
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Email</Label>
               <Input id="email" value={profile.email} disabled readOnly />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="displayName">Display name</Label>
-              <Input
-                id="displayName"
-                value={displayName}
-                onChange={(event) => {
-                  setDisplayName(event.target.value);
-                  if (displayNameError) setDisplayNameError(null);
-                }}
-                aria-invalid={displayNameError ? true : undefined}
-                aria-describedby={displayNameError ? "display-name-error" : undefined}
-              />
-              {displayNameError && (
-                <p id="display-name-error" className="text-sm text-destructive">
-                  {displayNameError}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                autoComplete="off"
-                spellCheck={false}
-                value={username}
-                onChange={(event) => {
-                  setUsername(event.target.value);
-                  if (usernameError) setUsernameError(null);
-                }}
-                aria-invalid={usernameError ? true : undefined}
-                aria-describedby={usernameError ? "username-error" : undefined}
-              />
-              {usernameError && (
-                <p id="username-error" className="text-sm text-destructive">
-                  {usernameError}
-                </p>
-              )}
-            </div>
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full justify-center"
-              disabled={!hasChanges || update.isPending}
+            <form.Field
+              name="displayName"
+              validators={{
+                // Unchanged is always valid — only a real edit must pass DisplayNameSchema.
+                onSubmit: ({ value }) => {
+                  if (value.trim() === profile.displayName) return undefined;
+                  const parsed = DisplayNameSchema.safeParse(value);
+                  return parsed.success
+                    ? undefined
+                    : (parsed.error.issues[0]?.message ?? "Invalid display name.");
+                },
+              }}
             >
-              {update.isPending ? "Saving…" : "Save changes"}
-            </Button>
+              {(field) => <FormTextField field={field} label="Display name" />}
+            </form.Field>
+            <form.Field
+              name="username"
+              validators={{
+                // Unchanged is always valid — only a real edit must pass UsernameSchema.
+                onSubmit: ({ value }) => {
+                  const trimmed = value.trim().toLowerCase();
+                  if (trimmed === (profile.username ?? "")) return undefined;
+                  const parsed = UsernameSchema.safeParse(trimmed);
+                  return parsed.success
+                    ? undefined
+                    : (parsed.error.issues[0]?.message ?? "Invalid username.");
+                },
+              }}
+            >
+              {(field) => (
+                <FormTextField
+                  field={field}
+                  label="Username"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              )}
+            </form.Field>
+            <form.Subscribe selector={(state) => state.values}>
+              {(values) => {
+                // Compare trimmed: the server stores the trimmed value, so a
+                // whitespace-only edit must not enable Save or fire an
+                // identical re-save.
+                const displayNameChanged = values.displayName.trim() !== profile.displayName;
+                const usernameChanged =
+                  values.username.trim().toLowerCase() !== (profile.username ?? "");
+                const hasChanges = displayNameChanged || usernameChanged;
+
+                return (
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full justify-center"
+                    disabled={!hasChanges || update.isPending}
+                  >
+                    {update.isPending ? "Saving…" : "Save changes"}
+                  </Button>
+                );
+              }}
+            </form.Subscribe>
           </form>
         </CardContent>
       </Card>
