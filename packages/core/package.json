@@ -10,6 +10,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@picksleagues/schemas": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
