@@ -202,7 +202,7 @@ ESPN's undocumented endpoints cover everything the MVP needs, free:
 - **NFL:** season/week structure, schedules with kickoff timestamps, live + final scores, and odds (spread from ESPN BET) via the scoreboard and odds endpoints
 - **NCAA MBB:** tournament bracket, seeds, regions, game results
 
-**Risk & mitigation:** unofficial means it can change without notice. Mitigations: (1) all external data is ingested into our own tables — the app never reads ESPN at request time, so an outage degrades ingestion, not the product; (2) a thin `providers/espn.ts` adapter isolates their API shapes behind our own domain types, so swapping providers touches one module; (3) ingestion jobs alert (email/Discord webhook) on repeated failure. The Odds API remains the identified odds fallback, implemented post-MVP only if needed.
+**Risk & mitigation:** unofficial means it can change without notice. Mitigations: (1) all external data is ingested into our own tables — the app never reads ESPN at request time, so an outage degrades ingestion, not the product; (2) a thin `providers/espn.ts` adapter isolates their API shapes behind our own domain types, so swapping providers touches one module; (3) ingestion failures alert via the cron scheduler — jobs return 500 and cron-job.org emails on failed requests (ADR-0007). The Odds API remains the identified odds fallback, implemented post-MVP only if needed.
 
 **Spread strategy:** spreads are snapshotted into `odds_snapshots` on each odds sync. A pick stores the concrete spread it was made against (denormalized onto the pick row). The "accept latest spreads on all unstarted picks" rule: the client fetches current snapshots, displays them, and the write endpoint validates submitted spread values against the latest snapshot — rejecting stale submissions with 409 so the client re-prompts.
 
@@ -212,11 +212,14 @@ All jobs are HTTP endpoints under `/api/jobs/*`, protected by a shared-secret he
 
 | Job | Schedule | Work |
 | --- | --- | --- |
-| `sync-schedule` | Daily 6am ET | Upsert weeks, games, kickoff times; detect postponements/cancellations and flag affected picks |
-| `sync-odds` | 3×/day (in season) | Snapshot current spreads for unstarted games |
-| `sync-scores` | **Every 5 min** | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
+| `nfl-sync-schedule` | Daily 6am ET | Upsert NFL weeks (regular + postseason, Pro Bowl excluded — ADR-0007), games, kickoff times; detect postponements/cancellations/week moves (pick impact derives from game state at settlement) |
+| `nfl-sync-odds` | 3×/day (in season) | Snapshot current spreads for unstarted games |
+| `nfl-sync-scores` | **Every 5 min** | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
 | `settle-sweep` | Daily 3am ET | Full reconciliation pass: recompute all active leagues from stored results; catches anything the incremental path missed (late stat corrections, overrides, missed syncs) |
-| `sync-bracket` | Every 5 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots |
+| `ncaamb-sync-bracket` | Every 5 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots |
+
+Sport-specific jobs carry the sport in their route (`/api/jobs/nfl/*`) and service names
+(ADR-0007); operational setup lives in `docs/runbooks/jobs.md`.
 
 `sync-scores` runs every 5 minutes around the clock and **no-ops in milliseconds** when no games are in progress or recently final — cheaper and more robust than encoding NFL/NCAA game windows into cron schedules. cron-job.org supports minute-level scheduling on its free tier. Standings therefore update within ~5 minutes of a game going final; in-progress scores are also stored and can be surfaced in the UI with a "live as of" timestamp.
 
@@ -232,7 +235,7 @@ league_members              # role (commissioner/member), joined_at; ≥1 commis
 league_invites              # invite code, created_by, expires_at?, max_uses?, revoked_at?
 
 sport_seasons               # NFL 2026, NCAAMB 2027, ...
-weeks                       # week number, start/end, season FK
+weeks                       # week type (regular/postseason) + number, label, start/end, season FK
 games                       # provider id, week FK, home/away, kickoff_at, status,
                             #   final scores + override_* parallels, overridden_by/at
 odds_snapshots              # game FK, spread, captured_at

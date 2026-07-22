@@ -20,7 +20,8 @@
     "db:generate": "pnpm --filter @picksleagues/db generate",
     "db:migrate": "pnpm --filter @picksleagues/db migrate",
     "contract:generate": "pnpm --filter @picksleagues/api generate:openapi",
-    "contract:check": "pnpm contract:generate && test -z \"$(git status --porcelain -- openapi)\" || (git status --porcelain -- openapi && echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)"
+    "contract:check": "pnpm contract:generate && test -z \"$(git status --porcelain -- openapi)\" || (git status --porcelain -- openapi && echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -30,9 +31,14 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.1.0",
     "prettier": "^3.9.5",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.10"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown"
   }
 }

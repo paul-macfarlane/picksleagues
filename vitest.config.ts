@@ -25,6 +25,11 @@ export default defineConfig({
           environment: "node",
           include: ["apps/api/test/**/*.test.ts"],
           globalSetup: ["./apps/api/test/setup/global-setup.ts"],
+          // Every integration file shares the one test Postgres and truncates
+          // in beforeEach; running files in parallel workers would let them
+          // stomp each other's rows. Serialize files (tests within a file are
+          // already sequential).
+          fileParallelism: false,
         },
       },
     ],

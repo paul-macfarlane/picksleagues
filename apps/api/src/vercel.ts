@@ -1,5 +1,5 @@
 import { handle } from "hono/vercel";
-import { loadEnv, resolveClock } from "@picksleagues/core";
+import { EspnProvider, loadEnv, resolveClock } from "@picksleagues/core";
 import { createDb, getSimClockOffsetMs } from "@picksleagues/db";
 import { createApp } from "./app";
 import { createAuth } from "./auth";
@@ -10,6 +10,8 @@ import { createAuth } from "./auth";
 const env = loadEnv();
 const db = createDb(env.DATABASE_URL);
 const auth = createAuth({ env, db });
+// ESPN in every environment today; the future SimulatedProvider swaps in here.
+const provider = new EspnProvider();
 
 // Vercel's Node launcher only dispatches Web-signature handlers via named
 // HTTP-method exports; a default export gets the legacy (req, res) calling
@@ -20,6 +22,8 @@ const handler = handle(
     auth,
     db,
     clock: () => resolveClock(env.APP_ENV, () => getSimClockOffsetMs(db)),
+    env,
+    provider,
   }),
 );
 
