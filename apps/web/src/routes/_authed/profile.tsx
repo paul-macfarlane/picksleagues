@@ -135,7 +135,9 @@ function ProfileForm({
       if (usernameChanged) body.username = UsernameSchema.parse(value.username);
 
       if (Object.keys(body).length === 0) return;
-      await update.mutateAsync(body);
+      // Fire-and-forget `mutate`: form-core re-throws an awaited rejection out of
+      // handleSubmit as an unhandled rejection; the mutation's onError owns failures.
+      update.mutate(body);
     },
   });
 

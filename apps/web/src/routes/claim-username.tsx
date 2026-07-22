@@ -69,7 +69,9 @@ function ClaimUsername() {
     onSubmit: async ({ value }) => {
       // The field validator below already confirmed this passes UsernameSchema;
       // parse again to send the trimmed+lowercased canonical value the API expects.
-      await claim.mutateAsync(UsernameSchema.parse(value.username));
+      // Fire-and-forget `mutate`: form-core re-throws an awaited rejection out of
+      // handleSubmit as an unhandled rejection; the mutation's onError owns failures.
+      claim.mutate(UsernameSchema.parse(value.username));
     },
   });
 

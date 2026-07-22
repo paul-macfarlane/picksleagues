@@ -66,8 +66,8 @@ export async function cleanup(userIds: string[]): Promise<void> {
 
 // 3-20 chars, [a-z0-9_] (packages/schemas' UsernameSchema) with enough entropy
 // to never collide across a parallel run — randomUUID's hyphens aren't legal
-// in a username, so strip them rather than reach for Date.now() (never used
-// for identity, only entropy, but the repo's lint rule doesn't distinguish).
+// in a username, so strip them. (randomUUID over Date.now() because a whole
+// parallel worker batch can mint within the same millisecond.)
 export function uniqueUsername(): string {
   return `u_${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
