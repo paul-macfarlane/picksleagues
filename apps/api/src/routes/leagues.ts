@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   CreateLeagueRequestSchema,
+  ERROR_CODE,
   ErrorResponseSchema,
   JOIN_BLOCKED_REASON_MESSAGES,
   LeagueResponseSchema,
@@ -9,7 +10,15 @@ import {
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
-import { sessionMiddleware, type SessionVariables } from "../middleware/session";
+import {
+  errorResponse,
+  LEAGUE_NOT_FOUND_404,
+  MISCONFIGURED_500,
+  NOT_COMMISSIONER_403,
+  UNAUTHENTICATED_401,
+} from "../lib/route-responses";
+import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
+import type { SessionVariables } from "../middleware/session";
 import {
   createLeague,
   deleteLeague,
@@ -18,17 +27,6 @@ import {
   listMyLeagues,
   updateLeague,
 } from "../services/leagues";
-
-const MISCONFIGURED_500 = {
-  description:
-    "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
-
-const UNAUTHENTICATED_401 = {
-  description: "No valid session",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
 
 const LeagueIdParamsSchema = z.object({ leagueId: z.uuid() });
 
@@ -45,16 +43,11 @@ const postLeagues = createRoute({
       description: "League created in a pre-start state",
       content: { "application/json": { schema: LeagueResponseSchema } },
     },
-    400: {
-      description: "Invalid name, mode, visibility, or mode settings",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    400: errorResponse("Invalid name, mode, visibility, or mode settings"),
     401: UNAUTHENTICATED_401,
-    409: {
-      description:
-        "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    409: errorResponse(
+      "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
+    ),
     500: MISCONFIGURED_500,
   },
 });
@@ -86,25 +79,10 @@ const getLeagueById = createRoute({
       content: { "application/json": { schema: LeagueResponseSchema } },
     },
     401: UNAUTHENTICATED_401,
-    404: {
-      description:
-        "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    404: LEAGUE_NOT_FOUND_404,
     500: MISCONFIGURED_500,
   },
 });
-
-const NOT_COMMISSIONER_403 = {
-  description: "The caller is a member but not a commissioner",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
-
-const LEAGUE_NOT_FOUND_404 = {
-  description:
-    "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
 
 const patchLeague = createRoute({
   method: "patch",
@@ -120,18 +98,13 @@ const patchLeague = createRoute({
       description: "The updated league",
       content: { "application/json": { schema: LeagueResponseSchema } },
     },
-    400: {
-      description: "Empty update, or settings that fail the league's mode schema",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    400: errorResponse("Empty update, or settings that fail the league's mode schema"),
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
-    409: {
-      description:
-        "Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    409: errorResponse(
+      "Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed)",
+    ),
     500: MISCONFIGURED_500,
   },
 });
@@ -147,10 +120,7 @@ const deleteLeagueRoute = createRoute({
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
-    409: {
-      description: "The league has started (league_started)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    409: errorResponse("The league has started (league_started)"),
     500: MISCONFIGURED_500,
   },
 });
@@ -167,57 +137,31 @@ const postPublicJoin = createRoute({
       content: { "application/json": { schema: LeagueResponseSchema } },
     },
     401: UNAUTHENTICATED_401,
-    404: {
-      description: "No such public league — private leagues require an invite and stay hidden",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    409: {
-      description:
-        "Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    404: errorResponse("No such public league — private leagues require an invite and stay hidden"),
+    409: errorResponse(
+      "Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+    ),
     500: MISCONFIGURED_500,
   },
 });
 
 export function leagueRoutes(deps: AppDeps) {
-  const app = new OpenAPIHono<{ Variables: SessionVariables }>({ defaultHook: zodValidationHook });
+  const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
+    defaultHook: zodValidationHook,
+  });
 
-  app.use("/leagues/*", async (c, next) => {
-    if (!deps.auth) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
-        500,
-      );
-    }
-    return sessionMiddleware(deps.auth)(c, next);
-  });
-  app.use("/leagues", async (c, next) => {
-    if (!deps.auth) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
-        500,
-      );
-    }
-    return sessionMiddleware(deps.auth)(c, next);
-  });
+  app.use("/leagues/*", requireSession(deps));
+  app.use("/leagues", requireSession(deps));
+  app.use("/leagues/*", requireDbAndClock(deps));
+  app.use("/leagues", requireDbAndClock(deps));
 
   app.openapi(postLeagues, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const input = c.req.valid("json");
 
-    const result = await createLeague(deps.db, clock, sessionUser.id, input);
+    const result = await createLeague(db, clock, sessionUser.id, input);
     if (!result.ok) {
       const messages = {
         cap_exceeded: "You already run 10 active leagues — conclude or delete one first.",
@@ -234,38 +178,23 @@ export function leagueRoutes(deps: AppDeps) {
   });
 
   app.openapi(getMyLeagues, async (c) => {
-    if (!deps.db) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database is not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
     const sessionUser = c.get("sessionUser");
-    const leagues = await listMyLeagues(deps.db, sessionUser.id);
+    const leagues = await listMyLeagues(db, sessionUser.id);
     return c.json({ leagues }, 200);
   });
 
   app.openapi(getLeagueById, async (c) => {
-    if (!deps.db) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database is not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
     const sessionUser = c.get("sessionUser");
     const { leagueId } = c.req.valid("param");
-    const league = await getLeague(deps.db, leagueId, sessionUser.id);
+    const league = await getLeague(db, leagueId, sessionUser.id);
     if (!league) {
       return c.json(
-        ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+        ErrorResponseSchema.parse({
+          error: ERROR_CODE.LEAGUE_NOT_FOUND,
+          message: "League not found.",
+        }),
         404,
       );
     }
@@ -274,33 +203,27 @@ export function leagueRoutes(deps: AppDeps) {
   });
 
   app.openapi(patchLeague, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { leagueId } = c.req.valid("param");
     const input = c.req.valid("json");
 
-    const result = await updateLeague(deps.db, clock, leagueId, sessionUser.id, input);
+    const result = await updateLeague(db, clock, leagueId, sessionUser.id, input);
     if (!result.ok) {
       switch (result.reason) {
         case "league_not_found":
           return c.json(
-            ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.LEAGUE_NOT_FOUND,
+              message: "League not found.",
+            }),
             404,
           );
         case "not_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "not_commissioner",
+              error: ERROR_CODE.NOT_COMMISSIONER,
               message: "Only a commissioner can edit the league.",
             }),
             403,
@@ -308,7 +231,7 @@ export function leagueRoutes(deps: AppDeps) {
         case "league_started":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "league_started",
+              error: ERROR_CODE.LEAGUE_STARTED,
               message: "Visibility and settings are locked once the league starts.",
             }),
             409,
@@ -316,14 +239,14 @@ export function leagueRoutes(deps: AppDeps) {
         case "start_week_passed":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "start_week_passed",
+              error: ERROR_CODE.START_WEEK_PASSED,
               message: "That start week has already begun — choose a later start.",
             }),
             409,
           );
         case "invalid_settings":
           return c.json(
-            ErrorResponseSchema.parse({ error: "validation", message: result.message }),
+            ErrorResponseSchema.parse({ error: ERROR_CODE.VALIDATION, message: result.message }),
             400,
           );
       }
@@ -333,32 +256,26 @@ export function leagueRoutes(deps: AppDeps) {
   });
 
   app.openapi(deleteLeagueRoute, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { leagueId } = c.req.valid("param");
 
-    const result = await deleteLeague(deps.db, clock, leagueId, sessionUser.id);
+    const result = await deleteLeague(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
       switch (result.reason) {
         case "league_not_found":
           return c.json(
-            ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.LEAGUE_NOT_FOUND,
+              message: "League not found.",
+            }),
             404,
           );
         case "not_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "not_commissioner",
+              error: ERROR_CODE.NOT_COMMISSIONER,
               message: "Only a commissioner can delete the league.",
             }),
             403,
@@ -366,7 +283,7 @@ export function leagueRoutes(deps: AppDeps) {
         case "league_started":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "league_started",
+              error: ERROR_CODE.LEAGUE_STARTED,
               message: "A league can't be deleted after it has started.",
             }),
             409,
@@ -378,25 +295,19 @@ export function leagueRoutes(deps: AppDeps) {
   });
 
   app.openapi(postPublicJoin, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { leagueId } = c.req.valid("param");
 
-    const result = await joinPublicLeague(deps.db, clock, leagueId, sessionUser.id);
+    const result = await joinPublicLeague(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
       if (result.reason === "league_not_found") {
         return c.json(
-          ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+          ErrorResponseSchema.parse({
+            error: ERROR_CODE.LEAGUE_NOT_FOUND,
+            message: "League not found.",
+          }),
           404,
         );
       }

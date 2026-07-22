@@ -1,20 +1,11 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { DiscoveryResponseSchema, ErrorResponseSchema } from "@picksleagues/schemas";
+import { DiscoveryResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
-import { sessionMiddleware, type SessionVariables } from "../middleware/session";
+import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
+import { MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/route-responses";
+import type { SessionVariables } from "../middleware/session";
 import { discoverLeagues } from "../services/discovery";
-
-const MISCONFIGURED_500 = {
-  description:
-    "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
-
-const UNAUTHENTICATED_401 = {
-  description: "No valid session",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
 
 const getDiscovery = createRoute({
   method: "get",
@@ -33,33 +24,19 @@ const getDiscovery = createRoute({
 });
 
 export function discoveryRoutes(deps: AppDeps) {
-  const app = new OpenAPIHono<{ Variables: SessionVariables }>({ defaultHook: zodValidationHook });
-
-  app.use("/discovery", async (c, next) => {
-    if (!deps.auth) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
-        500,
-      );
-    }
-    return sessionMiddleware(deps.auth)(c, next);
+  const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
+    defaultHook: zodValidationHook,
   });
 
-  app.openapi(getDiscovery, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
+  app.use("/discovery", requireSession(deps));
+  app.use("/discovery", requireDbAndClock(deps));
 
-    const clock = await deps.clock();
+  app.openapi(getDiscovery, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
     const { q } = c.req.valid("query");
 
-    const leagues = await discoverLeagues(deps.db, clock, q);
+    const leagues = await discoverLeagues(db, clock, q);
     return c.json({ leagues }, 200);
   });
 

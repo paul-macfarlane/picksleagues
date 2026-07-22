@@ -1,25 +1,20 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { ErrorResponseSchema, UpdateMemberRoleRequestSchema } from "@picksleagues/schemas";
+import {
+  ERROR_CODE,
+  ErrorResponseSchema,
+  UpdateMemberRoleRequestSchema,
+} from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
-import { sessionMiddleware, type SessionVariables } from "../middleware/session";
+import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
+import {
+  errorResponse,
+  MISCONFIGURED_500,
+  NOT_COMMISSIONER_403,
+  UNAUTHENTICATED_401,
+} from "../lib/route-responses";
+import type { SessionVariables } from "../middleware/session";
 import { kickMember, leaveLeague, updateMemberRole } from "../services/members";
-
-const MISCONFIGURED_500 = {
-  description:
-    "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
-
-const UNAUTHENTICATED_401 = {
-  description: "No valid session",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
-
-const NOT_COMMISSIONER_403 = {
-  description: "The caller is a member but not a commissioner",
-  content: { "application/json": { schema: ErrorResponseSchema } },
-};
 
 const LeagueIdParamsSchema = z.object({ leagueId: z.uuid() });
 const MemberParamsSchema = z.object({ leagueId: z.uuid(), memberId: z.uuid() });
@@ -37,15 +32,10 @@ const patchMember = createRoute({
     204: { description: "Role updated (no-op if it already matched)" },
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
-    404: {
-      description: "League or member not found (or caller not a member of the league)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    409: {
-      description:
-        "Promotion past the recipient's 10-active-league cap (cap_exceeded), or a demotion that would leave zero commissioners (last_commissioner)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    404: errorResponse("League or member not found (or caller not a member of the league)"),
+    409: errorResponse(
+      "Promotion past the recipient's 10-active-league cap (cap_exceeded), or a demotion that would leave zero commissioners (last_commissioner)",
+    ),
     500: MISCONFIGURED_500,
   },
 });
@@ -58,21 +48,15 @@ const deleteMember = createRoute({
   request: { params: MemberParamsSchema },
   responses: {
     204: { description: "Member removed" },
-    400: {
-      description: "A commissioner can't kick themselves — leave (or delete the league) instead",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    400: errorResponse(
+      "A commissioner can't kick themselves — leave (or delete the league) instead",
+    ),
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
-    404: {
-      description: "League or member not found (or caller not a member of the league)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    409: {
-      description:
-        "The league has started (league_started), or the kick would leave zero commissioners (last_commissioner)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    404: errorResponse("League or member not found (or caller not a member of the league)"),
+    409: errorResponse(
+      "The league has started (league_started), or the kick would leave zero commissioners (last_commissioner)",
+    ),
     500: MISCONFIGURED_500,
   },
 });
@@ -86,61 +70,45 @@ const deleteSelf = createRoute({
   responses: {
     204: { description: "Left the league" },
     401: UNAUTHENTICATED_401,
-    404: {
-      description: "No such league, or the caller is not a member",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    409: {
-      description:
-        "The league has started (league_started), the caller is the last commissioner of a league with other members (last_commissioner), or the sole member — delete the league instead (sole_member)",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    404: errorResponse("No such league, or the caller is not a member"),
+    409: errorResponse(
+      "The league has started (league_started), the caller is the last commissioner of a league with other members (last_commissioner), or the sole member — delete the league instead (sole_member)",
+    ),
     500: MISCONFIGURED_500,
   },
 });
 
 export function memberRoutes(deps: AppDeps) {
-  const app = new OpenAPIHono<{ Variables: SessionVariables }>({ defaultHook: zodValidationHook });
-
-  app.use("/leagues/:leagueId/members/*", async (c, next) => {
-    if (!deps.auth) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
-        500,
-      );
-    }
-    return sessionMiddleware(deps.auth)(c, next);
+  const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
+    defaultHook: zodValidationHook,
   });
+
+  app.use("/leagues/:leagueId/members/*", requireSession(deps));
+  app.use("/leagues/:leagueId/members/*", requireDbAndClock(deps));
 
   // Registered before the {memberId} routes so the literal "me" segment wins
   // instead of failing the uuid param validation.
   app.openapi(deleteSelf, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { leagueId } = c.req.valid("param");
 
-    const result = await leaveLeague(deps.db, clock, leagueId, sessionUser.id);
+    const result = await leaveLeague(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
       switch (result.reason) {
         case "league_not_found":
           return c.json(
-            ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.LEAGUE_NOT_FOUND,
+              message: "League not found.",
+            }),
             404,
           );
         case "league_started":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "league_started",
+              error: ERROR_CODE.LEAGUE_STARTED,
               message: "Membership is frozen once the league starts.",
             }),
             409,
@@ -148,7 +116,7 @@ export function memberRoutes(deps: AppDeps) {
         case "sole_member":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "sole_member",
+              error: ERROR_CODE.SOLE_MEMBER,
               message: "You're the only member — delete the league instead of leaving it.",
             }),
             409,
@@ -156,7 +124,7 @@ export function memberRoutes(deps: AppDeps) {
         case "last_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "last_commissioner",
+              error: ERROR_CODE.LAST_COMMISSIONER,
               message: "Promote another commissioner before leaving.",
             }),
             409,
@@ -168,22 +136,13 @@ export function memberRoutes(deps: AppDeps) {
   });
 
   app.openapi(patchMember, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { leagueId, memberId } = c.req.valid("param");
     const { role } = c.req.valid("json");
 
-    const result = await updateMemberRole(deps.db, clock, leagueId, sessionUser.id, memberId, role);
+    const result = await updateMemberRole(db, clock, leagueId, sessionUser.id, memberId, role);
     if (!result.ok) {
       switch (result.reason) {
         case "league_not_found":
@@ -199,7 +158,7 @@ export function memberRoutes(deps: AppDeps) {
         case "not_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "not_commissioner",
+              error: ERROR_CODE.NOT_COMMISSIONER,
               message: "Only a commissioner can promote or demote members.",
             }),
             403,
@@ -207,7 +166,7 @@ export function memberRoutes(deps: AppDeps) {
         case "cap_exceeded":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "cap_exceeded",
+              error: ERROR_CODE.CAP_EXCEEDED,
               message: "That member already runs 10 active leagues.",
             }),
             409,
@@ -215,7 +174,7 @@ export function memberRoutes(deps: AppDeps) {
         case "last_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "last_commissioner",
+              error: ERROR_CODE.LAST_COMMISSIONER,
               message: "A league must keep at least one commissioner.",
             }),
             409,
@@ -227,21 +186,12 @@ export function memberRoutes(deps: AppDeps) {
   });
 
   app.openapi(deleteMember, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { leagueId, memberId } = c.req.valid("param");
 
-    const result = await kickMember(deps.db, clock, leagueId, sessionUser.id, memberId);
+    const result = await kickMember(db, clock, leagueId, sessionUser.id, memberId);
     if (!result.ok) {
       switch (result.reason) {
         case "league_not_found":
@@ -257,7 +207,7 @@ export function memberRoutes(deps: AppDeps) {
         case "not_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "not_commissioner",
+              error: ERROR_CODE.NOT_COMMISSIONER,
               message: "Only a commissioner can kick members.",
             }),
             403,
@@ -265,7 +215,7 @@ export function memberRoutes(deps: AppDeps) {
         case "cannot_kick_self":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "cannot_kick_self",
+              error: ERROR_CODE.CANNOT_KICK_SELF,
               message: "You can't kick yourself — leave the league instead.",
             }),
             400,
@@ -273,7 +223,7 @@ export function memberRoutes(deps: AppDeps) {
         case "league_started":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "league_started",
+              error: ERROR_CODE.LEAGUE_STARTED,
               message: "Membership is frozen once the league starts.",
             }),
             409,
@@ -281,7 +231,7 @@ export function memberRoutes(deps: AppDeps) {
         case "last_commissioner":
           return c.json(
             ErrorResponseSchema.parse({
-              error: "last_commissioner",
+              error: ERROR_CODE.LAST_COMMISSIONER,
               message: "A league must keep at least one commissioner.",
             }),
             409,

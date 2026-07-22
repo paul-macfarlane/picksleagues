@@ -1,6 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
+import { logError } from "./lib/logger";
 import { discoveryRoutes } from "./routes/discovery";
 import { healthRoutes } from "./routes/health";
 import { jobRoutes } from "./routes/jobs";
@@ -13,6 +15,16 @@ export type { AppDeps };
 
 export function createApp(deps: AppDeps = {}) {
   const app = new OpenAPIHono({ defaultHook: zodValidationHook }).basePath("/api");
+
+  app.onError((error, c) => {
+    // Unexpected throws only — expected refusals are typed results mapped by
+    // handlers, and validation failures are handled by zodValidationHook.
+    logError("unhandled_error", { method: c.req.method, path: c.req.path, error });
+    return c.json(
+      ErrorResponseSchema.parse({ error: ERROR_CODE.INTERNAL, message: "Something went wrong." }),
+      500,
+    );
+  });
 
   app.route("/", healthRoutes);
 

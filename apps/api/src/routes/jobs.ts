@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
+  ERROR_CODE,
   ErrorResponseSchema,
   JOB_RUN_STATUS,
   JobRunResponseSchema,
@@ -103,7 +104,7 @@ export function jobRoutes(deps: AppDeps) {
     if (!deps.env) {
       return c.json(
         ErrorResponseSchema.parse({
-          error: "misconfigured",
+          error: ERROR_CODE.MISCONFIGURED,
           message: "Job secret is not configured.",
         }),
         500,

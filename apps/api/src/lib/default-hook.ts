@@ -1,5 +1,5 @@
 import type { Hook } from "@hono/zod-openapi";
-import { ErrorResponseSchema, type ErrorResponse } from "@picksleagues/schemas";
+import { ERROR_CODE, ErrorResponseSchema, type ErrorResponse } from "@picksleagues/schemas";
 
 /**
  * Every `OpenAPIHono` sub-app (the top-level app and each route module it
@@ -16,7 +16,7 @@ export const zodValidationHook: Hook<any, any, any, any> = (result, c) => {
   if (result.success) return;
   const [issue] = result.error.issues;
   const body: ErrorResponse = {
-    error: "validation",
+    error: ERROR_CODE.VALIDATION,
     message: issue?.message ?? "Invalid request.",
   };
   return c.json(ErrorResponseSchema.parse(body), 400);

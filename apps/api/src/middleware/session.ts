@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { ErrorResponseSchema } from "@picksleagues/schemas";
+import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { Auth } from "../auth";
 
 /** The authenticated caller, typed from Better Auth's own inference — never hand-restated. */
@@ -20,7 +20,7 @@ export function sessionMiddleware(auth: Auth): MiddlewareHandler<{ Variables: Se
     if (!session) {
       return c.json(
         ErrorResponseSchema.parse({
-          error: "unauthenticated",
+          error: ERROR_CODE.UNAUTHENTICATED,
           message: "Sign in to continue.",
         }),
         401,
