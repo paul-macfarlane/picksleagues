@@ -91,6 +91,11 @@ const deleteMe = createRoute({
       description: "No valid session",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
+    409: {
+      description:
+        "Blocked: the caller is the last commissioner of a non-empty active league (ADR-0004) — promote a replacement first",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
     500: {
       description:
         "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
@@ -183,7 +188,17 @@ export function meRoutes(deps: AppDeps) {
     const sessionUser = c.get("sessionUser");
     const clock = await deps.clock();
 
-    await deleteAccount(deps.db, clock, sessionUser.id);
+    const result = await deleteAccount(deps.db, clock, sessionUser.id);
+    if (!result.ok) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "last_commissioner",
+          message:
+            "You're the last commissioner of a league with other members — promote a replacement first.",
+        }),
+        409,
+      );
+    }
 
     return c.body(null, 204);
   });

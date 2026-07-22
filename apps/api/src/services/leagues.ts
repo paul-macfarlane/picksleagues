@@ -27,6 +27,7 @@ import {
   type LeagueResponse,
   type LeagueSettings,
   type LeagueSummary,
+  type LeagueVisibility,
   type NflWeekRef,
   type Sport,
 } from "@picksleagues/schemas";
@@ -305,6 +306,119 @@ export async function joinPublicLeague(
   const league = await getLeague(db, leagueId, userId);
   if (!league) throw new Error("Joined league unreadable immediately after join.");
   return { ok: true, league };
+}
+
+export type UpdateLeagueResult =
+  | { ok: true; league: LeagueResponse }
+  | {
+      ok: false;
+      reason: "league_not_found" | "not_commissioner" | "league_started";
+    }
+  | { ok: false; reason: "invalid_settings"; message: string };
+
+/**
+ * Commissioner edits (spec §Commissioner Powers): name is cosmetic and
+ * changeable anytime; visibility and mode settings lock at league start —
+ * the pre-start check runs inside the same transaction as the write so a
+ * kickoff passing mid-request can't slip an edit through.
+ */
+export async function updateLeague(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  userId: string,
+  input: { name?: string; visibility?: LeagueVisibility; settings?: unknown },
+): Promise<UpdateLeagueResult> {
+  const refusal = await db.transaction(async (tx): Promise<UpdateLeagueResult | null> => {
+    const membership = await getMembership(tx, leagueId, userId);
+    if (!membership) return { ok: false, reason: "league_not_found" };
+    if (membership.role !== MEMBER_ROLE.COMMISSIONER) {
+      return { ok: false, reason: "not_commissioner" };
+    }
+
+    const [row] = await tx
+      .select({ league: leagues, settings: leagueSettings.settings })
+      .from(leagues)
+      .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+      .where(eq(leagues.id, leagueId));
+    if (!row) return { ok: false, reason: "league_not_found" };
+
+    const wantsLockedEdit = input.visibility !== undefined || input.settings !== undefined;
+    if (wantsLockedEdit) {
+      const startsAt = await leagueStartAt(tx, row.league, row.settings);
+      if (!isPreStart(startsAt, clock)) {
+        return { ok: false, reason: "league_started" };
+      }
+    }
+
+    const now = clock.now();
+    if (input.settings !== undefined) {
+      const parsed = LEAGUE_SETTINGS_SCHEMAS[row.league.mode].safeParse(input.settings);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          reason: "invalid_settings",
+          message: parsed.error.issues[0]?.message ?? "Invalid settings.",
+        };
+      }
+      await tx
+        .update(leagueSettings)
+        .set({ settings: parsed.data, updatedAt: now })
+        .where(eq(leagueSettings.leagueId, leagueId));
+    }
+
+    if (input.name !== undefined || input.visibility !== undefined) {
+      await tx
+        .update(leagues)
+        .set({
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
+          updatedAt: now,
+        })
+        .where(eq(leagues.id, leagueId));
+    }
+
+    return null;
+  });
+  if (refusal) return refusal;
+
+  const league = await getLeague(db, leagueId, userId);
+  if (!league) throw new Error("Updated league unreadable immediately after update.");
+  return { ok: true, league };
+}
+
+export type DeleteLeagueResult =
+  { ok: true } | { ok: false; reason: "league_not_found" | "not_commissioner" | "league_started" };
+
+/** Pre-start only (spec §Commissioner Powers); FK cascades sweep settings/members/invites. */
+export async function deleteLeague(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  userId: string,
+): Promise<DeleteLeagueResult> {
+  return db.transaction(async (tx) => {
+    const membership = await getMembership(tx, leagueId, userId);
+    if (!membership) return { ok: false, reason: "league_not_found" as const };
+    if (membership.role !== MEMBER_ROLE.COMMISSIONER) {
+      return { ok: false, reason: "not_commissioner" as const };
+    }
+
+    const [row] = await tx
+      .select({ league: leagues, settings: leagueSettings.settings })
+      .from(leagues)
+      .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+      .where(eq(leagues.id, leagueId));
+    if (!row) return { ok: false, reason: "league_not_found" as const };
+
+    const startsAt = await leagueStartAt(tx, row.league, row.settings);
+    if (!isPreStart(startsAt, clock)) {
+      return { ok: false, reason: "league_started" as const };
+    }
+
+    await tx.delete(leagues).where(eq(leagues.id, leagueId));
+    return { ok: true as const };
+  });
 }
 
 /** The caller's membership row in a league, or null — the shared authz probe. */

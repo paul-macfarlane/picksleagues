@@ -5,11 +5,19 @@ import {
   JOIN_BLOCKED_REASON_MESSAGES,
   LeagueResponseSchema,
   MyLeaguesResponseSchema,
+  UpdateLeagueRequestSchema,
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { sessionMiddleware, type SessionVariables } from "../middleware/session";
-import { createLeague, getLeague, joinPublicLeague, listMyLeagues } from "../services/leagues";
+import {
+  createLeague,
+  deleteLeague,
+  getLeague,
+  joinPublicLeague,
+  listMyLeagues,
+  updateLeague,
+} from "../services/leagues";
 
 const MISCONFIGURED_500 = {
   description:
@@ -81,6 +89,65 @@ const getLeagueById = createRoute({
     404: {
       description:
         "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: MISCONFIGURED_500,
+  },
+});
+
+const NOT_COMMISSIONER_403 = {
+  description: "The caller is a member but not a commissioner",
+  content: { "application/json": { schema: ErrorResponseSchema } },
+};
+
+const LEAGUE_NOT_FOUND_404 = {
+  description:
+    "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+  content: { "application/json": { schema: ErrorResponseSchema } },
+};
+
+const patchLeague = createRoute({
+  method: "patch",
+  path: "/leagues/{leagueId}",
+  operationId: "updateLeague",
+  summary: "Edit a league: name anytime; visibility and settings pre-start only (commissioner)",
+  request: {
+    params: LeagueIdParamsSchema,
+    body: { content: { "application/json": { schema: UpdateLeagueRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: "The updated league",
+      content: { "application/json": { schema: LeagueResponseSchema } },
+    },
+    400: {
+      description: "Empty update, or settings that fail the league's mode schema",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    403: NOT_COMMISSIONER_403,
+    404: LEAGUE_NOT_FOUND_404,
+    409: {
+      description: "Visibility/settings edit after league start (league_started)",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: MISCONFIGURED_500,
+  },
+});
+
+const deleteLeagueRoute = createRoute({
+  method: "delete",
+  path: "/leagues/{leagueId}",
+  operationId: "deleteLeague",
+  summary: "Delete a league, pre-start only (commissioner)",
+  request: { params: LeagueIdParamsSchema },
+  responses: {
+    204: { description: "League deleted (settings, members, invites cascade)" },
+    401: UNAUTHENTICATED_401,
+    403: NOT_COMMISSIONER_403,
+    404: LEAGUE_NOT_FOUND_404,
+    409: {
+      description: "The league has started (league_started)",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     500: MISCONFIGURED_500,
@@ -199,6 +266,102 @@ export function leagueRoutes(deps: AppDeps) {
     }
 
     return c.json(league, 200);
+  });
+
+  app.openapi(patchLeague, async (c) => {
+    if (!deps.db || !deps.clock) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database/clock are not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const clock = await deps.clock();
+    const { leagueId } = c.req.valid("param");
+    const input = c.req.valid("json");
+
+    const result = await updateLeague(deps.db, clock, leagueId, sessionUser.id, input);
+    if (!result.ok) {
+      switch (result.reason) {
+        case "league_not_found":
+          return c.json(
+            ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+            404,
+          );
+        case "not_commissioner":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: "not_commissioner",
+              message: "Only a commissioner can edit the league.",
+            }),
+            403,
+          );
+        case "league_started":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: "league_started",
+              message: "Visibility and settings are locked once the league starts.",
+            }),
+            409,
+          );
+        case "invalid_settings":
+          return c.json(
+            ErrorResponseSchema.parse({ error: "validation", message: result.message }),
+            400,
+          );
+      }
+    }
+
+    return c.json(result.league, 200);
+  });
+
+  app.openapi(deleteLeagueRoute, async (c) => {
+    if (!deps.db || !deps.clock) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database/clock are not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const clock = await deps.clock();
+    const { leagueId } = c.req.valid("param");
+
+    const result = await deleteLeague(deps.db, clock, leagueId, sessionUser.id);
+    if (!result.ok) {
+      switch (result.reason) {
+        case "league_not_found":
+          return c.json(
+            ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+            404,
+          );
+        case "not_commissioner":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: "not_commissioner",
+              message: "Only a commissioner can delete the league.",
+            }),
+            403,
+          );
+        case "league_started":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: "league_started",
+              message: "A league can't be deleted after it has started.",
+            }),
+            409,
+          );
+      }
+    }
+
+    return c.body(null, 204);
   });
 
   app.openapi(postPublicJoin, async (c) => {

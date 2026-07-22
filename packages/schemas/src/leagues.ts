@@ -52,6 +52,33 @@ export const CreateLeagueRequestSchema = z
 
 export type CreateLeagueRequest = z.infer<typeof CreateLeagueRequestSchema>;
 
+// spec §Commissioner Powers: name is cosmetic (anytime); visibility and mode
+// settings lock at league start. `settings` is deliberately unknown here —
+// its schema depends on the league's stored mode, which only the service
+// knows; it validates via LEAGUE_SETTINGS_SCHEMAS and 400s on mismatch.
+export const UpdateLeagueRequestSchema = z
+  .object({
+    name: LeagueNameSchema.optional(),
+    visibility: LeagueVisibilitySchema.optional(),
+    settings: z.unknown().optional(),
+  })
+  .refine(
+    (data) =>
+      data.name !== undefined || data.visibility !== undefined || data.settings !== undefined,
+    { message: "At least one of name, visibility, or settings is required" },
+  )
+  .openapi("UpdateLeagueRequest");
+
+export type UpdateLeagueRequest = z.infer<typeof UpdateLeagueRequestSchema>;
+
+// Promote/demote are the same partial update on the membership's role
+// (ADR-0004: transfer = promote + self-demote; no dedicated transfer power).
+export const UpdateMemberRoleRequestSchema = z
+  .object({ role: MemberRoleSchema })
+  .openapi("UpdateMemberRoleRequest");
+
+export type UpdateMemberRoleRequest = z.infer<typeof UpdateMemberRoleRequestSchema>;
+
 export const LeagueMemberSchema = z
   .object({
     id: z.string(),
