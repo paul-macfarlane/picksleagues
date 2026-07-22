@@ -1,3 +1,4 @@
+export * from "./discovery";
 export * from "./display-name";
 export * from "./error";
 export * from "./game-status";

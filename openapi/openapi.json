@@ -879,6 +879,55 @@
         "required": [
           "role"
         ]
+      },
+      "DiscoveryResponse": {
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryLeague"
+            }
+          }
+        },
+        "required": [
+          "leagues"
+        ]
+      },
+      "DiscoveryLeague": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "memberCount",
+          "seasonYear",
+          "startsAt"
+        ]
       }
     },
     "parameters": {}
@@ -2247,6 +2296,55 @@
           },
           "409": {
             "description": "The league has started (league_started), or the kick would leave zero commissioners (last_commissioner)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery": {
+      "get": {
+        "operationId": "discoverLeagues",
+        "summary": "Browse public, joinable leagues with optional name search",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public, active leagues that haven't passed their join cutoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
             "content": {
               "application/json": {
                 "schema": {
