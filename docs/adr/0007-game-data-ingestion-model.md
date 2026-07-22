@@ -71,9 +71,9 @@ is represented before picks exist, and what "alert on repeated failure" concrete
   semantics from game rows — the recompute-friendly path the architecture already
   requires; nothing to migrate when picks land.
 - Postseason ingestion lands data the game modes consume unevenly (owner decision,
-  2026-07-22, spec updated): pick'em leagues may extend End Week into the playoffs;
-  elimination is regular-season only. PKM-1 models End Week as (week type, number);
-  ELM stays within weeks 1–18.
+  2026-07-22, spec updated): pick'em leagues may start and/or end in the playoffs
+  (both Start and End Week are (week type, number); playoffs-only leagues allowed);
+  elimination is regular-season only, weeks 1–18.
 - Alerting-via-scheduler means alert fidelity is cron-job.org's: one email per failed
   request, no streak dedup, and nothing fires if the scheduler itself is down or
   misconfigured. Accepted at this scale; the Vercel `job.failed` log line is the

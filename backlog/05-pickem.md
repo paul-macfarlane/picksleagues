@@ -2,7 +2,7 @@
 
 The first game mode, plus the **shared settlement core** (`pick_results`, `standings`, settle orchestration, nightly sweep) that ELM and MM reuse. Ref: spec §Game Mode 1; arch §Settlement & Scoring, §Locking Model, D9–D11.
 
-> **Playoffs (owner decision, ADR-0007, settled 2026-07-22):** pick'em leagues MAY extend into the playoffs — End Week can be a playoff round (Wild Card → Super Bowl; spec §Game Mode 1 updated). PKM-1's `PickemSettings` must model End Week as (week type, week number); PKM-3's scoring needs no special casing — the existing fewer-games-than-Picks-Per-Week rule covers small playoff slates. Start Week remains regular-season.
+> **Playoffs (owner decision, ADR-0007, settled 2026-07-22):** pick'em leagues MAY extend into the playoffs — End Week can be a playoff round (Wild Card → Super Bowl; spec §Game Mode 1 updated). PKM-1's `PickemSettings` must model BOTH Start Week and End Week as (week type, week number) — playoffs-only leagues are allowed (e.g. Wild Card → Super Bowl); week ordering is season order (playoff rounds follow week 18). PKM-3's scoring needs no special casing — the existing fewer-games-than-Picks-Per-Week rule covers small playoff slates.
 
 - [ ] **PKM-1** — `PickemSettings` Zod schema (start/end week, SU/ATS, picks per week, push/tie resolution) + create-league settings form. _(deps: LG-2)_
 - [ ] **PKM-2** — `pickem_picks` schema + batch upsert endpoint (`PUT /leagues/:id/picks/week/:week`): clock-derived per-game locking (409 post-kickoff), ATS all-unstarted spread acceptance with staleness rejection (409), spread denormalized onto the pick; kickoff-gated visibility filtering in the read path. _(deps: PKM-1, DATA-5, FND-6)_

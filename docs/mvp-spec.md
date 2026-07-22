@@ -91,8 +91,8 @@ A browse page listing public leagues that have not passed their join cutoff, wit
 A season-long league where members compete to build the best record picking NFL games each week, on both a weekly and a cumulative season leaderboard.
 
 ### League Settings
-1. **Start Week** — NFL regular season week (1–18)
-2. **End Week** — regular season week (1–18) or a playoff round (Wild Card, Divisional, Conference Championship, Super Bowl), ≥ Start Week
+1. **Start Week** — NFL regular season week (1–18) or a playoff round (Wild Card, Divisional, Conference Championship, Super Bowl)
+2. **End Week** — regular season week (1–18) or a playoff round, at or after Start Week in season order (playoff rounds follow week 18)
 3. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
 4. **Picks Per Week** — 1–16 (default 5)
 5. **Push/Tie Resolution** — value awarded on an ATS push or SU tie: +0.5 (default), 0, or +1
