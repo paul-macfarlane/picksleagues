@@ -1,0 +1,325 @@
+import { randomBytes } from "node:crypto";
+import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
+import type { Db } from "@picksleagues/db";
+import { leagueInvites, leagues, leagueSettings, sportSeasons, users } from "@picksleagues/db";
+import type { Clock } from "@picksleagues/core";
+import {
+  INVITE_STATUS,
+  JOIN_BLOCKED_REASON,
+  LEAGUE_STATUS,
+  MAX_LEAGUE_SIZE,
+  MEMBER_ROLE,
+  type Invite,
+  type InviteStatus,
+  type JoinBlockedReason,
+  type JoinPreviewResponse,
+  type LeagueResponse,
+} from "@picksleagues/schemas";
+import {
+  countMembers,
+  getLeague,
+  getMembership,
+  isPreStart,
+  JoinRefusedError,
+  joinLeagueInTx,
+  leagueStartAt,
+} from "./leagues";
+
+type InviteRow = typeof leagueInvites.$inferSelect;
+
+/**
+ * Invite state is derived at read time from the row + Clock, never stored
+ * (same pattern as lock state, arch D11) — so an expiry passing or the last
+ * use being consumed needs no job to flip anything.
+ */
+export function inviteStatus(invite: InviteRow, clock: Clock): InviteStatus {
+  if (invite.revokedAt !== null) return INVITE_STATUS.REVOKED;
+  if (invite.expiresAt !== null && invite.expiresAt.getTime() <= clock.now().getTime()) {
+    return INVITE_STATUS.EXPIRED;
+  }
+  if (invite.maxUses !== null && invite.useCount >= invite.maxUses) {
+    return INVITE_STATUS.EXHAUSTED;
+  }
+  return INVITE_STATUS.ACTIVE;
+}
+
+const INVITE_STATUS_TO_REASON: Record<
+  Exclude<InviteStatus, typeof INVITE_STATUS.ACTIVE>,
+  JoinBlockedReason
+> = {
+  [INVITE_STATUS.REVOKED]: JOIN_BLOCKED_REASON.INVITE_REVOKED,
+  [INVITE_STATUS.EXPIRED]: JOIN_BLOCKED_REASON.INVITE_EXPIRED,
+  [INVITE_STATUS.EXHAUSTED]: JOIN_BLOCKED_REASON.INVITE_EXHAUSTED,
+};
+
+type CommissionerGateFailure = { ok: false; reason: "league_not_found" | "not_commissioner" };
+
+/**
+ * Shared guard for invite management: only members see the league at all
+ * (404 otherwise, hiding private leagues) and only commissioners manage
+ * invites. Generation/revocation is an anytime power (spec §Commissioner
+ * Powers) — no pre-start window here.
+ */
+async function requireCommissioner(
+  db: Db,
+  leagueId: string,
+  userId: string,
+): Promise<CommissionerGateFailure | { ok: true }> {
+  const membership = await getMembership(db, leagueId, userId);
+  if (!membership) return { ok: false, reason: "league_not_found" };
+  if (membership.role !== MEMBER_ROLE.COMMISSIONER) {
+    return { ok: false, reason: "not_commissioner" };
+  }
+  return { ok: true };
+}
+
+export type CreateInviteResult =
+  { ok: true; invite: Invite } | CommissionerGateFailure | { ok: false; reason: "expiry_in_past" };
+
+export async function createInvite(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  userId: string,
+  input: { expiresAt?: Date; maxUses?: number },
+): Promise<CreateInviteResult> {
+  const gate = await requireCommissioner(db, leagueId, userId);
+  if (!gate.ok) return gate;
+
+  const now = clock.now();
+  if (input.expiresAt !== undefined && input.expiresAt.getTime() <= now.getTime()) {
+    return { ok: false, reason: "expiry_in_past" };
+  }
+
+  // 128 bits of randomness, URL-safe — unguessable and collision-free in
+  // practice; the unique constraint is the backstop.
+  const code = randomBytes(16).toString("base64url");
+  const [created] = await db
+    .insert(leagueInvites)
+    .values({
+      leagueId,
+      code,
+      createdBy: userId,
+      expiresAt: input.expiresAt ?? null,
+      maxUses: input.maxUses ?? null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  if (!created) {
+    throw new Error("Invite insert returned no row.");
+  }
+
+  return { ok: true, invite: await serializeInvite(db, created, clock) };
+}
+
+export type ListInvitesResult = { ok: true; invites: Invite[] } | CommissionerGateFailure;
+
+export async function listInvites(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  userId: string,
+): Promise<ListInvitesResult> {
+  const gate = await requireCommissioner(db, leagueId, userId);
+  if (!gate.ok) return gate;
+
+  const rows = await db
+    .select({ invite: leagueInvites, creator: users })
+    .from(leagueInvites)
+    .leftJoin(users, eq(leagueInvites.createdBy, users.id))
+    .where(eq(leagueInvites.leagueId, leagueId))
+    .orderBy(desc(leagueInvites.createdAt));
+
+  return {
+    ok: true,
+    invites: rows.map((row) => serializeInviteRow(row.invite, row.creator, clock)),
+  };
+}
+
+export type RevokeInviteResult =
+  { ok: true } | CommissionerGateFailure | { ok: false; reason: "invite_not_found" };
+
+export async function revokeInvite(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  code: string,
+  userId: string,
+): Promise<RevokeInviteResult> {
+  const gate = await requireCommissioner(db, leagueId, userId);
+  if (!gate.ok) return gate;
+
+  const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));
+  if (!invite || invite.leagueId !== leagueId) {
+    return { ok: false, reason: "invite_not_found" };
+  }
+
+  // Idempotent: revoking an already-revoked invite keeps the original
+  // revocation time — safe to double-submit.
+  if (invite.revokedAt === null) {
+    const now = clock.now();
+    await db
+      .update(leagueInvites)
+      .set({ revokedAt: now, updatedAt: now })
+      .where(eq(leagueInvites.id, invite.id));
+  }
+  return { ok: true };
+}
+
+/**
+ * Everything the join screen needs: the league card plus whether POSTing the
+ * join would succeed, and if not, the exact refusal (precedence documented on
+ * JOIN_BLOCKED_REASON). Unknown code → null → 404.
+ */
+export async function getJoinPreview(
+  db: Db,
+  clock: Clock,
+  code: string,
+  userId: string,
+): Promise<JoinPreviewResponse | null> {
+  const [row] = await db
+    .select({
+      invite: leagueInvites,
+      league: leagues,
+      settings: leagueSettings.settings,
+      seasonYear: sportSeasons.year,
+    })
+    .from(leagueInvites)
+    .innerJoin(leagues, eq(leagueInvites.leagueId, leagues.id))
+    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+    .innerJoin(sportSeasons, eq(leagues.seasonId, sportSeasons.id))
+    .where(eq(leagueInvites.code, code));
+  if (!row) return null;
+
+  const [memberCount, membership, startsAt] = await Promise.all([
+    countMembers(db, row.league.id),
+    getMembership(db, row.league.id, userId),
+    leagueStartAt(db, row.league, row.settings),
+  ]);
+
+  const status = inviteStatus(row.invite, clock);
+  let reason: JoinBlockedReason | null = null;
+  if (status !== INVITE_STATUS.ACTIVE) {
+    reason = INVITE_STATUS_TO_REASON[status];
+  } else if (membership) {
+    reason = JOIN_BLOCKED_REASON.ALREADY_MEMBER;
+  } else if (row.league.status !== LEAGUE_STATUS.ACTIVE) {
+    reason = JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED;
+  } else if (!isPreStart(startsAt, clock)) {
+    reason = JOIN_BLOCKED_REASON.JOIN_CLOSED;
+  } else if (memberCount >= MAX_LEAGUE_SIZE) {
+    reason = JOIN_BLOCKED_REASON.LEAGUE_FULL;
+  }
+
+  return {
+    league: {
+      id: row.league.id,
+      name: row.league.name,
+      mode: row.league.mode,
+      visibility: row.league.visibility,
+      memberCount,
+      seasonYear: row.seasonYear,
+      startsAt: startsAt ? startsAt.toISOString() : null,
+    },
+    joinable: reason === null,
+    reason,
+  };
+}
+
+export type JoinByCodeResult =
+  | { ok: true; league: LeagueResponse }
+  | { ok: false; reason: JoinBlockedReason | "invite_invalid" };
+
+/**
+ * Join via invite link (spec §Invites, §Membership). The use-count increment
+ * is a guarded UPDATE (`use_count < max_uses` in the predicate) inside the
+ * same transaction as the membership insert: concurrent joins serialize on
+ * the row lock and the loser re-evaluates against the committed count, so the
+ * max-use cap can't be raced past; any later refusal in the tx rolls the
+ * increment back (JoinRefusedError is thrown, not returned, for exactly that).
+ */
+export async function joinByCode(
+  db: Db,
+  clock: Clock,
+  code: string,
+  userId: string,
+): Promise<JoinByCodeResult> {
+  try {
+    const leagueId = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ invite: leagueInvites, league: leagues, settings: leagueSettings.settings })
+        .from(leagueInvites)
+        .innerJoin(leagues, eq(leagueInvites.leagueId, leagues.id))
+        .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+        .where(eq(leagueInvites.code, code));
+      if (!row) throw new InviteInvalidError();
+
+      const status = inviteStatus(row.invite, clock);
+      if (status !== INVITE_STATUS.ACTIVE) {
+        throw new JoinRefusedError(INVITE_STATUS_TO_REASON[status]);
+      }
+
+      const updated = await tx
+        .update(leagueInvites)
+        .set({ useCount: sql`${leagueInvites.useCount} + 1`, updatedAt: clock.now() })
+        .where(
+          and(
+            eq(leagueInvites.id, row.invite.id),
+            isNull(leagueInvites.revokedAt),
+            or(isNull(leagueInvites.maxUses), lt(leagueInvites.useCount, leagueInvites.maxUses)),
+          ),
+        )
+        .returning({ id: leagueInvites.id });
+      if (updated.length === 0) {
+        // Lost a race: another join consumed the last use (or a revocation
+        // landed) between our status read and the guarded update.
+        throw new JoinRefusedError(JOIN_BLOCKED_REASON.INVITE_EXHAUSTED);
+      }
+
+      await joinLeagueInTx(tx, clock, row.league, row.settings, userId);
+      return row.league.id;
+    });
+
+    const league = await getLeague(db, leagueId, userId);
+    if (!league) throw new Error("Joined league unreadable immediately after join.");
+    return { ok: true, league };
+  } catch (error) {
+    if (error instanceof InviteInvalidError) {
+      return { ok: false, reason: "invite_invalid" };
+    }
+    if (error instanceof JoinRefusedError) {
+      return { ok: false, reason: error.reason };
+    }
+    throw error;
+  }
+}
+
+class InviteInvalidError extends Error {}
+
+async function serializeInvite(db: Db, invite: InviteRow, clock: Clock): Promise<Invite> {
+  const creator = invite.createdBy
+    ? ((await db.select().from(users).where(eq(users.id, invite.createdBy)))[0] ?? null)
+    : null;
+  return serializeInviteRow(invite, creator, clock);
+}
+
+function serializeInviteRow(
+  invite: InviteRow,
+  creator: typeof users.$inferSelect | null,
+  clock: Clock,
+): Invite {
+  return {
+    id: invite.id,
+    code: invite.code,
+    status: inviteStatus(invite, clock),
+    expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : null,
+    maxUses: invite.maxUses,
+    useCount: invite.useCount,
+    revokedAt: invite.revokedAt ? invite.revokedAt.toISOString() : null,
+    createdAt: invite.createdAt.toISOString(),
+    createdBy: creator
+      ? { userId: creator.id, username: creator.username, displayName: creator.display_name }
+      : null,
+  };
+}

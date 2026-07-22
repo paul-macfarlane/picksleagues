@@ -3,6 +3,7 @@ import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
 import { healthRoutes } from "./routes/health";
 import { jobRoutes } from "./routes/jobs";
+import { inviteRoutes } from "./routes/invites";
 import { leagueRoutes } from "./routes/leagues";
 import { meRoutes } from "./routes/me";
 
@@ -25,6 +26,7 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/", jobRoutes(deps));
 
   app.route("/", leagueRoutes(deps));
+  app.route("/", inviteRoutes(deps));
 
   // Better Auth owns /api/auth/* as its own typed surface (client generated
   // from the auth instance, not this OpenAPI doc) — deliberately outside the

@@ -2,13 +2,14 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   CreateLeagueRequestSchema,
   ErrorResponseSchema,
+  JOIN_BLOCKED_REASON_MESSAGES,
   LeagueResponseSchema,
   MyLeaguesResponseSchema,
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { sessionMiddleware, type SessionVariables } from "../middleware/session";
-import { createLeague, getLeague, listMyLeagues } from "../services/leagues";
+import { createLeague, getLeague, joinPublicLeague, listMyLeagues } from "../services/leagues";
 
 const MISCONFIGURED_500 = {
   description:
@@ -80,6 +81,31 @@ const getLeagueById = createRoute({
     404: {
       description:
         "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    500: MISCONFIGURED_500,
+  },
+});
+
+const postPublicJoin = createRoute({
+  method: "post",
+  path: "/leagues/{leagueId}/join",
+  operationId: "joinPublicLeague",
+  summary: "Join a public league directly (discovery path)",
+  request: { params: LeagueIdParamsSchema },
+  responses: {
+    201: {
+      description: "Joined — the league as the new member sees it",
+      content: { "application/json": { schema: LeagueResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    404: {
+      description: "No such public league — private leagues require an invite and stay hidden",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    409: {
+      description:
+        "Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     500: MISCONFIGURED_500,
@@ -173,6 +199,41 @@ export function leagueRoutes(deps: AppDeps) {
     }
 
     return c.json(league, 200);
+  });
+
+  app.openapi(postPublicJoin, async (c) => {
+    if (!deps.db || !deps.clock) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: "misconfigured",
+          message: "Database/clock are not configured.",
+        }),
+        500,
+      );
+    }
+
+    const sessionUser = c.get("sessionUser");
+    const clock = await deps.clock();
+    const { leagueId } = c.req.valid("param");
+
+    const result = await joinPublicLeague(deps.db, clock, leagueId, sessionUser.id);
+    if (!result.ok) {
+      if (result.reason === "league_not_found") {
+        return c.json(
+          ErrorResponseSchema.parse({ error: "league_not_found", message: "League not found." }),
+          404,
+        );
+      }
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: result.reason,
+          message: JOIN_BLOCKED_REASON_MESSAGES[result.reason],
+        }),
+        409,
+      );
+    }
+
+    return c.json(result.league, 201);
   });
 
   return app;

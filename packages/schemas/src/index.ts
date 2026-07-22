@@ -2,6 +2,7 @@ export * from "./display-name";
 export * from "./error";
 export * from "./game-status";
 export * from "./health";
+export * from "./invites";
 export * from "./job";
 export * from "./league-mode";
 export * from "./league-settings";

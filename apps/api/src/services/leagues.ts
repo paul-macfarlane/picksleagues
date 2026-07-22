@@ -1,4 +1,5 @@
 import { and, asc, count, eq, gte, inArray, sql } from "drizzle-orm";
+import { DatabaseError } from "pg";
 import type { Db } from "@picksleagues/db";
 import {
   games,
@@ -11,13 +12,17 @@ import {
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  JOIN_BLOCKED_REASON,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
+  LEAGUE_VISIBILITY,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
+  MAX_LEAGUE_SIZE,
   MEMBER_ROLE,
   SPORT,
   type CreateLeagueRequest,
+  type JoinBlockedReason,
   type LeagueMember,
   type LeagueResponse,
   type LeagueSettings,
@@ -190,6 +195,136 @@ export async function countActiveCommissionerships(db: Db, userId: string): Prom
         eq(leagues.status, LEAGUE_STATUS.ACTIVE),
       ),
     );
+  return row?.value ?? 0;
+}
+
+/**
+ * Aborts a join transaction with the exact refusal — thrown (not returned) so
+ * any writes already made inside the tx (e.g. an invite use-count increment)
+ * roll back with the refused join.
+ */
+export class JoinRefusedError extends Error {
+  readonly reason: JoinBlockedReason;
+
+  constructor(reason: JoinBlockedReason) {
+    super(`join refused: ${reason}`);
+    this.reason = reason;
+  }
+}
+
+/**
+ * Membership-rule core shared by invite joins and public joins (spec
+ * §Membership), run INSIDE the caller's transaction:
+ * 1. already a member → refuse (the unique constraint is the race backstop);
+ * 2. league concluded → refuse;
+ * 3. clock-derived join cutoff — the league has started (arch §Locking
+ *    Model: same boundary as pre-start windows) → refuse;
+ * 4. insert, then re-count: over 100 members → refuse (rolls back the
+ *    insert, so the check-then-act is collapsed into the tx).
+ */
+export async function joinLeagueInTx(
+  tx: Db,
+  clock: Clock,
+  league: Pick<LeagueRow, "id" | "mode" | "seasonId" | "status">,
+  settings: LeagueSettings,
+  userId: string,
+): Promise<void> {
+  if (await getMembership(tx, league.id, userId)) {
+    throw new JoinRefusedError(JOIN_BLOCKED_REASON.ALREADY_MEMBER);
+  }
+  if (league.status !== LEAGUE_STATUS.ACTIVE) {
+    throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED);
+  }
+  const startsAt = await leagueStartAt(tx, league, settings);
+  if (!isPreStart(startsAt, clock)) {
+    throw new JoinRefusedError(JOIN_BLOCKED_REASON.JOIN_CLOSED);
+  }
+
+  const now = clock.now();
+  try {
+    await tx.insert(leagueMembers).values({
+      leagueId: league.id,
+      userId,
+      role: MEMBER_ROLE.MEMBER,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "league_members_league_user_unique")) {
+      throw new JoinRefusedError(JOIN_BLOCKED_REASON.ALREADY_MEMBER);
+    }
+    throw error;
+  }
+
+  if ((await countMembers(tx, league.id)) > MAX_LEAGUE_SIZE) {
+    throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_FULL);
+  }
+}
+
+/** drizzle wraps the pg DatabaseError as the DrizzleQueryError's `.cause`. */
+function isUniqueViolation(error: unknown, constraint: string): boolean {
+  const cause = error instanceof Error ? error.cause : undefined;
+  return (
+    cause instanceof DatabaseError && cause.code === "23505" && cause.constraint === constraint
+  );
+}
+
+export type JoinResult =
+  | { ok: true; league: LeagueResponse }
+  | { ok: false; reason: JoinBlockedReason | "league_not_found" };
+
+/**
+ * Direct join for discoverable leagues (spec §Visibility: public leagues are
+ * joinable without a code). Private leagues 404 — joining them requires an
+ * invite, and their existence stays hidden.
+ */
+export async function joinPublicLeague(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  userId: string,
+): Promise<JoinResult> {
+  const [row] = await db
+    .select({ league: leagues, settings: leagueSettings.settings })
+    .from(leagues)
+    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+    .where(and(eq(leagues.id, leagueId), eq(leagues.visibility, LEAGUE_VISIBILITY.PUBLIC)));
+  if (!row) return { ok: false, reason: "league_not_found" };
+
+  try {
+    await db.transaction(async (tx) => {
+      await joinLeagueInTx(tx, clock, row.league, row.settings, userId);
+    });
+  } catch (error) {
+    if (error instanceof JoinRefusedError) {
+      return { ok: false, reason: error.reason };
+    }
+    throw error;
+  }
+
+  const league = await getLeague(db, leagueId, userId);
+  if (!league) throw new Error("Joined league unreadable immediately after join.");
+  return { ok: true, league };
+}
+
+/** The caller's membership row in a league, or null — the shared authz probe. */
+export async function getMembership(
+  db: Db,
+  leagueId: string,
+  userId: string,
+): Promise<typeof leagueMembers.$inferSelect | null> {
+  const [row] = await db
+    .select()
+    .from(leagueMembers)
+    .where(and(eq(leagueMembers.leagueId, leagueId), eq(leagueMembers.userId, userId)));
+  return row ?? null;
+}
+
+export async function countMembers(db: Db, leagueId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(leagueMembers)
+    .where(eq(leagueMembers.leagueId, leagueId));
   return row?.value ?? 0;
 }
 
