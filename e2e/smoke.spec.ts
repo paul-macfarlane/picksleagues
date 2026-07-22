@@ -9,7 +9,10 @@ import { expect, test } from "@playwright/test";
 test("unauthenticated visit redirects to sign-in and reports the API as up", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page).toHaveURL("/sign-in");
+  // beforeLoad always threads the current location through as `?redirect=`
+  // (ID-1's deep-link preservation, e2e/identity.spec.ts covers the
+  // claim-username leg of that) — match the path, not the exact query.
+  await expect(page).toHaveURL(/\/sign-in/);
   await expect(page.getByRole("heading", { name: "Picks Leagues" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Discord" })).toBeVisible();
