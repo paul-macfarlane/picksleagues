@@ -92,13 +92,14 @@ A season-long league where members compete to build the best record picking NFL 
 
 ### League Settings
 1. **Start Week** — NFL regular season week (1–18)
-2. **End Week** — regular season week (1–18), ≥ Start Week
+2. **End Week** — regular season week (1–18) or a playoff round (Wild Card, Divisional, Conference Championship, Super Bowl), ≥ Start Week
 3. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
 4. **Picks Per Week** — 1–16 (default 5)
 5. **Push/Tie Resolution** — value awarded on an ATS push or SU tie: +0.5 (default), 0, or +1
 
 ### Core Rules
-- Each week, every member submits up to Picks Per Week picks from the current week's NFL regular-season slate. All regular season games, including Thursday night, are eligible. Preseason and postseason are not.
+- Each week, every member submits up to Picks Per Week picks from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose End Week extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
+- **Playoff weeks have small slates** (Wild Card 6 games → Super Bowl 1); the fewer-games rule below applies naturally — in a week with fewer available games than Picks Per Week, everyone picks every available game.
 - Members choose their own games; overlap with other members is not required.
 - **Fewer games than Picks Per Week:** if the week's slate has fewer available games than the configured count, all members pick every available game that week.
 - Picks may be submitted individually or in batches, any time before each game's kickoff.
@@ -151,6 +152,7 @@ A survivor pool. Each week, every member picks one team to win (SU or ATS per le
 4. **Push/Tie Resolution** — on an ATS push or SU tie: member advances and the team is consumed (default), or member is eliminated
 
 ### Core Rules
+- Elimination is **regular-season only** — playoff weeks are not supported for this mode (weekly team-consumption doesn't fit 2–14-team playoff slates).
 - One pick per week per member. Each member has exactly **one life** — a single incorrect pick eliminates.
 - **Team reuse:** a member may pick each NFL team at most once per league. Consumed teams are unavailable for that member's future weeks.
 - Picks can be made or changed until the picked game's kickoff, and become visible to the league at kickoff.

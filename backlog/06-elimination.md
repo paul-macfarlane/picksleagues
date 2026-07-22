@@ -2,7 +2,7 @@
 
 Survivor pool mode on top of the shared settlement core. Ref: spec §Game Mode 2; arch §Domain Model (deferred-feature note: `lives_remaining` default 1).
 
-> **Playoffs (owner decision, ADR-0007):** NFL postseason weeks are ingested and available. ELM-1's settings must decide whether elimination seasons can extend into playoff weeks (team-consumption with only 2–14 teams playing per playoff week changes the math materially). Update spec §Game Mode 2 when settled.
+> **Playoffs (owner decision, ADR-0007, settled 2026-07-22):** elimination is **regular-season only** — playoff weeks are not supported for this mode (spec §Game Mode 2 updated). ELM-1's settings keep Start/End Week within regular-season weeks 1–18; no playoff handling anywhere in ELM.
 
 - [ ] **ELM-1** — `EliminationSettings` Zod schema (start/end week, SU/ATS, push/tie resolution: advance-and-consume vs eliminate) + settings form. _(deps: LG-2)_
 - [ ] **ELM-2** — `elimination_picks` + `elimination_state` schema (lives default 1, revived flags; unique team per member per league as a DB constraint) + pick endpoint with team-consumption and clock-derived locking. _(deps: ELM-1, DATA-4, FND-6)_
