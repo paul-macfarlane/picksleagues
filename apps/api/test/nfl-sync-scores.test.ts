@@ -9,10 +9,10 @@ import {
   type ProviderSeasonStructure,
   type ProviderWeek,
 } from "@picksleagues/core";
-import { GAME_STATUS, type JobRunResponse } from "@picksleagues/schemas";
+import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
-import { syncSchedule } from "../src/services/sync-schedule";
-import { syncScores } from "../src/services/sync-scores";
+import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
+import { syncNflScores } from "../src/services/nfl/sync-scores";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -37,30 +37,46 @@ const seedClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
 const beforeClock = new FixedClock(BEFORE_KICKOFFS);
 const afterClock = new FixedClock(AFTER_KICKOFFS);
 
-/** Mutable in-memory provider that records every fetchWeekGames call. */
+/** Regular and postseason week numbers overlap, so the fake keys games by both. */
+function weekKey(weekType: WeekType, weekNumber: number): string {
+  return `${weekType}:${weekNumber}`;
+}
+
+/** Mutable in-memory provider that records every fetchNflWeekGames call. */
 class FakeProvider implements GameDataProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
-  gamesByWeek = new Map<number, ProviderGame[]>();
-  fetchCalls: Array<[number, number]> = [];
+  gamesByWeek = new Map<string, ProviderGame[]>();
+  fetchCalls: Array<[number, WeekType, number]> = [];
 
-  async fetchSeasonStructure(): Promise<ProviderSeasonStructure> {
+  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
     return this.structure;
   }
 
-  async fetchWeekGames(seasonYear: number, weekNumber: number): Promise<ProviderGame[]> {
-    this.fetchCalls.push([seasonYear, weekNumber]);
-    return this.gamesByWeek.get(weekNumber) ?? [];
+  async fetchNflWeekGames(
+    seasonYear: number,
+    weekType: WeekType,
+    weekNumber: number,
+  ): Promise<ProviderGame[]> {
+    this.fetchCalls.push([seasonYear, weekType, weekNumber]);
+    return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
   }
 }
 
-function providerWeek(weekNumber: number, startsAt: string, endsAt: string): ProviderWeek {
-  return { weekNumber, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
+function providerWeek(
+  weekNumber: number,
+  startsAt: string,
+  endsAt: string,
+  weekType: WeekType = WEEK_TYPE.REGULAR,
+  label = `Week ${weekNumber}`,
+): ProviderWeek {
+  return { weekType, weekNumber, label, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
 }
 
 function providerGame(
   overrides: Partial<ProviderGame> & { providerGameId: string; weekNumber: number },
 ): ProviderGame {
   return {
+    weekType: WEEK_TYPE.REGULAR,
     homeTeamAbbr: "HOM",
     homeTeamName: "Home Team",
     awayTeamAbbr: "AWY",
@@ -83,14 +99,14 @@ const app = createApp({
   provider,
 });
 
-/** Seeds one season + week 1 with the given games via the real schedule sync. */
-async function seedSchedule(weekGames: ProviderGame[]) {
-  provider.structure = {
-    seasonYear: SEASON_YEAR,
-    weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z")],
-  };
-  provider.gamesByWeek = new Map([[1, weekGames]]);
-  await syncSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
+/** Seeds one season + the given week with its games via the real schedule sync. */
+async function seedSchedule(
+  weekGames: ProviderGame[],
+  week: ProviderWeek = providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+) {
+  provider.structure = { seasonYear: SEASON_YEAR, weeks: [week] };
+  provider.gamesByWeek = new Map([[weekKey(week.weekType, week.weekNumber), weekGames]]);
+  await syncNflSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
   provider.fetchCalls = [];
 }
 
@@ -109,7 +125,7 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("syncScores", () => {
+describe("syncNflScores", () => {
   it("no-ops without a single provider call when nothing has kicked off", async () => {
     await seedSchedule([
       providerGame({
@@ -119,7 +135,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    const details = await syncScores(db, beforeClock, provider, {});
+    const details = await syncNflScores(db, beforeClock, provider, {});
     expect(details).toEqual({ skipped: true, reason: "no_active_games", activeGames: 0 });
     expect(provider.fetchCalls).toHaveLength(0);
   });
@@ -133,7 +149,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -143,7 +159,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    const details = await syncScores(db, afterClock, provider, {});
+    const details = await syncNflScores(db, afterClock, provider, {});
     expect(details).toMatchObject({
       activeGames: 1,
       weeksFetched: 1,
@@ -169,7 +185,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -179,7 +195,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    const details = await syncScores(db, afterClock, provider, {});
+    const details = await syncNflScores(db, afterClock, provider, {});
     expect(details).toMatchObject({ gamesUpdated: 1, wentFinal: 1 });
 
     const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
@@ -208,7 +224,7 @@ describe("syncScores", () => {
       })
       .where(eq(games.providerGameId, "g2"));
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -218,7 +234,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    await syncScores(db, afterClock, provider, {});
+    await syncNflScores(db, afterClock, provider, {});
 
     const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
     // Provider fields followed the re-sync...
@@ -241,7 +257,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -252,7 +268,7 @@ describe("syncScores", () => {
       providerGame({ providerGameId: "unknown", weekNumber: 1, status: GAME_STATUS.IN_PROGRESS }),
     ]);
 
-    const details = await syncScores(db, afterClock, provider, {});
+    const details = await syncNflScores(db, afterClock, provider, {});
     expect(details).toMatchObject({ gamesUpdated: 1, unknownProviderGames: 1 });
     expect(await db.select().from(games)).toHaveLength(1);
   });
@@ -272,7 +288,7 @@ describe("syncScores", () => {
     ]);
 
     // Provider only returns g1 now.
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g1",
         weekNumber: 1,
@@ -283,7 +299,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    const details = await syncScores(db, afterClock, provider, {});
+    const details = await syncNflScores(db, afterClock, provider, {});
     expect(details).toMatchObject({ gamesUpdated: 1, missingFromProvider: 1 });
 
     const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
@@ -301,7 +317,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -313,12 +329,12 @@ describe("syncScores", () => {
 
     // beforeClock: no game has kicked off, so the active-games gate is empty —
     // an explicit trigger must still refresh the requested week.
-    const details = await syncScores(db, beforeClock, provider, {
+    const details = await syncNflScores(db, beforeClock, provider, {
       seasonYear: SEASON_YEAR,
       weekNumber: 1,
     });
     expect(details).toMatchObject({ activeGames: 0, weeksFetched: 1, gamesUpdated: 1 });
-    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, 1]]);
+    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, WEEK_TYPE.REGULAR, 1]]);
   });
 
   it("takes the explicit path for a lone week (season derived), not the active-games gate", async () => {
@@ -330,7 +346,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -343,9 +359,53 @@ describe("syncScores", () => {
     // beforeClock: nothing has kicked off, so the gate alone would return
     // no_active_games — a lone week must still refresh via the explicit path,
     // with the season derived from the clock (2026).
-    const details = await syncScores(db, beforeClock, provider, { weekNumber: 1 });
+    const details = await syncNflScores(db, beforeClock, provider, { weekNumber: 1 });
     expect(details).toMatchObject({ activeGames: 0, weeksFetched: 1, gamesUpdated: 1 });
-    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, 1]]);
+    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, WEEK_TYPE.REGULAR, 1]]);
+  });
+
+  it("refreshes an active postseason game (gate resolves the postseason week triple)", async () => {
+    await seedSchedule(
+      [
+        providerGame({
+          providerGameId: "post1",
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 1,
+          kickoffAt: new Date("2027-01-10T18:00:00.000Z"),
+        }),
+      ],
+      providerWeek(
+        1,
+        "2027-01-09T00:00:00.000Z",
+        "2027-01-13T00:00:00.000Z",
+        WEEK_TYPE.POSTSEASON,
+        "Wild Card",
+      ),
+    );
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.POSTSEASON, 1), [
+      providerGame({
+        providerGameId: "post1",
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 1,
+        kickoffAt: new Date("2027-01-10T18:00:00.000Z"),
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 14,
+        awayScore: 10,
+      }),
+    ]);
+
+    // Clock sits after the Wild Card kickoff, so the postseason game is active
+    // and the gate resolves its (season, postseason, 1) triple.
+    const postseasonClock = new FixedClock(new Date("2027-01-10T21:00:00.000Z"));
+    const details = await syncNflScores(db, postseasonClock, provider, {});
+    expect(details).toMatchObject({ activeGames: 1, weeksFetched: 1, gamesUpdated: 1 });
+    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, WEEK_TYPE.POSTSEASON, 1]]);
+
+    const [post1] = await db.select().from(games).where(eq(games.providerGameId, "post1"));
+    expect(post1?.status).toBe(GAME_STATUS.IN_PROGRESS);
+    expect(post1?.homeScore).toBe(14);
+    expect(post1?.awayScore).toBe(10);
   });
 
   it("is idempotent: a second run with identical provider data updates nothing", async () => {
@@ -357,7 +417,7 @@ describe("syncScores", () => {
       }),
     ]);
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -367,15 +427,15 @@ describe("syncScores", () => {
       }),
     ]);
 
-    const first = await syncScores(db, afterClock, provider, {});
+    const first = await syncNflScores(db, afterClock, provider, {});
     expect(first).toMatchObject({ gamesUpdated: 1, wentFinal: 1 });
 
     // A final game is no longer active, so the second run no-ops entirely.
-    const second = await syncScores(db, afterClock, provider, {});
+    const second = await syncNflScores(db, afterClock, provider, {});
     expect(second).toEqual({ skipped: true, reason: "no_active_games", activeGames: 0 });
 
     // Forcing the same data through the explicit path re-confirms zero writes.
-    const third = await syncScores(db, afterClock, provider, {
+    const third = await syncNflScores(db, afterClock, provider, {
       seasonYear: SEASON_YEAR,
       weekNumber: 1,
     });
@@ -383,11 +443,19 @@ describe("syncScores", () => {
   });
 });
 
-describe("POST /api/jobs/sync-scores", () => {
+describe("POST /api/jobs/nfl/sync-scores", () => {
   it("401s without the x-job-secret header", async () => {
-    const res = await app.request("/api/jobs/sync-scores", { method: "POST" });
+    const res = await app.request("/api/jobs/nfl/sync-scores", { method: "POST" });
     expect(res.status).toBe(401);
     expect(await res.json()).toMatchObject({ error: "unauthorized" });
+  });
+
+  it("rejects an invalid weekType with a 400", async () => {
+    const res = await app.request("/api/jobs/nfl/sync-scores?weekType=garbage", {
+      method: "POST",
+      headers: { "x-job-secret": testEnv.JOB_SECRET },
+    });
+    expect(res.status).toBe(400);
   });
 
   it("returns the job envelope with the score counters", async () => {
@@ -398,7 +466,7 @@ describe("POST /api/jobs/sync-scores", () => {
         kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
       }),
     ]);
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -408,7 +476,7 @@ describe("POST /api/jobs/sync-scores", () => {
       }),
     ]);
 
-    const res = await app.request("/api/jobs/sync-scores", {
+    const res = await app.request("/api/jobs/nfl/sync-scores", {
       method: "POST",
       headers: { "x-job-secret": testEnv.JOB_SECRET },
     });

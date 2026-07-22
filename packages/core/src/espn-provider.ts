@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GAME_STATUS, type GameStatus } from "@picksleagues/schemas";
+import { GAME_STATUS, type GameStatus, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import type {
   GameDataProvider,
   ProviderGame,
@@ -10,8 +10,12 @@ import type {
 const DEFAULT_SITE_API_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports";
 const DEFAULT_CORE_API_BASE_URL = "https://sports.core.api.espn.com/v2/sports";
 
-// Regular season only for MVP scope (arch D6).
-const REGULAR_SEASON_TYPE = 2;
+// ESPN season-type ids: 2 = regular season (weeks 1–18), 3 = postseason
+// (weeks 1–5, of which week 4 "Pro Bowl" is excluded below).
+const ESPN_SEASON_TYPE_BY_WEEK_TYPE: Record<WeekType, number> = {
+  [WEEK_TYPE.REGULAR]: 2,
+  [WEEK_TYPE.POSTSEASON]: 3,
+};
 
 // --- ESPN response shapes: private to this adapter (engineering rules: "provider shapes never leak"). ---
 
@@ -21,6 +25,9 @@ const WeeksIndexSchema = z.object({
 
 const WeekDetailSchema = z.looseObject({
   number: z.number(),
+  // Provider display label ("Week 1", "Wild Card"); also drives the Pro Bowl
+  // exclusion below.
+  text: z.string(),
   startDate: z.string(),
   endDate: z.string(),
 });
@@ -97,6 +104,7 @@ function parseScoreStrict(raw: string, context: string): number {
 }
 
 function mapCompetitionToGame(
+  weekType: WeekType,
   weekNumber: number,
   competition: z.infer<typeof CompetitionSchema>,
 ): ProviderGame {
@@ -119,6 +127,7 @@ function mapCompetitionToGame(
 
   return {
     providerGameId: competition.id,
+    weekType,
     weekNumber,
     homeTeamAbbr: home.team.abbreviation,
     homeTeamName: home.team.displayName,
@@ -167,26 +176,49 @@ export class EspnProvider implements GameDataProvider {
     return response.json();
   }
 
-  async fetchSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
-    const indexUrl = `${this.#coreApiBaseUrl}/football/leagues/nfl/seasons/${seasonYear}/types/${REGULAR_SEASON_TYPE}/weeks?limit=32`;
+  async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
+    // Fetch both season types; each week's `text` becomes its label, and the
+    // week type is tagged from which index it came from.
+    const weeksByType = await Promise.all(
+      (Object.keys(ESPN_SEASON_TYPE_BY_WEEK_TYPE) as WeekType[]).map((weekType) =>
+        this.#fetchNflWeeks(seasonYear, weekType),
+      ),
+    );
+
+    return { seasonYear, weeks: weeksByType.flat() };
+  }
+
+  async #fetchNflWeeks(seasonYear: number, weekType: WeekType): Promise<ProviderWeek[]> {
+    const seasonType = ESPN_SEASON_TYPE_BY_WEEK_TYPE[weekType];
+    const indexUrl = `${this.#coreApiBaseUrl}/football/leagues/nfl/seasons/${seasonYear}/types/${seasonType}/weeks?limit=32`;
     const index = WeeksIndexSchema.parse(await this.#fetchJson(indexUrl));
 
-    const weeks: ProviderWeek[] = await Promise.all(
+    const weeks = await Promise.all(
       index.items.map(async (item) => {
         const detail = WeekDetailSchema.parse(await this.#fetchJson(item.$ref));
         return {
+          weekType,
           weekNumber: detail.number,
+          label: detail.text,
           startsAt: parseDateStrict(detail.startDate, `week ${detail.number} startDate`),
           endsAt: parseDateStrict(detail.endDate, `week ${detail.number} endDate`),
-        };
+        } satisfies ProviderWeek;
       }),
     );
 
-    return { seasonYear, weeks };
+    // The Pro Bowl (postseason week 4) is not a competitive game — never ingest
+    // it. Match on the label rather than the week number so an ESPN renumbering
+    // can't sneak it back in.
+    return weeks.filter((week) => !week.label.toLowerCase().includes("pro bowl"));
   }
 
-  async fetchWeekGames(seasonYear: number, weekNumber: number): Promise<ProviderGame[]> {
-    const url = `${this.#siteApiBaseUrl}/football/nfl/scoreboard?seasontype=${REGULAR_SEASON_TYPE}&week=${weekNumber}&dates=${seasonYear}`;
+  async fetchNflWeekGames(
+    seasonYear: number,
+    weekType: WeekType,
+    weekNumber: number,
+  ): Promise<ProviderGame[]> {
+    const seasonType = ESPN_SEASON_TYPE_BY_WEEK_TYPE[weekType];
+    const url = `${this.#siteApiBaseUrl}/football/nfl/scoreboard?seasontype=${seasonType}&week=${weekNumber}&dates=${seasonYear}`;
     const scoreboard = ScoreboardSchema.parse(await this.#fetchJson(url));
 
     return scoreboard.events.map((event) => {
@@ -196,7 +228,7 @@ export class EspnProvider implements GameDataProvider {
       if (!competition) {
         throw new Error(`EspnProvider: event ${event.id} has no competitions`);
       }
-      return mapCompetitionToGame(weekNumber, competition);
+      return mapCompetitionToGame(weekType, weekNumber, competition);
     });
   }
 }

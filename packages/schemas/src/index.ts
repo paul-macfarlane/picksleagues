@@ -6,3 +6,4 @@ export * from "./job";
 export * from "./me";
 export * from "./sport";
 export * from "./username";
+export * from "./week-type";

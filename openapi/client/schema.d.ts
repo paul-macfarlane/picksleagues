@@ -40,7 +40,7 @@ export interface paths {
         patch: operations["updateMe"];
         trace?: never;
     };
-    "/api/jobs/sync-schedule": {
+    "/api/jobs/nfl/sync-schedule": {
         parameters: {
             query?: never;
             header?: never;
@@ -49,15 +49,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ingest the NFL schedule from the provider into our tables */
-        post: operations["runSyncSchedule"];
+        /** Ingest the NFL schedule (regular season + postseason) into our tables */
+        post: operations["runNflSyncSchedule"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/jobs/sync-odds": {
+    "/api/jobs/nfl/sync-odds": {
         parameters: {
             query?: never;
             header?: never;
@@ -67,14 +67,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Snapshot spreads for unstarted games in the current NFL week */
-        post: operations["runSyncOdds"];
+        post: operations["runNflSyncOdds"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/jobs/sync-scores": {
+    "/api/jobs/nfl/sync-scores": {
         parameters: {
             query?: never;
             header?: never;
@@ -84,7 +84,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Refresh live scores/statuses for in-flight NFL games from the provider */
-        post: operations["runSyncScores"];
+        post: operations["runNflSyncScores"];
         delete?: never;
         options?: never;
         head?: never;
@@ -127,6 +127,8 @@ export interface components {
             };
             message?: string;
         };
+        /** @enum {string} */
+        WeekType: "regular" | "postseason";
     };
     responses: never;
     parameters: never;
@@ -290,11 +292,12 @@ export interface operations {
             };
         };
     };
-    runSyncSchedule: {
+    runNflSyncSchedule: {
         parameters: {
             query?: {
                 season?: number;
                 week?: number;
+                weekType?: components["schemas"]["WeekType"];
             };
             header?: never;
             path?: never;
@@ -340,11 +343,12 @@ export interface operations {
             };
         };
     };
-    runSyncOdds: {
+    runNflSyncOdds: {
         parameters: {
             query?: {
                 season?: number;
                 week?: number;
+                weekType?: components["schemas"]["WeekType"];
             };
             header?: never;
             path?: never;
@@ -390,11 +394,12 @@ export interface operations {
             };
         };
     };
-    runSyncScores: {
+    runNflSyncScores: {
         parameters: {
             query?: {
                 season?: number;
                 week?: number;
+                weekType?: components["schemas"]["WeekType"];
             };
             header?: never;
             path?: never;

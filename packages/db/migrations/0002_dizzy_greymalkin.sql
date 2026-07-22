@@ -42,12 +42,14 @@ CREATE TABLE "sport_seasons" (
 CREATE TABLE "weeks" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"season_id" uuid NOT NULL,
+	"week_type" text NOT NULL,
 	"week_number" integer NOT NULL,
+	"label" text NOT NULL,
 	"starts_at" timestamp with time zone NOT NULL,
 	"ends_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "weeks_season_id_week_number_unique" UNIQUE("season_id","week_number")
+	CONSTRAINT "weeks_season_type_number_unique" UNIQUE("season_id","week_type","week_number")
 );
 --> statement-breakpoint
 ALTER TABLE "games" ADD CONSTRAINT "games_week_id_weeks_id_fk" FOREIGN KEY ("week_id") REFERENCES "public"."weeks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

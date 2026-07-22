@@ -8,7 +8,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { GameStatus, Sport } from "@picksleagues/schemas";
+import type { GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 import { users } from "./auth";
 
 /**
@@ -42,15 +42,21 @@ export const weeks = pgTable(
     seasonId: uuid("season_id")
       .notNull()
       .references(() => sportSeasons.id, { onDelete: "cascade" }),
-    // Regular-season week number, 1-based, as reported by the provider.
+    weekType: text("week_type").$type<WeekType>().notNull(),
+    // 1-based within its week type — regular and postseason each restart at 1,
+    // so this is unique only alongside `weekType` (see the constraint below).
     weekNumber: integer("week_number").notNull(),
+    // Provider display label ("Week 5", "Wild Card"). Stored so playoff weeks
+    // never render as "Week 2" off the bare weekNumber — the provider's own
+    // wording is the only correct label for a postseason round.
+    label: text("label").notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("weeks_season_id_week_number_unique").on(table.seasonId, table.weekNumber),
+    unique("weeks_season_type_number_unique").on(table.seasonId, table.weekType, table.weekNumber),
     index("weeks_season_id_idx").on(table.seasonId),
   ],
 );

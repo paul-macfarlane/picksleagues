@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
 import {
@@ -9,9 +9,9 @@ import {
   type ProviderSeasonStructure,
   type ProviderWeek,
 } from "@picksleagues/core";
-import { GAME_STATUS, type JobRunResponse } from "@picksleagues/schemas";
+import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
-import { syncSchedule } from "../src/services/sync-schedule";
+import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -32,28 +32,44 @@ const testEnv: Env = {
 const FIXED_NOW = new Date("2026-09-15T12:00:00.000Z");
 const SEASON_YEAR = 2026;
 
+/** Regular and postseason week numbers overlap, so the fake keys games by both. */
+function weekKey(weekType: WeekType, weekNumber: number): string {
+  return `${weekType}:${weekNumber}`;
+}
+
 /** Mutable in-memory provider — reshape `structure`/`gamesByWeek` between runs. */
 class FakeProvider implements GameDataProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
-  gamesByWeek = new Map<number, ProviderGame[]>();
+  gamesByWeek = new Map<string, ProviderGame[]>();
 
-  async fetchSeasonStructure(): Promise<ProviderSeasonStructure> {
+  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
     return this.structure;
   }
 
-  async fetchWeekGames(_seasonYear: number, weekNumber: number): Promise<ProviderGame[]> {
-    return this.gamesByWeek.get(weekNumber) ?? [];
+  async fetchNflWeekGames(
+    _seasonYear: number,
+    weekType: WeekType,
+    weekNumber: number,
+  ): Promise<ProviderGame[]> {
+    return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
   }
 }
 
-function providerWeek(weekNumber: number, startsAt: string, endsAt: string): ProviderWeek {
-  return { weekNumber, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
+function providerWeek(
+  weekNumber: number,
+  startsAt: string,
+  endsAt: string,
+  weekType: WeekType = WEEK_TYPE.REGULAR,
+  label = `Week ${weekNumber}`,
+): ProviderWeek {
+  return { weekType, weekNumber, label, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
 }
 
 function providerGame(
   overrides: Partial<ProviderGame> & { providerGameId: string; weekNumber: number },
 ): ProviderGame {
   return {
+    weekType: WEEK_TYPE.REGULAR,
     homeTeamAbbr: "HOM",
     homeTeamName: "Home Team",
     awayTeamAbbr: "AWY",
@@ -77,7 +93,7 @@ const app = createApp({
 });
 
 function runSyncSchedule(query = "", secret: string | null = testEnv.JOB_SECRET) {
-  return app.request(`/api/jobs/sync-schedule${query}`, {
+  return app.request(`/api/jobs/nfl/sync-schedule${query}`, {
     method: "POST",
     headers: secret ? { "x-job-secret": secret } : {},
   });
@@ -91,7 +107,7 @@ async function runOk(query = ""): Promise<Record<string, string | number | boole
   return body.details ?? {};
 }
 
-/** Baseline: two weeks, two games in week 1, one in week 2. */
+/** Baseline: two regular weeks, two games in week 1, one in week 2. */
 function seedBaselineProvider() {
   provider.structure = {
     seasonYear: SEASON_YEAR,
@@ -102,13 +118,13 @@ function seedBaselineProvider() {
   };
   provider.gamesByWeek = new Map([
     [
-      1,
+      weekKey(WEEK_TYPE.REGULAR, 1),
       [
         providerGame({ providerGameId: "g1", weekNumber: 1 }),
         providerGame({ providerGameId: "g2", weekNumber: 1 }),
       ],
     ],
-    [2, [providerGame({ providerGameId: "g3", weekNumber: 2 })]],
+    [weekKey(WEEK_TYPE.REGULAR, 2), [providerGame({ providerGameId: "g3", weekNumber: 2 })]],
   ]);
 }
 
@@ -126,7 +142,7 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("POST /api/jobs/sync-schedule", () => {
+describe("POST /api/jobs/nfl/sync-schedule", () => {
   it("401s without the x-job-secret header", async () => {
     const res = await runSyncSchedule("", null);
     expect(res.status).toBe(401);
@@ -165,7 +181,7 @@ describe("POST /api/jobs/sync-schedule", () => {
     // byte-identical re-run under the old unconditional upsert would have churned
     // updatedAt to this new value).
     const laterClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    const details = await syncSchedule(db, laterClock, provider, { seasonYear: SEASON_YEAR });
+    const details = await syncNflSchedule(db, laterClock, provider, { seasonYear: SEASON_YEAR });
     expect(details).toMatchObject({ gamesCreated: 0, gamesUpdated: 0 });
 
     expect(await db.select().from(games).orderBy(games.providerGameId)).toEqual(firstGames);
@@ -183,8 +199,8 @@ describe("POST /api/jobs/sync-schedule", () => {
     };
     // ESPN transiently lists a rescheduled game under both its old and new week.
     provider.gamesByWeek = new Map([
-      [1, [providerGame({ providerGameId: "g1", weekNumber: 1 })]],
-      [2, [providerGame({ providerGameId: "g1", weekNumber: 2 })]],
+      [weekKey(WEEK_TYPE.REGULAR, 1), [providerGame({ providerGameId: "g1", weekNumber: 1 })]],
+      [weekKey(WEEK_TYPE.REGULAR, 2), [providerGame({ providerGameId: "g1", weekNumber: 2 })]],
     ]);
 
     const details = await runOk();
@@ -201,7 +217,7 @@ describe("POST /api/jobs/sync-schedule", () => {
     await runOk();
 
     const moved = new Date("2026-09-14T20:00:00.000Z");
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({ providerGameId: "g1", weekNumber: 1, kickoffAt: moved }),
       providerGame({ providerGameId: "g2", weekNumber: 1 }),
     ]);
@@ -219,7 +235,7 @@ describe("POST /api/jobs/sync-schedule", () => {
     seedBaselineProvider();
     await runOk();
 
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({ providerGameId: "g1", weekNumber: 1, status }),
       providerGame({ providerGameId: "g2", weekNumber: 1 }),
     ]);
@@ -236,8 +252,10 @@ describe("POST /api/jobs/sync-schedule", () => {
     const [before] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
 
     // g1 leaves week 1 and reappears in week 2's fetch.
-    provider.gamesByWeek.set(1, [providerGame({ providerGameId: "g2", weekNumber: 1 })]);
-    provider.gamesByWeek.set(2, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 2), [
       providerGame({ providerGameId: "g3", weekNumber: 2 }),
       providerGame({ providerGameId: "g1", weekNumber: 2 }),
     ]);
@@ -268,7 +286,7 @@ describe("POST /api/jobs/sync-schedule", () => {
       .where(eq(games.providerGameId, "g1"));
 
     // Provider data for g1 changes across the board.
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g1",
         weekNumber: 1,
@@ -314,5 +332,101 @@ describe("POST /api/jobs/sync-schedule", () => {
     expect(details.seasonYear).toBe(2025);
     const [season] = await db.select().from(sportSeasons);
     expect(season?.year).toBe(2025);
+  });
+
+  it("syncs postseason weeks alongside regular; a regular week 1 and postseason week 1 coexist and labels are stored", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+        providerWeek(
+          1,
+          "2027-01-09T00:00:00.000Z",
+          "2027-01-13T00:00:00.000Z",
+          WEEK_TYPE.POSTSEASON,
+          "Wild Card",
+        ),
+      ],
+    };
+    provider.gamesByWeek = new Map([
+      [weekKey(WEEK_TYPE.REGULAR, 1), [providerGame({ providerGameId: "reg1", weekNumber: 1 })]],
+      [
+        weekKey(WEEK_TYPE.POSTSEASON, 1),
+        [
+          providerGame({
+            providerGameId: "post1",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            kickoffAt: new Date("2027-01-10T18:00:00.000Z"),
+          }),
+        ],
+      ],
+    ]);
+
+    const details = await runOk();
+    // Two week rows sharing weekNumber 1 prove the (season, type, number) unique
+    // constraint discriminates them rather than colliding.
+    expect(details).toMatchObject({ weeksSynced: 2, gamesCreated: 2 });
+
+    expect(await db.select().from(weeks)).toHaveLength(2);
+    const [regularWeek] = await db
+      .select()
+      .from(weeks)
+      .where(eq(weeks.weekType, WEEK_TYPE.REGULAR));
+    const [postseasonWeek] = await db
+      .select()
+      .from(weeks)
+      .where(eq(weeks.weekType, WEEK_TYPE.POSTSEASON));
+    expect(regularWeek?.weekNumber).toBe(1);
+    expect(regularWeek?.label).toBe("Week 1");
+    expect(postseasonWeek?.weekNumber).toBe(1);
+    expect(postseasonWeek?.label).toBe("Wild Card");
+
+    // Each game landed under the correct week type's row.
+    const [post1] = await db.select().from(games).where(eq(games.providerGameId, "post1"));
+    expect(post1?.weekId).toBe(postseasonWeek?.id);
+  });
+
+  it("narrows to a single postseason week when ?weekType=postseason&week=1 is given", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+        providerWeek(
+          1,
+          "2027-01-09T00:00:00.000Z",
+          "2027-01-13T00:00:00.000Z",
+          WEEK_TYPE.POSTSEASON,
+          "Wild Card",
+        ),
+      ],
+    };
+    provider.gamesByWeek = new Map([
+      [weekKey(WEEK_TYPE.REGULAR, 1), [providerGame({ providerGameId: "reg1", weekNumber: 1 })]],
+      [
+        weekKey(WEEK_TYPE.POSTSEASON, 1),
+        [
+          providerGame({
+            providerGameId: "post1",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            kickoffAt: new Date("2027-01-10T18:00:00.000Z"),
+          }),
+        ],
+      ],
+    ]);
+
+    const details = await runOk("?weekType=postseason&week=1");
+    // Both week rows are synced from the structure, but only postseason week 1's
+    // games were fetched and written.
+    expect(details).toMatchObject({ weeksSynced: 2, gamesCreated: 1 });
+    const gameRows = await db.select().from(games);
+    expect(gameRows.map((g) => g.providerGameId)).toEqual(["post1"]);
+
+    const [postseasonWeek] = await db
+      .select()
+      .from(weeks)
+      .where(and(eq(weeks.weekType, WEEK_TYPE.POSTSEASON), eq(weeks.weekNumber, 1)));
+    expect(gameRows[0]?.weekId).toBe(postseasonWeek?.id);
   });
 });

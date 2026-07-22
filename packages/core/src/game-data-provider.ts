@@ -1,18 +1,28 @@
-import { type GameStatus } from "@picksleagues/schemas";
+import { type GameStatus, type WeekType } from "@picksleagues/schemas";
 
 export type ProviderWeek = {
+  weekType: WeekType;
   weekNumber: number;
+  // Provider display label ("Week 1", "Wild Card") — the only correct wording
+  // for a postseason round, which a bare weekNumber can't produce.
+  label: string;
   startsAt: Date;
   endsAt: Date;
 };
 
 export type ProviderSeasonStructure = {
   seasonYear: number;
+  // Regular-season and postseason weeks in one structure (Pro Bowl already
+  // excluded); each week carries its `weekType` to disambiguate the two
+  // number spaces (both restart at 1).
   weeks: ProviderWeek[];
 };
 
 export type ProviderGame = {
   providerGameId: string;
+  // Which scoreboard this game came from — regular and postseason week numbers
+  // overlap, so the (weekType, weekNumber) pair is what identifies its week.
+  weekType: WeekType;
   weekNumber: number;
   homeTeamAbbr: string;
   homeTeamName: string;
@@ -33,14 +43,24 @@ export type ProviderGame = {
 };
 
 /**
- * Domain-facing sports data source. Regular-season scope for MVP (arch D6):
- * implementations must contain their provider's response shapes entirely —
- * everything outside the adapter sees only these domain types, so swapping
- * providers touches one module (engineering rules: "provider shapes never
- * leak"). Request paths never call a provider directly; jobs ingest into our
- * own tables and reads serve those tables (arch §External Data).
+ * Domain-facing sports data source. Implementations must contain their
+ * provider's response shapes entirely — everything outside the adapter sees
+ * only these domain types, so swapping providers touches one module
+ * (engineering rules: "provider shapes never leak"). Request paths never call a
+ * provider directly; jobs ingest into our own tables and reads serve those
+ * tables (arch §External Data).
+ *
+ * Methods are named per sport rather than generically: the NCAAMB bracket
+ * methods for the March Madness epic will be added here as their own explicitly
+ * named methods, so each sport's shape stays legible on one interface rather
+ * than hiding behind a generic surface.
  */
 export interface GameDataProvider {
-  fetchSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure>;
-  fetchWeekGames(seasonYear: number, weekNumber: number): Promise<ProviderGame[]>;
+  // Regular season and postseason in one structure, Pro Bowl already excluded.
+  fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure>;
+  fetchNflWeekGames(
+    seasonYear: number,
+    weekType: WeekType,
+    weekNumber: number,
+  ): Promise<ProviderGame[]>;
 }

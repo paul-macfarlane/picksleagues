@@ -133,6 +133,13 @@
           "status",
           "durationMs"
         ]
+      },
+      "WeekType": {
+        "type": "string",
+        "enum": [
+          "regular",
+          "postseason"
+        ]
       }
     },
     "parameters": {}
@@ -288,10 +295,10 @@
         }
       }
     },
-    "/api/jobs/sync-schedule": {
+    "/api/jobs/nfl/sync-schedule": {
       "post": {
-        "operationId": "runSyncSchedule",
-        "summary": "Ingest the NFL schedule from the provider into our tables",
+        "operationId": "runNflSyncSchedule",
+        "summary": "Ingest the NFL schedule (regular season + postseason) into our tables",
         "parameters": [
           {
             "schema": {
@@ -311,6 +318,14 @@
             },
             "required": false,
             "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
             "in": "query"
           }
         ],
@@ -358,9 +373,9 @@
         }
       }
     },
-    "/api/jobs/sync-odds": {
+    "/api/jobs/nfl/sync-odds": {
       "post": {
-        "operationId": "runSyncOdds",
+        "operationId": "runNflSyncOdds",
         "summary": "Snapshot spreads for unstarted games in the current NFL week",
         "parameters": [
           {
@@ -382,6 +397,14 @@
             "required": false,
             "name": "week",
             "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
           }
         ],
         "responses": {
@@ -428,9 +451,9 @@
         }
       }
     },
-    "/api/jobs/sync-scores": {
+    "/api/jobs/nfl/sync-scores": {
       "post": {
-        "operationId": "runSyncScores",
+        "operationId": "runNflSyncScores",
         "summary": "Refresh live scores/statuses for in-flight NFL games from the provider",
         "parameters": [
           {
@@ -451,6 +474,14 @@
             },
             "required": false,
             "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
             "in": "query"
           }
         ],

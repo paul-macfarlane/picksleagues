@@ -2,11 +2,16 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
-import { GAME_STATUS, SPORT } from "@picksleagues/schemas";
-import { logInfo } from "../lib/logger";
+import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import { logInfo } from "../../lib/logger";
 
 /** A refresh target: one provider week fetch mapped to our week row. */
-type ScoreTarget = { weekId: string; seasonYear: number; weekNumber: number };
+type ScoreTarget = {
+  weekId: string;
+  seasonYear: number;
+  weekType: WeekType;
+  weekNumber: number;
+};
 
 // Statuses whose games are still worth polling for score/status changes; a
 // game past kickoff in one of these has an outcome the provider may have moved.
@@ -25,11 +30,11 @@ const ACTIVE_STATUSES = [GAME_STATUS.SCHEDULED, GAME_STATUS.IN_PROGRESS];
  * written — never any `override_*` column — so a re-sync can never clobber an
  * admin correction.
  */
-export async function syncScores(
+export async function syncNflScores(
   db: Db,
   clock: Clock,
   provider: GameDataProvider,
-  opts?: { seasonYear?: number; weekNumber?: number },
+  opts?: { seasonYear?: number; weekType?: WeekType; weekNumber?: number },
 ): Promise<Record<string, string | number | boolean>> {
   // One `now` per run, bound into SQL as a parameter (arch D13) — never SQL now().
   const now = clock.now();
@@ -45,16 +50,19 @@ export async function syncScores(
 
   if (explicit) {
     // An explicit admin/simulator trigger means "refresh this week now" — skip
-    // the active-games gate and resolve the requested week from our tables.
+    // the active-games gate and resolve the requested week from our tables. A
+    // bare week number defaults to REGULAR; postseason must name `weekType`.
     const weekNumber = opts!.weekNumber!;
+    const weekType = opts?.weekType ?? WEEK_TYPE.REGULAR;
     const [week] = await db
-      .select({ weekId: weeks.id, weekNumber: weeks.weekNumber })
+      .select({ weekId: weeks.id, weekType: weeks.weekType, weekNumber: weeks.weekNumber })
       .from(weeks)
       .innerJoin(sportSeasons, eq(weeks.seasonId, sportSeasons.id))
       .where(
         and(
           eq(sportSeasons.sport, SPORT.NFL),
           eq(sportSeasons.year, seasonYear),
+          eq(weeks.weekType, weekType),
           eq(weeks.weekNumber, weekNumber),
         ),
       );
@@ -63,7 +71,7 @@ export async function syncScores(
       // creation (feedback: recurring syncs query reference data, don't upsert).
       return { skipped: true, reason: "week_not_synced" };
     }
-    targets = [{ weekId: week.weekId, seasonYear, weekNumber }];
+    targets = [{ weekId: week.weekId, seasonYear, weekType: week.weekType, weekNumber }];
   } else {
     // Fast no-op path: one indexed query (games_status_kickoff_idx) — any game
     // that has kicked off and is not yet resolved.
@@ -76,10 +84,17 @@ export async function syncScores(
       return { skipped: true, reason: "no_active_games", activeGames: 0 };
     }
 
-    // Distinct weeks of the active games → the (season, week) pairs to refresh.
+    // Distinct weeks of the active games → the (season, type, week) triples to
+    // refresh (regular and postseason week numbers overlap, so type is part of
+    // the identity).
     const distinctWeekIds = [...new Set(activeRows.map((row) => row.weekId))];
     const weekRows = await db
-      .select({ weekId: weeks.id, seasonYear: sportSeasons.year, weekNumber: weeks.weekNumber })
+      .select({
+        weekId: weeks.id,
+        seasonYear: sportSeasons.year,
+        weekType: weeks.weekType,
+        weekNumber: weeks.weekNumber,
+      })
       .from(weeks)
       .innerJoin(sportSeasons, eq(weeks.seasonId, sportSeasons.id))
       .where(inArray(weeks.id, distinctWeekIds));
@@ -89,7 +104,9 @@ export async function syncScores(
   // Network I/O outside any transaction (engineering rules: never hold a
   // transaction open across a network call).
   const fetched = await Promise.all(
-    targets.map((target) => provider.fetchWeekGames(target.seasonYear, target.weekNumber)),
+    targets.map((target) =>
+      provider.fetchNflWeekGames(target.seasonYear, target.weekType, target.weekNumber),
+    ),
   );
   const providerGamesById = new Map(fetched.flat().map((game) => [game.providerGameId, game]));
 

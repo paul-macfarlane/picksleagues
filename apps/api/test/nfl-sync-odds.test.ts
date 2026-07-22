@@ -9,10 +9,10 @@ import {
   type ProviderSeasonStructure,
   type ProviderWeek,
 } from "@picksleagues/core";
-import { GAME_STATUS, type JobRunResponse } from "@picksleagues/schemas";
+import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
-import { syncSchedule } from "../src/services/sync-schedule";
-import { syncOdds } from "../src/services/sync-odds";
+import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
+import { syncNflOdds } from "../src/services/nfl/sync-odds";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -35,27 +35,43 @@ const ODDS_NOW = new Date("2026-09-12T00:00:00.000Z");
 const seedClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
 const oddsClock = new FixedClock(ODDS_NOW);
 
+/** Regular and postseason week numbers overlap, so the fake keys games by both. */
+function weekKey(weekType: WeekType, weekNumber: number): string {
+  return `${weekType}:${weekNumber}`;
+}
+
 class FakeProvider implements GameDataProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
-  gamesByWeek = new Map<number, ProviderGame[]>();
+  gamesByWeek = new Map<string, ProviderGame[]>();
 
-  async fetchSeasonStructure(): Promise<ProviderSeasonStructure> {
+  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
     return this.structure;
   }
 
-  async fetchWeekGames(_seasonYear: number, weekNumber: number): Promise<ProviderGame[]> {
-    return this.gamesByWeek.get(weekNumber) ?? [];
+  async fetchNflWeekGames(
+    _seasonYear: number,
+    weekType: WeekType,
+    weekNumber: number,
+  ): Promise<ProviderGame[]> {
+    return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
   }
 }
 
-function providerWeek(weekNumber: number, startsAt: string, endsAt: string): ProviderWeek {
-  return { weekNumber, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
+function providerWeek(
+  weekNumber: number,
+  startsAt: string,
+  endsAt: string,
+  weekType: WeekType = WEEK_TYPE.REGULAR,
+  label = `Week ${weekNumber}`,
+): ProviderWeek {
+  return { weekType, weekNumber, label, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
 }
 
 function providerGame(
   overrides: Partial<ProviderGame> & { providerGameId: string; weekNumber: number },
 ): ProviderGame {
   return {
+    weekType: WEEK_TYPE.REGULAR,
     homeTeamAbbr: "HOM",
     homeTeamName: "Home Team",
     awayTeamAbbr: "AWY",
@@ -78,14 +94,14 @@ const app = createApp({
   provider,
 });
 
-/** Seeds one season + week 1 with the given games via the real schedule sync. */
-async function seedSchedule(weekGames: ProviderGame[]) {
-  provider.structure = {
-    seasonYear: SEASON_YEAR,
-    weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z")],
-  };
-  provider.gamesByWeek = new Map([[1, weekGames]]);
-  await syncSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
+/** Seeds one season + the given week with its games via the real schedule sync. */
+async function seedSchedule(
+  weekGames: ProviderGame[],
+  week: ProviderWeek = providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+) {
+  provider.structure = { seasonYear: SEASON_YEAR, weeks: [week] };
+  provider.gamesByWeek = new Map([[weekKey(week.weekType, week.weekNumber), weekGames]]);
+  await syncNflSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
 }
 
 beforeEach(async () => {
@@ -101,7 +117,7 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("syncOdds", () => {
+describe("syncNflOdds", () => {
   it("snapshots only unstarted games (a game past its kickoff is excluded)", async () => {
     await seedSchedule([
       providerGame({
@@ -118,7 +134,7 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    const details = await syncOdds(db, oddsClock, provider, {});
+    const details = await syncNflOdds(db, oddsClock, provider, {});
     expect(details).toMatchObject({
       seasonYear: SEASON_YEAR,
       weekNumber: 1,
@@ -143,7 +159,7 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    await syncOdds(db, oddsClock, provider, {});
+    await syncNflOdds(db, oddsClock, provider, {});
 
     const [snapshot] = await db.select().from(oddsSnapshots);
     expect(snapshot?.capturedAt).toEqual(ODDS_NOW);
@@ -166,7 +182,7 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    const details = await syncOdds(db, oddsClock, provider, {});
+    const details = await syncNflOdds(db, oddsClock, provider, {});
     expect(details).toMatchObject({ unstartedGames: 2, snapshotsInserted: 1, gamesWithoutOdds: 1 });
     expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
   });
@@ -181,8 +197,8 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    await syncOdds(db, oddsClock, provider, {});
-    await syncOdds(db, oddsClock, provider, {});
+    await syncNflOdds(db, oddsClock, provider, {});
+    await syncNflOdds(db, oddsClock, provider, {});
 
     expect(await db.select().from(oddsSnapshots)).toHaveLength(2);
   });
@@ -200,7 +216,7 @@ describe("syncOdds", () => {
     // Clock sits before week 1 starts (2026-09-08), so there is no in-progress
     // week — the next-upcoming-week fallback resolves week 1.
     const preSeasonClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
-    const details = await syncOdds(db, preSeasonClock, provider, {});
+    const details = await syncNflOdds(db, preSeasonClock, provider, {});
     expect(details).toMatchObject({ weekNumber: 1, unstartedGames: 1, snapshotsInserted: 1 });
     expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
   });
@@ -217,7 +233,7 @@ describe("syncOdds", () => {
 
     // Clock sits after week 1 ends (2026-09-15) with no later week to fall to.
     const offSeasonClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    const details = await syncOdds(db, offSeasonClock, provider, {});
+    const details = await syncNflOdds(db, offSeasonClock, provider, {});
     expect(details).toMatchObject({ skipped: true, reason: "no_current_week" });
     expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
   });
@@ -232,9 +248,41 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    const details = await syncOdds(db, oddsClock, provider, { weekNumber: 1 });
+    const details = await syncNflOdds(db, oddsClock, provider, { weekNumber: 1 });
     expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, snapshotsInserted: 1 });
     expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+  });
+
+  it("explicit postseason week: snapshots that week's unstarted postseason games", async () => {
+    await seedSchedule(
+      [
+        providerGame({
+          providerGameId: "post1",
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 1,
+          kickoffAt: new Date("2027-01-10T18:00:00.000Z"),
+          spread: -4.5,
+        }),
+      ],
+      providerWeek(
+        1,
+        "2027-01-09T00:00:00.000Z",
+        "2027-01-13T00:00:00.000Z",
+        WEEK_TYPE.POSTSEASON,
+        "Wild Card",
+      ),
+    );
+
+    const details = await syncNflOdds(db, oddsClock, provider, {
+      weekType: WEEK_TYPE.POSTSEASON,
+      weekNumber: 1,
+    });
+    expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, snapshotsInserted: 1 });
+
+    const snapshots = await db.select().from(oddsSnapshots);
+    expect(snapshots).toHaveLength(1);
+    const [post1] = await db.select().from(games).where(eq(games.providerGameId, "post1"));
+    expect(snapshots[0]).toMatchObject({ gameId: post1?.id, spread: -4.5 });
   });
 
   it("explicit week that isn't synced returns week_not_synced (distinct from the derived no_current_week)", async () => {
@@ -247,13 +295,13 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    const details = await syncOdds(db, oddsClock, provider, { weekNumber: 5 });
+    const details = await syncNflOdds(db, oddsClock, provider, { weekNumber: 5 });
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
     expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
   });
 
   it("no-ops when the season has not been synced and writes nothing", async () => {
-    const details = await syncOdds(db, oddsClock, provider, {});
+    const details = await syncNflOdds(db, oddsClock, provider, {});
     expect(details).toMatchObject({ skipped: true, reason: "season_not_synced" });
     expect(await db.select().from(sportSeasons)).toHaveLength(0);
     expect(await db.select().from(weeks)).toHaveLength(0);
@@ -271,7 +319,7 @@ describe("syncOdds", () => {
     ]);
 
     // Provider now reports an extra game we never ingested.
-    provider.gamesByWeek.set(1, [
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
       providerGame({
         providerGameId: "g2",
         weekNumber: 1,
@@ -286,7 +334,7 @@ describe("syncOdds", () => {
       }),
     ]);
 
-    const details = await syncOdds(db, oddsClock, provider, {});
+    const details = await syncNflOdds(db, oddsClock, provider, {});
     expect(details).toMatchObject({ unstartedGames: 1, snapshotsInserted: 1 });
     expect(await db.select().from(games)).toHaveLength(1);
     expect(await db.select().from(weeks)).toHaveLength(1);
@@ -294,9 +342,9 @@ describe("syncOdds", () => {
   });
 });
 
-describe("POST /api/jobs/sync-odds", () => {
+describe("POST /api/jobs/nfl/sync-odds", () => {
   it("401s without the x-job-secret header", async () => {
-    const res = await app.request("/api/jobs/sync-odds", { method: "POST" });
+    const res = await app.request("/api/jobs/nfl/sync-odds", { method: "POST" });
     expect(res.status).toBe(401);
     expect(await res.json()).toMatchObject({ error: "unauthorized" });
   });
@@ -311,7 +359,7 @@ describe("POST /api/jobs/sync-odds", () => {
       }),
     ]);
 
-    const res = await app.request("/api/jobs/sync-odds", {
+    const res = await app.request("/api/jobs/nfl/sync-odds", {
       method: "POST",
       headers: { "x-job-secret": testEnv.JOB_SECRET },
     });

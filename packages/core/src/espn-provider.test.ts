@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { GAME_STATUS } from "@picksleagues/schemas";
+import { GAME_STATUS, WEEK_TYPE } from "@picksleagues/schemas";
 import { EspnProvider } from "./espn-provider";
 
 const SITE_API_BASE_URL = "https://site.example.com/sports";
@@ -50,72 +50,165 @@ function competitor(overrides: {
   };
 }
 
-describe("EspnProvider.fetchSeasonStructure", () => {
-  it("fetches the weeks index then each week's detail, mapping to ProviderWeek", async () => {
-    const indexUrl = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks?limit=32`;
+const REGULAR_INDEX_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks?limit=32`;
+const POSTSEASON_INDEX_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks?limit=32`;
+
+describe("EspnProvider.fetchNflSeasonStructure", () => {
+  it("fetches both season types, tagging regular weeks and mapping label from `text`", async () => {
     const week1Ref = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks/1`;
     const week2Ref = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks/2`;
 
     const fetchImpl = stubFetch({
-      [indexUrl]: jsonResponse({
+      [REGULAR_INDEX_URL]: jsonResponse({
         items: [{ $ref: week1Ref }, { $ref: week2Ref }],
         // Extra unconsumed field.
         count: 2,
       }),
+      // No postseason weeks for this focused case.
+      [POSTSEASON_INDEX_URL]: jsonResponse({ items: [] }),
       [week1Ref]: jsonResponse({
         number: 1,
+        text: "Week 1",
         startDate: "2026-09-10T07:00Z",
         endDate: "2026-09-17T06:59Z",
-        // Extra unconsumed field.
-        text: "Week 1",
       }),
       [week2Ref]: jsonResponse({
         number: 2,
+        text: "Week 2",
         startDate: "2026-09-17T07:00Z",
         endDate: "2026-09-24T06:59Z",
       }),
     });
 
     const provider = makeProvider(fetchImpl);
-    const structure = await provider.fetchSeasonStructure(2026);
+    const structure = await provider.fetchNflSeasonStructure(2026);
 
     expect(structure.seasonYear).toBe(2026);
     expect(structure.weeks).toEqual([
       {
+        weekType: WEEK_TYPE.REGULAR,
         weekNumber: 1,
+        label: "Week 1",
         startsAt: new Date("2026-09-10T07:00Z"),
         endsAt: new Date("2026-09-17T06:59Z"),
       },
       {
+        weekType: WEEK_TYPE.REGULAR,
         weekNumber: 2,
+        label: "Week 2",
         startsAt: new Date("2026-09-17T07:00Z"),
         endsAt: new Date("2026-09-24T06:59Z"),
       },
     ]);
   });
 
+  it("fetches postseason weeks, tags them, propagates labels, and excludes the Pro Bowl", async () => {
+    const wildCardRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/1`;
+    const proBowlRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/4`;
+    const superBowlRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/5`;
+
+    const fetchImpl = stubFetch({
+      [REGULAR_INDEX_URL]: jsonResponse({ items: [] }),
+      [POSTSEASON_INDEX_URL]: jsonResponse({
+        items: [{ $ref: wildCardRef }, { $ref: proBowlRef }, { $ref: superBowlRef }],
+      }),
+      [wildCardRef]: jsonResponse({
+        number: 1,
+        text: "Wild Card",
+        startDate: "2027-01-09T07:00Z",
+        endDate: "2027-01-13T06:59Z",
+      }),
+      [proBowlRef]: jsonResponse({
+        number: 4,
+        text: "Pro Bowl",
+        startDate: "2027-02-01T07:00Z",
+        endDate: "2027-02-02T06:59Z",
+      }),
+      [superBowlRef]: jsonResponse({
+        number: 5,
+        text: "Super Bowl",
+        startDate: "2027-02-08T07:00Z",
+        endDate: "2027-02-09T06:59Z",
+      }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const structure = await provider.fetchNflSeasonStructure(2026);
+
+    expect(structure.weeks).toEqual([
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 1,
+        label: "Wild Card",
+        startsAt: new Date("2027-01-09T07:00Z"),
+        endsAt: new Date("2027-01-13T06:59Z"),
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 5,
+        label: "Super Bowl",
+        startsAt: new Date("2027-02-08T07:00Z"),
+        endsAt: new Date("2027-02-09T06:59Z"),
+      },
+    ]);
+  });
+
+  it("returns regular and postseason weeks together in one structure", async () => {
+    const regRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks/1`;
+    const postRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/1`;
+
+    const fetchImpl = stubFetch({
+      [REGULAR_INDEX_URL]: jsonResponse({ items: [{ $ref: regRef }] }),
+      [POSTSEASON_INDEX_URL]: jsonResponse({ items: [{ $ref: postRef }] }),
+      [regRef]: jsonResponse({
+        number: 1,
+        text: "Week 1",
+        startDate: "2026-09-10T07:00Z",
+        endDate: "2026-09-17T06:59Z",
+      }),
+      [postRef]: jsonResponse({
+        number: 1,
+        text: "Wild Card",
+        startDate: "2027-01-09T07:00Z",
+        endDate: "2027-01-13T06:59Z",
+      }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const structure = await provider.fetchNflSeasonStructure(2026);
+
+    expect(structure.weeks.map((week) => [week.weekType, week.weekNumber, week.label])).toEqual([
+      [WEEK_TYPE.REGULAR, 1, "Week 1"],
+      [WEEK_TYPE.POSTSEASON, 1, "Wild Card"],
+    ]);
+  });
+
   it("throws naming the endpoint and status on a non-OK response", async () => {
-    const indexUrl = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks?limit=32`;
-    const fetchImpl = stubFetch({ [indexUrl]: jsonResponse({ error: "nope" }, { status: 500 }) });
+    const fetchImpl = stubFetch({
+      [REGULAR_INDEX_URL]: jsonResponse({ error: "nope" }, { status: 500 }),
+      [POSTSEASON_INDEX_URL]: jsonResponse({ items: [] }),
+    });
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchSeasonStructure(2026)).rejects.toThrow(
-      new RegExp(`${indexUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*500`),
+    await expect(provider.fetchNflSeasonStructure(2026)).rejects.toThrow(
+      new RegExp(`${REGULAR_INDEX_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*500`),
     );
   });
 
   it("throws a zod error when the weeks index payload shape is invalid", async () => {
-    const indexUrl = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks?limit=32`;
-    const fetchImpl = stubFetch({ [indexUrl]: jsonResponse({ items: [{ notARef: "oops" }] }) });
+    const fetchImpl = stubFetch({
+      [REGULAR_INDEX_URL]: jsonResponse({ items: [{ notARef: "oops" }] }),
+      [POSTSEASON_INDEX_URL]: jsonResponse({ items: [] }),
+    });
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchSeasonStructure(2026)).rejects.toThrow();
+    await expect(provider.fetchNflSeasonStructure(2026)).rejects.toThrow();
   });
 });
 
-describe("EspnProvider.fetchWeekGames", () => {
+describe("EspnProvider.fetchNflWeekGames", () => {
   const scoreboardUrl = `${SITE_API_BASE_URL}/football/nfl/scoreboard?seasontype=2&week=1&dates=2026`;
 
   it("maps a scheduled game with odds: spread captured, scores null", async () => {
@@ -154,11 +247,12 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const games = await provider.fetchWeekGames(2026, 1);
+    const games = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(games).toEqual([
       {
         providerGameId: "401",
+        weekType: WEEK_TYPE.REGULAR,
         weekNumber: 1,
         homeTeamAbbr: "PHI",
         homeTeamName: "Philadelphia Eagles",
@@ -206,7 +300,7 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const [game] = await provider.fetchWeekGames(2026, 1);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game).toMatchObject({
       status: GAME_STATUS.IN_PROGRESS,
@@ -249,7 +343,7 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const [game] = await provider.fetchWeekGames(2026, 1);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game).toMatchObject({ status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 20 });
   });
@@ -288,7 +382,9 @@ describe("EspnProvider.fetchWeekGames", () => {
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow(/invalid score "abc"/);
+    await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1)).rejects.toThrow(
+      /invalid score "abc"/,
+    );
   });
 
   it("maps STATUS_POSTPONED to postponed regardless of state", async () => {
@@ -322,7 +418,7 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const [game] = await provider.fetchWeekGames(2026, 1);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game?.status).toBe(GAME_STATUS.POSTPONED);
   });
@@ -358,7 +454,7 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const [game] = await provider.fetchWeekGames(2026, 1);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game?.status).toBe(GAME_STATUS.CANCELLED);
   });
@@ -394,7 +490,7 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const [game] = await provider.fetchWeekGames(2026, 1);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game?.status).toBe(GAME_STATUS.SCHEDULED);
   });
@@ -430,7 +526,7 @@ describe("EspnProvider.fetchWeekGames", () => {
     });
 
     const provider = makeProvider(fetchImpl);
-    const [game] = await provider.fetchWeekGames(2026, 1);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game?.spread).toBeNull();
   });
@@ -462,7 +558,7 @@ describe("EspnProvider.fetchWeekGames", () => {
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow(
+    await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1)).rejects.toThrow(
       /missing a home or away competitor/,
     );
   });
@@ -472,7 +568,7 @@ describe("EspnProvider.fetchWeekGames", () => {
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow(/503/);
+    await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1)).rejects.toThrow(/503/);
   });
 
   it("throws a zod error when the scoreboard payload shape is invalid", async () => {
@@ -480,6 +576,47 @@ describe("EspnProvider.fetchWeekGames", () => {
 
     const provider = makeProvider(fetchImpl);
 
-    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow();
+    await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1)).rejects.toThrow();
+  });
+
+  it("hits the seasontype=3 scoreboard for a postseason week and tags the game", async () => {
+    const postseasonScoreboardUrl = `${SITE_API_BASE_URL}/football/nfl/scoreboard?seasontype=3&week=1&dates=2026`;
+    const fetchImpl = stubFetch({
+      [postseasonScoreboardUrl]: jsonResponse({
+        events: [
+          {
+            id: "500",
+            competitions: [
+              {
+                id: "500",
+                date: "2027-01-10T18:00Z",
+                status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+                competitors: [
+                  competitor({
+                    homeAway: "home",
+                    abbreviation: "KC",
+                    displayName: "Kansas City Chiefs",
+                  }),
+                  competitor({
+                    homeAway: "away",
+                    abbreviation: "HOU",
+                    displayName: "Houston Texans",
+                  }),
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.POSTSEASON, 1);
+
+    expect(game).toMatchObject({
+      providerGameId: "500",
+      weekType: WEEK_TYPE.POSTSEASON,
+      weekNumber: 1,
+    });
   });
 });

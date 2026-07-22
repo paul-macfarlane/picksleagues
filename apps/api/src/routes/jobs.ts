@@ -3,25 +3,28 @@ import {
   ErrorResponseSchema,
   JOB_RUN_STATUS,
   JobRunResponseSchema,
+  WeekTypeSchema,
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { runJob } from "../lib/job-runner";
 import { jobSecretMiddleware } from "../middleware/job-secret";
-import { syncSchedule } from "../services/sync-schedule";
-import { syncOdds } from "../services/sync-odds";
-import { syncScores } from "../services/sync-scores";
+import { syncNflSchedule } from "../services/nfl/sync-schedule";
+import { syncNflOdds } from "../services/nfl/sync-odds";
+import { syncNflScores } from "../services/nfl/sync-scores";
 
 /**
  * Optional overrides for the manual/simulator trigger path — cron fires the
  * jobs bare and they derive season/week from the Clock, but the admin page and
  * the simulator pass explicit values. Bounded so a typo can't request an
- * absurd season/week.
+ * absurd season/week. `week` is 1-based within its `weekType` (regular 1–18,
+ * postseason 1–5); an explicit `week` without `weekType` defaults to regular.
  */
 const SyncQuerySchema = z.object({
   season: z.coerce.number().int().min(2000).max(2100).optional(),
   week: z.coerce.number().int().min(1).max(18).optional(),
+  weekType: WeekTypeSchema.optional(),
 });
 
 const jobResponses = {
@@ -45,17 +48,17 @@ const jobResponses = {
 
 const syncScheduleRoute = createRoute({
   method: "post",
-  path: "/jobs/sync-schedule",
-  operationId: "runSyncSchedule",
-  summary: "Ingest the NFL schedule from the provider into our tables",
+  path: "/jobs/nfl/sync-schedule",
+  operationId: "runNflSyncSchedule",
+  summary: "Ingest the NFL schedule (regular season + postseason) into our tables",
   request: { query: SyncQuerySchema },
   responses: jobResponses,
 });
 
 const syncOddsRoute = createRoute({
   method: "post",
-  path: "/jobs/sync-odds",
-  operationId: "runSyncOdds",
+  path: "/jobs/nfl/sync-odds",
+  operationId: "runNflSyncOdds",
   summary: "Snapshot spreads for unstarted games in the current NFL week",
   request: { query: SyncQuerySchema },
   responses: jobResponses,
@@ -63,8 +66,8 @@ const syncOddsRoute = createRoute({
 
 const syncScoresRoute = createRoute({
   method: "post",
-  path: "/jobs/sync-scores",
-  operationId: "runSyncScores",
+  path: "/jobs/nfl/sync-scores",
+  operationId: "runNflSyncScores",
   summary: "Refresh live scores/statuses for in-flight NFL games from the provider",
   request: { query: SyncQuerySchema },
   responses: jobResponses,
@@ -112,36 +115,36 @@ export function jobRoutes(deps: AppDeps) {
   app.openapi(syncScheduleRoute, async (c) => {
     const { db, provider, clock: resolveClock } = deps;
     if (!db || !resolveClock || !provider) {
-      return c.json(misconfigured("sync-schedule"), 500);
+      return c.json(misconfigured("nfl-sync-schedule"), 500);
     }
     const clock = await resolveClock();
-    const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-schedule", () =>
-      syncSchedule(db, clock, provider, { seasonYear: season, weekNumber: week }),
+    const { season, week, weekType } = c.req.valid("query");
+    return runJob(c, "nfl-sync-schedule", () =>
+      syncNflSchedule(db, clock, provider, { seasonYear: season, weekType, weekNumber: week }),
     );
   });
 
   app.openapi(syncOddsRoute, async (c) => {
     const { db, provider, clock: resolveClock } = deps;
     if (!db || !resolveClock || !provider) {
-      return c.json(misconfigured("sync-odds"), 500);
+      return c.json(misconfigured("nfl-sync-odds"), 500);
     }
     const clock = await resolveClock();
-    const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-odds", () =>
-      syncOdds(db, clock, provider, { seasonYear: season, weekNumber: week }),
+    const { season, week, weekType } = c.req.valid("query");
+    return runJob(c, "nfl-sync-odds", () =>
+      syncNflOdds(db, clock, provider, { seasonYear: season, weekType, weekNumber: week }),
     );
   });
 
   app.openapi(syncScoresRoute, async (c) => {
     const { db, provider, clock: resolveClock } = deps;
     if (!db || !resolveClock || !provider) {
-      return c.json(misconfigured("sync-scores"), 500);
+      return c.json(misconfigured("nfl-sync-scores"), 500);
     }
     const clock = await resolveClock();
-    const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-scores", () =>
-      syncScores(db, clock, provider, { seasonYear: season, weekNumber: week }),
+    const { season, week, weekType } = c.req.valid("query");
+    return runJob(c, "nfl-sync-scores", () =>
+      syncNflScores(db, clock, provider, { seasonYear: season, weekType, weekNumber: week }),
     );
   });
 

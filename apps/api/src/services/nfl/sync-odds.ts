@@ -2,7 +2,7 @@ import { and, asc, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
-import { GAME_STATUS, SPORT } from "@picksleagues/schemas";
+import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 
 /**
  * Captures a point-in-time odds snapshot for each unstarted game in the
@@ -14,11 +14,11 @@ import { GAME_STATUS, SPORT } from "@picksleagues/schemas";
  * Never inserts or updates `games`/`weeks` (that is schedule-sync's job) and
  * never writes any `override_*` column (arch D15).
  */
-export async function syncOdds(
+export async function syncNflOdds(
   db: Db,
   clock: Clock,
   provider: GameDataProvider,
-  opts?: { seasonYear?: number; weekNumber?: number },
+  opts?: { seasonYear?: number; weekType?: WeekType; weekNumber?: number },
 ): Promise<Record<string, string | number | boolean>> {
   // One `now` per run: season derivation, every comparison, and capturedAt all
   // share one instant, reaching SQL as a bound parameter (arch D13).
@@ -35,7 +35,15 @@ export async function syncOdds(
     return { skipped: true, reason: "season_not_synced" };
   }
 
-  const targetWeek = await resolveTargetWeek(db, season.id, now, opts?.weekNumber);
+  // An explicit week defaults its type to REGULAR — a bare week number is the
+  // regular-season case; postseason narrowing must name `weekType`.
+  const targetWeek = await resolveTargetWeek(
+    db,
+    season.id,
+    now,
+    opts?.weekNumber,
+    opts?.weekType ?? WEEK_TYPE.REGULAR,
+  );
   if (!targetWeek) {
     // An explicitly requested week that isn't synced is a distinct condition
     // from "no current week" on the derived path — surface the sibling jobs'
@@ -72,7 +80,11 @@ export async function syncOdds(
 
   // Network read outside any transaction (engineering rules: never hold a
   // transaction open across a network call).
-  const providerGames = await provider.fetchWeekGames(seasonYear, targetWeek.weekNumber);
+  const providerGames = await provider.fetchNflWeekGames(
+    seasonYear,
+    targetWeek.weekType,
+    targetWeek.weekNumber,
+  );
   const spreadByProviderId = new Map(
     providerGames.map((game) => [game.providerGameId, game.spread]),
   );
@@ -105,22 +117,31 @@ export async function syncOdds(
 
 /**
  * Resolves the week to snapshot from OUR `weeks` table (never the provider):
- * an explicit override, else the week currently in progress
+ * an explicit (type, number), else the week currently in progress
  * (`startsAt <= now < endsAt`), else the next upcoming week (pre-season odds).
+ * The window-based paths need no type filter — regular and postseason windows
+ * never overlap, so `startsAt <= now < endsAt` picks out exactly one week.
  */
 async function resolveTargetWeek(
   db: Db,
   seasonId: string,
   now: Date,
-  weekNumber?: number,
-): Promise<{ id: string; weekNumber: number } | null> {
-  const selection = { id: weeks.id, weekNumber: weeks.weekNumber };
+  weekNumber: number | undefined,
+  weekType: WeekType,
+): Promise<{ id: string; weekType: WeekType; weekNumber: number } | null> {
+  const selection = { id: weeks.id, weekType: weeks.weekType, weekNumber: weeks.weekNumber };
 
   if (weekNumber !== undefined) {
     const [week] = await db
       .select(selection)
       .from(weeks)
-      .where(and(eq(weeks.seasonId, seasonId), eq(weeks.weekNumber, weekNumber)));
+      .where(
+        and(
+          eq(weeks.seasonId, seasonId),
+          eq(weeks.weekType, weekType),
+          eq(weeks.weekNumber, weekNumber),
+        ),
+      );
     return week ?? null;
   }
 

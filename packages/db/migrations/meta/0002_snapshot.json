@@ -1,5 +1,5 @@
 {
-  "id": "d2251758-00b2-4db6-ba07-4ed28de34748",
+  "id": "fdf1700a-3bdb-4d72-adf6-dbd09975fc2c",
   "prevId": "a8ad9989-de9a-4ba1-9cd4-bf527bae97c9",
   "version": "7",
   "dialect": "postgresql",
@@ -748,9 +748,21 @@
           "primaryKey": false,
           "notNull": true
         },
+        "week_type": {
+          "name": "week_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "week_number": {
           "name": "week_number",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -813,11 +825,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "weeks_season_id_week_number_unique": {
-          "name": "weeks_season_id_week_number_unique",
+        "weeks_season_type_number_unique": {
+          "name": "weeks_season_type_number_unique",
           "nullsNotDistinct": false,
           "columns": [
             "season_id",
+            "week_type",
             "week_number"
           ]
         }

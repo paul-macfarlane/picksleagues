@@ -7,26 +7,31 @@ import {
   type ProviderGame,
   nflSeasonYearFor,
 } from "@picksleagues/core";
-import { GAME_STATUS, SPORT } from "@picksleagues/schemas";
-import { logInfo } from "../lib/logger";
+import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import { logInfo } from "../../lib/logger";
+
+/** Composite key: regular and postseason week numbers overlap (both restart at 1). */
+function weekKey(weekType: WeekType, weekNumber: number): string {
+  return `${weekType}:${weekNumber}`;
+}
 
 /**
- * Ingests the NFL regular-season schedule from the provider into our own
- * tables (arch §External Data — request paths never call the provider; jobs
- * sync, reads serve our tables). Idempotent (engineering rules §Jobs): re-runs
- * with identical provider data leave every row byte-identical, so a missed or
- * double-fired tick is harmless.
+ * Ingests the NFL schedule — regular season and postseason — from the provider
+ * into our own tables (arch §External Data — request paths never call the
+ * provider; jobs sync, reads serve our tables). Idempotent (engineering rules
+ * §Jobs): re-runs with identical provider data leave every row byte-identical,
+ * so a missed or double-fired tick is harmless.
  *
  * Load-bearing invariant (arch D15): this only ever writes provider-synced
  * fields — never any `override_*` column, never `overriddenBy/At`. A re-sync
  * can never clobber an admin correction; reads/settlement resolve
  * `override_* ?? provider_*` elsewhere.
  */
-export async function syncSchedule(
+export async function syncNflSchedule(
   db: Db,
   clock: Clock,
   provider: GameDataProvider,
-  opts?: { seasonYear?: number; weekNumber?: number },
+  opts?: { seasonYear?: number; weekType?: WeekType; weekNumber?: number },
 ): Promise<Record<string, string | number | boolean>> {
   // One `now` per run: season derivation and every row timestamp share one
   // instant, reaching SQL as a bound parameter (arch D13) — never SQL now().
@@ -35,13 +40,17 @@ export async function syncSchedule(
 
   // Fetch phase: all network I/O happens here, before opening the transaction
   // (engineering rules: never hold a transaction open across a network call).
-  const structure = await provider.fetchSeasonStructure(seasonYear);
-  const weekNumbersToFetch =
+  const structure = await provider.fetchNflSeasonStructure(seasonYear);
+  // An explicit week number defaults its type to REGULAR — a bare `?week=` is
+  // the regular-season case; postseason narrowing must name `?weekType=`.
+  const weeksToFetch =
     opts?.weekNumber !== undefined
-      ? [opts.weekNumber]
-      : structure.weeks.map((week) => week.weekNumber);
+      ? [{ weekType: opts.weekType ?? WEEK_TYPE.REGULAR, weekNumber: opts.weekNumber }]
+      : structure.weeks.map((week) => ({ weekType: week.weekType, weekNumber: week.weekNumber }));
   const fetchedGamesPerWeek = await Promise.all(
-    weekNumbersToFetch.map((weekNumber) => provider.fetchWeekGames(seasonYear, weekNumber)),
+    weeksToFetch.map((week) =>
+      provider.fetchNflWeekGames(seasonYear, week.weekType, week.weekNumber),
+    ),
   );
 
   // Dedupe by providerGameId before the write: ESPN transiently lists a
@@ -82,25 +91,34 @@ export async function syncSchedule(
         })
         .returning({ id: sportSeasons.id });
       if (!inserted) {
-        throw new Error(`syncSchedule: sport_seasons insert returned no row for NFL ${seasonYear}`);
+        throw new Error(
+          `syncNflSchedule: sport_seasons insert returned no row for NFL ${seasonYear}`,
+        );
       }
       seasonId = inserted.id;
     }
 
-    // Diff weeks: insert new ones, UPDATE only those whose window actually moved,
-    // leave unchanged weeks untouched (no updatedAt churn on a no-op re-run).
+    // Diff weeks: insert new ones, UPDATE only those whose window or label
+    // actually moved, leave unchanged weeks untouched (no updatedAt churn on a
+    // no-op re-run). Keyed by (weekType, weekNumber) — regular and postseason
+    // week numbers overlap.
     const existingWeeks = await tx.select().from(weeks).where(eq(weeks.seasonId, seasonId));
-    const existingWeekByNumber = new Map(existingWeeks.map((week) => [week.weekNumber, week]));
-    const weekIdByNumber = new Map<number, string>();
+    const existingWeekByKey = new Map(
+      existingWeeks.map((week) => [weekKey(week.weekType, week.weekNumber), week]),
+    );
+    const weekIdByKey = new Map<string, string>();
 
     for (const week of structure.weeks) {
-      const existing = existingWeekByNumber.get(week.weekNumber);
+      const key = weekKey(week.weekType, week.weekNumber);
+      const existing = existingWeekByKey.get(key);
       if (!existing) {
         const [inserted] = await tx
           .insert(weeks)
           .values({
             seasonId,
+            weekType: week.weekType,
             weekNumber: week.weekNumber,
+            label: week.label,
             startsAt: week.startsAt,
             endsAt: week.endsAt,
             createdAt: now,
@@ -110,25 +128,26 @@ export async function syncSchedule(
           // first-insert (overlapping cron + manual trigger) and still return
           // the row's id, keeping "safe to double-trigger" (arch D7).
           .onConflictDoUpdate({
-            target: [weeks.seasonId, weeks.weekNumber],
+            target: [weeks.seasonId, weeks.weekType, weeks.weekNumber],
             set: { updatedAt: now },
           })
           .returning({ id: weeks.id });
         if (!inserted) {
-          throw new Error(`syncSchedule: weeks insert returned no row for week ${week.weekNumber}`);
+          throw new Error(`syncNflSchedule: weeks insert returned no row for week ${key}`);
         }
-        weekIdByNumber.set(week.weekNumber, inserted.id);
+        weekIdByKey.set(key, inserted.id);
         continue;
       }
 
-      weekIdByNumber.set(week.weekNumber, existing.id);
-      const windowChanged =
+      weekIdByKey.set(key, existing.id);
+      const weekChanged =
         existing.startsAt.getTime() !== week.startsAt.getTime() ||
-        existing.endsAt.getTime() !== week.endsAt.getTime();
-      if (windowChanged) {
+        existing.endsAt.getTime() !== week.endsAt.getTime() ||
+        existing.label !== week.label;
+      if (weekChanged) {
         await tx
           .update(weeks)
-          .set({ startsAt: week.startsAt, endsAt: week.endsAt, updatedAt: now })
+          .set({ startsAt: week.startsAt, endsAt: week.endsAt, label: week.label, updatedAt: now })
           .where(eq(weeks.id, existing.id));
       }
     }
@@ -153,10 +172,10 @@ export async function syncSchedule(
       const newGameValues: (typeof games.$inferInsert)[] = [];
 
       for (const game of providerGames) {
-        const weekId = weekIdByNumber.get(game.weekNumber);
+        const weekId = weekIdByKey.get(weekKey(game.weekType, game.weekNumber));
         if (!weekId) {
           throw new Error(
-            `syncSchedule: no week row for week ${game.weekNumber} (game ${game.providerGameId})`,
+            `syncNflSchedule: no week row for ${weekKey(game.weekType, game.weekNumber)} (game ${game.providerGameId})`,
           );
         }
 
@@ -237,7 +256,7 @@ export async function syncSchedule(
 
     return {
       seasonYear,
-      weeksSynced: weekIdByNumber.size,
+      weeksSynced: weekIdByKey.size,
       gamesCreated,
       gamesUpdated,
       duplicateProviderGames,
