@@ -116,7 +116,7 @@ export function jobRoutes(deps: AppDeps) {
     }
     const clock = await resolveClock();
     const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-schedule", { db, clock, alerter: deps.alerter }, () =>
+    return runJob(c, "sync-schedule", () =>
       syncSchedule(db, clock, provider, { seasonYear: season, weekNumber: week }),
     );
   });
@@ -128,7 +128,7 @@ export function jobRoutes(deps: AppDeps) {
     }
     const clock = await resolveClock();
     const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-odds", { db, clock, alerter: deps.alerter }, () =>
+    return runJob(c, "sync-odds", () =>
       syncOdds(db, clock, provider, { seasonYear: season, weekNumber: week }),
     );
   });
@@ -140,7 +140,7 @@ export function jobRoutes(deps: AppDeps) {
     }
     const clock = await resolveClock();
     const { season, week } = c.req.valid("query");
-    return runJob(c, "sync-scores", { db, clock, alerter: deps.alerter }, () =>
+    return runJob(c, "sync-scores", () =>
       syncScores(db, clock, provider, { seasonYear: season, weekNumber: week }),
     );
   });

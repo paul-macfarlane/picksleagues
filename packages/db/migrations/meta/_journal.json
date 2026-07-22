@@ -22,13 +22,6 @@
       "when": 1784685813024,
       "tag": "0002_awesome_iron_patriot",
       "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1784687167550,
-      "tag": "0003_swift_fantastic_four",
-      "breakpoints": true
     }
   ]
 }

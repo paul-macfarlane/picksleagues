@@ -37,14 +37,4 @@ describe("loadEnv", () => {
     const env = loadEnv({ ...validSource, ADMIN_USER_IDS: raw });
     expect(env.ADMIN_USER_IDS).toEqual(expected);
   });
-
-  it("treats an empty DISCORD_ALERT_WEBHOOK_URL as undefined (.env ships the key blank)", () => {
-    const env = loadEnv({ ...validSource, DISCORD_ALERT_WEBHOOK_URL: "" });
-    expect(env.DISCORD_ALERT_WEBHOOK_URL).toBeUndefined();
-  });
-
-  it("rejects a non-empty DISCORD_ALERT_WEBHOOK_URL that isn't a URL", () => {
-    const garbage = { ...validSource, DISCORD_ALERT_WEBHOOK_URL: "not-a-url" };
-    expect(() => loadEnv(garbage)).toThrowError(/DISCORD_ALERT_WEBHOOK_URL/);
-  });
 });

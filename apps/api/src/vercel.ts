@@ -3,7 +3,6 @@ import { EspnProvider, loadEnv, resolveClock } from "@picksleagues/core";
 import { createDb, getSimClockOffsetMs } from "@picksleagues/db";
 import { createApp } from "./app";
 import { createAuth } from "./auth";
-import { createDiscordAlerter } from "./lib/alerting";
 
 // Module scope runs once per cold start; Fluid Compute reuses the instance
 // (and its pg pool) across requests. A bad env config fails the cold start
@@ -13,7 +12,6 @@ const db = createDb(env.DATABASE_URL);
 const auth = createAuth({ env, db });
 // ESPN in every environment today; the future SimulatedProvider swaps in here.
 const provider = new EspnProvider();
-const alerter = createDiscordAlerter(env.DISCORD_ALERT_WEBHOOK_URL);
 
 // Vercel's Node launcher only dispatches Web-signature handlers via named
 // HTTP-method exports; a default export gets the legacy (req, res) calling
@@ -26,7 +24,6 @@ const handler = handle(
     clock: () => resolveClock(env.APP_ENV, () => getSimClockOffsetMs(db)),
     env,
     provider,
-    alerter,
   }),
 );
 
