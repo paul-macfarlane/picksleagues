@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, leagueInvites, leagueMembers, leagues, users } from "@picksleagues/db";
-import { FixedClock, type Env } from "@picksleagues/core";
+import { leagueInvites, leagueMembers, leagues, users } from "@picksleagues/db";
 import {
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
@@ -11,54 +10,19 @@ import {
   type JoinPreviewResponse,
   type LeagueResponse,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, seedSeason } from "./setup/league-helpers";
+import {
+  makeLeagueTestHarness,
+  PRE_START_NOW,
+  WEEK1_KICKOFF,
+  withCookie,
+} from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
 
-const testEnv: Env = {
-  APP_ENV: "local",
-  DATABASE_URL: getTestDatabaseUrl(),
-  BETTER_AUTH_SECRET: "a".repeat(32),
-  BETTER_AUTH_URL: "http://localhost:3000",
-  GOOGLE_CLIENT_ID: "google-id",
-  GOOGLE_CLIENT_SECRET: "google-secret",
-  DISCORD_CLIENT_ID: "discord-id",
-  DISCORD_CLIENT_SECRET: "discord-secret",
-  JOB_SECRET: "b".repeat(32),
-  ADMIN_USER_IDS: [],
-};
-
-const WEEK1_KICKOFF = new Date("2026-09-13T17:00:00.000Z");
-// Two apps over the same DB: one with the clock before the seeded kickoff,
-// one after — the join cutoff is derived per-request from the clock, so the
-// same league is joinable through one app and closed through the other.
-const PRE_START_NOW = new Date("2026-09-01T00:00:00.000Z");
-const POST_START_NOW = new Date("2026-09-13T17:00:00.001Z");
-
-const db = createDb(getTestDatabaseUrl());
-const auth = createAuth({ env: testEnv, db });
-const app = createApp({ auth, db, clock: async () => new FixedClock(PRE_START_NOW) });
-const appAfterKickoff = createApp({
-  auth,
-  db,
-  clock: async () => new FixedClock(POST_START_NOW),
-});
-// now == kickoff exactly: "no joins once the league's first week has started"
-// means the boundary instant itself is already closed (strict <, arch D11).
-const appAtKickoff = createApp({
-  auth,
-  db,
-  clock: async () => new FixedClock(WEEK1_KICKOFF),
-});
+const { db, auth, app, appAfterKickoff, appAtKickoff } = makeLeagueTestHarness();
 
 type App = typeof app;
-
-function withCookie(cookie: string | undefined): Record<string, string> {
-  return cookie ? { cookie } : {};
-}
 
 function postInvite(
   cookie: string | undefined,

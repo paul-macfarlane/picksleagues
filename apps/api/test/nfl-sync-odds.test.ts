@@ -3,7 +3,6 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
 import {
   FixedClock,
-  type Env,
   type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
@@ -15,19 +14,9 @@ import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
+import { makeTestEnv } from "./setup/test-env";
 
-const testEnv: Env = {
-  APP_ENV: "local",
-  DATABASE_URL: getTestDatabaseUrl(),
-  BETTER_AUTH_SECRET: "a".repeat(32),
-  BETTER_AUTH_URL: "http://localhost:3000",
-  GOOGLE_CLIENT_ID: "google-id",
-  GOOGLE_CLIENT_SECRET: "google-secret",
-  DISCORD_CLIENT_ID: "discord-id",
-  DISCORD_CLIENT_SECRET: "discord-secret",
-  JOB_SECRET: "b".repeat(32),
-  ADMIN_USER_IDS: [],
-};
+const testEnv = makeTestEnv();
 
 const SEASON_YEAR = 2026;
 // Week 1 runs 09-08 → 09-15; "now" sits mid-week, after g1's kickoff and

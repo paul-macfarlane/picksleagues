@@ -2,28 +2,16 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { accounts, createDb, sessions, users } from "@picksleagues/db";
-import { FixedClock, type Env } from "@picksleagues/core";
+import { FixedClock } from "@picksleagues/core";
 import { DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
+import { makeTestEnv } from "./setup/test-env";
 
-// Matches packages/core's Env shape without going through loadEnv (which
-// caches process-wide) — this test builds its own Auth instance directly.
-const testEnv: Env = {
-  APP_ENV: "local",
-  DATABASE_URL: getTestDatabaseUrl(),
-  BETTER_AUTH_SECRET: "a".repeat(32),
-  BETTER_AUTH_URL: "http://localhost:3000",
-  GOOGLE_CLIENT_ID: "google-id",
-  GOOGLE_CLIENT_SECRET: "google-secret",
-  DISCORD_CLIENT_ID: "discord-id",
-  DISCORD_CLIENT_SECRET: "discord-secret",
-  JOB_SECRET: "b".repeat(32),
-  ADMIN_USER_IDS: [],
-};
+const testEnv = makeTestEnv();
 
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 

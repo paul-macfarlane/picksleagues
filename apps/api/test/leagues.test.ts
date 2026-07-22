@@ -1,42 +1,13 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, leagueMembers, leagues, leagueSettings } from "@picksleagues/db";
-import { FixedClock, type Env } from "@picksleagues/core";
+import { leagueMembers, leagues, leagueSettings } from "@picksleagues/db";
 import { LEAGUE_STATUS, MEMBER_ROLE, SPORT, type LeagueResponse } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { DEFAULT_PICKEM_SETTINGS, insertLeague, seedSeason } from "./setup/league-helpers";
+import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
 
-const testEnv: Env = {
-  APP_ENV: "local",
-  DATABASE_URL: getTestDatabaseUrl(),
-  BETTER_AUTH_SECRET: "a".repeat(32),
-  BETTER_AUTH_URL: "http://localhost:3000",
-  GOOGLE_CLIENT_ID: "google-id",
-  GOOGLE_CLIENT_SECRET: "google-secret",
-  DISCORD_CLIENT_ID: "discord-id",
-  DISCORD_CLIENT_SECRET: "discord-secret",
-  JOB_SECRET: "b".repeat(32),
-  ADMIN_USER_IDS: [],
-};
-
-// Pre-start relative to the seeded week-1 kickoffs below (2026-09-13).
-const FIXED_NOW = new Date("2026-09-01T00:00:00.000Z");
-const WEEK1_KICKOFF = new Date("2026-09-13T17:00:00.000Z");
-
-const db = createDb(getTestDatabaseUrl());
-const auth = createAuth({ env: testEnv, db });
-const app = createApp({ auth, db, clock: async () => new FixedClock(FIXED_NOW) });
-// Clock past the seeded week-1 kickoff — for asserting that a league can't be
-// born already-started (spec §Creation: "league exists in a pre-start state").
-const appAfterKickoff = createApp({
-  auth,
-  db,
-  clock: async () => new FixedClock(new Date("2026-09-13T17:00:00.001Z")),
-});
+const { db, auth, app, appAfterKickoff } = makeLeagueTestHarness();
 
 const VALID_PICKEM_BODY = {
   mode: "pickem",
