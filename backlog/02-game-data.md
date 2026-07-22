@@ -8,4 +8,6 @@ Sports data schema, the provider abstraction, ESPN ingestion, and the sync jobs.
 - [x] **DATA-4** — `sync-schedule` job: upsert weeks/games/kickoffs; detect postponements, cancellations, and week moves and flag affected picks. _(deps: DATA-2, DATA-3)_
 - [x] **DATA-5** — `sync-odds` job: snapshot current spreads for unstarted games into `odds_snapshots`. _(deps: DATA-2, DATA-3)_
 - [x] **DATA-6** — `sync-scores` job: fetch live/final scores every 5 min, fast no-op when nothing in progress; settlement hookup lands in PKM-4. _(deps: DATA-4)_
-- [x] **DATA-7** — Ingestion failure alerting: Discord webhook on repeated job failure. _(deps: DATA-4)_
+- [x] **DATA-7** — Ingestion failure alerting — resolved as cron-job.org failure emails (jobs return 500 on failure); the in-app Discord webhook + `job_health` streak tracking were built, then removed per owner feedback as overkill (ADR-0007). Operational setup: `docs/runbooks/jobs.md`. _(deps: DATA-4)_
+
+Post-review scope addition (owner feedback, ADR-0007): ingestion covers the NFL **postseason** as well as the regular season — `weeks.week_type` + `label`, Pro Bowl excluded; jobs/services/routes are NFL-named (`/api/jobs/nfl/*`, `services/nfl/`).

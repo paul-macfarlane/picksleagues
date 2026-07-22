@@ -23,8 +23,20 @@ is represented before picks exist, and what "alert on repeated failure" concrete
   and `packages/core` take a workspace dependency on `schemas` (type-only in `db`).
   `moved` is override-only — providers express a week move as the game's week FK
   changing; ingestion never writes `moved`.
-- **Regular-season-only ingestion (ESPN seasontype 2) for MVP.** All MVP NFL modes run
-  on the regular season; NCAAMB bracket ingestion is its own epic.
+- **NFL ingestion covers the regular season AND the postseason** (ESPN seasontypes 2 and
+  3) — owner decision: playoffs are MVP scope. `weeks` carry a `week_type`
+  (`regular | postseason`) and a provider display `label` ("Week 5", "Wild Card");
+  uniqueness is `(season, week_type, week_number)`. The Pro Bowl is excluded at the
+  adapter by label — it is not a competitive game. How playoff weeks interact with each
+  game mode's rules (pick'em slates, elimination survival) is a separate product decision
+  the mode epics must settle. NCAAMB bracket ingestion is its own epic.
+- **NFL-specific code is visibly NFL-specific.** Sport-specific pieces carry the sport in
+  their names and paths: `services/nfl/`, routes `/jobs/nfl/*`, `syncNfl*` services,
+  `fetchNfl*` provider methods, `nflSeasonYearFor`. Generic infrastructure stays
+  unprefixed: the db tables (`sport_seasons.sport` discriminates), `GAME_STATUS` /
+  `SPORT` / `WEEK_TYPE` value sets, the jobs skeleton (secret guard, logger, `runJob`),
+  and `odds_snapshots`. A future sport adds its own named methods/services/routes rather
+  than overloading NFL ones.
 - **Job endpoints are part of the OpenAPI contract** (`POST /jobs/sync-*`), guarded by a
   timing-safe `x-job-secret` header check, with one uniform `JobRunResponse` envelope
   for 200 and 500 (a deliberate deviation from the `ErrorResponse` 500 idiom so jobs
@@ -39,11 +51,11 @@ is represented before picks exist, and what "alert on repeated failure" concrete
   detected, counted, and logged, but **no pick-flag state is stored** — pick push/re-pick
   handling derives from game status + week FK at settlement time (spec §Cancellations,
   arch D10's pure-derivation rule).
-- **Repeated-failure alerting = per-job consecutive-failure streaks** in a `job_health`
-  table, maintained by the shared job runner; a Discord webhook
-  (`DISCORD_ALERT_WEBHOOK_URL`, optional) fires once when a streak reaches 3, and a
-  success resets the streak. Alerting and bookkeeping are best-effort: they can never
-  change a job's outcome.
+- **Failure alerting is delegated to the cron scheduler.** Jobs return HTTP 500 on
+  failure and cron-job.org's failure notifications email the owner — no in-app alerting.
+  (An earlier revision of this ADR carried a `job_health` streak table + Discord webhook;
+  the owner cut it as overkill for data-fetch jobs before merge. If richer job-run
+  visibility is ever needed, it lands with the admin page, not as alerting.)
 
 ## Consequences
 
@@ -57,15 +69,13 @@ is represented before picks exist, and what "alert on repeated failure" concrete
 - Storing no pick-flag state means settlement (PKM-4+) must derive cancellation/move
   semantics from game rows — the recompute-friendly path the architecture already
   requires; nothing to migrate when picks land.
-- Ingesting only regular-season weeks means postseason NFL data is invisible to the app;
-  revisit only if a post-MVP mode needs it.
-- One alert per failure streak keeps noise near zero at the cost of no reminder while a
-  job stays broken; revisit (re-alert interval) if a silent multi-day outage ever bites.
-- **Accepted risk:** the failure streak lives in the same Postgres the jobs use, so a
-  full database outage suppresses the Discord alert path. That mode is covered instead
-  by cron-job.org's own failure notifications (failed jobs return 500); the webhook
-  exists for app-level failures — ESPN shape drift, mapping bugs — where the DB is
-  healthy. Revisit only if an outage proves this insufficient.
+- Postseason ingestion lands data the game modes don't yet consume; the mode epics
+  (pick'em, elimination) owe a product decision on playoff-week behavior before those
+  weeks surface anywhere user-facing.
+- Alerting-via-scheduler means alert fidelity is cron-job.org's: one email per failed
+  request, no streak dedup, and nothing fires if the scheduler itself is down or
+  misconfigured. Accepted at this scale; the Vercel `job.failed` log line is the
+  secondary signal. Revisit only if alert noise or a silent outage actually bites.
 - **Accepted freshness corner:** the sync-scores fast no-op gate keys on
   `status ∈ (scheduled, in_progress)` and our stored `kickoff_at`, so a game postponed
   then resumed the same day, or a kickoff moved earlier than the last schedule sync

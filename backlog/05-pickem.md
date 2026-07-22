@@ -2,6 +2,8 @@
 
 The first game mode, plus the **shared settlement core** (`pick_results`, `standings`, settle orchestration, nightly sweep) that ELM and MM reuse. Ref: spec §Game Mode 1; arch §Settlement & Scoring, §Locking Model, D9–D11.
 
+> **Playoffs (owner decision, ADR-0007):** NFL postseason weeks are ingested and available (`weeks.week_type = postseason`, Wild Card → Super Bowl, no Pro Bowl). PKM-1's settings work must decide how leagues opt into playoff weeks (e.g. end-week extends past week 18, or an include-playoffs flag) and PKM-3's scoring must handle playoff slates (fewer games per week). Update spec §Game Mode 1 when settled.
+
 - [ ] **PKM-1** — `PickemSettings` Zod schema (start/end week, SU/ATS, picks per week, push/tie resolution) + create-league settings form. _(deps: LG-2)_
 - [ ] **PKM-2** — `pickem_picks` schema + batch upsert endpoint (`PUT /leagues/:id/picks/week/:week`): clock-derived per-game locking (409 post-kickoff), ATS all-unstarted spread acceptance with staleness rejection (409), spread denormalized onto the pick; kickoff-gated visibility filtering in the read path. _(deps: PKM-1, DATA-5, FND-6)_
 - [ ] **PKM-3** — `settlePickemWeek` pure function in `packages/scoring` with exhaustive table-driven tests — the spec §Game Mode 1 scoring/tiebreaker/cancellation matrix is the test plan (pushes, ties, cancellation-as-push, short weeks, differentials). _(deps: FND-7)_
