@@ -14,3 +14,5 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0002](0002-baseline-architecture-v0-3.md)    | Adopt architecture v0.3 as baseline  | Accepted |
 | [0003](0003-migrations-via-github-actions.md) | Deployed-DB migrations via GH Actions | Accepted |
 | [0004](0004-multi-commissioner-leagues.md)    | Multi-commissioner leagues; no mid-season leaving | Accepted |
+| [0005](0005-tanstack-form.md)                 | TanStack Form for SPA forms          | Accepted |
+| [0006](0006-minted-session-e2e.md)            | Minted-session E2E ahead of the simulator | Accepted |

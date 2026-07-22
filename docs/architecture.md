@@ -18,7 +18,7 @@
 
 | Layer | Choice | Rationale |
 | --- | --- | --- |
-| SPA | Vite + React + TanStack Router + TanStack Query | Familiar stack; type-safe routing; Query handles all server state |
+| SPA | Vite + React + TanStack Router + TanStack Query + TanStack Form (ADR-0005) | Familiar stack; type-safe routing; Query handles all server state; Form takes shared Zod schemas as validators directly |
 | UI | Tailwind + shadcn/ui | Shared with Paulitakes; mobile-first responsive |
 | API | Hono + `@hono/zod-openapi` on Vercel Functions | Zod schemas → runtime validation + OpenAPI spec + TS types from one definition |
 | API client | `openapi-typescript` + `openapi-fetch` | Generated from the spec; the SPA consumes the contract like any future client would |
@@ -68,7 +68,7 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 **2. Integration — API against a real Postgres.** Hono app exercised in-process (no HTTP server needed) against Docker Postgres (locally: the same compose file as dev; in CI: a Postgres service container). Covers what unit tests can't: transaction-level lock validation (409 on post-kickoff mutation), spread staleness rejection, pick visibility filtering, join cutoff and commissioner-cap enforcement, settlement idempotency (run twice, assert identical state), and override precedence (see Manual Sports Data Overrides).
 
-**3. E2E — Playwright against the full local stack.** Runs the real SPA + API + DB with `SimulatedProvider` and the simulated clock — no network mocking anywhere. Core journeys as simulator-scripted scenarios: create league → invite → join → pick → advance clock past kickoff → assert lock and visibility → settle → assert standings; an elimination season including a revival week; a full bracket lifecycle including a vacated-team auto-advance. Deterministic by construction because time and data are both controlled. This is the merge gate.
+**3. E2E — Playwright against the full local stack.** Runs the real SPA + API + DB with `SimulatedProvider` and the simulated clock — no network mocking anywhere. Core journeys as simulator-scripted scenarios: create league → invite → join → pick → advance clock past kickoff → assert lock and visibility → settle → assert standings; an elimination season including a revival week; a full bracket lifecycle including a vacated-team auto-advance. Deterministic by construction because time and data are both controlled. This is the merge gate. Time-independent flows additionally get thin per-epic E2E specs ahead of the simulator, authenticated via minted Better Auth sessions (`e2e/setup/session.ts` + Playwright `addCookies` — the OAuth provider hop itself stays manual); anything time-dependent waits for the simulated clock (ADR-0006).
 
 **CI:** GitHub Actions on every PR — typecheck, lint (including the no-raw-`Date.now()` rule), unit, integration, e2e. Green CI required to merge to `staging`; promotion `staging` → `main` re-runs the same suite. No separate manual QA phase — staging plus the simulator is the manual-exploration surface.
 
