@@ -46,7 +46,7 @@ const jobResponses = {
   },
 } as const;
 
-const syncScheduleRoute = createRoute({
+const nflSyncScheduleRoute = createRoute({
   method: "post",
   path: "/jobs/nfl/sync-schedule",
   operationId: "runNflSyncSchedule",
@@ -55,7 +55,7 @@ const syncScheduleRoute = createRoute({
   responses: jobResponses,
 });
 
-const syncOddsRoute = createRoute({
+const nflSyncOddsRoute = createRoute({
   method: "post",
   path: "/jobs/nfl/sync-odds",
   operationId: "runNflSyncOdds",
@@ -64,7 +64,7 @@ const syncOddsRoute = createRoute({
   responses: jobResponses,
 });
 
-const syncScoresRoute = createRoute({
+const nflSyncScoresRoute = createRoute({
   method: "post",
   path: "/jobs/nfl/sync-scores",
   operationId: "runNflSyncScores",
@@ -112,7 +112,7 @@ export function jobRoutes(deps: AppDeps) {
     return jobSecretMiddleware(deps.env.JOB_SECRET)(c, next);
   });
 
-  app.openapi(syncScheduleRoute, async (c) => {
+  app.openapi(nflSyncScheduleRoute, async (c) => {
     const { db, provider, clock: resolveClock } = deps;
     if (!db || !resolveClock || !provider) {
       return c.json(misconfigured("nfl-sync-schedule"), 500);
@@ -124,7 +124,7 @@ export function jobRoutes(deps: AppDeps) {
     );
   });
 
-  app.openapi(syncOddsRoute, async (c) => {
+  app.openapi(nflSyncOddsRoute, async (c) => {
     const { db, provider, clock: resolveClock } = deps;
     if (!db || !resolveClock || !provider) {
       return c.json(misconfigured("nfl-sync-odds"), 500);
@@ -136,7 +136,7 @@ export function jobRoutes(deps: AppDeps) {
     );
   });
 
-  app.openapi(syncScoresRoute, async (c) => {
+  app.openapi(nflSyncScoresRoute, async (c) => {
     const { db, provider, clock: resolveClock } = deps;
     if (!db || !resolveClock || !provider) {
       return c.json(misconfigured("nfl-sync-scores"), 500);

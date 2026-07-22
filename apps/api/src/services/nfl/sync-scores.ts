@@ -153,7 +153,7 @@ export async function syncNflScores(
 
       if (becameFinal) {
         wentFinal += 1;
-        logInfo("sync-scores.final", { providerGameId: providerGame.providerGameId });
+        logInfo("nfl-sync-scores.final", { providerGameId: providerGame.providerGameId });
         // PKM-4 hookup site: settlement is invoked here once a game goes final
         // (deferred to that task — sync-scores only ingests the final result).
       }

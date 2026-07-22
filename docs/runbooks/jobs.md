@@ -18,8 +18,11 @@ the cron scheduler alerts on).
 
 Query params (all optional; defaults derive from the Clock and our own tables):
 `season` (e.g. `2026`), `week`, `weekType` (`regular` | `postseason`; defaults to
-`regular` when `week` is given). Explicit params are the manual/simulator path — the
-season replay drives these same endpoints with explicit values.
+`regular` when `week` is given, and is only meaningful together with `week` — bare
+`weekType` is ignored). Explicit params are the manual/simulator path — the season
+replay drives these same endpoints with explicit values. A requested week the provider
+doesn't expose (e.g. the excluded Pro Bowl week) returns `{ skipped: true, reason:
+"week_not_synced" }`.
 
 ## Authentication
 

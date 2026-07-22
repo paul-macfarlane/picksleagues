@@ -16,7 +16,8 @@ is represented before picks exist, and what "alert on repeated failure" concrete
 ## Decision
 
 - **Domain tables use `uuid` PKs (`gen_random_uuid()`) with natural unique keys** for
-  upserts (`games.provider_game_id`, `(season_id, week_number)`, `(sport, year)`).
+  upserts (`games.provider_game_id`, `(season_id, week_type, week_number)`,
+  `(sport, year)`).
   Better Auth's app-generated text PKs are an adapter convention, not a domain one.
 - **`GAME_STATUS` and `SPORT` value sets live in `packages/schemas`**
   (`scheduled | in_progress | final | postponed | cancelled | moved`); `packages/db`
@@ -37,7 +38,7 @@ is represented before picks exist, and what "alert on repeated failure" concrete
   `SPORT` / `WEEK_TYPE` value sets, the jobs skeleton (secret guard, logger, `runJob`),
   and `odds_snapshots`. A future sport adds its own named methods/services/routes rather
   than overloading NFL ones.
-- **Job endpoints are part of the OpenAPI contract** (`POST /jobs/sync-*`), guarded by a
+- **Job endpoints are part of the OpenAPI contract** (`POST /jobs/nfl/sync-*`), guarded by a
   timing-safe `x-job-secret` header check, with one uniform `JobRunResponse` envelope
   for 200 and 500 (a deliberate deviation from the `ErrorResponse` 500 idiom so jobs
   keep exactly one failure shape). Manual/simulator triggers pass explicit

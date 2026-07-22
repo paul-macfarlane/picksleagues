@@ -71,6 +71,7 @@ export async function syncNflOdds(
   if (unstartedGames.length === 0) {
     return {
       seasonYear,
+      weekType: targetWeek.weekType,
       weekNumber: targetWeek.weekNumber,
       unstartedGames: 0,
       snapshotsInserted: 0,
@@ -108,6 +109,7 @@ export async function syncNflOdds(
 
   return {
     seasonYear,
+    weekType: targetWeek.weekType,
     weekNumber: targetWeek.weekNumber,
     unstartedGames: unstartedGames.length,
     snapshotsInserted: snapshotRows.length,
@@ -148,7 +150,11 @@ async function resolveTargetWeek(
   const [current] = await db
     .select(selection)
     .from(weeks)
-    .where(and(eq(weeks.seasonId, seasonId), lte(weeks.startsAt, now), gt(weeks.endsAt, now)));
+    .where(and(eq(weeks.seasonId, seasonId), lte(weeks.startsAt, now), gt(weeks.endsAt, now)))
+    // Windows shouldn't overlap across week types, but don't let that provider
+    // claim be load-bearing: pick the earliest-starting match deterministically.
+    .orderBy(asc(weeks.startsAt))
+    .limit(1);
   if (current) {
     return current;
   }

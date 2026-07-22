@@ -324,6 +324,15 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(gameRows.map((g) => g.providerGameId).sort()).toEqual(["g1", "g2"]);
   });
 
+  it("skips an explicit week the structure doesn't expose (e.g. the excluded Pro Bowl week)", async () => {
+    seedBaselineProvider();
+
+    const details = await runOk("?weekType=postseason&week=4");
+    expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
+    // Nothing was written — the skip happens before any fetch or transaction.
+    expect(await db.select().from(games)).toHaveLength(0);
+  });
+
   it("honors an explicit ?season=", async () => {
     seedBaselineProvider();
     provider.structure.seasonYear = 2025;
@@ -428,5 +437,30 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
       .from(weeks)
       .where(and(eq(weeks.weekType, WEEK_TYPE.POSTSEASON), eq(weeks.weekNumber, 1)));
     expect(gameRows[0]?.weekId).toBe(postseasonWeek?.id);
+  });
+
+  it("skips with week_not_synced for an explicit week the structure doesn't expose (e.g. the Pro Bowl)", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z")],
+    };
+    provider.gamesByWeek = new Map([
+      // The provider would even return games for the excluded week — the skip
+      // must fire off the structure, before any game fetch is attempted.
+      [
+        weekKey(WEEK_TYPE.POSTSEASON, 4),
+        [
+          providerGame({
+            providerGameId: "probowl",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 4,
+          }),
+        ],
+      ],
+    ]);
+
+    const details = await runOk("?weekType=postseason&week=4");
+    expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
+    expect(await db.select().from(games)).toEqual([]);
   });
 });

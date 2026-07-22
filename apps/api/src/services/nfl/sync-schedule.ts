@@ -47,6 +47,17 @@ export async function syncNflSchedule(
     opts?.weekNumber !== undefined
       ? [{ weekType: opts.weekType ?? WEEK_TYPE.REGULAR, weekNumber: opts.weekNumber }]
       : structure.weeks.map((week) => ({ weekType: week.weekType, weekNumber: week.weekNumber }));
+  // An explicit week the structure doesn't expose (the excluded Pro Bowl week,
+  // or a number out of range) skips like the sibling jobs instead of fetching
+  // games we'd have no week row for and 500ing the run.
+  if (
+    opts?.weekNumber !== undefined &&
+    !structure.weeks.some(
+      (week) => week.weekType === weeksToFetch[0]?.weekType && week.weekNumber === opts.weekNumber,
+    )
+  ) {
+    return { seasonYear, skipped: true, reason: "week_not_synced" };
+  }
   const fetchedGamesPerWeek = await Promise.all(
     weeksToFetch.map((week) =>
       provider.fetchNflWeekGames(seasonYear, week.weekType, week.weekNumber),
@@ -207,19 +218,19 @@ export async function syncNflSchedule(
 
         if (existing.status !== GAME_STATUS.POSTPONED && game.status === GAME_STATUS.POSTPONED) {
           postponements += 1;
-          logInfo("sync-schedule.postponed", { providerGameId: game.providerGameId });
+          logInfo("nfl-sync-schedule.postponed", { providerGameId: game.providerGameId });
         }
         if (existing.status !== GAME_STATUS.CANCELLED && game.status === GAME_STATUS.CANCELLED) {
           cancellations += 1;
-          logInfo("sync-schedule.cancelled", { providerGameId: game.providerGameId });
+          logInfo("nfl-sync-schedule.cancelled", { providerGameId: game.providerGameId });
         }
         if (existing.weekId !== weekId) {
           weekMoves += 1;
-          logInfo("sync-schedule.week-move", { providerGameId: game.providerGameId });
+          logInfo("nfl-sync-schedule.week-move", { providerGameId: game.providerGameId });
         }
         if (existing.kickoffAt.getTime() !== game.kickoffAt.getTime()) {
           kickoffChanges += 1;
-          logInfo("sync-schedule.kickoff-change", { providerGameId: game.providerGameId });
+          logInfo("nfl-sync-schedule.kickoff-change", { providerGameId: game.providerGameId });
         }
 
         const changed =
