@@ -1,7 +1,8 @@
-import { and, count, eq, gt } from "drizzle-orm";
+import { and, count, eq, gt, sql } from "drizzle-orm";
 import { DatabaseError } from "pg";
 import type { Db } from "@picksleagues/db";
 import { accounts, leagueMembers, leagues, sessions, users } from "@picksleagues/db";
+import { lockUserRow } from "./leagues";
 import type { Clock } from "@picksleagues/core";
 import {
   DELETED_USER_DISPLAY_NAME,
@@ -97,6 +98,19 @@ export async function deleteAccount(
   userId: string,
 ): Promise<DeleteAccountResult> {
   return db.transaction(async (tx) => {
+    // Serializes the invariant check against concurrent role mutations: lock
+    // the user row (create/promote take it for cap counts) and every league
+    // the user commissions (demote/kick/leave take the league row lock) —
+    // without these, a concurrent demote could invalidate the guard's
+    // snapshot between check and commit.
+    await lockUserRow(tx, userId);
+    await tx.execute(sql`
+      select l.id from ${leagues} l
+      join ${leagueMembers} m on m.league_id = l.id
+      where m.user_id = ${userId} and m.role = ${MEMBER_ROLE.COMMISSIONER}
+      for update of l
+    `);
+
     if (await isLastCommissionerOfNonEmptyActiveLeague(tx, userId)) {
       return { ok: false as const, reason: "last_commissioner" as const };
     }

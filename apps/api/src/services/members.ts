@@ -13,6 +13,8 @@ import {
   getMembership,
   isPreStart,
   leagueStartAt,
+  lockLeagueRow,
+  lockUserRow,
 } from "./leagues";
 
 /**
@@ -60,6 +62,10 @@ export async function updateMemberRole(
 ): Promise<UpdateMemberRoleResult> {
   try {
     return await db.transaction(async (tx) => {
+      // Serializes concurrent role mutations on this league — the invariant
+      // count below is only meaningful once we hold the league lock.
+      await lockLeagueRow(tx, leagueId);
+
       const actor = await getMembership(tx, leagueId, actorId);
       if (!actor) return { ok: false, reason: "league_not_found" as const };
       if (actor.role !== MEMBER_ROLE.COMMISSIONER) {
@@ -72,6 +78,12 @@ export async function updateMemberRole(
         .where(and(eq(leagueMembers.id, memberId), eq(leagueMembers.leagueId, leagueId)));
       if (!target) return { ok: false, reason: "member_not_found" as const };
       if (target.role === role) return { ok: true as const };
+
+      if (role === MEMBER_ROLE.COMMISSIONER) {
+        // Serializes the recipient's cross-league cap count against their
+        // concurrent creates/promotes elsewhere.
+        await lockUserRow(tx, target.userId);
+      }
 
       await tx
         .update(leagueMembers)
@@ -121,6 +133,8 @@ export async function kickMember(
 ): Promise<KickMemberResult> {
   try {
     return await db.transaction(async (tx) => {
+      await lockLeagueRow(tx, leagueId);
+
       const actor = await getMembership(tx, leagueId, actorId);
       if (!actor) return { ok: false, reason: "league_not_found" as const };
       if (actor.role !== MEMBER_ROLE.COMMISSIONER) {
@@ -176,6 +190,8 @@ export async function leaveLeague(
 ): Promise<LeaveLeagueResult> {
   try {
     return await db.transaction(async (tx) => {
+      await lockLeagueRow(tx, leagueId);
+
       const membership = await getMembership(tx, leagueId, userId);
       if (!membership) return { ok: false, reason: "league_not_found" as const };
 

@@ -52,7 +52,7 @@ const postLeagues = createRoute({
     401: UNAUTHENTICATED_401,
     409: {
       description:
-        "Creator is already commissioner of 10 active leagues (cap_exceeded), or the mode's sport has no ingested season to bind to (no_active_season)",
+        "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     500: MISCONFIGURED_500,
@@ -128,7 +128,8 @@ const patchLeague = createRoute({
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
     409: {
-      description: "Visibility/settings edit after league start (league_started)",
+      description:
+        "Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed)",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     500: MISCONFIGURED_500,
@@ -218,11 +219,15 @@ export function leagueRoutes(deps: AppDeps) {
 
     const result = await createLeague(deps.db, clock, sessionUser.id, input);
     if (!result.ok) {
-      const message =
-        result.reason === "cap_exceeded"
-          ? "You already run 10 active leagues — conclude or delete one first."
-          : "That game mode has no season available yet.";
-      return c.json(ErrorResponseSchema.parse({ error: result.reason, message }), 409);
+      const messages = {
+        cap_exceeded: "You already run 10 active leagues — conclude or delete one first.",
+        no_active_season: "That game mode has no season available yet.",
+        start_week_passed: "That start week has already begun — choose a later start.",
+      } as const;
+      return c.json(
+        ErrorResponseSchema.parse({ error: result.reason, message: messages[result.reason] }),
+        409,
+      );
     }
 
     return c.json(result.league, 201);
@@ -305,6 +310,14 @@ export function leagueRoutes(deps: AppDeps) {
             ErrorResponseSchema.parse({
               error: "league_started",
               message: "Visibility and settings are locked once the league starts.",
+            }),
+            409,
+          );
+        case "start_week_passed":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: "start_week_passed",
+              message: "That start week has already begun — choose a later start.",
             }),
             409,
           );

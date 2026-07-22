@@ -30,6 +30,13 @@ const WEEK1_KICKOFF = new Date("2026-09-13T17:00:00.000Z");
 const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: testEnv, db });
 const app = createApp({ auth, db, clock: async () => new FixedClock(FIXED_NOW) });
+// Clock past the seeded week-1 kickoff — for asserting that a league can't be
+// born already-started (spec §Creation: "league exists in a pre-start state").
+const appAfterKickoff = createApp({
+  auth,
+  db,
+  clock: async () => new FixedClock(new Date("2026-09-13T17:00:00.001Z")),
+});
 
 const VALID_PICKEM_BODY = {
   mode: "pickem",
@@ -42,8 +49,12 @@ const VALID_PICKEM_BODY = {
   },
 };
 
-function postLeague(cookie: string | undefined, body: Record<string, unknown>) {
-  return app.request("/api/leagues", {
+function postLeague(
+  cookie: string | undefined,
+  body: Record<string, unknown>,
+  on: typeof app = app,
+) {
+  return on.request("/api/leagues", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -266,6 +277,32 @@ describe("POST /api/leagues", () => {
     });
 
     const res = await postLeague(cookie, VALID_PICKEM_BODY);
+    expect(res.status).toBe(201);
+  });
+
+  it("409s a start week that has already begun — a league must be born pre-start", async () => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, VALID_PICKEM_BODY, appAfterKickoff);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "start_week_passed" });
+    expect(await db.select().from(leagues)).toHaveLength(0);
+  });
+
+  it("allows a passed calendar date when the start week has no ingested games yet", async () => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    // Week 2 has no games, so no start boundary exists yet — pre-start.
+    const res = await postLeague(
+      cookie,
+      {
+        ...VALID_PICKEM_BODY,
+        settings: { ...VALID_PICKEM_BODY.settings, startWeek: { type: "regular", number: 2 } },
+      },
+      appAfterKickoff,
+    );
     expect(res.status).toBe(201);
   });
 

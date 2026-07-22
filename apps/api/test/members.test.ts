@@ -425,4 +425,87 @@ describe("DELETE /api/me — last-commissioner guard (LG-6 closes the ID-3 TODO)
     const res = await patchMember(commish.cookie, league.id, randomUUID(), "member");
     expect(res.status).toBe(404);
   });
+
+  it("409s while solely commissioning ANY non-empty league, despite a safely co-commissioned one", async () => {
+    const { seasonId, commish, member, league } = await seedLeague();
+    // League A (seedLeague's): promote the member so it's safely co-commissioned.
+    const target = await membershipOf(league.id, member.user.id);
+    await patchMember(commish.cookie, league.id, target!.id, "commissioner");
+    // League B: commish is the sole commissioner with another member — blocks.
+    const other = await createAuthenticatedUser(auth, { username: "other_member" });
+    await insertLeague(db, {
+      seasonId,
+      name: "Solely Commissioned",
+      members: [
+        { userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER },
+        { userId: other.user.id, role: MEMBER_ROLE.MEMBER },
+      ],
+    });
+
+    const res = await deleteMe(commish.cookie);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "last_commissioner" });
+  });
+});
+
+describe("concurrency", () => {
+  it("two commissioners self-demoting concurrently can't strand the league (ADR-0004)", async () => {
+    const { commish, member, league } = await seedLeague();
+    const target = await membershipOf(league.id, member.user.id);
+    await patchMember(commish.cookie, league.id, target!.id, "commissioner");
+    const self = await membershipOf(league.id, commish.user.id);
+
+    const [resA, resB] = await Promise.all([
+      patchMember(commish.cookie, league.id, self!.id, "member"),
+      patchMember(member.cookie, league.id, target!.id, "member"),
+    ]);
+    expect([resA.status, resB.status].sort()).toEqual([204, 409]);
+
+    const commissioners = (
+      await db.select().from(leagueMembers).where(eq(leagueMembers.leagueId, league.id))
+    ).filter((m) => m.role === MEMBER_ROLE.COMMISSIONER);
+    expect(commissioners).toHaveLength(1);
+  });
+});
+
+describe("PATCH settings cannot move the start into the past", () => {
+  it("409s start_week_passed when new settings' start week has already begun", async () => {
+    const { seasonId } = await seedSeason(db, {
+      year: 2026,
+      weeks: [
+        { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+        { weekNumber: 2, kickoffs: [] },
+      ],
+    });
+    const commish = await createAuthenticatedUser(auth, { username: "commish" });
+    // Starts week 2 (no games yet) — still pre-start even after week 1 kicked off.
+    const league = await insertLeague(db, {
+      seasonId,
+      settings: {
+        startWeek: { type: "regular", number: 2 },
+        endWeek: { type: "regular", number: 18 },
+        pickType: "straight_up",
+        picksPerWeek: 5,
+        pushTieResolution: "half_point",
+      },
+      members: [{ userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+    });
+
+    const res = await patchLeague(
+      commish.cookie,
+      league.id,
+      {
+        settings: {
+          startWeek: { type: "regular", number: 1 },
+          endWeek: { type: "regular", number: 18 },
+          pickType: "straight_up",
+          picksPerWeek: 5,
+          pushTieResolution: "half_point",
+        },
+      },
+      appAfterKickoff,
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "start_week_passed" });
+  });
 });

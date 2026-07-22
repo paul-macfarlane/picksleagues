@@ -887,7 +887,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), or the mode's sport has no ingested season to bind to (no_active_season) */
+            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1081,7 +1081,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Visibility/settings edit after league start (league_started) */
+            /** @description Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed) */
             409: {
                 headers: {
                     [name: string]: unknown;

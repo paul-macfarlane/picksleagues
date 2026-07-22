@@ -93,8 +93,26 @@ export function isPreStart(startsAt: Date | null, clock: Clock): boolean {
   return startsAt === null || clock.now().getTime() < startsAt.getTime();
 }
 
+/**
+ * Row locks serializing this epic's count-after-write invariant checks (the
+ * 10-commissionership cap, the ≥1-commissioner invariant, the 100-member
+ * size cap). Under READ COMMITTED, two concurrent transactions can each pass
+ * a post-write count and jointly break the rule; taking the same row lock
+ * first makes them queue, so the second one's count sees the first's
+ * committed writes. Every membership-mutating transaction MUST take the
+ * league lock; cap checks (per-user, cross-league) take the user lock.
+ */
+export async function lockLeagueRow(tx: Db, leagueId: string): Promise<void> {
+  await tx.execute(sql`select id from ${leagues} where id = ${leagueId} for update`);
+}
+
+export async function lockUserRow(tx: Db, userId: string): Promise<void> {
+  await tx.execute(sql`select id from ${users} where id = ${userId} for update`);
+}
+
 export type CreateLeagueResult =
-  { ok: true; league: LeagueResponse } | { ok: false; reason: "no_active_season" | "cap_exceeded" };
+  | { ok: true; league: LeagueResponse }
+  | { ok: false; reason: "no_active_season" | "cap_exceeded" | "start_week_passed" };
 
 class CapExceededError extends Error {}
 
@@ -119,10 +137,27 @@ export async function createLeague(
   // Second line of defense behind the route's discriminated union; also
   // applies schema defaults if the service is ever called directly.
   const settings = LEAGUE_SETTINGS_SCHEMAS[input.mode].parse(input.settings);
+
+  // Spec §Creation: a league exists in a PRE-start state. A start week whose
+  // kickoff already passed would be born started — joins closed, settings
+  // locked, undeletable, unleavable — so refuse it up front. This is the
+  // normal offseason shape (latest season fully played), not an edge case.
+  const startsAtPreCheck = await leagueStartAt(
+    db,
+    { mode: input.mode, seasonId: season.id },
+    settings,
+  );
+  if (!isPreStart(startsAtPreCheck, clock)) {
+    return { ok: false, reason: "start_week_passed" };
+  }
+
   const now = clock.now();
 
   try {
     const league = await db.transaction(async (tx) => {
+      // Serializes the per-user cap count against concurrent creates/promotes.
+      await lockUserRow(tx, userId);
+
       const [created] = await tx
         .insert(leagues)
         .values({
@@ -213,9 +248,15 @@ export class JoinRefusedError extends Error {
   }
 }
 
+/** Thrown by joinLeagueInTx when the league is absent (or not public when required). */
+export class LeagueMissingError extends Error {}
+
 /**
  * Membership-rule core shared by invite joins and public joins (spec
- * §Membership), run INSIDE the caller's transaction:
+ * §Membership), run INSIDE the caller's transaction. Locks the league row
+ * FIRST, then reads league state and runs every check post-lock, so
+ * concurrent joins serialize (the size-cap count sees prior commits) and a
+ * conclusion/visibility flip can't slip through a stale snapshot:
  * 1. already a member → refuse (the unique constraint is the race backstop);
  * 2. league concluded → refuse;
  * 3. clock-derived join cutoff — the league has started (arch §Locking
@@ -226,17 +267,28 @@ export class JoinRefusedError extends Error {
 export async function joinLeagueInTx(
   tx: Db,
   clock: Clock,
-  league: Pick<LeagueRow, "id" | "mode" | "seasonId" | "status">,
-  settings: LeagueSettings,
+  leagueId: string,
   userId: string,
+  { mustBePublic = false }: { mustBePublic?: boolean } = {},
 ): Promise<void> {
-  if (await getMembership(tx, league.id, userId)) {
+  await lockLeagueRow(tx, leagueId);
+
+  const [row] = await tx
+    .select({ league: leagues, settings: leagueSettings.settings })
+    .from(leagues)
+    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+    .where(eq(leagues.id, leagueId));
+  if (!row || (mustBePublic && row.league.visibility !== LEAGUE_VISIBILITY.PUBLIC)) {
+    throw new LeagueMissingError();
+  }
+
+  if (await getMembership(tx, leagueId, userId)) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.ALREADY_MEMBER);
   }
-  if (league.status !== LEAGUE_STATUS.ACTIVE) {
+  if (row.league.status !== LEAGUE_STATUS.ACTIVE) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED);
   }
-  const startsAt = await leagueStartAt(tx, league, settings);
+  const startsAt = await leagueStartAt(tx, row.league, row.settings);
   if (!isPreStart(startsAt, clock)) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.JOIN_CLOSED);
   }
@@ -244,7 +296,7 @@ export async function joinLeagueInTx(
   const now = clock.now();
   try {
     await tx.insert(leagueMembers).values({
-      leagueId: league.id,
+      leagueId,
       userId,
       role: MEMBER_ROLE.MEMBER,
       createdAt: now,
@@ -257,7 +309,7 @@ export async function joinLeagueInTx(
     throw error;
   }
 
-  if ((await countMembers(tx, league.id)) > MAX_LEAGUE_SIZE) {
+  if ((await countMembers(tx, leagueId)) > MAX_LEAGUE_SIZE) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_FULL);
   }
 }
@@ -285,18 +337,14 @@ export async function joinPublicLeague(
   leagueId: string,
   userId: string,
 ): Promise<JoinResult> {
-  const [row] = await db
-    .select({ league: leagues, settings: leagueSettings.settings })
-    .from(leagues)
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-    .where(and(eq(leagues.id, leagueId), eq(leagues.visibility, LEAGUE_VISIBILITY.PUBLIC)));
-  if (!row) return { ok: false, reason: "league_not_found" };
-
   try {
     await db.transaction(async (tx) => {
-      await joinLeagueInTx(tx, clock, row.league, row.settings, userId);
+      await joinLeagueInTx(tx, clock, leagueId, userId, { mustBePublic: true });
     });
   } catch (error) {
+    if (error instanceof LeagueMissingError) {
+      return { ok: false, reason: "league_not_found" };
+    }
     if (error instanceof JoinRefusedError) {
       return { ok: false, reason: error.reason };
     }
@@ -312,7 +360,7 @@ export type UpdateLeagueResult =
   | { ok: true; league: LeagueResponse }
   | {
       ok: false;
-      reason: "league_not_found" | "not_commissioner" | "league_started";
+      reason: "league_not_found" | "not_commissioner" | "league_started" | "start_week_passed";
     }
   | { ok: false; reason: "invalid_settings"; message: string };
 
@@ -360,6 +408,13 @@ export async function updateLeague(
           reason: "invalid_settings",
           message: parsed.error.issues[0]?.message ?? "Invalid settings.",
         };
+      }
+      // The gate above checked the OLD start week; the new settings must not
+      // move the start into the past either — that would instantly start (and
+      // permanently freeze) the league, same trap as creating one post-start.
+      const newStartsAt = await leagueStartAt(tx, row.league, parsed.data);
+      if (!isPreStart(newStartsAt, clock)) {
+        return { ok: false, reason: "start_week_passed" };
       }
       await tx
         .update(leagueSettings)

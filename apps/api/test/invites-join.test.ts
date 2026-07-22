@@ -46,6 +46,13 @@ const appAfterKickoff = createApp({
   db,
   clock: async () => new FixedClock(POST_START_NOW),
 });
+// now == kickoff exactly: "no joins once the league's first week has started"
+// means the boundary instant itself is already closed (strict <, arch D11).
+const appAtKickoff = createApp({
+  auth,
+  db,
+  clock: async () => new FixedClock(WEEK1_KICKOFF),
+});
 
 type App = typeof app;
 
@@ -57,8 +64,9 @@ function postInvite(
   cookie: string | undefined,
   leagueId: string,
   body: Record<string, unknown> = {},
+  on: App = app,
 ) {
-  return app.request(`/api/leagues/${leagueId}/invites`, {
+  return on.request(`/api/leagues/${leagueId}/invites`, {
     method: "POST",
     headers: { "content-type": "application/json", ...withCookie(cookie) },
     body: JSON.stringify(body),
@@ -72,8 +80,8 @@ function listInvites(cookie: string | undefined, leagueId: string) {
   });
 }
 
-function revokeInvite(cookie: string | undefined, leagueId: string, code: string) {
-  return app.request(`/api/leagues/${leagueId}/invites/${code}`, {
+function revokeInvite(cookie: string | undefined, leagueId: string, code: string, on: App = app) {
+  return on.request(`/api/leagues/${leagueId}/invites/${code}`, {
     method: "DELETE",
     headers: withCookie(cookie),
   });
@@ -443,7 +451,74 @@ describe("POST /api/join/:code", () => {
   });
 });
 
+describe("boundary instants", () => {
+  it("closes joins at exactly kickoff (kickoff == now)", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner();
+    const code = await createCode(commissioner.cookie, league.id);
+    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
+
+    const res = await postJoin(joiner.cookie, code, appAtKickoff);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "join_closed" });
+  });
+
+  it("expires an invite at exactly its expiry instant (expiresAt == now)", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner();
+    const code = await createCode(commissioner.cookie, league.id, {
+      expiresAt: WEEK1_KICKOFF.toISOString(),
+    });
+    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
+
+    // Invite validity precedes the cutoff in the reason precedence, so the
+    // expiry boundary is observable even though the cutoff also lands here.
+    const res = await getJoinPreview(joiner.cookie, code, appAtKickoff);
+    expect(((await res.json()) as JoinPreviewResponse).reason).toBe("invite_expired");
+  });
+});
+
+describe("concurrency", () => {
+  it("two concurrent joins can't blow past the 100-member cap", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner();
+    await fillLeague(league.id, 98); // 99 members; exactly one seat left
+    const code = await createCode(commissioner.cookie, league.id);
+    const a = await createAuthenticatedUser(auth, { username: "racer_a" });
+    const b = await createAuthenticatedUser(auth, { username: "racer_b" });
+
+    const [resA, resB] = await Promise.all([postJoin(a.cookie, code), postJoin(b.cookie, code)]);
+    expect([resA.status, resB.status].sort()).toEqual([201, 409]);
+
+    const members = await db
+      .select()
+      .from(leagueMembers)
+      .where(eq(leagueMembers.leagueId, league.id));
+    expect(members).toHaveLength(100);
+  });
+});
+
+describe("post-start invite management (spec §Commissioner Powers: anytime)", () => {
+  it("creates and revokes invites after the league has started", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner();
+
+    const res = await postInvite(commissioner.cookie, league.id, {}, appAfterKickoff);
+    expect(res.status).toBe(201);
+    const invite = (await res.json()) as Invite;
+    expect(
+      (await revokeInvite(commissioner.cookie, league.id, invite.code, appAfterKickoff)).status,
+    ).toBe(204);
+  });
+});
+
 describe("POST /api/leagues/:leagueId/join (public join)", () => {
+  it("accepts an invite code for a public league too — an alternate path to the same join", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({
+      visibility: LEAGUE_VISIBILITY.PUBLIC,
+    });
+    const code = await createCode(commissioner.cookie, league.id);
+    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
+
+    expect((await postJoin(joiner.cookie, code)).status).toBe(201);
+  });
+
   it("joins a public league directly", async () => {
     const { league } = await seedLeagueWithCommissioner({
       visibility: LEAGUE_VISIBILITY.PUBLIC,

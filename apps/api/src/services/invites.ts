@@ -22,6 +22,7 @@ import {
   isPreStart,
   JoinRefusedError,
   joinLeagueInTx,
+  LeagueMissingError,
   leagueStartAt,
 } from "./leagues";
 
@@ -247,15 +248,10 @@ export async function joinByCode(
 ): Promise<JoinByCodeResult> {
   try {
     const leagueId = await db.transaction(async (tx) => {
-      const [row] = await tx
-        .select({ invite: leagueInvites, league: leagues, settings: leagueSettings.settings })
-        .from(leagueInvites)
-        .innerJoin(leagues, eq(leagueInvites.leagueId, leagues.id))
-        .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-        .where(eq(leagueInvites.code, code));
-      if (!row) throw new InviteInvalidError();
+      const [invite] = await tx.select().from(leagueInvites).where(eq(leagueInvites.code, code));
+      if (!invite) throw new InviteInvalidError();
 
-      const status = inviteStatus(row.invite, clock);
+      const status = inviteStatus(invite, clock);
       if (status !== INVITE_STATUS.ACTIVE) {
         throw new JoinRefusedError(INVITE_STATUS_TO_REASON[status]);
       }
@@ -265,7 +261,7 @@ export async function joinByCode(
         .set({ useCount: sql`${leagueInvites.useCount} + 1`, updatedAt: clock.now() })
         .where(
           and(
-            eq(leagueInvites.id, row.invite.id),
+            eq(leagueInvites.id, invite.id),
             isNull(leagueInvites.revokedAt),
             or(isNull(leagueInvites.maxUses), lt(leagueInvites.useCount, leagueInvites.maxUses)),
           ),
@@ -277,15 +273,17 @@ export async function joinByCode(
         throw new JoinRefusedError(JOIN_BLOCKED_REASON.INVITE_EXHAUSTED);
       }
 
-      await joinLeagueInTx(tx, clock, row.league, row.settings, userId);
-      return row.league.id;
+      // Locks the league row and re-reads league state post-lock (lock order:
+      // invite row above, then league — same everywhere, so no cycles).
+      await joinLeagueInTx(tx, clock, invite.leagueId, userId);
+      return invite.leagueId;
     });
 
     const league = await getLeague(db, leagueId, userId);
     if (!league) throw new Error("Joined league unreadable immediately after join.");
     return { ok: true, league };
   } catch (error) {
-    if (error instanceof InviteInvalidError) {
+    if (error instanceof InviteInvalidError || error instanceof LeagueMissingError) {
       return { ok: false, reason: "invite_invalid" };
     }
     if (error instanceof JoinRefusedError) {
