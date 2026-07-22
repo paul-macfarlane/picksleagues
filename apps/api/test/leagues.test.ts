@@ -74,6 +74,18 @@ describe("POST /api/leagues", () => {
     expect(await res.json()).toMatchObject({ error: "unauthenticated" });
   });
 
+  it("400s a malformed JSON body — Hono's thrown HTTPException must not become a 500", async () => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await app.request("/api/leagues", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: "{not-json",
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("creates a league with settings and the creator as commissioner", async () => {
     await seedDefaultSeason();
     const { user, cookie } = await createAuthenticatedUser(auth);

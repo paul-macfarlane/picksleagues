@@ -1,4 +1,5 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { HTTPException } from "hono/http-exception";
 import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
@@ -17,8 +18,15 @@ export function createApp(deps: AppDeps = {}) {
   const app = new OpenAPIHono({ defaultHook: zodValidationHook }).basePath("/api");
 
   app.onError((error, c) => {
-    // Unexpected throws only — expected refusals are typed results mapped by
-    // handlers, and validation failures are handled by zodValidationHook.
+    // Hono itself THROWS typed 4xx refusals (e.g. HTTPException(400) for a
+    // malformed JSON body — that path never reaches zodValidationHook, which
+    // only sees parseable bodies). Those are client errors, not bugs: pass
+    // them through instead of masking them as logged 500s.
+    if (error instanceof HTTPException) {
+      return error.getResponse();
+    }
+    // Everything else thrown is a bug — expected refusals are typed results
+    // mapped by handlers, and schema validation 400s come from zodValidationHook.
     logError("unhandled_error", { method: c.req.method, path: c.req.path, error });
     return c.json(
       ErrorResponseSchema.parse({ error: ERROR_CODE.INTERNAL, message: "Something went wrong." }),
