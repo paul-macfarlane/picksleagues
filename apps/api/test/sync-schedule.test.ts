@@ -11,6 +11,7 @@ import {
 } from "@picksleagues/core";
 import { GAME_STATUS, type JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { syncSchedule } from "../src/services/sync-schedule";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 
 const testEnv: Env = {
@@ -138,7 +139,7 @@ describe("POST /api/jobs/sync-schedule", () => {
     const details = await runOk();
     expect(details).toMatchObject({
       seasonYear: SEASON_YEAR,
-      weeksUpserted: 2,
+      weeksSynced: 2,
       gamesCreated: 3,
       gamesUpdated: 0,
       postponements: 0,
@@ -153,16 +154,46 @@ describe("POST /api/jobs/sync-schedule", () => {
     expect(await db.select().from(games)).toHaveLength(3);
   });
 
-  it("is idempotent: a second run with identical data leaves every row byte-identical and creates nothing", async () => {
+  it("is idempotent: a second run at a later clock instant leaves every row byte-identical and touches nothing", async () => {
     seedBaselineProvider();
     await runOk();
-    const first = await db.select().from(games).orderBy(games.providerGameId);
+    const firstGames = await db.select().from(games).orderBy(games.providerGameId);
+    const firstWeeks = await db.select().from(weeks).orderBy(weeks.weekNumber);
+    const firstSeason = await db.select().from(sportSeasons);
+
+    // A strictly later instant proves no-op re-runs never touch updatedAt (a
+    // byte-identical re-run under the old unconditional upsert would have churned
+    // updatedAt to this new value).
+    const laterClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    const details = await syncSchedule(db, laterClock, provider, { seasonYear: SEASON_YEAR });
+    expect(details).toMatchObject({ gamesCreated: 0, gamesUpdated: 0 });
+
+    expect(await db.select().from(games).orderBy(games.providerGameId)).toEqual(firstGames);
+    expect(await db.select().from(weeks).orderBy(weeks.weekNumber)).toEqual(firstWeeks);
+    expect(await db.select().from(sportSeasons)).toEqual(firstSeason);
+  });
+
+  it("dedupes a game listed under two weeks (last-wins) so the upsert never hits the same row twice", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+        providerWeek(2, "2026-09-15T00:00:00.000Z", "2026-09-22T00:00:00.000Z"),
+      ],
+    };
+    // ESPN transiently lists a rescheduled game under both its old and new week.
+    provider.gamesByWeek = new Map([
+      [1, [providerGame({ providerGameId: "g1", weekNumber: 1 })]],
+      [2, [providerGame({ providerGameId: "g1", weekNumber: 2 })]],
+    ]);
 
     const details = await runOk();
-    expect(details).toMatchObject({ gamesCreated: 0, gamesUpdated: 3 });
+    expect(details).toMatchObject({ gamesCreated: 1, duplicateProviderGames: 1 });
 
-    const second = await db.select().from(games).orderBy(games.providerGameId);
-    expect(second).toEqual(first);
+    const gameRows = await db.select().from(games);
+    expect(gameRows).toHaveLength(1);
+    const [week2] = await db.select().from(weeks).where(eq(weeks.weekNumber, 2));
+    expect(gameRows[0]?.weekId).toBe(week2?.id);
   });
 
   it("updates kickoffAt and counts a kickoff change", async () => {
@@ -270,7 +301,7 @@ describe("POST /api/jobs/sync-schedule", () => {
     const details = await runOk("?week=1");
     // Both week rows are still synced (cheap structure data), but only week 1's
     // games were fetched and upserted.
-    expect(details).toMatchObject({ weeksUpserted: 2, gamesCreated: 2 });
+    expect(details).toMatchObject({ weeksSynced: 2, gamesCreated: 2 });
     const gameRows = await db.select().from(games);
     expect(gameRows.map((g) => g.providerGameId).sort()).toEqual(["g1", "g2"]);
   });

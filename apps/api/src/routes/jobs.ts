@@ -29,6 +29,10 @@ const jobResponses = {
     description: "Job completed — counters in `details`",
     content: { "application/json": { schema: JobRunResponseSchema } },
   },
+  400: {
+    description: "A supplied query param (season/week) fails its format rule",
+    content: { "application/json": { schema: ErrorResponseSchema } },
+  },
   401: {
     description: "Missing or wrong x-job-secret header",
     content: { "application/json": { schema: ErrorResponseSchema } },

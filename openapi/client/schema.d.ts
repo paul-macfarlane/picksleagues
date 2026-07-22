@@ -311,6 +311,15 @@ export interface operations {
                     "application/json": components["schemas"]["JobRunResponse"];
                 };
             };
+            /** @description A supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Missing or wrong x-job-secret header */
             401: {
                 headers: {
@@ -352,6 +361,15 @@ export interface operations {
                     "application/json": components["schemas"]["JobRunResponse"];
                 };
             };
+            /** @description A supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Missing or wrong x-job-secret header */
             401: {
                 headers: {
@@ -391,6 +409,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description A supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Missing or wrong x-job-secret header */

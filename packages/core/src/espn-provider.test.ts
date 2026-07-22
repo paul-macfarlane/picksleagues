@@ -211,6 +211,33 @@ describe("EspnProvider.fetchWeekGames", () => {
     expect(game).toMatchObject({ status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 20 });
   });
 
+  it("throws when a started game's score is present but unparseable", async () => {
+    const fetchImpl = stubFetch({
+      [scoreboardUrl]: jsonResponse({
+        events: [
+          {
+            id: "409",
+            competitions: [
+              {
+                id: "409",
+                date: "2026-09-14T17:00Z",
+                status: { type: { name: "STATUS_IN_PROGRESS", state: "in" } },
+                competitors: [
+                  competitor({ homeAway: "home", abbreviation: "BUF", displayName: "Buffalo Bills", score: "abc" }),
+                  competitor({ homeAway: "away", abbreviation: "NYJ", displayName: "New York Jets", score: "7" }),
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+
+    await expect(provider.fetchWeekGames(2026, 1)).rejects.toThrow(/invalid score "abc"/);
+  });
+
   it("maps STATUS_POSTPONED to postponed regardless of state", async () => {
     const fetchImpl = stubFetch({
       [scoreboardUrl]: jsonResponse({

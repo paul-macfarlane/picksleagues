@@ -325,6 +325,16 @@
               }
             }
           },
+          "400": {
+            "description": "A supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Missing or wrong x-job-secret header",
             "content": {
@@ -385,6 +395,16 @@
               }
             }
           },
+          "400": {
+            "description": "A supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Missing or wrong x-job-secret header",
             "content": {
@@ -441,6 +461,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

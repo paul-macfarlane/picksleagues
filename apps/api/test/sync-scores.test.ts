@@ -290,6 +290,29 @@ describe("syncScores", () => {
     expect(provider.fetchCalls).toEqual([[SEASON_YEAR, 1]]);
   });
 
+  it("takes the explicit path for a lone week (season derived), not the active-games gate", async () => {
+    await seedSchedule([
+      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),
+    ]);
+
+    provider.gamesByWeek.set(1, [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 10,
+        awayScore: 6,
+      }),
+    ]);
+
+    // beforeClock: nothing has kicked off, so the gate alone would return
+    // no_active_games — a lone week must still refresh via the explicit path,
+    // with the season derived from the clock (2026).
+    const details = await syncScores(db, beforeClock, provider, { weekNumber: 1 });
+    expect(details).toMatchObject({ activeGames: 0, weeksFetched: 1, gamesUpdated: 1 });
+    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, 1]]);
+  });
+
   it("is idempotent: a second run with identical provider data updates nothing", async () => {
     await seedSchedule([
       providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-11T17:00:00.000Z") }),

@@ -20,10 +20,10 @@ export async function syncOdds(
   provider: GameDataProvider,
   opts?: { seasonYear?: number; weekNumber?: number },
 ): Promise<Record<string, string | number | boolean>> {
-  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(clock.now());
-  // One instant for every comparison and for capturedAt, reaching SQL as a
-  // bound parameter (arch D13).
+  // One `now` per run: season derivation, every comparison, and capturedAt all
+  // share one instant, reaching SQL as a bound parameter (arch D13).
   const now = clock.now();
+  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
 
   const [season] = await db
     .select({ id: sportSeasons.id })
@@ -37,7 +37,13 @@ export async function syncOdds(
 
   const targetWeek = await resolveTargetWeek(db, season.id, now, opts?.weekNumber);
   if (!targetWeek) {
-    return { skipped: true, reason: "no_current_week" };
+    // An explicitly requested week that isn't synced is a distinct condition
+    // from "no current week" on the derived path — surface the sibling jobs'
+    // term (sync-scores/sync-schedule) so the two never blur together.
+    return {
+      skipped: true,
+      reason: opts?.weekNumber !== undefined ? "week_not_synced" : "no_current_week",
+    };
   }
 
   // Our tables are the source of truth for what's unstarted — lock state is

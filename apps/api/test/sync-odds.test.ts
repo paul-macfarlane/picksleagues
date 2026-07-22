@@ -157,6 +157,51 @@ describe("syncOdds", () => {
     expect(await db.select().from(oddsSnapshots)).toHaveLength(2);
   });
 
+  it("pre-season: with no in-progress week, falls back to the next upcoming week and snapshots it", async () => {
+    await seedSchedule([
+      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+    ]);
+
+    // Clock sits before week 1 starts (2026-09-08), so there is no in-progress
+    // week — the next-upcoming-week fallback resolves week 1.
+    const preSeasonClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
+    const details = await syncOdds(db, preSeasonClock, provider, {});
+    expect(details).toMatchObject({ weekNumber: 1, unstartedGames: 1, snapshotsInserted: 1 });
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+  });
+
+  it("off-season: after every week has ended with no explicit week, no_current_week and writes nothing", async () => {
+    await seedSchedule([
+      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+    ]);
+
+    // Clock sits after week 1 ends (2026-09-15) with no later week to fall to.
+    const offSeasonClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    const details = await syncOdds(db, offSeasonClock, provider, {});
+    expect(details).toMatchObject({ skipped: true, reason: "no_current_week" });
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+  });
+
+  it("explicit week: snapshots the requested week's unstarted games", async () => {
+    await seedSchedule([
+      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+    ]);
+
+    const details = await syncOdds(db, oddsClock, provider, { weekNumber: 1 });
+    expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, snapshotsInserted: 1 });
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+  });
+
+  it("explicit week that isn't synced returns week_not_synced (distinct from the derived no_current_week)", async () => {
+    await seedSchedule([
+      providerGame({ providerGameId: "g2", weekNumber: 1, kickoffAt: new Date("2026-09-14T17:00:00.000Z"), spread: 2.5 }),
+    ]);
+
+    const details = await syncOdds(db, oddsClock, provider, { weekNumber: 5 });
+    expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+  });
+
   it("no-ops when the season has not been synced and writes nothing", async () => {
     const details = await syncOdds(db, oddsClock, provider, {});
     expect(details).toMatchObject({ skipped: true, reason: "season_not_synced" });

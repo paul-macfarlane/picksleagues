@@ -83,6 +83,14 @@ function parseDateStrict(raw: string, context: string): Date {
   return parsed;
 }
 
+function parseScoreStrict(raw: string, context: string): number {
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`EspnProvider: invalid score "${raw}" for ${context}`);
+  }
+  return parsed;
+}
+
 function mapCompetitionToGame(weekNumber: number, competition: z.infer<typeof CompetitionSchema>): ProviderGame {
   const home = competition.competitors.find((competitor) => competitor.homeAway === "home");
   const away = competition.competitors.find((competitor) => competitor.homeAway === "away");
@@ -93,7 +101,9 @@ function mapCompetitionToGame(weekNumber: number, competition: z.infer<typeof Co
   const status = mapStatus(competition.status.type);
   const scoresAreMeaningful = status === GAME_STATUS.IN_PROGRESS || status === GAME_STATUS.FINAL;
 
-  // ESPN's spread is home-relative (negative = home favored), matching our convention.
+  // ESPN's spread is home-relative (negative = home favored), matching our
+  // convention — verified against live ESPN data (2026 season week 1
+  // scoreboard, 16/16 games consistent, 2026-07-21).
   const rawSpread = competition.odds?.[0]?.spread;
   const spread = typeof rawSpread === "number" && Number.isFinite(rawSpread) ? rawSpread : null;
 
@@ -106,9 +116,16 @@ function mapCompetitionToGame(weekNumber: number, competition: z.infer<typeof Co
     awayTeamName: away.team.displayName,
     kickoffAt: parseDateStrict(competition.date, `competition ${competition.id}`),
     status,
-    // ESPN sends "0" pre-game; only trust scores once the game has started.
-    homeScore: scoresAreMeaningful && home.score !== undefined ? parseInt(home.score, 10) : null,
-    awayScore: scoresAreMeaningful && away.score !== undefined ? parseInt(away.score, 10) : null,
+    // ESPN sends "0" pre-game; only trust scores once the game has started. A
+    // meaningful-but-unparseable score is an adapter-boundary error, not a 0.
+    homeScore:
+      scoresAreMeaningful && home.score !== undefined
+        ? parseScoreStrict(home.score, `competition ${competition.id} home score`)
+        : null,
+    awayScore:
+      scoresAreMeaningful && away.score !== undefined
+        ? parseScoreStrict(away.score, `competition ${competition.id} away score`)
+        : null,
     spread,
   };
 }

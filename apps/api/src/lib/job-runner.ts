@@ -99,6 +99,10 @@ async function recordSuccess(ctx: JobContext, jobName: string): Promise<void> {
  */
 async function recordFailure(ctx: JobContext, jobName: string, message: string): Promise<void> {
   if (!ctx.db || !ctx.clock) return;
+  // Accepted risk (ADR-0007): the failure streak lives in the same Postgres the
+  // jobs read, so a full DB outage suppresses this alert path by design.
+  // cron-job.org's own failure notifications (jobs return 500) cover that mode;
+  // this webhook exists for app-level failures where the DB is healthy.
   const now = ctx.clock.now();
   try {
     const [row] = await ctx.db

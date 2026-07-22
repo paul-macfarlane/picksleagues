@@ -1,7 +1,7 @@
 import { and, eq, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, sportSeasons, weeks } from "@picksleagues/db";
-import { type Clock, type GameDataProvider } from "@picksleagues/core";
+import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
 import { GAME_STATUS, SPORT } from "@picksleagues/schemas";
 import { logInfo } from "../lib/logger";
 
@@ -33,7 +33,12 @@ export async function syncScores(
 ): Promise<Record<string, string | number | boolean>> {
   // One `now` per run, bound into SQL as a parameter (arch D13) — never SQL now().
   const now = clock.now();
-  const explicit = opts?.seasonYear !== undefined && opts?.weekNumber !== undefined;
+  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
+  // A week takes the explicit "refresh this week now" path (season is derived
+  // when omitted, matching sync-schedule/sync-odds). Season alone stays on the
+  // active-games gate — it only re-labels the season the gate's own join already
+  // resolves, so there's nothing to short-circuit.
+  const explicit = opts?.weekNumber !== undefined;
 
   let targets: ScoreTarget[];
   let activeGames = 0;
@@ -41,6 +46,7 @@ export async function syncScores(
   if (explicit) {
     // An explicit admin/simulator trigger means "refresh this week now" — skip
     // the active-games gate and resolve the requested week from our tables.
+    const weekNumber = opts!.weekNumber!;
     const [week] = await db
       .select({ weekId: weeks.id, weekNumber: weeks.weekNumber })
       .from(weeks)
@@ -48,8 +54,8 @@ export async function syncScores(
       .where(
         and(
           eq(sportSeasons.sport, SPORT.NFL),
-          eq(sportSeasons.year, opts!.seasonYear!),
-          eq(weeks.weekNumber, opts!.weekNumber!),
+          eq(sportSeasons.year, seasonYear),
+          eq(weeks.weekNumber, weekNumber),
         ),
       );
     if (!week) {
@@ -57,7 +63,7 @@ export async function syncScores(
       // creation (feedback: recurring syncs query reference data, don't upsert).
       return { skipped: true, reason: "week_not_synced" };
     }
-    targets = [{ weekId: week.weekId, seasonYear: opts!.seasonYear!, weekNumber: opts!.weekNumber! }];
+    targets = [{ weekId: week.weekId, seasonYear, weekNumber }];
   } else {
     // Fast no-op path: one indexed query (games_status_kickoff_idx) — any game
     // that has kicked off and is not yet resolved.
