@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth";
-import { displayNameOf, initialsOf } from "@/lib/user";
+import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -62,13 +62,15 @@ function SessionMenu() {
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="min-w-56 max-w-72">
         {/* This dropdown-menu is the Base UI flavor: DropdownMenuLabel is a
             Menu.GroupLabel and throws at runtime unless nested in a Group. */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <span className="block text-sm text-foreground">{displayName}</span>
-            <span className="block font-normal text-muted-foreground">{session.user.email}</span>
+            <span className="block truncate text-sm text-foreground">{displayName}</span>
+            <span className="block truncate font-normal text-muted-foreground">
+              {handleOf(session.user)}
+            </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
