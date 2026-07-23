@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useLeague } from "@/components/league/use-league";
+import { useLeague } from "@/api/leagues";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_authed/leagues/$leagueId/")({

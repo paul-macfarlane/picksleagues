@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { createFileRoute } from "@tanstack/react-router";
 import type { DiscoveryLeague } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useDiscovery } from "@/api/discovery";
+import { useJoinPublicLeague } from "@/api/members";
 import { leagueModeLabel } from "@/lib/league";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 export const Route = createFileRoute("/_authed/discovery")({
   component: Discovery,
@@ -22,16 +20,7 @@ function Discovery() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
 
-  const discovery = useQuery({
-    queryKey: ["discovery", submittedQuery],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/discovery", {
-        params: { query: { q: submittedQuery || undefined } },
-      });
-      if (error) throw error;
-      return data;
-    },
-  });
+  const discovery = useDiscovery(submittedQuery);
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
@@ -95,35 +84,7 @@ function Discovery() {
 }
 
 function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-
-  const join = useMutation({
-    mutationFn: async () => {
-      const { data, error, response } = await api.POST("/api/leagues/{leagueId}/join", {
-        params: { path: { leagueId: league.id } },
-      });
-      if (error) {
-        // Join refusals (already a member, closed, full) are expected — the
-        // server already phrases them — surface verbatim, don't throw.
-        if (response.status === 409) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data) return;
-      toast.success(`Joined ${data.name}`);
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-      navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
-    },
-    onError: () => {
-      toast.error("Couldn't join that league — please try again.");
-    },
-  });
+  const join = useJoinPublicLeague(league.id);
 
   return (
     <Card className="h-full">

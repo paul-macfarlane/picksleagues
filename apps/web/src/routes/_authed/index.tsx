@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ChevronRightIcon } from "lucide-react";
 import { MEMBER_ROLE, type LeagueSummary } from "@picksleagues/schemas";
-import { useMyLeagues } from "@/lib/my-leagues";
+import { useMyLeagues } from "@/api/leagues";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

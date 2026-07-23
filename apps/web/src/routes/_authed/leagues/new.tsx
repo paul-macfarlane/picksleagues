@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import {
@@ -14,7 +13,6 @@ import {
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
   PICKEM_PUSH_TIE_RESOLUTION,
-  type CreateLeagueRequest,
   type EliminationPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
@@ -22,7 +20,7 @@ import {
   type PickType,
   type PickemPushTieResolution,
 } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useCreateLeague } from "@/api/leagues";
 import { leagueModeLabel } from "@/lib/league";
 import {
   DEFAULT_PICKEM_END_WEEK,
@@ -38,7 +36,6 @@ import { FormTextField } from "@/components/form-field";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 export const Route = createFileRoute("/_authed/leagues/new")({
   component: NewLeague,
@@ -51,9 +48,6 @@ const MODE_OPTIONS: { value: LeagueMode; label: string }[] = [
 ];
 
 function NewLeague() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
   // Stated deviation from the TanStack-Form rule: everything below is
   // select/radio/stepper state with no per-field validation to run — the
   // schemas constrain the option sets, and the assembled union is parsed once
@@ -83,30 +77,7 @@ function NewLeague() {
   );
   const [mmRoundValues, setMmRoundValues] = useState<number[]>([0, 0, 0, 0, 0, 0]);
 
-  const createLeague = useMutation({
-    mutationFn: async (body: CreateLeagueRequest) => {
-      const { data, error, response } = await api.POST("/api/leagues", { body });
-      if (error) {
-        // cap_exceeded / no_active_season are expected outcomes the server
-        // already phrases as a user-facing message — surface it verbatim.
-        if (response.status === 409) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data) return;
-      toast.success("League created");
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-      navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
-    },
-    onError: () => {
-      toast.error("Couldn't create that league — please try again.");
-    },
-  });
+  const createLeague = useCreateLeague();
 
   const form = useForm({
     defaultValues: { name: "" },

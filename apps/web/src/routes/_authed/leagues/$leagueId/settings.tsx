@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LEAGUE_ACTION } from "@picksleagues/schemas";
 import { DangerZoneSection } from "@/components/league/danger-zone";
 import { LeagueSettingsSection } from "@/components/league/settings-section";
-import { canActOnLeague, useLeague } from "@/components/league/use-league";
+import { useLeague } from "@/api/leagues";
+import { canActOnLeague } from "@/lib/league";
 
 export const Route = createFileRoute("/_authed/leagues/$leagueId/settings")({
   component: LeagueSettings,

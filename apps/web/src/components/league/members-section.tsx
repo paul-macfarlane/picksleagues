@@ -1,13 +1,5 @@
-import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  MEMBER_ROLE,
-  type LeagueMember,
-  type LeagueResponse,
-  type MemberRole,
-} from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { MEMBER_ROLE, type LeagueMember, type LeagueResponse } from "@picksleagues/schemas";
+import { useKickMember, useLeaveLeague, useUpdateMemberRole } from "@/api/members";
 import { authClient } from "@/lib/auth";
 import { memberRoleLabel } from "@/lib/league";
 import { initialsOf } from "@/lib/user";
@@ -25,8 +17,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { leagueQueryKey } from "@/components/league/query-key";
-import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 export function MembersSection({
   league,
@@ -36,86 +26,16 @@ export function MembersSection({
   isCommissioner: boolean;
 }) {
   const { data: session } = authClient.useSession();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const leagueId = league.id;
   const myUserId = session?.user.id;
 
-  const updateRole = useMutation({
-    mutationFn: async ({ memberId, role }: { memberId: string; role: MemberRole }) => {
-      const { error, response } = await api.PATCH("/api/leagues/{leagueId}/members/{memberId}", {
-        params: { path: { leagueId, memberId } },
-        body: { role },
-      });
-      if (error) {
-        // cap_exceeded / last_commissioner are expected refusals the server
-        // already phrases — surface verbatim, don't throw.
-        if (response.status === 409) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return true;
-    },
-    onSuccess: async () => {
-      // Role changes alter the dashboard's commissioner badge too.
-      await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-    },
-    onError: () => toast.error("Couldn't update that member's role — please try again."),
-  });
-
-  const kickMember = useMutation({
-    mutationFn: async (memberId: string) => {
-      const { error, response } = await api.DELETE("/api/leagues/{leagueId}/members/{memberId}", {
-        params: { path: { leagueId, memberId } },
-      });
-      if (error) {
-        if (response.status === 409 || response.status === 400) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return true;
-    },
-    onSuccess: async () => {
-      // Kicks change the member count the dashboard card shows.
-      await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-    },
-    onError: () => toast.error("Couldn't remove that member — please try again."),
-  });
+  const updateRole = useUpdateMemberRole(leagueId);
+  const kickMember = useKickMember(leagueId);
 
   // Moved from the Danger Zone (item 4/5 consolidation) — every member,
   // regardless of role, can leave from here; a sole member leaving deletes
   // the league (server-enforced, unchanged).
-  const leaveLeague = useMutation({
-    mutationFn: async () => {
-      const { error, response } = await api.DELETE("/api/leagues/{leagueId}/members/me", {
-        params: { path: { leagueId } },
-      });
-      if (error) {
-        if (response.status === 409) {
-          toast.error(error.message);
-          return false;
-        }
-        throw error;
-      }
-      return true;
-    },
-    onSuccess: async (left) => {
-      if (!left) {
-        await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-        return;
-      }
-      toast.success("Left the league");
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-      navigate({ to: "/" });
-    },
-    onError: () => toast.error("Couldn't leave this league — please try again."),
-  });
+  const leaveLeague = useLeaveLeague(leagueId);
 
   return (
     <Card>

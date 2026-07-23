@@ -1,6 +1,6 @@
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import { useMyLeagues } from "@/lib/my-leagues";
+import { useMyLeagues } from "@/api/leagues";
 import { leagueModeLabel } from "@/lib/league";
 import { cn } from "@/lib/utils";
 import {

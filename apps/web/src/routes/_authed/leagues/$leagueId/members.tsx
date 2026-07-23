@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LEAGUE_ACTION, MEMBER_ROLE } from "@picksleagues/schemas";
 import { InvitePanel } from "@/components/league/invite-panel";
 import { MembersSection } from "@/components/league/members-section";
-import { canActOnLeague, useLeague } from "@/components/league/use-league";
+import { useLeague } from "@/api/leagues";
+import { canActOnLeague } from "@/lib/league";
 
 export const Route = createFileRoute("/_authed/leagues/$leagueId/members")({
   component: LeagueMembers,

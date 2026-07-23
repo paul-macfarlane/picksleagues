@@ -1,4 +1,12 @@
-import { LEAGUE_MODE, MEMBER_ROLE, type LeagueMode, type MemberRole } from "@picksleagues/schemas";
+import {
+  canPerformLeagueAction,
+  LEAGUE_MODE,
+  MEMBER_ROLE,
+  type LeagueAction,
+  type LeagueMode,
+  type LeagueResponse,
+  type MemberRole,
+} from "@picksleagues/schemas";
 
 // One home for the mode→human-label mapping (engineering rule on derived
 // display values) — consumed by the create-league mode picker, the invite
@@ -22,4 +30,12 @@ const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
 
 export function memberRoleLabel(role: MemberRole): string {
   return MEMBER_ROLE_LABELS[role];
+}
+
+// Section visibility runs on the LEAGUE_ACTION matrix's role axis only:
+// `preStart: true` renders controls optimistically, and the server's 409
+// (league_started) enforces the window — the client never computes "now"
+// (arch D11).
+export function canActOnLeague(league: LeagueResponse, action: LeagueAction) {
+  return canPerformLeagueAction(action, { role: league.myRole, preStart: true });
 }

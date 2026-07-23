@@ -1,8 +1,5 @@
-import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import type { LeagueResponse } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useDeleteLeague } from "@/api/leagues";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,43 +13,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { leagueQueryKey } from "@/components/league/query-key";
-import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 // Commissioner-only — the route only renders this component when the viewer
 // can perform LEAGUE_ACTION.DELETE_LEAGUE, so there's no internal role check
 // left to make (Leave league lives on the Members tab now, visible to every
 // member — see members-section.tsx).
 export function DangerZoneSection({ league }: { league: LeagueResponse }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const leagueId = league.id;
-
-  const deleteLeague = useMutation({
-    mutationFn: async () => {
-      const { error, response } = await api.DELETE("/api/leagues/{leagueId}", {
-        params: { path: { leagueId } },
-      });
-      if (error) {
-        if (response.status === 409) {
-          toast.error(error.message);
-          return false;
-        }
-        throw error;
-      }
-      return true;
-    },
-    onSuccess: async (deleted) => {
-      if (!deleted) {
-        await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-        return;
-      }
-      toast.success("League deleted");
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-      navigate({ to: "/" });
-    },
-    onError: () => toast.error("Couldn't delete this league — please try again."),
-  });
+  const deleteLeague = useDeleteLeague(league.id);
 
   return (
     <Card className="ring-destructive/30">

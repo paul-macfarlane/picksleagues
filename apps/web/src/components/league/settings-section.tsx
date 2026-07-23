@@ -37,7 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useUpdateLeagueMutation } from "@/components/league/use-update-league";
+import { useUpdateLeague } from "@/api/leagues";
 
 export function LeagueSettingsSection({
   league,
@@ -54,10 +54,11 @@ export function LeagueSettingsSection({
       <CardContent className="flex flex-col gap-6">
         {/* Forces a remount (and a fresh derived-state read) whenever any
             editable field changes on the server — the successful-save
-            invalidation in use-update-league.ts refetches `league`, and this
-            key re-derives every field from it rather than syncing each one
-            via a `useEffect` (the effect-free idiom number-field.tsx uses for
-            a single prop, applied once for the whole merged form). */}
+            invalidation in api/leagues.ts's useUpdateLeague refetches
+            `league`, and this key re-derives every field from it rather than
+            syncing each one via a `useEffect` (the effect-free idiom
+            number-field.tsx uses for a single prop, applied once for the
+            whole merged form). */}
         <SettingsForm key={settingsFingerprint(league)} league={league} canEdit={canEdit} />
       </CardContent>
     </Card>
@@ -69,7 +70,7 @@ function settingsFingerprint(league: LeagueResponse): string {
 }
 
 function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: boolean }) {
-  const updateLeague = useUpdateLeagueMutation(league.id);
+  const updateLeague = useUpdateLeague(league.id);
 
   // Stated deviation from the TanStack-Form rule (mirrors new.tsx): the whole
   // merged form — name included — is plain useState. Mixing TanStack Form's

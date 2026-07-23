@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,22 +14,9 @@ export function InvitePanel({
   leagueId: string;
   isCommissioner: boolean;
 }) {
-  const queryClient = useQueryClient();
-  const invitesQueryKey = ["league-invites", leagueId];
-
-  const invites = useQuery({
-    queryKey: invitesQueryKey,
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/leagues/{leagueId}/invites", {
-        params: { path: { leagueId } },
-      });
-      if (error) throw error;
-      return data;
-    },
-    // Only a commissioner can list invites (403 otherwise) — this panel is
-    // only ever mounted for commissioners, but the guard stays explicit.
-    enabled: isCommissioner,
-  });
+  // Only a commissioner can list invites (403 otherwise) — this panel is
+  // only ever mounted for commissioners, but the guard stays explicit.
+  const invites = useLeagueInvites(leagueId, isCommissioner);
 
   useEffect(() => {
     if (invites.isError) {
@@ -38,40 +24,8 @@ export function InvitePanel({
     }
   }, [invites.isError]);
 
-  const createInvite = useMutation({
-    mutationFn: async (body: CreateInviteRequest) => {
-      const { data, error, response } = await api.POST("/api/leagues/{leagueId}/invites", {
-        params: { path: { leagueId } },
-        body,
-      });
-      if (error) {
-        if (response.status === 400) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: invitesQueryKey });
-      if (data) toast.success("Invite created");
-    },
-    onError: () => toast.error("Couldn't create an invite — please try again."),
-  });
-
-  const revokeInvite = useMutation({
-    mutationFn: async (code: string) => {
-      const { error } = await api.DELETE("/api/leagues/{leagueId}/invites/{code}", {
-        params: { path: { leagueId, code } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: invitesQueryKey });
-    },
-    onError: () => toast.error("Couldn't revoke that invite — please try again."),
-  });
+  const createInvite = useCreateInvite(leagueId);
+  const revokeInvite = useRevokeInvite(leagueId);
 
   return (
     <Card>

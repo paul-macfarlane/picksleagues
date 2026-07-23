@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { MenuIcon } from "lucide-react";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
-import { useMyLeagues } from "@/lib/my-leagues";
+import { useMyLeagues } from "@/api/leagues";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";

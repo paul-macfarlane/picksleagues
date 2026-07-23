@@ -1,14 +1,13 @@
 import { useEffect } from "react";
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { JOIN_BLOCKED_REASON, JOIN_BLOCKED_REASON_MESSAGES } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useJoinPreview } from "@/api/invites";
+import { useJoinByCode } from "@/api/members";
 import { authClient } from "@/lib/auth";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 // Top-level (not under _authed): mirrors claim-username.tsx — the invite
 // round-trip owns its own redirect state so sign-in/claim can return here
@@ -29,26 +28,8 @@ export const Route = createFileRoute("/join/$code")({
 
 function JoinByCode() {
   const { code } = Route.useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
-  const previewQueryKey = ["join-preview", code];
-
-  const preview = useQuery({
-    queryKey: previewQueryKey,
-    queryFn: async () => {
-      const { data, error, response } = await api.GET("/api/join/{code}", {
-        params: { path: { code } },
-      });
-      if (error) {
-        // Invalid code is a friendly card, not a toast — represent it as
-        // "no preview" rather than an error state.
-        if (response.status === 404) return null;
-        throw error;
-      }
-      return data;
-    },
-  });
+  const preview = useJoinPreview(code);
 
   useEffect(() => {
     if (preview.isError) {
@@ -56,36 +37,10 @@ function JoinByCode() {
     }
   }, [preview.isError]);
 
-  const join = useMutation({
-    mutationFn: async () => {
-      const { data, error, response } = await api.POST("/api/join/{code}", {
-        params: { path: { code } },
-      });
-      if (error) {
-        // Blocked (already a member, join closed, etc.) is expected and the
-        // server already phrases it — surface verbatim, don't throw.
-        if (response.status === 409) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data) {
-        // A blocked join can mean the preview is stale (e.g. someone else
-        // just took the last spot) — refetch so the card reflects reality.
-        await preview.refetch();
-        return;
-      }
-      toast.success(`Joined ${data.name}`);
-      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-      navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
-    },
-    onError: () => {
-      toast.error("Couldn't join that league — please try again.");
-    },
+  // A blocked join can mean the preview is stale (e.g. someone else just took
+  // the last spot) — refetch so the card reflects reality.
+  const join = useJoinByCode(code, async () => {
+    await preview.refetch();
   });
 
   if (preview.isPending) {
