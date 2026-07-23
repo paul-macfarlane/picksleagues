@@ -12,7 +12,6 @@ import {
   type PickType,
   type PickemPushTieResolution,
 } from "@picksleagues/schemas";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -22,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { NumberField } from "@/components/number-field";
 
 // Per-mode league settings fieldsets, shared by the create-league form
 // (apps/web/src/routes/_authed/leagues/new.tsx) and the league home settings
@@ -172,7 +172,12 @@ export function WeekSelect({
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={id}>{label}</Label>
+      {/* `items` is Base UI's value→label map for the closed trigger — without
+          it, Select.Value renders the raw wire value ("regular:1") instead of
+          the option label ("Week 1"). Since options are already `{value, label}`,
+          Base UI reads the label straight off them, no `itemToStringLabel` needed. */}
       <Select
+        items={options}
         value={value}
         onValueChange={(next) => {
           if (next) onValueChange(next);
@@ -189,44 +194,6 @@ export function WeekSelect({
           ))}
         </SelectContent>
       </Select>
-    </div>
-  );
-}
-
-// Shared numeric-input wiring for picksPerWeek / maxBracketsPerMember /
-// custom round values. NaN (a transiently-cleared field) is ignored rather
-// than propagated — the assembled settings must always parse as a number.
-export function NumberField({
-  id,
-  label,
-  value,
-  onValueChange,
-  min,
-  max,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  onValueChange: (value: number) => void;
-  min: number;
-  max?: number;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        min={min}
-        max={max}
-        step={1}
-        value={value}
-        onChange={(event) => {
-          const next = event.target.valueAsNumber;
-          if (!Number.isNaN(next)) onValueChange(next);
-        }}
-      />
     </div>
   );
 }
@@ -291,6 +258,7 @@ export function PickemSettingsFields({
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="pickem-push-tie">Push / tie value</Label>
         <Select
+          items={PICKEM_PUSH_TIE_OPTIONS}
           value={pushTie}
           onValueChange={(next) => {
             if (next) onPushTieChange(next);

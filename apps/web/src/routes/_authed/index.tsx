@@ -30,7 +30,7 @@ function Dashboard() {
 
   if (myLeagues.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Loading your leagues…</p>
       </main>
     );
@@ -38,7 +38,7 @@ function Dashboard() {
 
   if (myLeagues.isError || !myLeagues.data) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your leagues.</p>
         <Button variant="outline" onClick={() => myLeagues.refetch()}>
           Retry

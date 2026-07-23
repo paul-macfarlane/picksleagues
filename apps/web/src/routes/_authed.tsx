@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
@@ -37,11 +37,23 @@ export const Route = createFileRoute("/_authed")({
 function AuthedLayout() {
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <span className="text-sm font-semibold text-foreground">Picks Leagues</span>
-        <SessionMenu />
+      <header className="border-b border-border">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+          <Link
+            to="/"
+            className="text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            Picks Leagues
+          </Link>
+          <SessionMenu />
+        </div>
       </header>
-      <Outlet />
+      {/* Every authed page inherits this one column — pages never set their own
+          page width, only intentionally-narrow content (single-card states,
+          forms) centered inside it. */}
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+        <Outlet />
+      </div>
     </div>
   );
 }

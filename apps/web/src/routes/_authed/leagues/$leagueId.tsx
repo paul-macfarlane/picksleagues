@@ -55,7 +55,7 @@ function LeagueHome() {
 
   if (league.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Loading league…</p>
       </main>
     );
@@ -63,7 +63,7 @@ function LeagueHome() {
 
   if (league.isError) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this league.</p>
         <Button variant="outline" onClick={() => league.refetch()}>
           Retry
