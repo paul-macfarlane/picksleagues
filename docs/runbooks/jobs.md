@@ -24,6 +24,15 @@ replay drives these same endpoints with explicit values. A requested week the pr
 doesn't expose (e.g. the excluded Pro Bowl week) returns `{ skipped: true, reason:
 "week_not_synced" }`.
 
+**Offseason gotcha — the upcoming season needs one explicit trigger.** The no-arg
+default (`nflSeasonYearFor`) targets the season in progress, which from February through
+July is the one that just *ended* — so the daily cron alone never ingests the upcoming
+season, and league creation (which binds to the latest ingested season, ADR-0008)
+refuses with `start_week_passed` until it exists. Once the NFL releases the new schedule
+(typically May), fire the sync once per environment with the explicit season:
+`POST /api/jobs/nfl/sync-schedule?season=<upcoming year>`. After August 1 the default
+rolls forward on its own.
+
 ## Authentication
 
 Every request needs the `x-job-secret` header matching the `JOB_SECRET` env var (32+
