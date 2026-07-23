@@ -1,7 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
 import { Button } from "@/components/ui/button";
@@ -29,14 +27,6 @@ export const Route = createFileRoute("/sign-in")({
 
 function SignIn() {
   const { redirect: redirectParam } = Route.useSearch();
-  const health = useQuery({
-    queryKey: ["health"],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/health");
-      if (error) throw error;
-      return data;
-    },
-  });
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
@@ -47,12 +37,20 @@ function SignIn() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {/* Colors/border below are Google's mandated Sign-In button treatment, not
-              theme tokens — see Google Identity branding guidelines cited in icons.tsx. */}
+              theme tokens — see Google Identity branding guidelines cited in icons.tsx.
+              Google's guidelines permit this light-on-white button on dark surfaces, so
+              it must render identically in both themes. The plain (non-`dark:`) classes
+              alone aren't enough: the `outline` variant's own `dark:bg-input/30` /
+              `dark:border-input` / `dark:hover:bg-input/50` are `dark:`-prefixed compound
+              selectors, which beat un-prefixed single-class selectors like `bg-white` in
+              dark mode regardless of source order — tailwind-merge only dedupes classes
+              within the same modifier context, so it can't resolve this either. Explicit
+              `dark:` overrides here are what actually wins the cascade. */}
           <Button
             type="button"
             variant="outline"
             size="lg"
-            className="w-full justify-center gap-3 border-[#747775] bg-white text-[#1F1F1F] hover:bg-white/90"
+            className="w-full justify-center gap-3 border-[#747775] bg-white text-[#1F1F1F] hover:bg-white/90 dark:border-[#747775] dark:bg-white dark:text-[#1F1F1F] dark:hover:bg-white/90"
             onClick={() =>
               authClient.signIn.social({
                 provider: "google",
@@ -81,9 +79,6 @@ function SignIn() {
           </Button>
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">
-        API: {health.isPending ? "checking…" : health.data?.status === "ok" ? "up" : "unreachable"}
-      </p>
     </main>
   );
 }

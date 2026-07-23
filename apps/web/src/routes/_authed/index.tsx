@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronRightIcon } from "lucide-react";
 import { MEMBER_ROLE, type LeagueSummary } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useMyLeagues } from "@/lib/my-leagues";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,14 +13,7 @@ export const Route = createFileRoute("/_authed/")({
 });
 
 function Dashboard() {
-  const myLeagues = useQuery({
-    queryKey: ["my-leagues"],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/leagues");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const myLeagues = useMyLeagues();
 
   useEffect(() => {
     if (myLeagues.isError) {
