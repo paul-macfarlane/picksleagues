@@ -1,9 +1,7 @@
-# Feedback log
+# Feedback: Leagues epic (LG)
 
-Human review feedback and how each item was resolved. One section per round, newest
-last. Kept terse on purpose — commits and `.claude/rules/engineering.md` hold the
-detail; this is the index for "didn't we already decide this?" moments. `/feedback`
-appends a round's summary here at close-out.
+Rounds of human feedback during and after the Leagues epic, and how each item was
+resolved. Conventions in `docs/feedback/README.md`.
 
 ## Round 1 — code review of the Leagues epic (2026-07-22)
 
@@ -78,3 +76,14 @@ lint (`a20d14b`).
 | League switcher in navbar | Dropdown listing my leagues; current league shown + highlighted on league pages (`732a1d7`) |
 | Mobile navigation | Hamburger → left drawer (Base UI sheet); desktop nav unchanged (`732a1d7`) |
 | Max members default | 10 (settable 2–100, helper text on create + edit); DB default migration (`91205b6`, `ff283de`) |
+
+## Round 5 — dev ergonomics + polish (2026-07-23)
+
+4 items (one added mid-round). Declared the last UX-focused round for this epic.
+
+| Item | Resolution |
+| --- | --- |
+| API lingers on :3000 after local runs | Two layers: dev.ts closes the server on SIGINT/SIGTERM (2s hard-exit fallback), and a `predev` sweep TERM-kills stale listeners on 3000/5173 before `pnpm dev` (a stale 5173 would silently shift vite and break the pinned OAuth origin) (`69dd5e5`) |
+| Split the feedback log per epic | `docs/feedback/` — one file per epic mirroring `backlog/` naming; `/feedback` appends to the epic's file |
+| Lock-explainer copy shown to non-editors | Renders only for members who can edit (`6e516c5`) |
+| "Leagues" nav highlight on create page | Switcher trigger highlights across the whole `/leagues` subtree; mobile "Create league" became a real Link with active state (evaluator caught the first attempt's highlight being defeated by unmerged Tailwind classes — fixed with the sibling drawer-row idiom) (`6e516c5` + fix) |
