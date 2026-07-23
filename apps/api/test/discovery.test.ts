@@ -69,6 +69,49 @@ describe("GET /api/discovery", () => {
     expect(body.leagues[0]).not.toHaveProperty("members");
   });
 
+  it("excludes leagues the caller already belongs to", async () => {
+    const { seasonId } = await seedActiveSeason();
+    const viewer = await createAuthenticatedUser(auth, { username: "viewer" });
+    const league = await insertLeague(db, {
+      seasonId,
+      name: "Already Joined",
+      visibility: LEAGUE_VISIBILITY.PUBLIC,
+      members: [{ userId: viewer.user.id, role: "member" }],
+    });
+    // A different public league the viewer hasn't joined stays visible.
+    const other = await insertLeague(db, {
+      seasonId,
+      name: "Not Joined Yet",
+      visibility: LEAGUE_VISIBILITY.PUBLIC,
+    });
+
+    const res = await getDiscovery(viewer.cookie);
+    const body = (await res.json()) as DiscoveryResponse;
+    expect(body.leagues.map((l) => l.id)).toEqual([other.id]);
+    expect(body.leagues.map((l) => l.id)).not.toContain(league.id);
+  });
+
+  it("excludes a league at its member cap", async () => {
+    const { seasonId } = await seedActiveSeason();
+    const commissioner = await createAuthenticatedUser(auth, { username: "commish" });
+    const member = await createAuthenticatedUser(auth, { username: "plain" });
+    const full = await insertLeague(db, {
+      seasonId,
+      name: "Full League",
+      visibility: LEAGUE_VISIBILITY.PUBLIC,
+      maxMembers: 2,
+      members: [
+        { userId: commissioner.user.id, role: "commissioner" },
+        { userId: member.user.id, role: "member" },
+      ],
+    });
+    const viewer = await createAuthenticatedUser(auth, { username: "viewer" });
+
+    const res = await getDiscovery(viewer.cookie);
+    const body = (await res.json()) as DiscoveryResponse;
+    expect(body.leagues.map((l) => l.id)).not.toContain(full.id);
+  });
+
   it("excludes private leagues", async () => {
     const { seasonId } = await seedActiveSeason();
     await insertLeague(db, {

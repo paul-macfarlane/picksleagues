@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, notExists } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { leagueMembers, leagues, leagueSettings, sportSeasons } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
@@ -12,17 +12,27 @@ function escapeLikePattern(value: string): string {
 
 /**
  * spec §Public Discovery: public, active leagues that haven't passed their
- * join cutoff, optionally name-filtered. No filters/categories/recommendations
- * beyond that.
+ * join cutoff, aren't already full, and the caller isn't already a member of
+ * — optionally name-filtered. No filters/categories/recommendations beyond
+ * that.
  */
 export async function discoverLeagues(
   db: Db,
   clock: Clock,
+  userId: string,
   query?: string,
 ): Promise<DiscoveryLeague[]> {
   const conditions = [
     eq(leagues.visibility, LEAGUE_VISIBILITY.PUBLIC),
     eq(leagues.status, LEAGUE_STATUS.ACTIVE),
+    // Excludes leagues the caller already belongs to — joining is pointless
+    // and the join endpoints would 409 anyway.
+    notExists(
+      db
+        .select()
+        .from(leagueMembers)
+        .where(and(eq(leagueMembers.leagueId, leagues.id), eq(leagueMembers.userId, userId))),
+    ),
   ];
   if (query) {
     conditions.push(ilike(leagues.name, `%${escapeLikePattern(query)}%`));
@@ -64,7 +74,10 @@ export async function discoverLeagues(
   );
 
   return withStarts
-    .filter(({ startsAt }) => isPreStart(startsAt, clock))
+    .filter(({ row, startsAt }) => {
+      const memberCount = countByLeague.get(row.league.id) ?? 0;
+      return isPreStart(startsAt, clock) && memberCount < row.league.maxMembers;
+    })
     .map(({ row, startsAt }) => ({
       id: row.league.id,
       name: row.league.name,

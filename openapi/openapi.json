@@ -580,7 +580,7 @@
         "type": "integer",
         "minimum": 2,
         "maximum": 100,
-        "default": 100
+        "default": 10
       },
       "MarchMadnessSettings": {
         "oneOf": [

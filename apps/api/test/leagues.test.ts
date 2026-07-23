@@ -195,13 +195,13 @@ describe("POST /api/leagues", () => {
     expect(((await res.json()) as LeagueResponse).maxMembers).toBe(2);
   });
 
-  it("defaults maxMembers to 100 when omitted", async () => {
+  it("defaults maxMembers to 10 when omitted", async () => {
     await seedDefaultSeason();
     const { cookie } = await createAuthenticatedUser(auth);
 
     const res = await postLeague(cookie, VALID_PICKEM_BODY);
     expect(res.status).toBe(201);
-    expect(((await res.json()) as LeagueResponse).maxMembers).toBe(100);
+    expect(((await res.json()) as LeagueResponse).maxMembers).toBe(10);
   });
 
   it("400s on an elimination league with a postseason week", async () => {

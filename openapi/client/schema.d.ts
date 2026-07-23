@@ -398,7 +398,7 @@ export interface components {
             maxMembers?: components["schemas"]["MaxMembers"];
             settings: components["schemas"]["MarchMadnessSettings"];
         };
-        /** @default 100 */
+        /** @default 10 */
         MaxMembers: number;
         MarchMadnessSettings: {
             /** @default 5 */

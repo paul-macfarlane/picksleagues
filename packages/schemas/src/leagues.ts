@@ -24,6 +24,10 @@ export const MAX_ACTIVE_COMMISSIONER_LEAGUES = 10;
 // proceeds), so only the max is a guard.
 export const MAX_LEAGUE_SIZE = 100;
 
+// spec-adjacent default (feedback item 11): a league that omits maxMembers on
+// create gets a friend-group-sized cap rather than the global ceiling.
+export const DEFAULT_MAX_MEMBERS = 10;
+
 // Commissioners may cap their league below the global ceiling (never above
 // it) — mode-agnostic, so it lives beside name/visibility rather than inside
 // any per-mode settings schema.
@@ -38,21 +42,21 @@ export const CreateLeagueRequestSchema = z
       mode: z.literal(LEAGUE_MODE.PICKEM),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
-      maxMembers: MaxMembersSchema.default(MAX_LEAGUE_SIZE),
+      maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
       settings: PickemSettingsSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.ELIMINATION),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
-      maxMembers: MaxMembersSchema.default(MAX_LEAGUE_SIZE),
+      maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
       settings: EliminationSettingsSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.MARCH_MADNESS),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
-      maxMembers: MaxMembersSchema.default(MAX_LEAGUE_SIZE),
+      maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
       settings: MarchMadnessSettingsSchema,
     }),
   ])

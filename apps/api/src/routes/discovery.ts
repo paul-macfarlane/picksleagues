@@ -34,9 +34,10 @@ export function discoveryRoutes(deps: AppDeps) {
   app.openapi(getDiscovery, async (c) => {
     const db = c.get("db");
     const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
     const { q } = c.req.valid("query");
 
-    const leagues = await discoverLeagues(db, clock, q);
+    const leagues = await discoverLeagues(db, clock, sessionUser.id, q);
     return c.json({ leagues }, 200);
   });
 

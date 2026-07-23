@@ -184,6 +184,21 @@ describe("invite management", () => {
     expect(revokedRowAfterSecond?.revokedAt).toEqual(PRE_START_NOW);
   });
 
+  it("excludes an exhausted invite from the list while a capped-but-unexhausted one remains", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner();
+
+    const exhausted = await createCode(commissioner.cookie, league.id, { maxUses: 1 });
+    const capped = await createCode(commissioner.cookie, league.id, { maxUses: 3 });
+
+    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
+    expect((await postJoin(joiner.cookie, exhausted)).status).toBe(201);
+
+    const list = (await (await listInvites(commissioner.cookie, league.id)).json()) as {
+      invites: Invite[];
+    };
+    expect(list.invites.map((i) => i.code)).toEqual([capped]);
+  });
+
   it("403s a plain member and 404s a non-member on invite management", async () => {
     const { league } = await seedLeagueWithCommissioner();
     const member = await createAuthenticatedUser(auth, { username: "plain_member" });

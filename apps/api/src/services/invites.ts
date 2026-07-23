@@ -113,11 +113,17 @@ export async function listInvites(
     .select({ invite: leagueInvites, creator: users })
     .from(leagueInvites)
     .leftJoin(users, eq(leagueInvites.createdBy, users.id))
-    // Revoked invites disappear from the commissioner's list — revocation
-    // itself stays idempotent and a revoked code still 409s on join, this
-    // only trims stale entries from the management view. Expired/exhausted
-    // invites remain listed; their status field distinguishes them.
-    .where(and(eq(leagueInvites.leagueId, leagueId), isNull(leagueInvites.revokedAt)))
+    // Revoked and exhausted invites disappear from the commissioner's list —
+    // revocation/exhaustion stay idempotent and a revoked/exhausted code still
+    // 409s on join, this only trims stale entries from the management view.
+    // Expired invites remain listed; their status field distinguishes them.
+    .where(
+      and(
+        eq(leagueInvites.leagueId, leagueId),
+        isNull(leagueInvites.revokedAt),
+        or(isNull(leagueInvites.maxUses), lt(leagueInvites.useCount, leagueInvites.maxUses)),
+      ),
+    )
     .orderBy(desc(leagueInvites.createdAt));
 
   return {

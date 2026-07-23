@@ -48,7 +48,7 @@ export const leagues = pgTable(
     // Commissioner-configurable cap, never above the global MAX_LEAGUE_SIZE
     // ceiling (packages/schemas) — the join transaction reads this column
     // instead of the global constant so a league can shrink its own room.
-    maxMembers: integer("max_members").notNull().default(100),
+    maxMembers: integer("max_members").notNull().default(10),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
