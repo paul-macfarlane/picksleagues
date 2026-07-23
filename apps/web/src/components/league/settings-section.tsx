@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import {
@@ -7,6 +6,7 @@ import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   MARCH_MADNESS_SCORING_MODEL,
+  MAX_LEAGUE_SIZE,
   PICKEM_PUSH_TIE_RESOLUTION,
   LeagueNameSchema,
   type EliminationPushTieResolution,
@@ -18,9 +18,7 @@ import {
   type PickType,
   type PickemPushTieResolution,
   type PickemSettings,
-  type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
 import {
   EliminationSettingsFields,
   MarchMadnessSettingsFields,
@@ -31,40 +29,18 @@ import {
   encodeWeek,
 } from "@/components/league-settings-fields";
 import { FormTextField } from "@/components/form-field";
+import { NumberField, numberFieldInvalid } from "@/components/number-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { leagueQueryKey } from "@/components/league/query-key";
+import { useUpdateLeagueMutation } from "@/components/league/use-update-league";
 
 export function LeagueSettingsSection({ league }: { league: LeagueResponse }) {
-  const queryClient = useQueryClient();
   const leagueId = league.id;
 
-  const updateLeague = useMutation({
-    mutationFn: async (body: UpdateLeagueRequest) => {
-      const { data, error, response } = await api.PATCH("/api/leagues/{leagueId}", {
-        params: { path: { leagueId } },
-        body,
-      });
-      if (error) {
-        // league_started (409) or a settings shape that fails the mode's
-        // schema (400) are both server-derived refusals — surface the exact
-        // message, don't throw.
-        if (response.status === 409 || response.status === 400) {
-          toast.error(error.message);
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      // Renames show on the dashboard card too.
-      await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
-      if (data) toast.success("League updated");
-    },
-    onError: () => toast.error("Couldn't update this league — please try again."),
-  });
+  const renameMutation = useUpdateLeagueMutation(leagueId);
+  const visibilityMutation = useUpdateLeagueMutation(leagueId);
+  const maxMembersMutation = useUpdateLeagueMutation(leagueId);
+  const settingsMutation = useUpdateLeagueMutation(leagueId);
 
   return (
     <Card>
@@ -80,19 +56,25 @@ export function LeagueSettingsSection({ league }: { league: LeagueResponse }) {
         <RenameForm
           key={league.name}
           league={league}
-          onSave={(name) => updateLeague.mutate({ name })}
-          isPending={updateLeague.isPending}
+          onSave={(name) => renameMutation.mutate({ name })}
+          isPending={renameMutation.isPending}
         />
         <VisibilitySection
           key={league.visibility}
           league={league}
-          onSave={(visibility) => updateLeague.mutate({ visibility })}
-          isPending={updateLeague.isPending}
+          onSave={(visibility) => visibilityMutation.mutate({ visibility })}
+          isPending={visibilityMutation.isPending}
+        />
+        <MaxMembersSection
+          key={league.maxMembers}
+          league={league}
+          onSave={(maxMembers) => maxMembersMutation.mutate({ maxMembers })}
+          isPending={maxMembersMutation.isPending}
         />
         <SettingsFieldsSection
           league={league}
-          onSave={(settings) => updateLeague.mutate({ settings })}
-          isPending={updateLeague.isPending}
+          onSave={(settings) => settingsMutation.mutate({ settings })}
+          isPending={settingsMutation.isPending}
         />
       </CardContent>
     </Card>
@@ -139,7 +121,7 @@ function RenameForm({
             className="self-start"
             disabled={name.trim() === league.name || isPending}
           >
-            {isPending ? "Saving…" : "Save name"}
+            Save name
           </Button>
         )}
       </form.Subscribe>
@@ -173,7 +155,44 @@ function VisibilitySection({
         disabled={visibility === league.visibility || isPending}
         onClick={() => onSave(visibility)}
       >
-        {isPending ? "Saving…" : "Save visibility"}
+        Save visibility
+      </Button>
+    </div>
+  );
+}
+
+function MaxMembersSection({
+  league,
+  onSave,
+  isPending,
+}: {
+  league: LeagueResponse;
+  onSave: (maxMembers: number) => void;
+  isPending: boolean;
+}) {
+  const [maxMembers, setMaxMembers] = useState(league.maxMembers);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <NumberField
+        id="league-max-members"
+        label="Max members"
+        min={2}
+        max={MAX_LEAGUE_SIZE}
+        value={maxMembers}
+        onValueChange={setMaxMembers}
+      />
+      <Button
+        size="sm"
+        className="self-start"
+        disabled={
+          maxMembers === league.maxMembers ||
+          numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
+          isPending
+        }
+        onClick={() => onSave(maxMembers)}
+      >
+        Save max members
       </Button>
     </div>
   );
@@ -268,7 +287,7 @@ function PickemSettingsEditor({
           onSave(parsed.data);
         }}
       >
-        {isPending ? "Saving…" : "Save settings"}
+        Save settings
       </Button>
     </div>
   );
@@ -320,7 +339,7 @@ function EliminationSettingsEditor({
           onSave(parsed.data);
         }}
       >
-        {isPending ? "Saving…" : "Save settings"}
+        Save settings
       </Button>
     </div>
   );
@@ -372,7 +391,7 @@ function MarchMadnessSettingsEditor({
           onSave(parsed.data);
         }}
       >
-        {isPending ? "Saving…" : "Save settings"}
+        Save settings
       </Button>
     </div>
   );
