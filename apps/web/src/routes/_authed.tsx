@@ -7,7 +7,7 @@ import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { useMyLeagues } from "@/lib/my-leagues";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import {
@@ -166,15 +166,16 @@ function MobileNav() {
             ))}
           </nav>
         )}
+        {/* Same row idiom as the league links above — Router CONCATENATES base and
+            active classNames (no tailwind-merge), so a buttonVariants base whose
+            bg-background would outrank the appended bg-accent can't be used here. */}
         <Link
           to="/leagues/new"
-          className={buttonVariants({ variant: "outline", className: "w-full justify-center" })}
+          className={drawerLinkClassName}
+          inactiveProps={navLinkInactiveProps}
           activeProps={{
-            className: buttonVariants({
-              variant: "outline",
-              className: "w-full justify-center bg-accent text-accent-foreground",
-            }),
-            "aria-current": "page",
+            ...navLinkActiveProps,
+            className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
           }}
           onClick={() => setOpen(false)}
         >
