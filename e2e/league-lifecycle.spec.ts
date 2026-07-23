@@ -30,18 +30,25 @@ test.describe("league lifecycle", () => {
       await pageA.locator("#name").fill(leagueName);
       await pageA.getByRole("button", { name: "Create league" }).click();
 
-      // Success lands directly on the new league's home page.
+      // Success lands directly on the new league's home page (Overview tab).
       await expect(pageA).toHaveURL(/\/leagues\/[0-9a-f-]{36}$/);
       const leagueId = new URL(pageA.url()).pathname.split("/").at(-1)!;
+
+      // The roster lives on the Members tab now.
+      await pageA.getByRole("link", { name: "Members" }).click();
+      await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}/members$`));
       await expect(pageA.getByText(`@${commishName}`)).toBeVisible();
 
-      // The dashboard card links back to it.
+      // The dashboard card links back to it (Overview tab).
       await pageA.goto("/");
       await pageA.getByRole("link", { name: leagueName }).click();
       await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}$`));
 
-      // Commissioner: mint an invite link. The UI only offers copy-to-
-      // clipboard (unavailable headless), so the code is read from the DB.
+      // Commissioner: mint an invite link from the Members tab. The UI only
+      // offers copy-to-clipboard (unavailable headless), so the code is read
+      // from the DB.
+      await pageA.getByRole("link", { name: "Members" }).click();
+      await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}/members$`));
       await pageA.getByRole("button", { name: "Create invite link" }).click();
       await expect(pageA.getByRole("button", { name: "Revoke" }).first()).toBeVisible();
       const code = await latestInviteCode(leagueId);
@@ -52,12 +59,16 @@ test.describe("league lifecycle", () => {
       await expect(pageB.getByText(leagueName)).toBeVisible();
       await pageB.getByRole("button", { name: "Join league" }).click();
 
-      // Joining navigates into the league; both members are on the roster.
+      // Joining navigates into the league (Overview tab); both members are on
+      // the roster once the Members tab is opened.
       await expect(pageB).toHaveURL(new RegExp(`/leagues/${leagueId}$`));
+      await pageB.getByRole("link", { name: "Members" }).click();
+      await expect(pageB).toHaveURL(new RegExp(`/leagues/${leagueId}/members$`));
       await expect(pageB.getByText(`@${commishName}`)).toBeVisible();
       await expect(pageB.getByText(`@${joinerName}`)).toBeVisible();
 
-      // And the commissioner sees the join reflected after a reload.
+      // And the commissioner sees the join reflected after a reload, still on
+      // the Members tab.
       await pageA.reload();
       await expect(pageA.getByText(`@${joinerName}`)).toBeVisible();
     } finally {

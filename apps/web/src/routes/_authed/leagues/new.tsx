@@ -10,6 +10,7 @@ import {
   LEAGUE_VISIBILITY,
   LeagueNameSchema,
   MARCH_MADNESS_SCORING_MODEL,
+  MAX_LEAGUE_SIZE,
   PICK_TYPE,
   PICKEM_PUSH_TIE_RESOLUTION,
   type CreateLeagueRequest,
@@ -33,6 +34,7 @@ import {
   decodeWeek,
 } from "@/components/league-settings-fields";
 import { FormTextField } from "@/components/form-field";
+import { NumberField, numberFieldInvalid } from "@/components/number-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -56,6 +58,7 @@ function NewLeague() {
   // at submit. Free-text entry (the name field) does go through TanStack Form.
   const [mode, setMode] = useState<LeagueMode>(LEAGUE_MODE.PICKEM);
   const [visibility, setVisibility] = useState<LeagueVisibility>(LEAGUE_VISIBILITY.PRIVATE);
+  const [maxMembers, setMaxMembers] = useState(MAX_LEAGUE_SIZE);
 
   const [pickemStartWeek, setPickemStartWeek] = useState(DEFAULT_PICKEM_START_WEEK);
   const [pickemEndWeek, setPickemEndWeek] = useState(DEFAULT_PICKEM_END_WEEK);
@@ -140,7 +143,13 @@ function NewLeague() {
       // Re-validate the assembled body against the exact contract shape
       // before sending — the union of independently-managed settings state
       // must always satisfy the mode's Zod schema.
-      const parsed = CreateLeagueRequestSchema.safeParse({ mode, name, visibility, settings });
+      const parsed = CreateLeagueRequestSchema.safeParse({
+        mode,
+        name,
+        visibility,
+        maxMembers,
+        settings,
+      });
       if (!parsed.success) {
         toast.error(parsed.error.issues[0]?.message ?? "Check your league settings.");
         return;
@@ -151,6 +160,16 @@ function NewLeague() {
       createLeague.mutate(parsed.data);
     },
   });
+
+  // Submit gates on every NumberField currently rendered — which fields those
+  // are depends on `mode` (Elimination renders none beyond maxMembers).
+  const hasInvalidNumberField =
+    numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
+    (mode === LEAGUE_MODE.PICKEM && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
+    (mode === LEAGUE_MODE.MARCH_MADNESS &&
+      (numberFieldInvalid(mmMaxBrackets, 1, 10) ||
+        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
+          mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
 
   return (
     <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
@@ -189,6 +208,15 @@ function NewLeague() {
               value={visibility}
               onValueChange={setVisibility}
               options={VISIBILITY_OPTIONS}
+            />
+
+            <NumberField
+              id="max-members"
+              label="Max members"
+              min={2}
+              max={MAX_LEAGUE_SIZE}
+              value={maxMembers}
+              onValueChange={setMaxMembers}
             />
 
             {mode === LEAGUE_MODE.PICKEM && (
@@ -237,9 +265,9 @@ function NewLeague() {
                 type="submit"
                 size="lg"
                 className="w-full justify-center"
-                disabled={createLeague.isPending}
+                disabled={createLeague.isPending || hasInvalidNumberField}
               >
-                {createLeague.isPending ? "Creating…" : "Create league"}
+                Create league
               </Button>
               <Link
                 to="/"
