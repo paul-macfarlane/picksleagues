@@ -59,7 +59,7 @@ function Discovery() {
       {discovery.isPending && <p className="text-sm text-muted-foreground">Loading leagues…</p>}
 
       {discovery.isError && (
-        <div className="flex flex-col items-center gap-3 p-4 sm:p-6">
+        <div className="flex flex-col items-center gap-3 py-8">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load public leagues.</p>
           <Button variant="outline" onClick={() => discovery.refetch()}>
             Retry

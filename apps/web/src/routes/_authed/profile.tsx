@@ -54,7 +54,7 @@ function Profile() {
 
   if (me.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Loading profile…</p>
       </main>
     );
@@ -62,7 +62,7 @@ function Profile() {
 
   if (me.isError || !me.data) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your profile.</p>
         <Button variant="outline" onClick={() => me.refetch()}>
           Retry
