@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,14 +39,44 @@ function AuthedLayout() {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b border-border">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link
-            to="/"
-            className="text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            Picks Leagues
-          </Link>
-          <SessionMenu />
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-4">
+            <Link
+              to="/"
+              className="text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              Picks Leagues
+            </Link>
+            <nav aria-label="Primary" className="flex items-center gap-3 text-sm">
+              <Link
+                to="/"
+                className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                inactiveProps={{ className: "text-muted-foreground" }}
+                activeProps={{
+                  className: "text-foreground font-medium",
+                  "aria-current": "page",
+                }}
+                activeOptions={{ exact: true }}
+              >
+                Home
+              </Link>
+              <Link
+                to="/discovery"
+                className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                inactiveProps={{ className: "text-muted-foreground" }}
+                activeProps={{
+                  className: "text-foreground font-medium",
+                  "aria-current": "page",
+                }}
+              >
+                Discover
+              </Link>
+            </nav>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <SessionMenu />
+          </div>
         </div>
       </header>
       {/* Every authed page inherits this one column — pages never set their own

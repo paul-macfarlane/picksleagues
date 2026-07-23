@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ChevronRightIcon } from "lucide-react";
 import { MEMBER_ROLE, type LeagueSummary } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { leagueModeLabel } from "@/lib/league";
@@ -103,16 +104,17 @@ function Dashboard() {
 
 function LeagueCard({ league }: { league: LeagueSummary }) {
   return (
-    <Card className="h-full">
+    <Card className="relative h-full transition-colors hover:ring-ring/50">
       <CardHeader>
-        <CardTitle>
+        <CardTitle className="flex items-center justify-between gap-2">
           <Link
             to="/leagues/$leagueId"
             params={{ leagueId: league.id }}
-            className="hover:underline"
+            className="rounded-sm outline-none after:absolute after:inset-0 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {league.name}
           </Link>
+          <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         </CardTitle>
         <CardDescription>{leagueModeLabel(league.mode)}</CardDescription>
       </CardHeader>
