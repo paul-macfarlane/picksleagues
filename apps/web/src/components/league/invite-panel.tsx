@@ -91,7 +91,7 @@ export function InvitePanel({
                 key={invite.code}
                 invite={invite}
                 onRevoke={() => revokeInvite.mutate(invite.code)}
-                isRevoking={revokeInvite.isPending}
+                isRevoking={revokeInvite.isPending && revokeInvite.variables === invite.code}
               />
             ))}
           </ul>
@@ -209,7 +209,7 @@ function NewInviteForm({
         </div>
       </div>
       <Button type="submit" size="sm" className="self-start" disabled={isPending}>
-        {isPending ? "Creating…" : "Create invite link"}
+        Create invite link
       </Button>
     </form>
   );

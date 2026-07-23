@@ -107,7 +107,7 @@ export function DangerZoneSection({
                 disabled={leaveLeague.isPending}
                 onClick={() => leaveLeague.mutate()}
               >
-                {leaveLeague.isPending ? "Leaving…" : "Leave league"}
+                Leave league
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -135,7 +135,7 @@ export function DangerZoneSection({
                   disabled={deleteLeague.isPending}
                   onClick={() => deleteLeague.mutate()}
                 >
-                  {deleteLeague.isPending ? "Deleting…" : "Delete league"}
+                  Delete league
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
