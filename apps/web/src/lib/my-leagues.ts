@@ -1,11 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
-// Single home for the "current user's leagues" cache key + query — the
-// dashboard's league list and the navbar's league switcher both read this
-// same entry. Call sites that only invalidate the key (member/settings
-// mutations) keep their own ["my-leagues"] literal this round; this constant
-// exists so new reads don't mint another inline literal.
+// Single home for the "current user's leagues" cache key + query — readers
+// (dashboard, navbar switcher) and every invalidation call site share this
+// constant so the key can never drift.
 export const MY_LEAGUES_QUERY_KEY = ["my-leagues"];
 
 export function useMyLeagues() {
