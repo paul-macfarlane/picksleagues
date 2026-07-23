@@ -7,6 +7,7 @@
   },
   "packageManager": "pnpm@11.1.2",
   "scripts": {
+    "predev": "./scripts/kill-stale-dev.sh",
     "dev": "pnpm --parallel --filter @picksleagues/web --filter @picksleagues/api dev",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
