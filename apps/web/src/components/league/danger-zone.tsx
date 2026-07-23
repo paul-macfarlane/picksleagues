@@ -17,43 +17,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { leagueQueryKey } from "@/components/league/query-key";
+import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
-export function DangerZoneSection({
-  league,
-  isCommissioner,
-}: {
-  league: LeagueResponse;
-  isCommissioner: boolean;
-}) {
+// Commissioner-only — the route only renders this component when the viewer
+// can perform LEAGUE_ACTION.DELETE_LEAGUE, so there's no internal role check
+// left to make (Leave league lives on the Members tab now, visible to every
+// member — see members-section.tsx).
+export function DangerZoneSection({ league }: { league: LeagueResponse }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const leagueId = league.id;
-
-  const leaveLeague = useMutation({
-    mutationFn: async () => {
-      const { error, response } = await api.DELETE("/api/leagues/{leagueId}/members/me", {
-        params: { path: { leagueId } },
-      });
-      if (error) {
-        if (response.status === 409) {
-          toast.error(error.message);
-          return false;
-        }
-        throw error;
-      }
-      return true;
-    },
-    onSuccess: async (left) => {
-      if (!left) {
-        await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-        return;
-      }
-      toast.success("Left the league");
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
-      navigate({ to: "/" });
-    },
-    onError: () => toast.error("Couldn't leave this league — please try again."),
-  });
 
   const deleteLeague = useMutation({
     mutationFn: async () => {
@@ -75,7 +48,7 @@ export function DangerZoneSection({
         return;
       }
       toast.success("League deleted");
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/" });
     },
     onError: () => toast.error("Couldn't delete this league — please try again."),
@@ -86,61 +59,33 @@ export function DangerZoneSection({
       <CardHeader>
         <CardTitle className="text-destructive">Danger zone</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent>
         <AlertDialog>
           <AlertDialogTrigger
             render={<Button variant="destructive" className="w-full justify-center" />}
           >
-            Leave league
+            Delete league
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Leave {league.name}?</AlertDialogTitle>
+              <AlertDialogTitle>Delete {league.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                You&apos;ll lose access to this league&apos;s picks and standings.
+                This permanently deletes the league, its settings, members, and invites. This
+                can&apos;t be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={leaveLeague.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={deleteLeague.isPending}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 variant="destructive"
-                disabled={leaveLeague.isPending}
-                onClick={() => leaveLeague.mutate()}
+                disabled={deleteLeague.isPending}
+                onClick={() => deleteLeague.mutate()}
               >
-                Leave league
+                Delete league
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {isCommissioner && (
-          <AlertDialog>
-            <AlertDialogTrigger
-              render={<Button variant="destructive" className="w-full justify-center" />}
-            >
-              Delete league
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {league.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This permanently deletes the league, its settings, members, and invites. This
-                  can&apos;t be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleteLeague.isPending}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={deleteLeague.isPending}
-                  onClick={() => deleteLeague.mutate()}
-                >
-                  Delete league
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
       </CardContent>
     </Card>
   );

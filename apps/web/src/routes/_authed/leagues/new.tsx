@@ -5,6 +5,7 @@ import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import {
   CreateLeagueRequestSchema,
+  DEFAULT_MAX_MEMBERS,
   ELIMINATION_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
@@ -37,6 +38,7 @@ import { FormTextField } from "@/components/form-field";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 export const Route = createFileRoute("/_authed/leagues/new")({
   component: NewLeague,
@@ -58,7 +60,7 @@ function NewLeague() {
   // at submit. Free-text entry (the name field) does go through TanStack Form.
   const [mode, setMode] = useState<LeagueMode>(LEAGUE_MODE.PICKEM);
   const [visibility, setVisibility] = useState<LeagueVisibility>(LEAGUE_VISIBILITY.PRIVATE);
-  const [maxMembers, setMaxMembers] = useState(MAX_LEAGUE_SIZE);
+  const [maxMembers, setMaxMembers] = useState(DEFAULT_MAX_MEMBERS);
 
   const [pickemStartWeek, setPickemStartWeek] = useState(DEFAULT_PICKEM_START_WEEK);
   const [pickemEndWeek, setPickemEndWeek] = useState(DEFAULT_PICKEM_END_WEEK);
@@ -98,7 +100,7 @@ function NewLeague() {
     onSuccess: async (data) => {
       if (!data) return;
       toast.success("League created");
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },
     onError: () => {
@@ -213,6 +215,7 @@ function NewLeague() {
             <NumberField
               id="max-members"
               label="Max members"
+              description="Anywhere from 2 to 100 members."
               min={2}
               max={MAX_LEAGUE_SIZE}
               value={maxMembers}

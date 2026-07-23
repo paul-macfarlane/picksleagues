@@ -31,6 +31,7 @@ export function NumberField({
   onValueChange,
   min,
   max,
+  description,
 }: {
   id: string;
   label: string;
@@ -38,6 +39,10 @@ export function NumberField({
   onValueChange: (value: number) => void;
   min: number;
   max?: number;
+  // Muted helper text under the input (e.g. the field's valid range) —
+  // distinct from the error message, and included in aria-describedby
+  // alongside it rather than replacing it.
+  description?: string;
 }) {
   const [draft, setDraft] = useState(String(value));
   const [committedValue, setCommittedValue] = useState(value);
@@ -52,10 +57,14 @@ export function NumberField({
   }
 
   const errorId = `${id}-error`;
+  const descriptionId = `${id}-description`;
   // Out-of-range is live (not blur-gated): a fully-parsed but out-of-bounds
   // integer already committed via onChange below, so the error must appear
   // immediately — that's the whole fix for the silent-clamp bug.
   const showError = numberFieldInvalid(value, min, max);
+  const describedBy =
+    [description ? descriptionId : null, showError ? errorId : null].filter(Boolean).join(" ") ||
+    undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -69,7 +78,7 @@ export function NumberField({
         step={1}
         value={draft}
         aria-invalid={showError ? true : undefined}
-        aria-describedby={showError ? errorId : undefined}
+        aria-describedby={describedBy}
         onFocus={() => setIsFocused(true)}
         onChange={(event) => {
           const next = event.target.value;
@@ -89,6 +98,11 @@ export function NumberField({
           }
         }}
       />
+      {description && (
+        <p id={descriptionId} className="text-sm text-muted-foreground">
+          {description}
+        </p>
+      )}
       {showError && (
         <p id={errorId} className="text-sm text-destructive">
           {numberFieldErrorMessage(min, max)}

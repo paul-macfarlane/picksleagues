@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 // Top-level (not under _authed): mirrors claim-username.tsx — the invite
 // round-trip owns its own redirect state so sign-in/claim can return here
@@ -79,7 +80,7 @@ function JoinByCode() {
         return;
       }
       toast.success(`Joined ${data.name}`);
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },
     onError: () => {

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 export const Route = createFileRoute("/_authed/discovery")({
   component: Discovery,
@@ -116,7 +117,7 @@ function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
     onSuccess: async (data) => {
       if (!data) return;
       toast.success(`Joined ${data.name}`);
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },
     onError: () => {

@@ -3,11 +3,12 @@ import { toast } from "sonner";
 import { ERROR_CODE, type UpdateLeagueRequest } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { leagueQueryKey } from "@/components/league/query-key";
+import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
-// One `useMutation` per editor (not one shared instance) — each editor needs
-// its OWN `isPending` so submitting one save button doesn't disable the
-// others (async-button standard: a save button disables only for its own
-// in-flight save). All editors share this mutationFn/invalidation.
+// The merged settings form (settings-section.tsx) has one Save button for
+// name/visibility/maxMembers/settings together, so it calls this hook once —
+// a single `isPending` is enough to gate that one button (async-button
+// standard).
 export function useUpdateLeagueMutation(leagueId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -38,7 +39,7 @@ export function useUpdateLeagueMutation(leagueId: string) {
     onSuccess: async (data) => {
       // Renames show on the dashboard card too.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       if (data) toast.success("League updated");
     },
     onError: () => toast.error("Couldn't update this league — please try again."),

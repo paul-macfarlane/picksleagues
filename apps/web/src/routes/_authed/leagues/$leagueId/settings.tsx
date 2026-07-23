@@ -18,14 +18,16 @@ function LeagueSettings() {
 
   return (
     <div className="flex flex-col gap-4">
-      {canActOnLeague(league.data, LEAGUE_ACTION.EDIT_SETTINGS) && (
-        <LeagueSettingsSection league={league.data} />
-      )}
-
-      <DangerZoneSection
+      {/* Settings are visible (read-only) to every member — canEdit gates
+          only whether inputs are editable and whether Save renders. */}
+      <LeagueSettingsSection
         league={league.data}
-        isCommissioner={canActOnLeague(league.data, LEAGUE_ACTION.DELETE_LEAGUE)}
+        canEdit={canActOnLeague(league.data, LEAGUE_ACTION.EDIT_SETTINGS)}
       />
+
+      {canActOnLeague(league.data, LEAGUE_ACTION.DELETE_LEAGUE) && (
+        <DangerZoneSection league={league.data} />
+      )}
     </div>
   );
 }

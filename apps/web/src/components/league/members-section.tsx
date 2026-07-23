@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -25,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { leagueQueryKey } from "@/components/league/query-key";
+import { MY_LEAGUES_QUERY_KEY } from "@/lib/my-leagues";
 
 export function MembersSection({
   league,
@@ -35,6 +37,7 @@ export function MembersSection({
 }) {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const leagueId = league.id;
   const myUserId = session?.user.id;
 
@@ -58,7 +61,7 @@ export function MembersSection({
     onSuccess: async () => {
       // Role changes alter the dashboard's commissioner badge too.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
     },
     onError: () => toast.error("Couldn't update that member's role — please try again."),
   });
@@ -80,9 +83,38 @@ export function MembersSection({
     onSuccess: async () => {
       // Kicks change the member count the dashboard card shows.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
-      await queryClient.invalidateQueries({ queryKey: ["my-leagues"] });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
     },
     onError: () => toast.error("Couldn't remove that member — please try again."),
+  });
+
+  // Moved from the Danger Zone (item 4/5 consolidation) — every member,
+  // regardless of role, can leave from here; a sole member leaving deletes
+  // the league (server-enforced, unchanged).
+  const leaveLeague = useMutation({
+    mutationFn: async () => {
+      const { error, response } = await api.DELETE("/api/leagues/{leagueId}/members/me", {
+        params: { path: { leagueId } },
+      });
+      if (error) {
+        if (response.status === 409) {
+          toast.error(error.message);
+          return false;
+        }
+        throw error;
+      }
+      return true;
+    },
+    onSuccess: async (left) => {
+      if (!left) {
+        await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
+        return;
+      }
+      toast.success("Left the league");
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
+      navigate({ to: "/" });
+    },
+    onError: () => toast.error("Couldn't leave this league — please try again."),
   });
 
   return (
@@ -109,6 +141,41 @@ export function MembersSection({
             isKickPending={kickMember.isPending && kickMember.variables === member.id}
           />
         ))}
+
+        {/* Clearly separated from the roster above — visible to every
+            member, not gated on isCommissioner. */}
+        <div className="mt-2 border-t border-border pt-3">
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
+                />
+              }
+            >
+              Leave league
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Leave {league.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  You&apos;ll lose access to this league&apos;s picks and standings.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={leaveLeague.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={leaveLeague.isPending}
+                  onClick={() => leaveLeague.mutate()}
+                >
+                  Leave league
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </CardContent>
     </Card>
   );
