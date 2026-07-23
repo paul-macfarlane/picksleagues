@@ -75,5 +75,17 @@ export default tseslint.config(
       "no-restricted-syntax": ["error", ...timeDisciplineSelectors],
     },
   },
+  // Accretion guard (engineering rules §Architecture: a file that accretes
+  // unrelated responsibilities gets split). A warning, not an error — the
+  // number is a nudge to split along responsibilities at the moment growth
+  // happens, not a hard cap to be gamed. Tests are exempt: table-driven
+  // suites are legitimately long.
+  {
+    files: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.ts"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "max-lines": ["warn", { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
   prettier,
 );
