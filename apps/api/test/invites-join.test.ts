@@ -152,20 +152,36 @@ describe("invite management", () => {
     expect(invite.code.length).toBeGreaterThanOrEqual(16);
     expect(invite.createdBy).toMatchObject({ userId: commissioner.user.id });
 
+    // A second, untouched invite stays listed throughout — only the revoked
+    // one should disappear.
+    const survivor = await createCode(commissioner.cookie, league.id);
+
     const list = await listInvites(commissioner.cookie, league.id);
     expect(list.status).toBe(200);
-    expect(((await list.json()) as { invites: Invite[] }).invites).toHaveLength(1);
+    expect(((await list.json()) as { invites: Invite[] }).invites).toHaveLength(2);
 
     const revoke = await revokeInvite(commissioner.cookie, league.id, invite.code);
     expect(revoke.status).toBe(204);
     const after = (await (await listInvites(commissioner.cookie, league.id)).json()) as {
       invites: Invite[];
     };
-    expect(after.invites[0]).toMatchObject({ status: "revoked" });
-    expect(after.invites[0]?.revokedAt).toBe(PRE_START_NOW.toISOString());
+    // Revoked invites are excluded from the commissioner's list entirely —
+    // revocation itself stays idempotent and a revoked code still 409s a join.
+    expect(after.invites.map((i) => i.code)).toEqual([survivor]);
+
+    const [revokedRow] = await db
+      .select()
+      .from(leagueInvites)
+      .where(eq(leagueInvites.code, invite.code));
+    expect(revokedRow?.revokedAt).toEqual(PRE_START_NOW);
 
     // Idempotent: second revoke succeeds and keeps the original timestamp.
     expect((await revokeInvite(commissioner.cookie, league.id, invite.code)).status).toBe(204);
+    const [revokedRowAfterSecond] = await db
+      .select()
+      .from(leagueInvites)
+      .where(eq(leagueInvites.code, invite.code));
+    expect(revokedRowAfterSecond?.revokedAt).toEqual(PRE_START_NOW);
   });
 
   it("403s a plain member and 404s a non-member on invite management", async () => {
@@ -464,6 +480,35 @@ describe("concurrency", () => {
       .from(leagueMembers)
       .where(eq(leagueMembers.leagueId, league.id));
     expect(members).toHaveLength(100);
+  });
+});
+
+describe("custom maxMembers cap (feedback item 10)", () => {
+  it("409s a join once the league's custom cap is reached and rolls back", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({ maxMembers: 2 });
+    const code = await createCode(commissioner.cookie, league.id);
+    const filler = await createAuthenticatedUser(auth, { username: "filler" });
+    expect((await postJoin(filler.cookie, code)).status).toBe(201); // commissioner + filler = 2 = cap
+
+    const third = await createAuthenticatedUser(auth, { username: "third" });
+    const res = await postJoin(third.cookie, code);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "league_full" });
+    expect(
+      await db.select().from(leagueMembers).where(eq(leagueMembers.userId, third.user.id)),
+    ).toHaveLength(0);
+  });
+
+  it("join preview reports league_full at the custom cap", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({ maxMembers: 2 });
+    const code = await createCode(commissioner.cookie, league.id);
+    const filler = await createAuthenticatedUser(auth, { username: "filler" });
+    expect((await postJoin(filler.cookie, code)).status).toBe(201);
+
+    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
+    const res = await getJoinPreview(joiner.cookie, code);
+    const body = (await res.json()) as JoinPreviewResponse;
+    expect(body).toMatchObject({ joinable: false, reason: "league_full" });
   });
 });
 

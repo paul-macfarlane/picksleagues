@@ -24,6 +24,11 @@ export const MAX_ACTIVE_COMMISSIONER_LEAGUES = 10;
 // proceeds), so only the max is a guard.
 export const MAX_LEAGUE_SIZE = 100;
 
+// Commissioners may cap their league below the global ceiling (never above
+// it) — mode-agnostic, so it lives beside name/visibility rather than inside
+// any per-mode settings schema.
+export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).openapi("MaxMembers");
+
 // Settings are validated against the mode's schema at the boundary — the
 // discriminated union makes an invalid mode/settings pairing unrepresentable
 // rather than a service-layer check.
@@ -33,18 +38,21 @@ export const CreateLeagueRequestSchema = z
       mode: z.literal(LEAGUE_MODE.PICKEM),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
+      maxMembers: MaxMembersSchema.default(MAX_LEAGUE_SIZE),
       settings: PickemSettingsSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.ELIMINATION),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
+      maxMembers: MaxMembersSchema.default(MAX_LEAGUE_SIZE),
       settings: EliminationSettingsSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.MARCH_MADNESS),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
+      maxMembers: MaxMembersSchema.default(MAX_LEAGUE_SIZE),
       settings: MarchMadnessSettingsSchema,
     }),
   ])
@@ -60,12 +68,16 @@ export const UpdateLeagueRequestSchema = z
   .object({
     name: LeagueNameSchema.optional(),
     visibility: LeagueVisibilitySchema.optional(),
+    maxMembers: MaxMembersSchema.optional(),
     settings: z.unknown().optional(),
   })
   .refine(
     (data) =>
-      data.name !== undefined || data.visibility !== undefined || data.settings !== undefined,
-    { message: "At least one of name, visibility, or settings is required" },
+      data.name !== undefined ||
+      data.visibility !== undefined ||
+      data.maxMembers !== undefined ||
+      data.settings !== undefined,
+    { message: "At least one of name, visibility, maxMembers, or settings is required" },
   )
   .openapi("UpdateLeagueRequest");
 
@@ -110,6 +122,7 @@ export const LeagueResponseSchema = z
     seasonYear: z.number().int(),
     settings: LeagueSettingsSchema,
     startsAt: z.iso.datetime().nullable(),
+    maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     members: z.array(LeagueMemberSchema),
   })
@@ -125,6 +138,7 @@ export const LeagueSummarySchema = z
     visibility: LeagueVisibilitySchema,
     status: LeagueStatusSchema,
     memberCount: z.number().int(),
+    maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     startsAt: z.iso.datetime().nullable(),
   })

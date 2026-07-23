@@ -172,6 +172,9 @@
             ],
             "format": "date-time"
           },
+          "maxMembers": {
+            "type": "integer"
+          },
           "myRole": {
             "$ref": "#/components/schemas/MemberRole"
           },
@@ -191,6 +194,7 @@
           "seasonYear",
           "settings",
           "startsAt",
+          "maxMembers",
           "myRole",
           "members"
         ]
@@ -498,6 +502,9 @@
               "visibility": {
                 "$ref": "#/components/schemas/LeagueVisibility"
               },
+              "maxMembers": {
+                "$ref": "#/components/schemas/MaxMembers"
+              },
               "settings": {
                 "$ref": "#/components/schemas/PickemSettings"
               }
@@ -523,6 +530,9 @@
               },
               "visibility": {
                 "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "maxMembers": {
+                "$ref": "#/components/schemas/MaxMembers"
               },
               "settings": {
                 "$ref": "#/components/schemas/EliminationSettings"
@@ -550,6 +560,9 @@
               "visibility": {
                 "$ref": "#/components/schemas/LeagueVisibility"
               },
+              "maxMembers": {
+                "$ref": "#/components/schemas/MaxMembers"
+              },
               "settings": {
                 "$ref": "#/components/schemas/MarchMadnessSettings"
               }
@@ -562,6 +575,12 @@
             ]
           }
         ]
+      },
+      "MaxMembers": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 100,
+        "default": 100
       },
       "MarchMadnessSettings": {
         "oneOf": [
@@ -650,6 +669,9 @@
           "memberCount": {
             "type": "integer"
           },
+          "maxMembers": {
+            "type": "integer"
+          },
           "myRole": {
             "$ref": "#/components/schemas/MemberRole"
           },
@@ -668,6 +690,7 @@
           "visibility",
           "status",
           "memberCount",
+          "maxMembers",
           "myRole",
           "startsAt"
         ]
@@ -680,6 +703,9 @@
           },
           "visibility": {
             "$ref": "#/components/schemas/LeagueVisibility"
+          },
+          "maxMembers": {
+            "$ref": "#/components/schemas/MaxMembers"
           },
           "settings": {}
         }
@@ -1352,7 +1378,7 @@
             }
           },
           "400": {
-            "description": "Invalid name, mode, visibility, or mode settings",
+            "description": "Invalid name, mode, visibility, maxMembers, or mode settings",
             "content": {
               "application/json": {
                 "schema": {
@@ -1490,7 +1516,7 @@
       },
       "patch": {
         "operationId": "updateLeague",
-        "summary": "Edit a league: name anytime; visibility and settings pre-start only (commissioner)",
+        "summary": "Edit a league: name anytime; visibility, maxMembers, and settings pre-start only (commissioner)",
         "parameters": [
           {
             "schema": {
@@ -1563,7 +1589,7 @@
             }
           },
           "409": {
-            "description": "Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed)",
+            "description": "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count)",
             "content": {
               "application/json": {
                 "schema": {

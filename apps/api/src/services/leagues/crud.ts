@@ -19,8 +19,8 @@ import {
   type Sport,
 } from "@picksleagues/schemas";
 import { isPreStart, leagueStartAt } from "./start";
-import { lockUserRow } from "./locks";
-import { authorizeLeagueAction, countActiveCommissionerships } from "./authz";
+import { lockLeagueRow, lockUserRow } from "./locks";
+import { authorizeLeagueAction, countActiveCommissionerships, countMembers } from "./authz";
 import { loadMembers, serializeLeague } from "./serialize";
 
 /** The sport whose seasons a mode's leagues bind to. */
@@ -84,6 +84,7 @@ export async function createLeague(
           visibility: input.visibility,
           status: LEAGUE_STATUS.ACTIVE,
           seasonId: season.id,
+          maxMembers: input.maxMembers,
           createdAt: now,
           updatedAt: now,
         })
@@ -138,29 +139,44 @@ export type UpdateLeagueResult =
       ok: false;
       reason: "league_not_found" | "not_commissioner" | "league_started" | "start_week_passed";
     }
-  | { ok: false; reason: "invalid_settings"; message: string };
+  | { ok: false; reason: "invalid_settings"; message: string }
+  | { ok: false; reason: "max_members_below_member_count" };
 
 /**
  * Commissioner edits (spec §Commissioner Powers): name is cosmetic and
- * changeable anytime; visibility and mode settings lock at league start —
- * the pre-start check runs inside the same transaction as the write so a
- * kickoff passing mid-request can't slip an edit through.
+ * changeable anytime; visibility, mode settings, and maxMembers lock at
+ * league start — the pre-start check runs inside the same transaction as the
+ * write so a kickoff passing mid-request can't slip an edit through.
  */
 export async function updateLeague(
   db: Db,
   clock: Clock,
   leagueId: string,
   userId: string,
-  input: { name?: string; visibility?: LeagueVisibility; settings?: unknown },
+  input: {
+    name?: string;
+    visibility?: LeagueVisibility;
+    maxMembers?: number;
+    settings?: unknown;
+  },
 ): Promise<UpdateLeagueResult> {
   const refusal = await db.transaction(async (tx): Promise<UpdateLeagueResult | null> => {
+    // Serializes this edit's member-count invariant (maxMembers can't drop
+    // below the current roster) against concurrent joins on the same league
+    // (locks.ts: every count-after-write invariant needs the league lock).
+    await lockLeagueRow(tx, leagueId);
+
     // One PATCH can carry several field-level actions; all share the
     // commissioner role axis, but only some carry the pre-start window —
-    // the matrix decides which (name is the lone anytime edit).
+    // the matrix decides which (name is the lone anytime edit). maxMembers
+    // rides EDIT_SETTINGS: same commissionerOnly + preStartOnly window as
+    // mode settings.
     const requestedActions: LeagueAction[] = [
       ...(input.name !== undefined ? [LEAGUE_ACTION.EDIT_NAME] : []),
       ...(input.visibility !== undefined ? [LEAGUE_ACTION.EDIT_VISIBILITY] : []),
-      ...(input.settings !== undefined ? [LEAGUE_ACTION.EDIT_SETTINGS] : []),
+      ...(input.settings !== undefined || input.maxMembers !== undefined
+        ? [LEAGUE_ACTION.EDIT_SETTINGS]
+        : []),
     ];
     const gate = await authorizeLeagueAction(
       tx,
@@ -182,6 +198,16 @@ export async function updateLeague(
       const startsAt = await leagueStartAt(tx, row.league, row.settings);
       if (!isPreStart(startsAt, clock)) {
         return { ok: false, reason: "league_started" };
+      }
+    }
+
+    if (input.maxMembers !== undefined) {
+      // Lowering the cap below the current roster would strand existing
+      // members outside their own league's limit — refuse rather than
+      // silently accepting an unenforceable cap.
+      const memberCount = await countMembers(tx, leagueId);
+      if (input.maxMembers < memberCount) {
+        return { ok: false, reason: "max_members_below_member_count" };
       }
     }
 
@@ -208,12 +234,17 @@ export async function updateLeague(
         .where(eq(leagueSettings.leagueId, leagueId));
     }
 
-    if (input.name !== undefined || input.visibility !== undefined) {
+    if (
+      input.name !== undefined ||
+      input.visibility !== undefined ||
+      input.maxMembers !== undefined
+    ) {
       await tx
         .update(leagues)
         .set({
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
+          ...(input.maxMembers !== undefined ? { maxMembers: input.maxMembers } : {}),
           updatedAt: now,
         })
         .where(eq(leagues.id, leagueId));
@@ -331,6 +362,7 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
         visibility: row.league.visibility,
         status: row.league.status,
         memberCount: countByLeague.get(row.league.id) ?? 0,
+        maxMembers: row.league.maxMembers,
         myRole: row.myRole,
         startsAt: startsAt ? startsAt.toISOString() : null,
       };

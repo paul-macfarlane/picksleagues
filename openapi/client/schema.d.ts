@@ -124,7 +124,7 @@ export interface paths {
         delete: operations["deleteLeague"];
         options?: never;
         head?: never;
-        /** Edit a league: name anytime; visibility and settings pre-start only (commissioner) */
+        /** Edit a league: name anytime; visibility, maxMembers, and settings pre-start only (commissioner) */
         patch: operations["updateLeague"];
         trace?: never;
     };
@@ -298,6 +298,7 @@ export interface components {
             settings: components["schemas"]["LeagueSettings"];
             /** Format: date-time */
             startsAt: string | null;
+            maxMembers: number;
             myRole: components["schemas"]["MemberRole"];
             members: components["schemas"]["LeagueMember"][];
         };
@@ -380,20 +381,25 @@ export interface components {
             mode: "pickem";
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
+            maxMembers?: components["schemas"]["MaxMembers"];
             settings: components["schemas"]["PickemSettings"];
         } | {
             /** @enum {string} */
             mode: "elimination";
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
+            maxMembers?: components["schemas"]["MaxMembers"];
             settings: components["schemas"]["EliminationSettings"];
         } | {
             /** @enum {string} */
             mode: "march_madness";
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
+            maxMembers?: components["schemas"]["MaxMembers"];
             settings: components["schemas"]["MarchMadnessSettings"];
         };
+        /** @default 100 */
+        MaxMembers: number;
         MarchMadnessSettings: {
             /** @default 5 */
             maxBracketsPerMember: number;
@@ -416,6 +422,7 @@ export interface components {
             visibility: components["schemas"]["LeagueVisibility"];
             status: components["schemas"]["LeagueStatus"];
             memberCount: number;
+            maxMembers: number;
             myRole: components["schemas"]["MemberRole"];
             /** Format: date-time */
             startsAt: string | null;
@@ -423,6 +430,7 @@ export interface components {
         UpdateLeagueRequest: {
             name?: components["schemas"]["LeagueName"];
             visibility?: components["schemas"]["LeagueVisibility"];
+            maxMembers?: components["schemas"]["MaxMembers"];
             settings?: unknown;
         };
         LeagueInvite: {
@@ -869,7 +877,7 @@ export interface operations {
                     "application/json": components["schemas"]["LeagueResponse"];
                 };
             };
-            /** @description Invalid name, mode, visibility, or mode settings */
+            /** @description Invalid name, mode, visibility, maxMembers, or mode settings */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1081,7 +1089,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed) */
+            /** @description Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count) */
             409: {
                 headers: {
                     [name: string]: unknown;

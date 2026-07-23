@@ -34,6 +34,7 @@ export const ERROR_CODE = {
   INVITE_REVOKED: "invite_revoked",
   INVITE_EXPIRED: "invite_expired",
   INVITE_EXHAUSTED: "invite_exhausted",
+  MAX_MEMBERS_BELOW_MEMBER_COUNT: "max_members_below_member_count",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

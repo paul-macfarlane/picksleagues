@@ -154,11 +154,39 @@ describe("PATCH /api/leagues/:leagueId", () => {
     const outsider = await createAuthenticatedUser(auth, { username: "outsider" });
     expect((await patchLeague(member.cookie, league.id, { name: "X" })).status).toBe(403);
     expect((await patchLeague(outsider.cookie, league.id, { name: "X" })).status).toBe(404);
+    // maxMembers rides the same EDIT_SETTINGS gate — cheap to pin here too.
+    expect((await patchLeague(member.cookie, league.id, { maxMembers: 5 })).status).toBe(403);
   });
 
   it("400s an empty update", async () => {
     const { commish, league } = await seedLeague();
     expect((await patchLeague(commish.cookie, league.id, {})).status).toBe(400);
+  });
+
+  it("changes maxMembers pre-start", async () => {
+    const { commish, league } = await seedLeague();
+    const res = await patchLeague(commish.cookie, league.id, { maxMembers: 10 });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as LeagueResponse).maxMembers).toBe(10);
+  });
+
+  it("409s lowering maxMembers below the current member count", async () => {
+    // seedLeague() seats a commissioner and a plain member (2); a third
+    // member pushes the count to 3 so maxMembers: 2 (the schema's floor) is
+    // still below the roster.
+    const { commish, league } = await seedLeague();
+    const third = await createAuthenticatedUser(auth, { username: "third_member" });
+    await db.insert(leagueMembers).values({
+      leagueId: league.id,
+      userId: third.user.id,
+      role: MEMBER_ROLE.MEMBER,
+      createdAt: WEEK1_KICKOFF,
+      updatedAt: WEEK1_KICKOFF,
+    });
+
+    const res = await patchLeague(commish.cookie, league.id, { maxMembers: 2 });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "max_members_below_member_count" });
   });
 });
 

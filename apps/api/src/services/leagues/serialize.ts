@@ -57,6 +57,7 @@ export function serializeLeague(
     seasonYear,
     settings,
     startsAt: startsAt ? startsAt.toISOString() : null,
+    maxMembers: league.maxMembers,
     myRole,
     members: members.map(serializeMember),
   };

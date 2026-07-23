@@ -8,7 +8,6 @@ import {
   JOIN_BLOCKED_REASON,
   LEAGUE_ACTION,
   LEAGUE_STATUS,
-  MAX_LEAGUE_SIZE,
   type Invite,
   type InviteStatus,
   type JoinBlockedReason,
@@ -114,7 +113,11 @@ export async function listInvites(
     .select({ invite: leagueInvites, creator: users })
     .from(leagueInvites)
     .leftJoin(users, eq(leagueInvites.createdBy, users.id))
-    .where(eq(leagueInvites.leagueId, leagueId))
+    // Revoked invites disappear from the commissioner's list — revocation
+    // itself stays idempotent and a revoked code still 409s on join, this
+    // only trims stale entries from the management view. Expired/exhausted
+    // invites remain listed; their status field distinguishes them.
+    .where(and(eq(leagueInvites.leagueId, leagueId), isNull(leagueInvites.revokedAt)))
     .orderBy(desc(leagueInvites.createdAt));
 
   return {
@@ -194,7 +197,7 @@ export async function getJoinPreview(
     reason = JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED;
   } else if (!isPreStart(startsAt, clock)) {
     reason = JOIN_BLOCKED_REASON.JOIN_CLOSED;
-  } else if (memberCount >= MAX_LEAGUE_SIZE) {
+  } else if (memberCount >= row.league.maxMembers) {
     reason = JOIN_BLOCKED_REASON.LEAGUE_FULL;
   }
 

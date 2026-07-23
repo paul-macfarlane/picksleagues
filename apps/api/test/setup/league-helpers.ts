@@ -108,6 +108,7 @@ export async function insertLeague(
     mode = LEAGUE_MODE.PICKEM,
     visibility = LEAGUE_VISIBILITY.PRIVATE,
     status = LEAGUE_STATUS.ACTIVE,
+    maxMembers = 100,
     settings = DEFAULT_PICKEM_SETTINGS,
     members = [],
   }: {
@@ -116,13 +117,23 @@ export async function insertLeague(
     mode?: LeagueMode;
     visibility?: LeagueVisibility;
     status?: LeagueStatus;
+    maxMembers?: number;
     settings?: LeagueSettings;
     members?: Array<{ userId: string; role: MemberRole }>;
   },
 ) {
   const [league] = await db
     .insert(leagues)
-    .values({ name, mode, visibility, status, seasonId, createdAt: SEED_AT, updatedAt: SEED_AT })
+    .values({
+      name,
+      mode,
+      visibility,
+      status,
+      seasonId,
+      maxMembers,
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
     .returning();
   if (!league) throw new Error("league insert returned no row");
 

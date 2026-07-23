@@ -174,6 +174,36 @@ describe("POST /api/leagues", () => {
     expect(await res.json()).toMatchObject({ error: "validation" });
   });
 
+  it.each([
+    { label: "below the 2-member floor", maxMembers: 1 },
+    { label: "above the 100-member ceiling", maxMembers: 101 },
+  ])("400s on maxMembers $label", async ({ maxMembers }) => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, { ...VALID_PICKEM_BODY, maxMembers });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "validation" });
+  });
+
+  it("creates a league with a custom maxMembers below the global ceiling", async () => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, { ...VALID_PICKEM_BODY, maxMembers: 2 });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as LeagueResponse).maxMembers).toBe(2);
+  });
+
+  it("defaults maxMembers to 100 when omitted", async () => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, VALID_PICKEM_BODY);
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as LeagueResponse).maxMembers).toBe(100);
+  });
+
   it("400s on an elimination league with a postseason week", async () => {
     await seedDefaultSeason();
     const { cookie } = await createAuthenticatedUser(auth);

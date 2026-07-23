@@ -6,7 +6,6 @@ import {
   JOIN_BLOCKED_REASON,
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
-  MAX_LEAGUE_SIZE,
   MEMBER_ROLE,
   type JoinBlockedReason,
   type LeagueResponse,
@@ -43,8 +42,8 @@ export class LeagueMissingError extends Error {}
  * 2. league concluded → refuse;
  * 3. clock-derived join cutoff — the league has started (arch §Locking
  *    Model: same boundary as pre-start windows) → refuse;
- * 4. insert, then re-count: over 100 members → refuse (rolls back the
- *    insert, so the check-then-act is collapsed into the tx).
+ * 4. insert, then re-count: over the league's maxMembers cap → refuse (rolls
+ *    back the insert, so the check-then-act is collapsed into the tx).
  */
 export async function joinLeagueInTx(
   tx: Db,
@@ -91,7 +90,7 @@ export async function joinLeagueInTx(
     throw error;
   }
 
-  if ((await countMembers(tx, leagueId)) > MAX_LEAGUE_SIZE) {
+  if ((await countMembers(tx, leagueId)) > row.league.maxMembers) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_FULL);
   }
 }

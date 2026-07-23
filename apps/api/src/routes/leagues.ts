@@ -43,7 +43,7 @@ const postLeagues = createRoute({
       description: "League created in a pre-start state",
       content: { "application/json": { schema: LeagueResponseSchema } },
     },
-    400: errorResponse("Invalid name, mode, visibility, or mode settings"),
+    400: errorResponse("Invalid name, mode, visibility, maxMembers, or mode settings"),
     401: UNAUTHENTICATED_401,
     409: errorResponse(
       "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
@@ -88,7 +88,8 @@ const patchLeague = createRoute({
   method: "patch",
   path: "/leagues/{leagueId}",
   operationId: "updateLeague",
-  summary: "Edit a league: name anytime; visibility and settings pre-start only (commissioner)",
+  summary:
+    "Edit a league: name anytime; visibility, maxMembers, and settings pre-start only (commissioner)",
   request: {
     params: LeagueIdParamsSchema,
     body: { content: { "application/json": { schema: UpdateLeagueRequestSchema } } },
@@ -103,7 +104,7 @@ const patchLeague = createRoute({
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
     409: errorResponse(
-      "Visibility/settings edit after league start (league_started), or new settings whose start week has already begun (start_week_passed)",
+      "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -248,6 +249,14 @@ export function leagueRoutes(deps: AppDeps) {
           return c.json(
             ErrorResponseSchema.parse({ error: ERROR_CODE.VALIDATION, message: result.message }),
             400,
+          );
+        case "max_members_below_member_count":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT,
+              message: "maxMembers can't be lower than the league's current member count.",
+            }),
+            409,
           );
       }
     }

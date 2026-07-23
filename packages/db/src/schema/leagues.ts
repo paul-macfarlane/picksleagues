@@ -1,4 +1,15 @@
-import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type {
   LeagueMode,
   LeagueSettings,
@@ -34,6 +45,10 @@ export const leagues = pgTable(
     seasonId: uuid("season_id")
       .notNull()
       .references(() => sportSeasons.id, { onDelete: "restrict" }),
+    // Commissioner-configurable cap, never above the global MAX_LEAGUE_SIZE
+    // ceiling (packages/schemas) — the join transaction reads this column
+    // instead of the global constant so a league can shrink its own room.
+    maxMembers: integer("max_members").notNull().default(100),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -41,6 +56,7 @@ export const leagues = pgTable(
     // Serves discovery: public + active leagues, pre-cutoff filtering and
     // name search happen on that narrowed set.
     index("leagues_visibility_status_idx").on(table.visibility, table.status),
+    check("leagues_max_members_range", sql`${table.maxMembers} between 2 and 100`),
   ],
 );
 
