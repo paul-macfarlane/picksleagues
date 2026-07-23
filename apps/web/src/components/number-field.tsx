@@ -18,9 +18,12 @@ function numberFieldErrorMessage(min: number, max?: number): string {
 // string draft holds "" / partial input without the controlled `value` prop
 // snapping it back. Any fully-parsed integer commits to the parent
 // immediately, even out of range — the server is the real gate (spec: 1-16
-// picksPerWeek, 2-100 maxMembers, etc.) but silently clamping on blur lied
-// about what got submitted, so an out-of-range value instead surfaces an
-// inline error (mirrors the a11y idiom of form-field.tsx's FormTextField).
+// picksPerWeek, 2-100 maxMembers, etc.), so an out-of-range value commits
+// visibly with an inline error (mirrors the a11y idiom of form-field.tsx's
+// FormTextField) rather than being silently clamped. Free typing is allowed
+// while focused; on blur, a leftover draft that doesn't parse to an integer
+// is restored to the committed `value` so the field always displays exactly
+// what will be submitted — displayed state never drifts from submitted state.
 export function NumberField({
   id,
   label,
@@ -39,10 +42,6 @@ export function NumberField({
   const [draft, setDraft] = useState(String(value));
   const [committedValue, setCommittedValue] = useState(value);
   const [isFocused, setIsFocused] = useState(false);
-  // Only relevant on blur: a partial/non-numeric draft ("", "-") is an
-  // expected transient state while typing, not an error until the user
-  // leaves the field with nothing parseable left behind.
-  const [draftUnparsable, setDraftUnparsable] = useState(false);
 
   // Derived-state-from-props, run during render rather than an effect: picks
   // up an external `value` change (e.g. a sibling control resetting this
@@ -56,7 +55,7 @@ export function NumberField({
   // Out-of-range is live (not blur-gated): a fully-parsed but out-of-bounds
   // integer already committed via onChange below, so the error must appear
   // immediately — that's the whole fix for the silent-clamp bug.
-  const showError = numberFieldInvalid(value, min, max) || (!isFocused && draftUnparsable);
+  const showError = numberFieldInvalid(value, min, max);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -77,7 +76,6 @@ export function NumberField({
           setDraft(next);
           const parsed = Number(next);
           if (next.trim() !== "" && Number.isInteger(parsed)) {
-            setDraftUnparsable(false);
             setCommittedValue(parsed);
             onValueChange(parsed);
           }
@@ -86,7 +84,9 @@ export function NumberField({
           setIsFocused(false);
           const parsed = Number(draft);
           const parses = draft.trim() !== "" && Number.isInteger(parsed);
-          setDraftUnparsable(!parses);
+          if (!parses) {
+            setDraft(String(value));
+          }
         }}
       />
       {showError && (

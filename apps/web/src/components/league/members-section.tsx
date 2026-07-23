@@ -106,7 +106,7 @@ export function MembersSection({
             onDemote={() => updateRole.mutate({ memberId: member.id, role: MEMBER_ROLE.MEMBER })}
             onKick={() => kickMember.mutate(member.id)}
             isRolePending={updateRole.isPending && updateRole.variables?.memberId === member.id}
-            isKickPending={kickMember.isPending}
+            isKickPending={kickMember.isPending && kickMember.variables === member.id}
           />
         ))}
       </CardContent>

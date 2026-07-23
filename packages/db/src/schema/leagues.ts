@@ -56,6 +56,9 @@ export const leagues = pgTable(
     // Serves discovery: public + active leagues, pre-cutoff filtering and
     // name search happen on that narrowed set.
     index("leagues_visibility_status_idx").on(table.visibility, table.status),
+    // 2 and 100 are intentionally duplicated from MAX_LEAGUE_SIZE
+    // (packages/schemas) — SQL DDL can't import a TS constant. If that
+    // constant changes, this literal must move with it via a new migration.
     check("leagues_max_members_range", sql`${table.maxMembers} between 2 and 100`),
   ],
 );
