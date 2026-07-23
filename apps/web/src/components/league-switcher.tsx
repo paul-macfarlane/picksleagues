@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { useMyLeagues } from "@/lib/my-leagues";
 import { leagueModeLabel } from "@/lib/league";
@@ -23,23 +23,32 @@ export function LeagueSwitcher() {
   // children — this is the one config-free way to detect "on a league page"
   // without duplicating the route path here.
   const { leagueId } = useParams({ strict: false });
+  // Pathname-prefix check (rather than keying off leagueId, which is absent on
+  // /leagues/new) so the trigger stays highlighted across the whole /leagues
+  // subtree: the list, a specific league, and the create-league page.
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const myLeagues = useMyLeagues();
 
   const isLoading = myLeagues.isPending || myLeagues.isError;
   const leagues = myLeagues.data?.leagues ?? [];
   const currentLeague = leagueId ? leagues.find((league) => league.id === leagueId) : undefined;
+  const isOnLeaguesSubtree = pathname.startsWith("/leagues");
 
   return (
     <DropdownMenu>
+      {/* This is a menu trigger, not a location Link, so it doesn't carry
+          aria-current — the visual highlight is enough, and the menu items
+          below already expose aria-current="page" for the selected league. */}
       <DropdownMenuTrigger
         disabled={isLoading}
         aria-label="Switch league"
-        className="flex items-center gap-1 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:text-foreground"
+        className={cn(
+          "flex items-center gap-1 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:text-foreground",
+          isOnLeaguesSubtree && "font-medium text-foreground",
+        )}
       >
-        <span
-          className={cn("max-w-[10rem] truncate", currentLeague && "font-medium text-foreground")}
-        >
+        <span className="max-w-[10rem] truncate">
           {currentLeague ? currentLeague.name : "Leagues"}
         </span>
         <ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />

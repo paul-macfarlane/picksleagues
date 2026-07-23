@@ -7,7 +7,7 @@ import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { useMyLeagues } from "@/lib/my-leagues";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import {
@@ -108,14 +108,8 @@ function AuthedLayout() {
 
 function MobileNav() {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const myLeagues = useMyLeagues();
   const leagues = myLeagues.data?.leagues ?? [];
-
-  function goTo(to: "/leagues/new") {
-    setOpen(false);
-    navigate({ to });
-  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -172,13 +166,20 @@ function MobileNav() {
             ))}
           </nav>
         )}
-        <Button
-          variant="outline"
-          className="w-full justify-center"
-          onClick={() => goTo("/leagues/new")}
+        <Link
+          to="/leagues/new"
+          className={buttonVariants({ variant: "outline", className: "w-full justify-center" })}
+          activeProps={{
+            className: buttonVariants({
+              variant: "outline",
+              className: "w-full justify-center bg-accent text-accent-foreground",
+            }),
+            "aria-current": "page",
+          }}
+          onClick={() => setOpen(false)}
         >
           Create league
-        </Button>
+        </Link>
       </SheetContent>
     </Sheet>
   );

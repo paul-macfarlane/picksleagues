@@ -315,17 +315,19 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
         )}
       </Field.Root>
 
-      {/* Static copy, not a client-computed "now" gate — the server's 409
-          (league_started) is the real lock; this just sets expectations. */}
-      <p className="text-sm text-muted-foreground">
-        Visibility, max members, and game settings lock once the league starts. League name can be
-        changed anytime.
-      </p>
-
       {canEdit && (
-        <Button size="sm" className="self-start" disabled={!canSave} onClick={handleSave}>
-          Save changes
-        </Button>
+        <>
+          {/* Static copy, not a client-computed "now" gate — the server's 409
+              (league_started) is the real lock; this just sets expectations.
+              Editors only: read-only viewers can't act on it. */}
+          <p className="text-sm text-muted-foreground">
+            Visibility, max members, and game settings lock once the league starts. League name can
+            be changed anytime.
+          </p>
+          <Button size="sm" className="self-start" disabled={!canSave} onClick={handleSave}>
+            Save changes
+          </Button>
+        </>
       )}
     </>
   );
