@@ -1,0 +1,2 @@
+ALTER TABLE "teams" DROP CONSTRAINT "teams_sport_abbreviation_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "teams_sport_abbreviation_bootstrap_unique" ON "teams" USING btree ("sport","abbreviation") WHERE "teams"."provider_team_id" is null;

@@ -546,6 +546,69 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(kcTeams[0]).toMatchObject({ sport: SPORT.NFL, abbreviation: "KC" });
   });
 
+  it("inserts two distinct provider teams that share an abbreviation (ESPN's placeholder 'TBD' playoff matchups)", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(
+          1,
+          "2027-01-09T00:00:00.000Z",
+          "2027-01-13T00:00:00.000Z",
+          WEEK_TYPE.POSTSEASON,
+          "Wild Card",
+        ),
+      ],
+    };
+    // Two undetermined playoff matchups: distinct provider ids, identical
+    // "TBD" abbreviation — the abbreviation unique is bootstrap-only (rows
+    // with no providerTeamId), so both must insert as separate rows here.
+    provider.gamesByWeek = new Map([
+      [
+        weekKey(WEEK_TYPE.POSTSEASON, 1),
+        [
+          providerGame({
+            providerGameId: "post1",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            homeTeamAbbr: "TBD",
+            homeTeamName: "TBD",
+            homeTeamProviderId: "-1",
+            awayTeamAbbr: "TBD",
+            awayTeamName: "TBD",
+            awayTeamProviderId: "-2",
+          }),
+          providerGame({
+            providerGameId: "post2",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            homeTeamAbbr: "TBD",
+            homeTeamName: "TBD",
+            homeTeamProviderId: "-3",
+            awayTeamAbbr: "TBD",
+            awayTeamName: "TBD",
+            awayTeamProviderId: "-4",
+          }),
+        ],
+      ],
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ gamesCreated: 2, teamsCreated: 4 });
+
+    const tbdTeams = await db.select().from(teams).where(eq(teams.abbreviation, "TBD"));
+    expect(tbdTeams).toHaveLength(4);
+    expect(new Set(tbdTeams.map((team) => team.providerTeamId))).toEqual(
+      new Set(["-1", "-2", "-3", "-4"]),
+    );
+
+    const gameRows = await db.select().from(games);
+    expect(gameRows.map((g) => g.providerGameId).sort()).toEqual(["post1", "post2"]);
+    for (const game of gameRows) {
+      expect(game.homeTeamId).not.toBeNull();
+      expect(game.awayTeamId).not.toBeNull();
+    }
+  });
+
   it("updates a team's name/abbreviation on a provider rename, without creating a duplicate row", async () => {
     seedBaselineProvider();
     await runOk();

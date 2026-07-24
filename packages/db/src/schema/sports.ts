@@ -7,8 +7,10 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 import { users } from "./auth";
 
@@ -48,8 +50,13 @@ export const sportSeasons = pgTable(
  * `providerTeamId` is the real identity once a team has synced, but rows can
  * exist before that (backfill from the old text columns) — `abbreviation` is
  * the pre-provider-id bootstrap key those rows are matched on (NFL
- * abbreviations are stable). Both are declared unique per sport; Postgres
- * treats NULLs as distinct, so the nullable `providerTeamId` unique index
+ * abbreviations are stable), and that bootstrap uniqueness is scoped to rows
+ * WITHOUT a provider id (partial index below). Once a row is provider-linked,
+ * provider identity is the only key: ESPN ships placeholder "TBD" teams for
+ * undetermined playoff matchups as distinct provider ids sharing the same
+ * abbreviation, so a full (sport, abbreviation) unique across all rows would
+ * reject legitimate provider data. `providerTeamId` is declared unique per
+ * sport; Postgres treats NULLs as distinct, so that nullable unique index
  * never blocks multiple not-yet-synced rows.
  */
 export const teams = pgTable(
@@ -65,7 +72,9 @@ export const teams = pgTable(
   },
   (table) => [
     unique("teams_sport_provider_team_id_unique").on(table.sport, table.providerTeamId),
-    unique("teams_sport_abbreviation_unique").on(table.sport, table.abbreviation),
+    uniqueIndex("teams_sport_abbreviation_bootstrap_unique")
+      .on(table.sport, table.abbreviation)
+      .where(sql`${table.providerTeamId} is null`),
   ],
 );
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   games,
@@ -54,7 +55,11 @@ export async function seedSeason(
   // Teams are reference data shared across seasons, not per-season (ADR-0010)
   // — seedSeason runs multiple times per sport in some tests (renewal /
   // multi-season fixtures), so this upserts on (sport, abbreviation) rather
-  // than blind-inserting a row that would collide on a second call.
+  // than blind-inserting a row that would collide on a second call. The
+  // abbreviation unique is a partial index scoped to provider-id-less rows
+  // (SF-4 amendment: ESPN's placeholder "TBD" teams share an abbreviation
+  // across distinct provider ids) — `targetWhere` must restate that predicate
+  // for Postgres to infer this as the conflict arbiter.
   const [homeTeam] = await db
     .insert(teams)
     .values({
@@ -66,6 +71,7 @@ export async function seedSeason(
     })
     .onConflictDoUpdate({
       target: [teams.sport, teams.abbreviation],
+      targetWhere: sql`${teams.providerTeamId} is null`,
       set: { updatedAt: SEED_AT },
     })
     .returning();
@@ -80,6 +86,7 @@ export async function seedSeason(
     })
     .onConflictDoUpdate({
       target: [teams.sport, teams.abbreviation],
+      targetWhere: sql`${teams.providerTeamId} is null`,
       set: { updatedAt: SEED_AT },
     })
     .returning();

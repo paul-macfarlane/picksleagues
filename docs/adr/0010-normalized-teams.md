@@ -29,6 +29,10 @@ on every game row.
   deliberately out of scope here.
 - Provider shapes still never leak (engineering rules): ESPN team payloads are mapped
   inside the adapter; everything else sees `teams` rows.
+- Amendment (SF-4 live-verification finding): the `(sport, abbreviation)` bootstrap key
+  is a **partial** unique index (rows with `provider_team_id IS NULL` only) — ESPN ships
+  placeholder "TBD" teams for undetermined playoff matchups as distinct provider ids
+  sharing one abbreviation, so a full unique across all rows rejects legitimate data.
 
 ## Consequences
 
