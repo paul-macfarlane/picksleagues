@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WEEK_TYPE } from "@picksleagues/schemas";
+import { ESPN_POSTSEASON_NUMBER_BY_DOMAIN } from "./espn-provider";
 import { estimatedNflWeeks, nflSeasonYearFor } from "./season";
 
 describe("nflSeasonYearFor", () => {
@@ -56,6 +57,16 @@ describe("estimatedNflWeeks", () => {
       "Conference Championship",
       "Super Bowl",
     ]);
+  });
+
+  it("numbers postseason weeks with exactly the domain keys the ESPN adapter translates to (couples the two so they can't drift)", () => {
+    const postseasonNumbers = estimatedNflWeeks(2026)
+      .filter((week) => week.weekType === WEEK_TYPE.POSTSEASON)
+      .map((week) => week.weekNumber);
+    // The adapter's translation map keys ARE the domain postseason numbering
+    // (Wild Card=1 … Super Bowl=4); a change on either side without the other
+    // breaks this assertion loudly rather than silently orphaning a week.
+    expect(postseasonNumbers).toEqual(Object.keys(ESPN_POSTSEASON_NUMBER_BY_DOMAIN).map(Number));
   });
 
   it("each week spans exactly 7 days", () => {

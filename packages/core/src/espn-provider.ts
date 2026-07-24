@@ -17,6 +17,48 @@ const ESPN_SEASON_TYPE_BY_WEEK_TYPE: Record<WeekType, number> = {
   [WEEK_TYPE.POSTSEASON]: 3,
 };
 
+// ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the "Pro Bowl", which
+// is not a competitive game and is excluded (by label) below, leaving a gap.
+// Our domain model numbers the four real rounds contiguously (Wild Card=1 …
+// Super Bowl=4), matching `NflWeekRefSchema` and `estimatedNflWeeks`. This
+// adapter owns that translation so ESPN's gapped numbering never leaks
+// (engineering rules: "provider shapes never leak"). A *static* map (never
+// positional/dynamic renumbering) is deliberate: an ESPN postseason number not
+// in it throws — a provider-contract break we want surfaced as a 500, not
+// silently renumbered. Verified against 2025-26 ESPN data (2026-07-23).
+export const ESPN_POSTSEASON_NUMBER_BY_DOMAIN: Record<number, number> = {
+  1: 1, // Wild Card
+  2: 2, // Divisional Round
+  3: 3, // Conference Championship
+  4: 5, // Super Bowl (ESPN's 4 is the excluded Pro Bowl)
+};
+
+const DOMAIN_POSTSEASON_NUMBER_BY_ESPN: Record<number, number> = Object.fromEntries(
+  Object.entries(ESPN_POSTSEASON_NUMBER_BY_DOMAIN).map(([domain, espn]) => [espn, Number(domain)]),
+);
+
+/** ESPN postseason week number → our contiguous domain number; throws on the unknown. */
+function domainPostseasonNumberFromEspn(espnNumber: number): number {
+  const domainNumber = DOMAIN_POSTSEASON_NUMBER_BY_ESPN[espnNumber];
+  if (domainNumber === undefined) {
+    throw new Error(
+      `EspnProvider: unexpected ESPN postseason week number ${espnNumber} (known: ${Object.keys(DOMAIN_POSTSEASON_NUMBER_BY_ESPN).join(", ")}) — provider numbering changed`,
+    );
+  }
+  return domainNumber;
+}
+
+/** Our domain postseason week number → ESPN's scoreboard number; throws on the unknown. */
+function espnPostseasonNumberFromDomain(domainNumber: number): number {
+  const espnNumber = ESPN_POSTSEASON_NUMBER_BY_DOMAIN[domainNumber];
+  if (espnNumber === undefined) {
+    throw new Error(
+      `EspnProvider: unexpected domain postseason week number ${domainNumber} (known: ${Object.keys(ESPN_POSTSEASON_NUMBER_BY_DOMAIN).join(", ")})`,
+    );
+  }
+  return espnNumber;
+}
+
 // --- ESPN response shapes: private to this adapter (engineering rules: "provider shapes never leak"). ---
 
 const WeeksIndexSchema = z.object({
@@ -226,18 +268,37 @@ export class EspnProvider implements GameDataProvider {
         const detail = WeekDetailSchema.parse(await this.#fetchJson(item.$ref));
         return {
           weekType,
-          weekNumber: detail.number,
+          espnNumber: detail.number,
           label: detail.text,
           startsAt: parseDateStrict(detail.startDate, `week ${detail.number} startDate`),
           endsAt: parseDateStrict(detail.endDate, `week ${detail.number} endDate`),
-        } satisfies ProviderWeek;
+        };
       }),
     );
 
-    // The Pro Bowl (postseason week 4) is not a competitive game — never ingest
-    // it. Match on the label rather than the week number so an ESPN renumbering
-    // can't sneak it back in.
-    return weeks.filter((week) => !week.label.toLowerCase().includes("pro bowl"));
+    // Exclude the Pro Bowl (ESPN postseason week 4) *before* translating
+    // numbers — it's not a competitive game and is the reason ESPN's postseason
+    // numbering has a gap. Match on the label rather than the number so an ESPN
+    // renumbering can't sneak it back in (the number translation below would
+    // then throw on the unexpected value, which is the intended contract break).
+    return weeks
+      .filter((week) => !week.label.toLowerCase().includes("pro bowl"))
+      .map(
+        (week) =>
+          ({
+            weekType,
+            // Regular numbers pass through; postseason translates ESPN's gapped
+            // numbering (1,2,3,5) to our contiguous domain numbering (Super
+            // Bowl = 4) so the rest of the app never sees ESPN's scheme.
+            weekNumber:
+              weekType === WEEK_TYPE.POSTSEASON
+                ? domainPostseasonNumberFromEspn(week.espnNumber)
+                : week.espnNumber,
+            label: week.label,
+            startsAt: week.startsAt,
+            endsAt: week.endsAt,
+          }) satisfies ProviderWeek,
+      );
   }
 
   async fetchNflWeekGames(
@@ -246,7 +307,12 @@ export class EspnProvider implements GameDataProvider {
     weekNumber: number,
   ): Promise<ProviderGame[]> {
     const seasonType = ESPN_SEASON_TYPE_BY_WEEK_TYPE[weekType];
-    const url = `${this.#siteApiBaseUrl}/football/nfl/scoreboard?seasontype=${seasonType}&week=${weekNumber}&dates=${seasonYear}`;
+    // Callers address weeks in domain numbering (ProviderWeek); the scoreboard
+    // query needs ESPN's, so translate the postseason number back (Super Bowl
+    // domain 4 → ESPN 5). Games are tagged with the domain number below.
+    const espnWeekNumber =
+      weekType === WEEK_TYPE.POSTSEASON ? espnPostseasonNumberFromDomain(weekNumber) : weekNumber;
+    const url = `${this.#siteApiBaseUrl}/football/nfl/scoreboard?seasontype=${seasonType}&week=${espnWeekNumber}&dates=${seasonYear}`;
     const scoreboard = ScoreboardSchema.parse(await this.#fetchJson(url));
 
     return scoreboard.events.map((event) => {

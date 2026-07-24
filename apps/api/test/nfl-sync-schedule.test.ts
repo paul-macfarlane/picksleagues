@@ -17,6 +17,7 @@ import {
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
@@ -812,5 +813,149 @@ describe("offseason lifecycle: ensure next NFL season exists (ADR-0009)", () => 
 
     const upcomingGames = await db.select().from(games).where(eq(games.providerGameId, "next-g1"));
     expect(upcomingGames).toHaveLength(1);
+  });
+});
+
+describe("convergence sweep: stale weeks with zero games are dropped (ADR-0009)", () => {
+  const SB_KICKOFF = new Date("2027-02-08T23:30:00.000Z");
+
+  function ingest(
+    structureWeeks: ProviderWeek[],
+    providerGames: ProviderGame[],
+    opts?: { provisional?: boolean },
+  ) {
+    return db.transaction((tx) =>
+      ingestSeasonSnapshot(tx, FIXED_NOW, SEASON_YEAR, structureWeeks, providerGames, opts),
+    );
+  }
+
+  async function seasonRow() {
+    const [row] = await db.select().from(sportSeasons).where(eq(sportSeasons.year, SEASON_YEAR));
+    return row;
+  }
+
+  async function seasonWeeks() {
+    const season = await seasonRow();
+    return db.select().from(weeks).where(eq(weeks.seasonId, season!.id));
+  }
+
+  it("provisional skeleton then the full real structure lands: 22 weeks, matching keys kept in place, nothing orphaned", async () => {
+    await ingest(estimatedNflWeeks(SEASON_YEAR), [], { provisional: true });
+    const before = await seasonWeeks();
+    expect(before).toHaveLength(22);
+    const idByKey = new Map(before.map((w) => [weekKey(w.weekType, w.weekNumber), w.id]));
+
+    // Real structure — same 22 domain keys (normalized Super Bowl = 4), shifted dates.
+    const realStructure = estimatedNflWeeks(SEASON_YEAR).map((w) => ({
+      ...w,
+      startsAt: new Date(w.startsAt.getTime() + 86_400_000),
+      endsAt: new Date(w.endsAt.getTime() + 86_400_000),
+    }));
+    const result = await ingest(realStructure, [], { provisional: false });
+    expect(result.weeksDeleted).toBe(0);
+
+    const after = await seasonWeeks();
+    expect(after).toHaveLength(22);
+    for (const w of after) {
+      // Corrected in place — matching keys keep their original row id.
+      expect(w.id).toBe(idByKey.get(weekKey(w.weekType, w.weekNumber)));
+    }
+    expect((await seasonRow())?.provisional).toBe(false);
+  });
+
+  it("provisional skeleton then a regular-only real structure: estimated postseason weeks (zero games) are swept, 18 weeks, provisional cleared", async () => {
+    await ingest(estimatedNflWeeks(SEASON_YEAR), [], { provisional: true });
+    expect(await seasonWeeks()).toHaveLength(22);
+
+    const regularOnly = estimatedNflWeeks(SEASON_YEAR).filter(
+      (w) => w.weekType === WEEK_TYPE.REGULAR,
+    );
+    const result = await ingest(regularOnly, [], { provisional: false });
+    expect(result.weeksDeleted).toBe(4);
+
+    const after = await seasonWeeks();
+    expect(after).toHaveLength(18);
+    expect(after.every((w) => w.weekType === WEEK_TYPE.REGULAR)).toBe(true);
+    expect((await seasonRow())?.provisional).toBe(false);
+  });
+
+  it("never deletes a week that still owns games, even when the structure omits it", async () => {
+    const superBowlWeek = providerWeek(
+      4,
+      "2027-02-08T00:00:00.000Z",
+      "2027-02-15T00:00:00.000Z",
+      WEEK_TYPE.POSTSEASON,
+      "Super Bowl",
+    );
+    const regularWeek = providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z");
+    await ingest(
+      [regularWeek, superBowlWeek],
+      [
+        providerGame({ providerGameId: "reg", weekNumber: 1 }),
+        providerGame({
+          providerGameId: "sb",
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 4,
+          kickoffAt: SB_KICKOFF,
+        }),
+      ],
+    );
+    expect(await seasonWeeks()).toHaveLength(2);
+
+    // The structure now omits postseason 4; the Super Bowl game is NOT
+    // re-supplied, so it stays put on its week — the sweep must spare a week
+    // that still owns games.
+    const result = await ingest(
+      [regularWeek],
+      [providerGame({ providerGameId: "reg", weekNumber: 1 })],
+    );
+    expect(result.weeksDeleted).toBe(0);
+
+    const after = await seasonWeeks();
+    expect(after.some((w) => w.weekType === WEEK_TYPE.POSTSEASON && w.weekNumber === 4)).toBe(true);
+  });
+
+  it("legacy self-heal: a Super Bowl stored under the old ESPN number 5 is repointed to the domain 4 and the empty 5-row swept", async () => {
+    // Legacy DB state: full structure with the Super Bowl numbered 5 (what the
+    // pre-normalization adapter stored) carrying its game.
+    const legacyStructure = estimatedNflWeeks(SEASON_YEAR).map((w) =>
+      w.weekType === WEEK_TYPE.POSTSEASON && w.weekNumber === 4 ? { ...w, weekNumber: 5 } : w,
+    );
+    await ingest(legacyStructure, [
+      providerGame({
+        providerGameId: "sb",
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 5,
+        kickoffAt: SB_KICKOFF,
+      }),
+    ]);
+    const legacyWeeks = await seasonWeeks();
+    expect(legacyWeeks).toHaveLength(22);
+    expect(legacyWeeks.some((w) => w.weekType === WEEK_TYPE.POSTSEASON && w.weekNumber === 5)).toBe(
+      true,
+    );
+
+    // Next bare sync: normalized structure (Super Bowl = 4) and the same game
+    // now addressed under the domain number 4.
+    const result = await ingest(estimatedNflWeeks(SEASON_YEAR), [
+      providerGame({
+        providerGameId: "sb",
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 4,
+        kickoffAt: SB_KICKOFF,
+      }),
+    ]);
+    expect(result.weekMoves).toBe(1);
+    expect(result.weeksDeleted).toBe(1);
+
+    const after = await seasonWeeks();
+    expect(after).toHaveLength(22);
+    expect(after.some((w) => w.weekType === WEEK_TYPE.POSTSEASON && w.weekNumber === 5)).toBe(
+      false,
+    );
+    const sbWeek4 = after.find((w) => w.weekType === WEEK_TYPE.POSTSEASON && w.weekNumber === 4);
+    expect(sbWeek4).toBeDefined();
+    const [game] = await db.select().from(games).where(eq(games.providerGameId, "sb"));
+    expect(game?.weekId).toBe(sbWeek4?.id);
   });
 });

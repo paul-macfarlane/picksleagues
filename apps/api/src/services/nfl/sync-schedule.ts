@@ -178,6 +178,7 @@ export async function syncNflSchedule(
   const details: Record<string, string | number | boolean> = {
     seasonYear,
     weeksSynced: result.weeksSynced,
+    weeksDeleted: result.weeksDeleted,
     teamsCreated: result.teamsCreated,
     gamesCreated: result.gamesCreated,
     gamesUpdated: result.gamesUpdated,

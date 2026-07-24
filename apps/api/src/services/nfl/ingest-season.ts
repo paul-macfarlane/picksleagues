@@ -140,6 +140,7 @@ async function upsertTeams(
 export type SeasonSnapshotResult = {
   seasonId: string;
   weeksSynced: number;
+  weeksDeleted: number;
   teamsCreated: number;
   gamesCreated: number;
   gamesUpdated: number;
@@ -377,9 +378,43 @@ export async function ingestSeasonSnapshot(
     }
   }
 
+  // Convergence sweep — runs *after* the games upsert above so any week-move
+  // repointing has already vacated the weeks it left. Deletes this season's
+  // weeks the current structure no longer publishes AND that hold zero games,
+  // converging two kinds of stale rows to exactly what a from-scratch ingest of
+  // this structure would produce: (1) provisional-era estimated weeks the real
+  // structure drops (e.g. a regular-only publish superseding an estimated
+  // postseason), and (2) legacy pre-normalization rows (a Super Bowl stored
+  // under the old ESPN number 5 before the adapter renumbered it to the domain
+  // 4). The zero-game guard means a week that still owns data is never touched.
+  // Guarded on a non-empty structure: an empty structure is the "nothing
+  // published yet" case (ADR-0009), never "everything was deleted".
+  let weeksDeleted = 0;
+  if (structureWeeks.length > 0) {
+    const orphanWeekIds = existingWeeks
+      .filter((week) => !weekIdByKey.has(weekKey(week.weekType, week.weekNumber)))
+      .map((week) => week.id);
+    if (orphanWeekIds.length > 0) {
+      const weeksStillHoldingGames = await tx
+        .selectDistinct({ weekId: games.weekId })
+        .from(games)
+        .where(inArray(games.weekId, orphanWeekIds));
+      const weekIdsWithGames = new Set(weeksStillHoldingGames.map((row) => row.weekId));
+      const deletableWeekIds = orphanWeekIds.filter((id) => !weekIdsWithGames.has(id));
+      if (deletableWeekIds.length > 0) {
+        const deleted = await tx
+          .delete(weeks)
+          .where(inArray(weeks.id, deletableWeekIds))
+          .returning({ id: weeks.id });
+        weeksDeleted = deleted.length;
+      }
+    }
+  }
+
   return {
     seasonId,
     weeksSynced: weekIdByKey.size,
+    weeksDeleted,
     teamsCreated,
     gamesCreated,
     gamesUpdated,
