@@ -12,3 +12,4 @@ round). Cross-epic rounds go in the file of the dominant epic with a one-line
 pointer from the others.
 
 - [03-leagues.md](03-leagues.md) — Leagues epic (rounds 1–5)
+- [11-schema-foundations.md](11-schema-foundations.md) — Schema Foundations epic (round 1)
