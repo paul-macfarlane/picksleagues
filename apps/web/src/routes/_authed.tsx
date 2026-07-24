@@ -56,7 +56,10 @@ export const Route = createFileRoute("/_authed")({
 function AuthedLayout() {
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="border-b border-border">
+      {/* Overlays (Sheet/AlertDialog/DropdownMenu/Select, see components/ui) all
+          portal to document.body at z-50, so z-40 here keeps the header above
+          page content while staying under every overlay regardless of DOM order. */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-4">
             <Link
