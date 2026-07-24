@@ -4,8 +4,8 @@ import { PickTypeSchema } from "./pick-type";
 import { WEEK_TYPE } from "./week-type";
 
 /**
- * Per-mode league settings, stored as validated JSONB on `league_settings`
- * (arch §Domain Model). These schemas are the single write-side gate: the API
+ * Per-mode league settings, stored as validated JSONB on `league_seasons`
+ * (ADR-0009). These schemas are the single write-side gate: the API
  * validates against the mode's schema before persisting, and Drizzle types
  * the column via `$type<LeagueSettings>`. Deferred features (confidence
  * scoring, buy-backs, MM bonuses) are enforced by omission from these shapes

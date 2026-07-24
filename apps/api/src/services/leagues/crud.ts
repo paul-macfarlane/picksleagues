@@ -1,6 +1,6 @@
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagueSeasons, leagues, sportSeasons } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
@@ -23,14 +23,15 @@ import {
   countMembers,
   getMembership,
 } from "./authz";
-import { currentLeagueSeason, getLeagueWithCurrentSeason } from "./current-season";
 import {
+  currentLeagueSeason,
+  getLeagueWithCurrentSeason,
   isRenewable,
+  latestSeasonForSport,
   latestSeasonYearBySport,
-  latestSeasonYearForSport,
+  readAndSerializeLeague,
   sportForMode,
-} from "./renew";
-import { loadMembers, serializeLeague } from "./serialize";
+} from "./current-season";
 
 export type CreateLeagueResult =
   | { ok: true; league: LeagueResponse }
@@ -46,12 +47,7 @@ export async function createLeague(
 ): Promise<CreateLeagueResult> {
   // Latest ingested season for the mode's sport — leagues bind to a season at
   // creation so cutoffs/windows know which games to derive from.
-  const [season] = await db
-    .select()
-    .from(sportSeasons)
-    .where(eq(sportSeasons.sport, sportForMode(input.mode)))
-    .orderBy(sql`${sportSeasons.year} desc`)
-    .limit(1);
+  const season = await latestSeasonForSport(db, sportForMode(input.mode));
   if (!season) {
     return { ok: false, reason: "no_active_season" };
   }
@@ -125,25 +121,12 @@ export async function createLeague(
       return created;
     });
 
-    const startsAt = await leagueStartAt(db, { mode: league.mode, seasonId: season.id }, settings);
-    const members = await loadMembers(db, league.id);
-    // Bound to the latest season by construction, so `renewable` is false here;
-    // derived through the shared helper rather than hardcoded so the rule has
-    // one definition.
-    const latestYear = await latestSeasonYearForSport(db, sportForMode(input.mode));
-    return {
-      ok: true,
-      league: serializeLeague(
-        league,
-        LEAGUE_STATUS.ACTIVE,
-        season.year,
-        settings,
-        startsAt,
-        members,
-        userId,
-        isRenewable(latestYear, season.year),
-      ),
-    };
+    // Same assembly `getLeague`/renewal serialize through, re-read post-commit
+    // (accepted extra read — this path isn't hot, and the output is identical
+    // to hand-assembling it from the just-inserted rows).
+    const serialized = await readAndSerializeLeague(db, league.id, userId);
+    if (!serialized) throw new Error("Created league unreadable immediately after creation.");
+    return { ok: true, league: serialized };
   } catch (error) {
     if (error instanceof CapExceededError) {
       return { ok: false, reason: "cap_exceeded" };
@@ -332,27 +315,7 @@ export async function getLeague(
   // private league is indistinguishable from an absent one.
   if (!(await getMembership(db, leagueId, userId))) return null;
 
-  const current = await getLeagueWithCurrentSeason(db, leagueId);
-  if (!current) return null;
-  const { league, season } = current;
-
-  const startsAt = await leagueStartAt(
-    db,
-    { mode: league.mode, seasonId: season.seasonId },
-    season.settings,
-  );
-  const members = await loadMembers(db, leagueId);
-  const latestYear = await latestSeasonYearForSport(db, sportForMode(league.mode));
-  return serializeLeague(
-    league,
-    season.status,
-    season.seasonYear,
-    season.settings,
-    startsAt,
-    members,
-    userId,
-    isRenewable(latestYear, season.seasonYear),
-  );
+  return readAndSerializeLeague(db, leagueId, userId);
 }
 
 export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSummary[]> {
