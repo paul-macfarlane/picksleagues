@@ -172,6 +172,9 @@
             ],
             "format": "date-time"
           },
+          "renewable": {
+            "type": "boolean"
+          },
           "maxMembers": {
             "type": "integer"
           },
@@ -194,6 +197,7 @@
           "seasonYear",
           "settings",
           "startsAt",
+          "renewable",
           "maxMembers",
           "myRole",
           "members"
@@ -681,6 +685,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "renewable": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -692,7 +699,8 @@
           "memberCount",
           "maxMembers",
           "myRole",
-          "startsAt"
+          "startsAt",
+          "renewable"
         ]
       },
       "UpdateLeagueRequest": {
@@ -1729,6 +1737,85 @@
           },
           "409": {
             "description": "Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/seasons": {
+      "post": {
+        "operationId": "renewLeagueSeason",
+        "summary": "Start the league's next season, copying the current settings (commissioner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The league on its new current season instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No newer season exists to renew into — the league is already on the latest season (no_newer_season)",
             "content": {
               "application/json": {
                 "schema": {

@@ -126,6 +126,46 @@ export function useUpdateLeague(leagueId: string) {
   });
 }
 
+// Renewal mints the league's next season instance (ADR-0009). One button, one
+// `isPending` gate (async-button standard) — the button only renders when the
+// server says the league is renewable, so the 409 no_newer_season path is a
+// defensive fallback (e.g. a concurrent renewal won the race).
+export function useRenewLeague(leagueId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error, response } = await api.POST("/api/leagues/{leagueId}/seasons", {
+        params: { path: { leagueId } },
+      });
+      if (error) {
+        toastOnExpectedError(
+          error,
+          response,
+          (status) => status === 409,
+          (err) =>
+            err.error === ERROR_CODE.NO_NEWER_SEASON
+              ? "This league is already on the latest season."
+              : err.message,
+        );
+        return null;
+      }
+      return data as LeagueResponse;
+    },
+    onSuccess: async (data) => {
+      if (!data) {
+        // A refused renewal may mean the league already advanced — refresh so
+        // the stale "next season available" banner clears.
+        await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
+        return;
+      }
+      toast.success(`Started the ${data.seasonYear} season`);
+      await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
+      await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
+    },
+    onError: () => toast.error("Couldn't start the next season — please try again."),
+  });
+}
+
 export function useDeleteLeague(leagueId: string) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();

@@ -4,19 +4,16 @@ import { leagueMembers, leagueSeasons, leagues, sportSeasons } from "@picksleagu
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
-  LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
-  SPORT,
   leagueActionIsPreStartOnly,
   type CreateLeagueRequest,
   type LeagueAction,
   type LeagueResponse,
   type LeagueSummary,
   type LeagueVisibility,
-  type Sport,
 } from "@picksleagues/schemas";
 import { isPreStart, leagueStartAt } from "./start";
 import { lockLeagueRow, lockUserRow } from "./locks";
@@ -27,12 +24,13 @@ import {
   getMembership,
 } from "./authz";
 import { currentLeagueSeason, getLeagueWithCurrentSeason } from "./current-season";
+import {
+  isRenewable,
+  latestSeasonYearBySport,
+  latestSeasonYearForSport,
+  sportForMode,
+} from "./renew";
 import { loadMembers, serializeLeague } from "./serialize";
-
-/** The sport whose seasons a mode's leagues bind to. */
-function sportForMode(mode: CreateLeagueRequest["mode"]): Sport {
-  return mode === LEAGUE_MODE.MARCH_MADNESS ? SPORT.NCAAMB : SPORT.NFL;
-}
 
 export type CreateLeagueResult =
   | { ok: true; league: LeagueResponse }
@@ -129,6 +127,10 @@ export async function createLeague(
 
     const startsAt = await leagueStartAt(db, { mode: league.mode, seasonId: season.id }, settings);
     const members = await loadMembers(db, league.id);
+    // Bound to the latest season by construction, so `renewable` is false here;
+    // derived through the shared helper rather than hardcoded so the rule has
+    // one definition.
+    const latestYear = await latestSeasonYearForSport(db, sportForMode(input.mode));
     return {
       ok: true,
       league: serializeLeague(
@@ -139,6 +141,7 @@ export async function createLeague(
         startsAt,
         members,
         userId,
+        isRenewable(latestYear, season.year),
       ),
     };
   } catch (error) {
@@ -339,6 +342,7 @@ export async function getLeague(
     season.settings,
   );
   const members = await loadMembers(db, leagueId);
+  const latestYear = await latestSeasonYearForSport(db, sportForMode(league.mode));
   return serializeLeague(
     league,
     season.status,
@@ -347,6 +351,7 @@ export async function getLeague(
     startsAt,
     members,
     userId,
+    isRenewable(latestYear, season.seasonYear),
   );
 }
 
@@ -358,6 +363,7 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
       settings: current.settings,
       status: current.status,
       seasonId: current.seasonId,
+      seasonYear: current.seasonYear,
       myRole: leagueMembers.role,
     })
     .from(leagueMembers)
@@ -379,6 +385,10 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
     .groupBy(leagueMembers.leagueId);
   const countByLeague = new Map(counts.map((c) => [c.leagueId, c.value]));
 
+  // The per-sport latest ingested year, fetched once (not per league) — the
+  // `renewable` signal compares each league's current-instance year against it.
+  const latestBySport = await latestSeasonYearBySport(db);
+
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
   // per-mode) beats a hand-rolled batch join.
@@ -399,6 +409,10 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
         maxMembers: row.league.maxMembers,
         myRole: row.myRole,
         startsAt: startsAt ? startsAt.toISOString() : null,
+        renewable: isRenewable(
+          latestBySport.get(sportForMode(row.league.mode)) ?? null,
+          row.seasonYear,
+        ),
       };
     }),
   );

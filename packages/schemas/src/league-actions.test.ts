@@ -24,6 +24,7 @@ const SPEC_POWERS: Array<{
   { action: "demote_commissioner", commissionerOnly: true, preStartOnly: false },
   { action: "manage_invites", commissionerOnly: true, preStartOnly: false },
   { action: "leave_league", commissionerOnly: false, preStartOnly: true },
+  { action: "renew_season", commissionerOnly: true, preStartOnly: false },
 ];
 
 describe("league action matrix", () => {

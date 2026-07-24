@@ -126,6 +126,11 @@ export const LeagueResponseSchema = z
     seasonYear: z.number().int(),
     settings: LeagueSettingsSchema,
     startsAt: z.iso.datetime().nullable(),
+    // Server-derived (ADR-0009 "renewal is explicit"): a newer `sport_seasons`
+    // row exists for the mode's sport than the current instance is bound to, so
+    // a commissioner may mint next season's instance. The window/role gate
+    // still lives server-side (RENEW_SEASON is commissioner-only).
+    renewable: z.boolean(),
     maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     members: z.array(LeagueMemberSchema),
@@ -145,6 +150,9 @@ export const LeagueSummarySchema = z
     maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     startsAt: z.iso.datetime().nullable(),
+    // See LeagueResponse.renewable — drives the dashboard "New season available"
+    // badge without an extra per-league fetch.
+    renewable: z.boolean(),
   })
   .openapi("LeagueSummary");
 

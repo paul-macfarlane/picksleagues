@@ -18,6 +18,7 @@ export const LEAGUE_ACTION = {
   DEMOTE_COMMISSIONER: "demote_commissioner",
   MANAGE_INVITES: "manage_invites",
   LEAVE_LEAGUE: "leave_league",
+  RENEW_SEASON: "renew_season",
 } as const;
 
 export type LeagueAction = (typeof LEAGUE_ACTION)[keyof typeof LEAGUE_ACTION];
@@ -42,6 +43,10 @@ const LEAGUE_ACTION_RULES: Record<
   [LEAGUE_ACTION.MANAGE_INVITES]: { commissionerOnly: true, preStartOnly: false },
   // Any member may leave, but only pre-start (spec §Membership, ADR-0004).
   [LEAGUE_ACTION.LEAVE_LEAGUE]: { commissionerOnly: false, preStartOnly: true },
+  // Renewal mints the NEXT season's instance (ADR-0009 "renewal is explicit"):
+  // a commissioner action with no window — it only becomes reachable once a
+  // newer season exists, which by definition is after the current one started.
+  [LEAGUE_ACTION.RENEW_SEASON]: { commissionerOnly: true, preStartOnly: false },
 };
 
 /** Role axis alone — the API maps its failure to 403 (vs 409 for windows). */

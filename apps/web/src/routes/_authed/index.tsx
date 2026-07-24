@@ -120,6 +120,13 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
               Commissioner
             </span>
           )}
+          {/* No inline action — the card already links into the league, where
+              a commissioner gets the "Start next season" control (ADR-0009). */}
+          {league.renewable && (
+            <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+              New season available
+            </span>
+          )}
         </div>
         <p>
           {league.startsAt

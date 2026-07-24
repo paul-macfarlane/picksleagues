@@ -25,6 +25,7 @@ import {
   getLeague,
   joinPublicLeague,
   listMyLeagues,
+  renewLeagueSeason,
   updateLeague,
 } from "../services/leagues";
 
@@ -141,6 +142,27 @@ const postPublicJoin = createRoute({
     404: errorResponse("No such public league — private leagues require an invite and stay hidden"),
     409: errorResponse(
       "Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+    ),
+    500: MISCONFIGURED_500,
+  },
+});
+
+const postRenewSeason = createRoute({
+  method: "post",
+  path: "/leagues/{leagueId}/seasons",
+  operationId: "renewLeagueSeason",
+  summary: "Start the league's next season, copying the current settings (commissioner)",
+  request: { params: LeagueIdParamsSchema },
+  responses: {
+    201: {
+      description: "The league on its new current season instance",
+      content: { "application/json": { schema: LeagueResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    403: NOT_COMMISSIONER_403,
+    404: LEAGUE_NOT_FOUND_404,
+    409: errorResponse(
+      "No newer season exists to renew into — the league is already on the latest season (no_newer_season)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -327,6 +349,45 @@ export function leagueRoutes(deps: AppDeps) {
         }),
         409,
       );
+    }
+
+    return c.json(result.league, 201);
+  });
+
+  app.openapi(postRenewSeason, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
+    const { leagueId } = c.req.valid("param");
+
+    const result = await renewLeagueSeason(db, clock, leagueId, sessionUser.id);
+    if (!result.ok) {
+      switch (result.reason) {
+        case "league_not_found":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.LEAGUE_NOT_FOUND,
+              message: "League not found.",
+            }),
+            404,
+          );
+        case "not_commissioner":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.NOT_COMMISSIONER,
+              message: "Only a commissioner can start the next season.",
+            }),
+            403,
+          );
+        case "no_newer_season":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.NO_NEWER_SEASON,
+              message: "This league is already on the latest season.",
+            }),
+            409,
+          );
+      }
     }
 
     return c.json(result.league, 201);

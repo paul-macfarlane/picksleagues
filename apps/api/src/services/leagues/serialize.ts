@@ -48,6 +48,10 @@ export function serializeLeague(
   startsAt: Date | null,
   members: Array<{ member: typeof leagueMembers.$inferSelect; user: typeof users.$inferSelect }>,
   viewerId: string,
+  // A newer season exists for the mode's sport than this instance is bound to
+  // (ADR-0009) — the commissioner may renew. Derived by the callers where the
+  // per-sport latest year is already at hand, never stored.
+  renewable: boolean,
 ): LeagueResponse {
   // The viewer is always among `members` (getLeague joins on their own
   // membership; createLeague just inserted it) — the fallback is for types.
@@ -61,6 +65,7 @@ export function serializeLeague(
     seasonYear,
     settings,
     startsAt: startsAt ? startsAt.toISOString() : null,
+    renewable,
     maxMembers: league.maxMembers,
     myRole,
     members: members.map(serializeMember),

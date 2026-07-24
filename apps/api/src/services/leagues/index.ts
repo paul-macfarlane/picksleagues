@@ -9,3 +9,4 @@ export * from "./start";
 export * from "./authz";
 export * from "./join";
 export * from "./crud";
+export * from "./renew";

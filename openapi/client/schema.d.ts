@@ -145,6 +145,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/leagues/{leagueId}/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start the league's next season, copying the current settings (commissioner) */
+        post: operations["renewLeagueSeason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues/{leagueId}/invites": {
         parameters: {
             query?: never;
@@ -298,6 +315,7 @@ export interface components {
             settings: components["schemas"]["LeagueSettings"];
             /** Format: date-time */
             startsAt: string | null;
+            renewable: boolean;
             maxMembers: number;
             myRole: components["schemas"]["MemberRole"];
             members: components["schemas"]["LeagueMember"][];
@@ -426,6 +444,7 @@ export interface components {
             myRole: components["schemas"]["MemberRole"];
             /** Format: date-time */
             startsAt: string | null;
+            renewable: boolean;
         };
         UpdateLeagueRequest: {
             name?: components["schemas"]["LeagueName"];
@@ -1148,6 +1167,73 @@ export interface operations {
                 };
             };
             /** @description Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    renewLeagueSeason: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The league on its new current season instance */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is a member but not a commissioner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No newer season exists to renew into — the league is already on the latest season (no_newer_season) */
             409: {
                 headers: {
                     [name: string]: unknown;
