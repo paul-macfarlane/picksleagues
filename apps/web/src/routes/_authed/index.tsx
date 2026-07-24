@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ChevronRightIcon } from "lucide-react";
 import { MEMBER_ROLE, type LeagueSummary } from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
+import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,11 +129,7 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
             </span>
           )}
         </div>
-        <p>
-          {league.startsAt
-            ? `Starts ${new Date(league.startsAt).toLocaleString()}`
-            : "Start date TBD"}
-        </p>
+        <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
         {/* Pick tables land in later epics — nothing to summarize yet. */}
         <p className="text-xs text-muted-foreground/70">Pick status coming soon</p>
       </CardContent>

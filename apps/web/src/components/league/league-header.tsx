@@ -1,4 +1,5 @@
 import type { LeagueResponse } from "@picksleagues/schemas";
+import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -35,11 +36,7 @@ export function LeagueHeader({
         <p>
           {league.members.length} member{league.members.length === 1 ? "" : "s"}
         </p>
-        <p>
-          {league.startsAt
-            ? `Starts ${new Date(league.startsAt).toLocaleString()}`
-            : "Start date TBD"}
-        </p>
+        <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
       </CardContent>
     </Card>
   );

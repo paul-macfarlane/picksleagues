@@ -5,6 +5,7 @@ import { JOIN_BLOCKED_REASON, JOIN_BLOCKED_REASON_MESSAGES } from "@picksleagues
 import { useJoinPreview } from "@/api/invites";
 import { useJoinByCode } from "@/api/members";
 import { authClient } from "@/lib/auth";
+import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,7 +106,7 @@ function JoinByCode() {
             {league.startsAt && (
               <div className="flex justify-between gap-2">
                 <dt>Starts</dt>
-                <dd>{new Date(league.startsAt).toLocaleString()}</dd>
+                <dd>{formatDateTime(league.startsAt)}</dd>
               </div>
             )}
           </dl>

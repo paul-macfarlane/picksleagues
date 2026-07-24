@@ -14,13 +14,7 @@ import {
 } from "@picksleagues/schemas";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LabeledSelect } from "@/components/labeled-select";
 import { NumberField } from "@/components/number-field";
 
 // Per-mode league settings fieldsets, shared by the create-league form
@@ -154,50 +148,6 @@ export function RadioField<Value extends string>({
   );
 }
 
-// Shared week-select wiring for start/end week pairs across Pick'em and
-// Elimination — options carry the encodeWeek/decodeWeek round-trip value.
-export function WeekSelect({
-  id,
-  label,
-  value,
-  onValueChange,
-  options,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onValueChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      {/* `items` is Base UI's value→label map for the closed trigger — without
-          it, Select.Value renders the raw wire value ("regular:1") instead of
-          the option label ("Week 1"). Since options are already `{value, label}`,
-          Base UI reads the label straight off them, no `itemToStringLabel` needed. */}
-      <Select
-        items={options}
-        value={value}
-        onValueChange={(next) => {
-          if (next) onValueChange(next);
-        }}
-      >
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
 export function PickemSettingsFields({
   startWeek,
   onStartWeekChange,
@@ -225,14 +175,14 @@ export function PickemSettingsFields({
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Pick&apos;em settings</h2>
       <div className="grid grid-cols-2 gap-3">
-        <WeekSelect
+        <LabeledSelect
           id="pickem-start-week"
           label="Start week"
           value={startWeek}
           onValueChange={onStartWeekChange}
           options={PICKEM_WEEK_OPTIONS}
         />
-        <WeekSelect
+        <LabeledSelect
           id="pickem-end-week"
           label="End week"
           value={endWeek}
@@ -255,27 +205,13 @@ export function PickemSettingsFields({
         value={picksPerWeek}
         onValueChange={onPicksPerWeekChange}
       />
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="pickem-push-tie">Push / tie value</Label>
-        <Select
-          items={PICKEM_PUSH_TIE_OPTIONS}
-          value={pushTie}
-          onValueChange={(next) => {
-            if (next) onPushTieChange(next);
-          }}
-        >
-          <SelectTrigger id="pickem-push-tie" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PICKEM_PUSH_TIE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <LabeledSelect
+        id="pickem-push-tie"
+        label="Push / tie value"
+        value={pushTie}
+        onValueChange={onPushTieChange}
+        options={PICKEM_PUSH_TIE_OPTIONS}
+      />
     </div>
   );
 }
@@ -303,14 +239,14 @@ export function EliminationSettingsFields({
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Elimination settings</h2>
       <div className="grid grid-cols-2 gap-3">
-        <WeekSelect
+        <LabeledSelect
           id="elimination-start-week"
           label="Start week"
           value={startWeek}
           onValueChange={onStartWeekChange}
           options={REGULAR_WEEK_OPTIONS}
         />
-        <WeekSelect
+        <LabeledSelect
           id="elimination-end-week"
           label="End week"
           value={endWeek}

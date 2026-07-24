@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
+import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,7 +86,7 @@ function InviteRow({
         </div>
         <div className="flex gap-1">
           <dt>Expires:</dt>
-          <dd>{invite.expiresAt ? new Date(invite.expiresAt).toLocaleString() : "Never"}</dd>
+          <dd>{invite.expiresAt ? formatDateTime(invite.expiresAt) : "Never"}</dd>
         </div>
       </dl>
       <div className="flex gap-2">
