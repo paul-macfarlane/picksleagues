@@ -1,6 +1,6 @@
 # 0008. Leagues bind to a sport season; league start is derived from its games
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by ADR-0009 (leagues now bind per season via `league_seasons`; the `leagueStartAt` derivation carries over per instance)
 - **Date:** 2026-07-22
 - **Related:** mvp-spec.md §Membership (join cutoff), §Commissioner Powers (pre/post-start windows); architecture.md §Domain Model, §Locking Model, D11, D15; backlog LG-1, LG-2, LG-4, LG-6
 
