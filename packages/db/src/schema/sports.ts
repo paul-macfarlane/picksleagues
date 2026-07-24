@@ -57,7 +57,10 @@ export const sportSeasons = pgTable(
  * abbreviation, so a full (sport, abbreviation) unique across all rows would
  * reject legitimate provider data. `providerTeamId` is declared unique per
  * sport; Postgres treats NULLs as distinct, so that nullable unique index
- * never blocks multiple not-yet-synced rows.
+ * never blocks multiple not-yet-synced rows. `location`/`logo*Url` are filled
+ * in by the same schedule sync from ESPN's separate teams-listing endpoint
+ * (a provider team not yet in that listing — e.g. a TBD playoff placeholder —
+ * simply keeps these null until it resolves to a real team).
  */
 export const teams = pgTable(
   "teams",
@@ -67,6 +70,11 @@ export const teams = pgTable(
     providerTeamId: text("provider_team_id"),
     abbreviation: text("abbreviation").notNull(),
     name: text("name").notNull(),
+    // City/market (ESPN's `location`) — nullable: bootstrap/TBD rows have no
+    // provider metadata until the teams-listing enrichment step links them.
+    location: text("location"),
+    logoLightUrl: text("logo_light_url"),
+    logoDarkUrl: text("logo_dark_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

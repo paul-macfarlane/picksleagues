@@ -7,6 +7,7 @@ import {
   type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
+  type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
 import {
@@ -47,6 +48,9 @@ class FakeProvider implements GameDataProvider {
   // independent of the default season's fetch.
   structureByYear = new Map<number, ProviderSeasonStructure>();
   gamesByYearWeek = new Map<string, ProviderGame[]>();
+  // Empty by default so existing tests (which don't exercise enrichment) stand
+  // unchanged — the enrichment tests below populate this.
+  teams: ProviderTeam[] = [];
 
   async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
     return this.structureByYear.get(seasonYear) ?? this.structure;
@@ -62,6 +66,10 @@ class FakeProvider implements GameDataProvider {
       return this.gamesByYearWeek.get(yearKey) ?? [];
     }
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
+  }
+
+  async fetchNflTeams(): Promise<ProviderTeam[]> {
+    return this.teams;
   }
 }
 
@@ -91,6 +99,17 @@ function providerGame(
     homeScore: null,
     awayScore: null,
     spread: null,
+    ...overrides,
+  };
+}
+
+function providerTeam(overrides: Partial<ProviderTeam> & { providerTeamId: string }): ProviderTeam {
+  return {
+    abbreviation: "HOM",
+    name: "Home Team",
+    location: "Home",
+    logoLightUrl: "https://example.com/hom-light.png",
+    logoDarkUrl: "https://example.com/hom-dark.png",
     ...overrides,
   };
 }
@@ -146,6 +165,7 @@ beforeEach(async () => {
   provider.gamesByWeek = new Map();
   provider.structureByYear = new Map();
   provider.gamesByYearWeek = new Map();
+  provider.teams = [];
 });
 
 afterAll(async () => {
@@ -182,18 +202,34 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
 
   it("is idempotent: a second run at a later clock instant leaves every row byte-identical and touches nothing", async () => {
     seedBaselineProvider();
+    // Teams-listing enrichment lands on the same first run, so this
+    // idempotency check also proves enrichment writes never churn on re-run.
+    provider.teams = [
+      providerTeam({ providerTeamId: "hom-id", abbreviation: "HOM", name: "Home Team" }),
+      providerTeam({
+        providerTeamId: "awy-id",
+        abbreviation: "AWY",
+        name: "Away Team",
+        location: "Away",
+        logoLightUrl: "https://example.com/awy-light.png",
+        logoDarkUrl: "https://example.com/awy-dark.png",
+      }),
+    ];
     await runOk();
     const firstGames = await db.select().from(games).orderBy(games.providerGameId);
     const firstWeeks = await db.select().from(weeks).orderBy(weeks.weekNumber);
     const firstSeason = await db.select().from(sportSeasons);
     const firstTeams = await db.select().from(teams).orderBy(teams.providerTeamId);
+    // Enrichment actually landed on this first run — otherwise the
+    // byte-identical assertion below would trivially pass on all-null rows.
+    expect(firstTeams.every((team) => team.location !== null)).toBe(true);
 
     // A strictly later instant proves no-op re-runs never touch updatedAt (a
     // byte-identical re-run under the old unconditional upsert would have churned
     // updatedAt to this new value).
     const laterClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     const details = await syncNflSchedule(db, laterClock, provider, { seasonYear: SEASON_YEAR });
-    expect(details).toMatchObject({ gamesCreated: 0, gamesUpdated: 0 });
+    expect(details).toMatchObject({ gamesCreated: 0, gamesUpdated: 0, teamsEnriched: 0 });
 
     expect(await db.select().from(games).orderBy(games.providerGameId)).toEqual(firstGames);
     expect(await db.select().from(weeks).orderBy(weeks.weekNumber)).toEqual(firstWeeks);
@@ -652,6 +688,110 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(homeTeams).toHaveLength(1);
     expect(homeTeams[0]?.id).toBe(bootstrapTeam?.id);
     expect(homeTeams[0]?.providerTeamId).toBe("hom-id");
+  });
+});
+
+describe("teams-listing enrichment (location + logos)", () => {
+  it("enriches location and both logo urls for a team resolved from the games batch, counting teamsEnriched", async () => {
+    seedBaselineProvider();
+    provider.teams = [
+      providerTeam({
+        providerTeamId: "hom-id",
+        abbreviation: "HOM",
+        name: "Home Team",
+        location: "Home City",
+        logoLightUrl: "https://example.com/hom-light.png",
+        logoDarkUrl: "https://example.com/hom-dark.png",
+      }),
+    ];
+
+    const details = await runOk();
+    expect(details).toMatchObject({ teamsEnriched: 1 });
+
+    const [homeTeam] = await db.select().from(teams).where(eq(teams.providerTeamId, "hom-id"));
+    expect(homeTeam).toMatchObject({
+      location: "Home City",
+      logoLightUrl: "https://example.com/hom-light.png",
+      logoDarkUrl: "https://example.com/hom-dark.png",
+    });
+
+    // A provider team never in the listing (the "AWY" fixture team) keeps null
+    // metadata rather than erroring or being invented.
+    const [awayTeam] = await db.select().from(teams).where(eq(teams.providerTeamId, "awy-id"));
+    expect(awayTeam).toMatchObject({ location: null, logoLightUrl: null, logoDarkUrl: null });
+  });
+
+  it("a TBD playoff placeholder never in the teams listing keeps null metadata", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(
+          1,
+          "2027-01-09T00:00:00.000Z",
+          "2027-01-13T00:00:00.000Z",
+          WEEK_TYPE.POSTSEASON,
+          "Wild Card",
+        ),
+      ],
+    };
+    provider.gamesByWeek = new Map([
+      [
+        weekKey(WEEK_TYPE.POSTSEASON, 1),
+        [
+          providerGame({
+            providerGameId: "post1",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            homeTeamAbbr: "TBD",
+            homeTeamName: "TBD",
+            homeTeamProviderId: "-1",
+            awayTeamAbbr: "TBD",
+            awayTeamName: "TBD",
+            awayTeamProviderId: "-2",
+          }),
+        ],
+      ],
+    ]);
+    // Real listing carries only resolved teams — TBD placeholders never appear.
+    provider.teams = [providerTeam({ providerTeamId: "kc-id", abbreviation: "KC", name: "KC" })];
+
+    const details = await runOk();
+    expect(details).toMatchObject({ teamsEnriched: 0 });
+
+    const tbdTeams = await db.select().from(teams).where(eq(teams.abbreviation, "TBD"));
+    expect(tbdTeams).toHaveLength(2);
+    for (const team of tbdTeams) {
+      expect(team.location).toBeNull();
+      expect(team.logoLightUrl).toBeNull();
+      expect(team.logoDarkUrl).toBeNull();
+    }
+  });
+
+  it("a changed logo url on a subsequent run updates the row in place", async () => {
+    seedBaselineProvider();
+    provider.teams = [
+      providerTeam({
+        providerTeamId: "hom-id",
+        location: "Home City",
+        logoLightUrl: "https://example.com/hom-light.png",
+        logoDarkUrl: "https://example.com/hom-dark.png",
+      }),
+    ];
+    await runOk();
+
+    provider.teams = [
+      providerTeam({
+        providerTeamId: "hom-id",
+        location: "Home City",
+        logoLightUrl: "https://example.com/hom-light-v2.png",
+        logoDarkUrl: "https://example.com/hom-dark.png",
+      }),
+    ];
+    const details = await runOk();
+    expect(details).toMatchObject({ teamsEnriched: 1 });
+
+    const [homeTeam] = await db.select().from(teams).where(eq(teams.providerTeamId, "hom-id"));
+    expect(homeTeam?.logoLightUrl).toBe("https://example.com/hom-light-v2.png");
   });
 });
 

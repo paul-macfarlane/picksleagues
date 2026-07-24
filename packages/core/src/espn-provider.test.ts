@@ -807,3 +807,143 @@ describe("EspnProvider.fetchNflWeekGames", () => {
     );
   });
 });
+
+describe("EspnProvider.fetchNflTeams", () => {
+  const teamsUrl = `${SITE_API_BASE_URL}/football/nfl/teams?limit=40`;
+
+  // Trimmed, quote-accurate fixture from the real endpoint (verified
+  // 2026-07-23): https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=40
+  // — the nested sports[0].leagues[0].teams[] shape, one team's `logos[]`
+  // including both a "default"/"dark" pair and their scoreboard-specific
+  // siblings (which must NOT be picked).
+  const ARIZONA_TEAM = {
+    team: {
+      abbreviation: "ARI",
+      alternateColor: "ffffff",
+      color: "a40227",
+      displayName: "Arizona Cardinals",
+      id: "22",
+      isActive: true,
+      location: "Arizona",
+      logos: [
+        {
+          alt: "",
+          height: 500,
+          href: "https://a.espncdn.com/i/teamlogos/nfl/500/ari.png",
+          rel: ["full", "default"],
+          width: 500,
+        },
+        {
+          alt: "",
+          height: 500,
+          href: "https://a.espncdn.com/i/teamlogos/nfl/500-dark/ari.png",
+          rel: ["full", "dark"],
+          width: 500,
+        },
+        {
+          alt: "",
+          height: 500,
+          href: "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/ari.png",
+          rel: ["full", "scoreboard"],
+          width: 500,
+        },
+        {
+          alt: "",
+          height: 500,
+          href: "https://a.espncdn.com/i/teamlogos/nfl/500-dark/scoreboard/ari.png",
+          rel: ["full", "scoreboard", "dark"],
+          width: 500,
+        },
+      ],
+    },
+  };
+
+  function teamsListing(teams: unknown[]): unknown {
+    return {
+      sports: [
+        {
+          id: "20",
+          leagues: [
+            {
+              abbreviation: "NFL",
+              id: "28",
+              teams,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("maps location and the non-scoreboard default/dark logos from the real ESPN shape", async () => {
+    const fetchImpl = stubFetch({ [teamsUrl]: jsonResponse(teamsListing([ARIZONA_TEAM])) });
+
+    const provider = makeProvider(fetchImpl);
+    const [team] = await provider.fetchNflTeams();
+
+    expect(team).toEqual({
+      providerTeamId: "22",
+      abbreviation: "ARI",
+      name: "Arizona Cardinals",
+      location: "Arizona",
+      logoLightUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/ari.png",
+      logoDarkUrl: "https://a.espncdn.com/i/teamlogos/nfl/500-dark/ari.png",
+    });
+  });
+
+  it("maps null logos when a team's listing has no logos array", async () => {
+    const noLogosTeam = {
+      team: {
+        id: "1",
+        abbreviation: "ATL",
+        displayName: "Atlanta Falcons",
+        location: "Atlanta",
+      },
+    };
+    const fetchImpl = stubFetch({ [teamsUrl]: jsonResponse(teamsListing([noLogosTeam])) });
+
+    const provider = makeProvider(fetchImpl);
+    const [team] = await provider.fetchNflTeams();
+
+    expect(team).toMatchObject({ logoLightUrl: null, logoDarkUrl: null });
+  });
+
+  it("maps null for a rel that's only present as the scoreboard-specific variant", async () => {
+    const scoreboardOnlyTeam = {
+      team: {
+        id: "2",
+        abbreviation: "BUF",
+        displayName: "Buffalo Bills",
+        location: "Buffalo",
+        logos: [
+          {
+            href: "https://example.com/scoreboard-default.png",
+            rel: ["full", "scoreboard", "default"],
+          },
+        ],
+      },
+    };
+    const fetchImpl = stubFetch({ [teamsUrl]: jsonResponse(teamsListing([scoreboardOnlyTeam])) });
+
+    const provider = makeProvider(fetchImpl);
+    const [team] = await provider.fetchNflTeams();
+
+    expect(team).toMatchObject({ logoLightUrl: null, logoDarkUrl: null });
+  });
+
+  it("throws a zod error when the teams listing payload shape is invalid", async () => {
+    const fetchImpl = stubFetch({ [teamsUrl]: jsonResponse({ sports: [] }) });
+
+    const provider = makeProvider(fetchImpl);
+
+    await expect(provider.fetchNflTeams()).rejects.toThrow();
+  });
+
+  it("throws naming the endpoint and status on a non-OK response", async () => {
+    const fetchImpl = stubFetch({ [teamsUrl]: jsonResponse({}, { status: 503 }) });
+
+    const provider = makeProvider(fetchImpl);
+
+    await expect(provider.fetchNflTeams()).rejects.toThrow(/503/);
+  });
+});

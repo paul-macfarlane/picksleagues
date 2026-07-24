@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
-import type { ProviderGame, ProviderWeek } from "@picksleagues/core";
+import type { ProviderGame, ProviderTeam, ProviderWeek } from "@picksleagues/core";
 import { GAME_STATUS, SPORT, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
 
@@ -10,7 +10,9 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
   return `${weekType}:${weekNumber}`;
 }
 
-type ProviderTeam = { providerTeamId: string; abbreviation: string; name: string };
+// Only the fields a per-game competitor carries (no location/logos — that
+// metadata comes from the separate teams-listing enrichment step below).
+type GameTeamRef = { providerTeamId: string; abbreviation: string; name: string };
 
 /**
  * Upserts the teams referenced by this batch of provider games (arch ADR-0010):
@@ -30,7 +32,7 @@ async function upsertTeams(
   now: Date,
   providerGames: ProviderGame[],
 ): Promise<{ teamIdByProviderTeamId: Map<string, string>; teamsCreated: number }> {
-  const providerTeamsById = new Map<string, ProviderTeam>();
+  const providerTeamsById = new Map<string, GameTeamRef>();
   for (const game of providerGames) {
     providerTeamsById.set(game.homeTeamProviderId, {
       providerTeamId: game.homeTeamProviderId,
@@ -137,11 +139,66 @@ async function upsertTeams(
   return { teamIdByProviderTeamId, teamsCreated };
 }
 
+/**
+ * Enriches already-upserted `teams` rows with display metadata from ESPN's
+ * separate teams-listing endpoint (location, logos) — the per-game
+ * scoreboard shape `upsertTeams` reads from doesn't carry these fields. Never
+ * creates rows: matched strictly by `(sport, providerTeamId)` against rows
+ * `upsertTeams` (or a prior run) already created, so a provider team not yet
+ * synced via any game (e.g. still a TBD playoff placeholder) is simply
+ * skipped — it keeps null metadata until it resolves to a real team and
+ * appears in a future run. Only writes rows whose metadata actually changed
+ * (idempotent — no `updatedAt` churn on a no-op re-run, matching the rename
+ * path above).
+ */
+async function enrichTeamsFromListing(
+  tx: Db,
+  now: Date,
+  providerTeams: ProviderTeam[],
+): Promise<number> {
+  if (providerTeams.length === 0) {
+    return 0;
+  }
+
+  const providerTeamIds = providerTeams.map((team) => team.providerTeamId);
+  const existing = await tx
+    .select()
+    .from(teams)
+    .where(and(eq(teams.sport, SPORT.NFL), inArray(teams.providerTeamId, providerTeamIds)));
+  const metadataByProviderId = new Map(providerTeams.map((team) => [team.providerTeamId, team]));
+
+  let teamsEnriched = 0;
+  for (const row of existing) {
+    const metadata = row.providerTeamId ? metadataByProviderId.get(row.providerTeamId) : undefined;
+    if (!metadata) continue;
+
+    const changed =
+      row.location !== metadata.location ||
+      row.logoLightUrl !== metadata.logoLightUrl ||
+      row.logoDarkUrl !== metadata.logoDarkUrl;
+    if (!changed) continue;
+
+    await tx
+      .update(teams)
+      .set({
+        location: metadata.location,
+        logoLightUrl: metadata.logoLightUrl,
+        logoDarkUrl: metadata.logoDarkUrl,
+        updatedAt: now,
+      })
+      .where(eq(teams.id, row.id));
+    teamsEnriched += 1;
+  }
+
+  return teamsEnriched;
+}
+
 export type SeasonSnapshotResult = {
   seasonId: string;
   weeksSynced: number;
   weeksDeleted: number;
   teamsCreated: number;
+  teamsEnriched: number;
   gamesCreated: number;
   gamesUpdated: number;
   postponements: number;
@@ -157,8 +214,12 @@ export type SeasonSnapshotResult = {
  * through the identical diff/idempotency logic. `opts.provisional` controls
  * the season row's flag: `false` (the normal-sync default) clears an existing
  * provisional flag in place the moment real data lands, never re-forking the
- * row; `true` marks a fabricated estimate. Must run inside a transaction
- * (`tx` satisfies `Db`).
+ * row; `true` marks a fabricated estimate. `opts.providerTeams` is the
+ * season-independent full teams listing (fetched once per job run by the
+ * caller, before this transaction) used to enrich already-upserted teams with
+ * display metadata; omitted/empty is a no-op enrichment, not an error — every
+ * caller that has already fetched it forwards the same list. Must run inside
+ * a transaction (`tx` satisfies `Db`).
  */
 export async function ingestSeasonSnapshot(
   tx: Db,
@@ -166,7 +227,7 @@ export async function ingestSeasonSnapshot(
   seasonYear: number,
   structureWeeks: ProviderWeek[],
   providerGames: ProviderGame[],
-  opts?: { provisional?: boolean },
+  opts?: { provisional?: boolean; providerTeams?: ProviderTeam[] },
 ): Promise<SeasonSnapshotResult> {
   const wantProvisional = opts?.provisional ?? false;
 
@@ -278,6 +339,9 @@ export async function ingestSeasonSnapshot(
   // Teams are upserted before games so every game's FKs resolve against a
   // row that exists in this same transaction (arch ADR-0010).
   const { teamIdByProviderTeamId, teamsCreated } = await upsertTeams(tx, now, providerGames);
+  // Enrichment runs after upsert so a team this same batch just created is
+  // still eligible to pick up its listing metadata in the same run.
+  const teamsEnriched = await enrichTeamsFromListing(tx, now, opts?.providerTeams ?? []);
 
   if (providerGames.length > 0) {
     const providerGameIds = providerGames.map((game) => game.providerGameId);
@@ -416,6 +480,7 @@ export async function ingestSeasonSnapshot(
     weeksSynced: weekIdByKey.size,
     weeksDeleted,
     teamsCreated,
+    teamsEnriched,
     gamesCreated,
     gamesUpdated,
     postponements,

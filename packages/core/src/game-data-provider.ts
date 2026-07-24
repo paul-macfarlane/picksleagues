@@ -53,6 +53,18 @@ export type ProviderGame = {
   spread: number | null;
 };
 
+export type ProviderTeam = {
+  providerTeamId: string;
+  abbreviation: string;
+  name: string;
+  // City/market (ESPN's `location`, e.g. "Kansas City").
+  location: string;
+  // Light-background and dark-background logo variants; null when the
+  // provider's listing has no corresponding asset for a team.
+  logoLightUrl: string | null;
+  logoDarkUrl: string | null;
+};
+
 /**
  * Domain-facing sports data source. Implementations must contain their
  * provider's response shapes entirely — everything outside the adapter sees
@@ -74,4 +86,9 @@ export interface GameDataProvider {
     weekType: WeekType,
     weekNumber: number,
   ): Promise<ProviderGame[]>;
+  // The full current NFL teams listing (season-independent) — used to enrich
+  // `teams` rows with display metadata the per-game scoreboard shape doesn't
+  // carry (location, logos). A provider team not yet in this listing (e.g. a
+  // TBD playoff placeholder) simply never gets enriched.
+  fetchNflTeams(): Promise<ProviderTeam[]>;
 }

@@ -4,6 +4,7 @@ import type {
   GameDataProvider,
   ProviderGame,
   ProviderSeasonStructure,
+  ProviderTeam,
   ProviderWeek,
 } from "./game-data-provider";
 
@@ -105,6 +106,57 @@ const EventSchema = z.looseObject({
 const ScoreboardSchema = z.looseObject({
   events: z.array(EventSchema),
 });
+
+// Verified against the real endpoint (2026-07-23): every one of the 32
+// current teams' `logos[]` carries exactly one non-scoreboard entry whose
+// `rel` includes "default" (light) and exactly one whose `rel` includes
+// "dark" — the site also ships scoreboard-specific variants (`rel` also
+// containing "scoreboard") which this schema deliberately doesn't try to
+// disambiguate by shape; the mapper below filters those out by rel content.
+const TeamLogoSchema = z.looseObject({
+  href: z.string(),
+  rel: z.array(z.string()),
+});
+
+const TeamListItemSchema = z.looseObject({
+  team: z.looseObject({
+    id: z.string(),
+    abbreviation: z.string(),
+    displayName: z.string(),
+    location: z.string(),
+    logos: z.array(TeamLogoSchema).optional(),
+  }),
+});
+
+const TeamsListingSchema = z.looseObject({
+  sports: z
+    .array(
+      z.looseObject({
+        leagues: z.array(z.looseObject({ teams: z.array(TeamListItemSchema) })).min(1),
+      }),
+    )
+    .min(1),
+});
+
+/** First logo whose `rel` names `wantRel` but isn't the scoreboard-specific variant; null if absent. */
+function findLogoUrl(logos: z.infer<typeof TeamLogoSchema>[], wantRel: string): string | null {
+  const logo = logos.find(
+    (entry) => entry.rel.includes(wantRel) && !entry.rel.includes("scoreboard"),
+  );
+  return logo?.href ?? null;
+}
+
+function mapTeamListItem(item: z.infer<typeof TeamListItemSchema>): ProviderTeam {
+  const logos = item.team.logos ?? [];
+  return {
+    providerTeamId: item.team.id,
+    abbreviation: item.team.abbreviation,
+    name: item.team.displayName,
+    location: item.team.location,
+    logoLightUrl: findLogoUrl(logos, "default"),
+    logoDarkUrl: findLogoUrl(logos, "dark"),
+  };
+}
 
 /**
  * ESPN status names/states this adapter recognizes. Unknown states fall back
@@ -324,5 +376,16 @@ export class EspnProvider implements GameDataProvider {
       }
       return mapCompetitionToGame(weekType, weekNumber, competition);
     });
+  }
+
+  async fetchNflTeams(): Promise<ProviderTeam[]> {
+    // Season-independent listing (ESPN scopes it by sport/league, not by
+    // year) — `limit` set well above the current 32-team league size as
+    // headroom against expansion.
+    const url = `${this.#siteApiBaseUrl}/football/nfl/teams?limit=40`;
+    const listing = TeamsListingSchema.parse(await this.#fetchJson(url));
+    return listing.sports.flatMap((sport) =>
+      sport.leagues.flatMap((league) => league.teams.map(mapTeamListItem)),
+    );
   }
 }

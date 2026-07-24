@@ -6,6 +6,7 @@ import {
   type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
+  type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
@@ -49,6 +50,10 @@ class FakeProvider implements GameDataProvider {
   ): Promise<ProviderGame[]> {
     this.fetchCalls.push([seasonYear, weekType, weekNumber]);
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
+  }
+
+  async fetchNflTeams(): Promise<ProviderTeam[]> {
+    return [];
   }
 }
 

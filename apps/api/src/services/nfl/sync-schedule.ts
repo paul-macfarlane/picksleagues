@@ -5,6 +5,7 @@ import {
   type Clock,
   type GameDataProvider,
   type ProviderGame,
+  type ProviderTeam,
   estimatedNflWeeks,
   nflSeasonYearFor,
 } from "@picksleagues/core";
@@ -26,13 +27,16 @@ const UPCOMING_STATUS = {
  * dead offseason window. Only called for the bare no-arg trigger (the daily
  * cron shape); explicit `?season=`/`?week=` runs stay surgical and never
  * reach here. Never writes games for a provisional target: `leagueStartAt`
- * must keep deriving null until real kickoffs land.
+ * must keep deriving null until real kickoffs land. `providerTeams` is the
+ * listing the caller already fetched this run — forwarded rather than
+ * re-fetched so one job run hits the teams-listing endpoint at most once.
  */
 async function ensureUpcomingNflSeason(
   db: Db,
   clock: Clock,
   provider: GameDataProvider,
   defaultSeasonYear: number,
+  providerTeams: ProviderTeam[],
 ): Promise<{ upcoming: string; upcomingSeasonYear: number }> {
   const now = clock.now();
   const upcomingSeasonYear = defaultSeasonYear + 1;
@@ -80,6 +84,7 @@ async function ensureUpcomingNflSeason(
     await db.transaction((tx) =>
       ingestSeasonSnapshot(tx, now, upcomingSeasonYear, structure.weeks, providerGames, {
         provisional: false,
+        providerTeams,
       }),
     );
     return { upcoming: UPCOMING_STATUS.REAL, upcomingSeasonYear };
@@ -90,6 +95,7 @@ async function ensureUpcomingNflSeason(
   await db.transaction((tx) =>
     ingestSeasonSnapshot(tx, now, upcomingSeasonYear, estimatedNflWeeks(upcomingSeasonYear), [], {
       provisional: true,
+      providerTeams,
     }),
   );
   return { upcoming: UPCOMING_STATUS.PROVISIONAL, upcomingSeasonYear };
@@ -144,11 +150,18 @@ export async function syncNflSchedule(
   ) {
     return { seasonYear, skipped: true, reason: "week_not_synced" };
   }
-  const fetchedGamesPerWeek = await Promise.all(
-    weeksToFetch.map((week) =>
-      provider.fetchNflWeekGames(seasonYear, week.weekType, week.weekNumber),
+  // Teams listing is season-independent — fetched once per run (alongside the
+  // per-week game fetches) and forwarded to every `ingestSeasonSnapshot` call
+  // this run makes, including the offseason "ensure next season" step below,
+  // so a single job run never hits the endpoint more than once.
+  const [fetchedGamesPerWeek, providerTeams] = await Promise.all([
+    Promise.all(
+      weeksToFetch.map((week) =>
+        provider.fetchNflWeekGames(seasonYear, week.weekType, week.weekNumber),
+      ),
     ),
-  );
+    provider.fetchNflTeams(),
+  ]);
 
   // Dedupe by providerGameId before the write: ESPN transiently lists a
   // rescheduled game under both its old and new week, so the flat concat can
@@ -172,6 +185,7 @@ export async function syncNflSchedule(
     // publishes.
     ingestSeasonSnapshot(tx, now, seasonYear, structure.weeks, providerGames, {
       provisional: false,
+      providerTeams,
     }),
   );
 
@@ -180,6 +194,7 @@ export async function syncNflSchedule(
     weeksSynced: result.weeksSynced,
     weeksDeleted: result.weeksDeleted,
     teamsCreated: result.teamsCreated,
+    teamsEnriched: result.teamsEnriched,
     gamesCreated: result.gamesCreated,
     gamesUpdated: result.gamesUpdated,
     duplicateProviderGames,
@@ -193,6 +208,6 @@ export async function syncNflSchedule(
     return details;
   }
 
-  const upcoming = await ensureUpcomingNflSeason(db, clock, provider, seasonYear);
+  const upcoming = await ensureUpcomingNflSeason(db, clock, provider, seasonYear, providerTeams);
   return { ...details, ...upcoming };
 }
