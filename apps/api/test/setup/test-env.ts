@@ -5,9 +5,11 @@ import { getTestDatabaseUrl } from "./test-database-url";
  * Matches packages/core's `Env` shape without going through `loadEnv` (which
  * caches process-wide) — shared by any integration test that builds its own
  * `Auth`/`createApp` instance directly. Returns a fresh object per call so no
- * test file can mutate a shared instance out from under another.
+ * test file can mutate a shared instance out from under another. `overrides`
+ * lets a test narrow one field (e.g. `ADMIN_USER_IDS`) without restating the
+ * rest.
  */
-export function makeTestEnv(): Env {
+export function makeTestEnv(overrides?: Partial<Env>): Env {
   return {
     APP_ENV: "local",
     DATABASE_URL: getTestDatabaseUrl(),
@@ -19,5 +21,6 @@ export function makeTestEnv(): Env {
     DISCORD_CLIENT_SECRET: "discord-secret",
     JOB_SECRET: "b".repeat(32),
     ADMIN_USER_IDS: [],
+    ...overrides,
   };
 }

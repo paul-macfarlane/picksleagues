@@ -7,6 +7,18 @@ export const JOB_RUN_STATUS = {
 
 export type JobRunStatus = (typeof JOB_RUN_STATUS)[keyof typeof JOB_RUN_STATUS];
 
+// The NFL data-sync jobs an admin can trigger manually from the admin page —
+// same set the cron scheduler fires on a timer (apps/api/src/routes/jobs.ts).
+export const NFL_SYNC_JOB = {
+  SYNC_SCHEDULE: "sync-schedule",
+  SYNC_ODDS: "sync-odds",
+  SYNC_SCORES: "sync-scores",
+} as const;
+
+export type NflSyncJob = (typeof NFL_SYNC_JOB)[keyof typeof NFL_SYNC_JOB];
+
+export const NflSyncJobSchema = z.enum(NFL_SYNC_JOB).openapi("NflSyncJob");
+
 /**
  * Uniform response envelope for every `/api/jobs/*` endpoint. `details` carries
  * per-job counters (rows upserted, transitions detected, …) — scalar values

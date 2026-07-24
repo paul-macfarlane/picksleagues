@@ -6,7 +6,7 @@ The UI-driven testing and operations surface, merged from the former Simulator a
 
 ## Shell & data visibility (deps already met — buildable now)
 
-- [~] **ADM-1** — Admin role via env-var user-ID allowlist + admin page shell: manual job triggers, standings rebuild buttons (as those features land); hosts the sim control panel in non-prod. _(deps: DATA-3, FND-11)_
+- [x] **ADM-1** — Admin role via env-var user-ID allowlist + admin page shell: manual job triggers, standings rebuild buttons (as those features land); hosts the sim control panel in non-prod. _(deps: DATA-3, FND-11)_
 - [ ] **ADM-4** — Read-only reference-data browsers on the admin page: teams, seasons/weeks, games (provider + override fields visible), odds snapshots. Doubles as verification for the sync jobs. _(deps: ADM-1)_
 
 ## Simulator backend

@@ -14,13 +14,14 @@ import { errorResponse, MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/ro
 import type { SessionVariables } from "../middleware/session";
 import { deleteAccount, getUser, updateProfile } from "../services/users";
 
-function serializeMe(user: typeof users.$inferSelect): MeResponse {
+function serializeMe(user: typeof users.$inferSelect, isAdmin: boolean): MeResponse {
   return {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
     email: user.email,
     image: user.image,
+    isAdmin,
   };
 }
 
@@ -89,6 +90,10 @@ export function meRoutes(deps: AppDeps) {
   // per-handler variants.
   app.use("/me", requireDbAndClock(deps));
 
+  // Admin capability = env-var user-ID allowlist (arch §Overrides), not a role
+  // column — resolved from `deps.env` in closure so `serializeMe` stays pure.
+  const adminUserIds = deps.env?.ADMIN_USER_IDS ?? [];
+
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
     const sessionUser = c.get("sessionUser");
@@ -105,7 +110,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(user), 200);
+    return c.json(serializeMe(user, adminUserIds.includes(user.id)), 200);
   });
 
   app.openapi(updateMe, async (c) => {
@@ -125,7 +130,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(result.user), 200);
+    return c.json(serializeMe(result.user, adminUserIds.includes(result.user.id)), 200);
   });
 
   app.openapi(deleteMe, async (c) => {

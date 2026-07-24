@@ -4,6 +4,7 @@ import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
 import { logError } from "./lib/logger";
+import { adminRoutes } from "./routes/admin";
 import { discoveryRoutes } from "./routes/discovery";
 import { healthRoutes } from "./routes/health";
 import { jobRoutes } from "./routes/jobs";
@@ -51,6 +52,11 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/", inviteRoutes(deps));
   app.route("/", memberRoutes(deps));
   app.route("/", discoveryRoutes(deps));
+
+  // Admin surface (env-var allowlist, arch §Overrides) — mounted unconditionally
+  // in every env, unlike the sim routes; server-side auth gates it, not
+  // non-registration (that's for simulator-only routes per APP_ENV=production).
+  app.route("/", adminRoutes(deps));
 
   // Better Auth owns /api/auth/* as its own typed surface (client generated
   // from the auth instance, not this OpenAPI doc) — deliberately outside the

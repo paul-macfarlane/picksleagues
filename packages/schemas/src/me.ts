@@ -16,6 +16,9 @@ export const MeResponseSchema = z
     displayName: z.string(),
     email: z.string(),
     image: z.string().nullable(),
+    // Admin capability = env-var user-ID allowlist (arch §Overrides), not a
+    // role column — the SPA uses this to show/hide the admin surface.
+    isAdmin: z.boolean(),
   })
   .openapi("MeResponse");
 

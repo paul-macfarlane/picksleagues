@@ -3,6 +3,7 @@ import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { Db } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import type { AppDeps } from "../deps";
+import { adminMiddleware } from "../middleware/admin";
 import { sessionMiddleware, type SessionVariables } from "../middleware/session";
 
 export type DepsVariables = { db: Db; clock: Clock };
@@ -51,5 +52,24 @@ export function requireSession(deps: AppDeps): MiddlewareHandler<{ Variables: Se
       );
     }
     return sessionMiddleware(deps.auth)(c, next);
+  };
+}
+
+/**
+ * Requires the caller to be in the admin allowlist. Mount after
+ * `requireSession` — depends on `sessionUser` already being on the context.
+ */
+export function requireAdmin(deps: AppDeps): MiddlewareHandler<{ Variables: SessionVariables }> {
+  return async (c, next) => {
+    if (!deps.env) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: ERROR_CODE.MISCONFIGURED,
+          message: "Admin allowlist is not configured.",
+        }),
+        500,
+      );
+    }
+    return adminMiddleware(deps.env.ADMIN_USER_IDS)(c, next);
   };
 }

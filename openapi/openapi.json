@@ -40,6 +40,9 @@
               "string",
               "null"
             ]
+          },
+          "isAdmin": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -47,7 +50,8 @@
           "username",
           "displayName",
           "email",
-          "image"
+          "image",
+          "isAdmin"
         ]
       },
       "NullableUsername": {
@@ -961,6 +965,14 @@
           "memberCount",
           "seasonYear",
           "startsAt"
+        ]
+      },
+      "NflSyncJob": {
+        "type": "string",
+        "enum": [
+          "sync-schedule",
+          "sync-odds",
+          "sync-scores"
         ]
       }
     },
@@ -2472,6 +2484,102 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/jobs/nfl/{job}": {
+      "post": {
+        "operationId": "runAdminNflJob",
+        "summary": "Manually trigger an NFL data sync job",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/NflSyncJob"
+            },
+            "required": true,
+            "name": "job",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid job slug, or a supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but not on the admin allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
                 }
               }
             }
