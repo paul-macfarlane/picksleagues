@@ -43,6 +43,13 @@
       "when": 1784780460823,
       "tag": "0005_pink_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784852541268,
+      "tag": "0006_new_cerise",
+      "breakpoints": true
     }
   ]
 }

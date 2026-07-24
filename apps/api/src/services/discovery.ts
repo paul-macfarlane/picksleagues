@@ -1,9 +1,9 @@
 import { and, count, desc, eq, ilike, inArray, notExists } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagues, leagueSettings, sportSeasons } from "@picksleagues/db";
+import { leagueMembers, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import { LEAGUE_STATUS, LEAGUE_VISIBILITY, type DiscoveryLeague } from "@picksleagues/schemas";
-import { isPreStart, leagueStartAt } from "./leagues";
+import { currentLeagueSeason, isPreStart, leagueStartAt } from "./leagues";
 
 /** Escapes ILIKE's own wildcards so a user's `%`/`_` matches literally, not as a pattern. */
 function escapeLikePattern(value: string): string {
@@ -22,9 +22,11 @@ export async function discoverLeagues(
   userId: string,
   query?: string,
 ): Promise<DiscoveryLeague[]> {
+  const current = currentLeagueSeason(db);
   const conditions = [
     eq(leagues.visibility, LEAGUE_VISIBILITY.PUBLIC),
-    eq(leagues.status, LEAGUE_STATUS.ACTIVE),
+    // Status is per-season now (ADR-0009) — filter the current instance's.
+    eq(current.status, LEAGUE_STATUS.ACTIVE),
     // Excludes leagues the caller already belongs to — joining is pointless
     // and the join endpoints would 409 anyway.
     notExists(
@@ -41,12 +43,12 @@ export async function discoverLeagues(
   const rows = await db
     .select({
       league: leagues,
-      settings: leagueSettings.settings,
-      seasonYear: sportSeasons.year,
+      settings: current.settings,
+      seasonId: current.seasonId,
+      seasonYear: current.seasonYear,
     })
     .from(leagues)
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-    .innerJoin(sportSeasons, eq(leagues.seasonId, sportSeasons.id))
+    .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
     .where(and(...conditions))
     .orderBy(desc(leagues.createdAt));
   if (rows.length === 0) return [];
@@ -69,7 +71,11 @@ export async function discoverLeagues(
   const withStarts = await Promise.all(
     rows.map(async (row) => ({
       row,
-      startsAt: await leagueStartAt(db, row.league, row.settings),
+      startsAt: await leagueStartAt(
+        db,
+        { mode: row.league.mode, seasonId: row.seasonId },
+        row.settings,
+      ),
     })),
   );
 

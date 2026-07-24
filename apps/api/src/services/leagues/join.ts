@@ -1,6 +1,5 @@
-import { eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { isUniqueViolation, leagueMembers, leagues, leagueSettings } from "@picksleagues/db";
+import { isUniqueViolation, leagueMembers } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   JOIN_BLOCKED_REASON,
@@ -12,6 +11,7 @@ import {
 } from "@picksleagues/schemas";
 import { lockLeagueRow } from "./locks";
 import { countMembers, getMembership } from "./authz";
+import { getLeagueWithCurrentSeason } from "./current-season";
 import { isPreStart, leagueStartAt } from "./start";
 import { getLeague } from "./crud";
 
@@ -54,22 +54,26 @@ export async function joinLeagueInTx(
 ): Promise<void> {
   await lockLeagueRow(tx, leagueId);
 
-  const [row] = await tx
-    .select({ league: leagues, settings: leagueSettings.settings })
-    .from(leagues)
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-    .where(eq(leagues.id, leagueId));
-  if (!row || (mustBePublic && row.league.visibility !== LEAGUE_VISIBILITY.PUBLIC)) {
+  // Read the current instance INSIDE the tx after the lock (ADR-0009): the
+  // concluded/cutoff checks and the size-cap count below must see the same
+  // serialized snapshot the lock guarantees.
+  const current = await getLeagueWithCurrentSeason(tx, leagueId);
+  if (!current || (mustBePublic && current.league.visibility !== LEAGUE_VISIBILITY.PUBLIC)) {
     throw new LeagueMissingError();
   }
+  const { league, season } = current;
 
   if (await getMembership(tx, leagueId, userId)) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.ALREADY_MEMBER);
   }
-  if (row.league.status !== LEAGUE_STATUS.ACTIVE) {
+  if (season.status !== LEAGUE_STATUS.ACTIVE) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED);
   }
-  const startsAt = await leagueStartAt(tx, row.league, row.settings);
+  const startsAt = await leagueStartAt(
+    tx,
+    { mode: league.mode, seasonId: season.seasonId },
+    season.settings,
+  );
   if (!isPreStart(startsAt, clock)) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.JOIN_CLOSED);
   }
@@ -90,7 +94,7 @@ export async function joinLeagueInTx(
     throw error;
   }
 
-  if ((await countMembers(tx, leagueId)) > row.league.maxMembers) {
+  if ((await countMembers(tx, leagueId)) > league.maxMembers) {
     throw new JoinRefusedError(JOIN_BLOCKED_REASON.LEAGUE_FULL);
   }
 }

@@ -3,8 +3,8 @@ import type { Db } from "@picksleagues/db";
 import {
   games,
   leagueMembers,
+  leagueSeasons,
   leagues,
-  leagueSettings,
   sportSeasons,
   weeks,
 } from "@picksleagues/db";
@@ -97,8 +97,9 @@ export const DEFAULT_PICKEM_SETTINGS: LeagueSettings = {
 };
 
 /**
- * Directly inserts a league + settings + members, bypassing the API — for
- * arranging preconditions (cap counts, join targets) without N requests.
+ * Directly inserts a league + one season instance + members, bypassing the API
+ * — for arranging preconditions (cap counts, join targets) without N requests.
+ * `status`/`seasonId`/`settings` land on the instance now (ADR-0009).
  */
 export async function insertLeague(
   db: Db,
@@ -128,8 +129,6 @@ export async function insertLeague(
       name,
       mode,
       visibility,
-      status,
-      seasonId,
       maxMembers,
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
@@ -137,9 +136,14 @@ export async function insertLeague(
     .returning();
   if (!league) throw new Error("league insert returned no row");
 
-  await db
-    .insert(leagueSettings)
-    .values({ leagueId: league.id, settings, createdAt: SEED_AT, updatedAt: SEED_AT });
+  await db.insert(leagueSeasons).values({
+    leagueId: league.id,
+    seasonId,
+    settings,
+    status,
+    createdAt: SEED_AT,
+    updatedAt: SEED_AT,
+  });
 
   for (const member of members) {
     await db.insert(leagueMembers).values({

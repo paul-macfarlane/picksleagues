@@ -1,6 +1,6 @@
 import { and, count, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagues, leagueSettings } from "@picksleagues/db";
+import { leagueMembers } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
@@ -13,6 +13,7 @@ import {
   authorizeLeagueAction,
   countActiveCommissionerships,
   countMembers,
+  getLeagueWithCurrentSeason,
   isPreStart,
   leagueStartAt,
   lockLeagueRow,
@@ -240,13 +241,14 @@ export async function leaveLeague(
   }
 }
 
-/** Pre-start check against rows read INSIDE the caller's transaction. */
+/** Pre-start check against the current instance read INSIDE the caller's transaction. */
 async function leagueIsPreStart(tx: Db, clock: Clock, leagueId: string): Promise<boolean> {
-  const [row] = await tx
-    .select({ league: leagues, settings: leagueSettings.settings })
-    .from(leagues)
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-    .where(eq(leagues.id, leagueId));
-  if (!row) return false;
-  return isPreStart(await leagueStartAt(tx, row.league, row.settings), clock);
+  const current = await getLeagueWithCurrentSeason(tx, leagueId);
+  if (!current) return false;
+  const startsAt = await leagueStartAt(
+    tx,
+    { mode: current.league.mode, seasonId: current.season.seasonId },
+    current.season.settings,
+  );
+  return isPreStart(startsAt, clock);
 }

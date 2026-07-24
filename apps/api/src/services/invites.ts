@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueInvites, leagues, leagueSettings, sportSeasons, users } from "@picksleagues/db";
+import { leagueInvites, users } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   INVITE_STATUS,
@@ -18,6 +18,7 @@ import {
   authorizeLeagueAction,
   countMembers,
   getLeague,
+  getLeagueWithCurrentSeason,
   getMembership,
   isPreStart,
   JoinRefusedError,
@@ -173,48 +174,43 @@ export async function getJoinPreview(
   code: string,
   userId: string,
 ): Promise<JoinPreviewResponse | null> {
-  const [row] = await db
-    .select({
-      invite: leagueInvites,
-      league: leagues,
-      settings: leagueSettings.settings,
-      seasonYear: sportSeasons.year,
-    })
-    .from(leagueInvites)
-    .innerJoin(leagues, eq(leagueInvites.leagueId, leagues.id))
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-    .innerJoin(sportSeasons, eq(leagues.seasonId, sportSeasons.id))
-    .where(eq(leagueInvites.code, code));
-  if (!row) return null;
+  const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));
+  if (!invite) return null;
+
+  // The invite's league and its current instance (ADR-0009). An invite can't
+  // outlive its league (FK cascade), so a missing current season is unexpected.
+  const current = await getLeagueWithCurrentSeason(db, invite.leagueId);
+  if (!current) return null;
+  const { league, season } = current;
 
   const [memberCount, membership, startsAt] = await Promise.all([
-    countMembers(db, row.league.id),
-    getMembership(db, row.league.id, userId),
-    leagueStartAt(db, row.league, row.settings),
+    countMembers(db, league.id),
+    getMembership(db, league.id, userId),
+    leagueStartAt(db, { mode: league.mode, seasonId: season.seasonId }, season.settings),
   ]);
 
-  const status = inviteStatus(row.invite, clock);
+  const status = inviteStatus(invite, clock);
   let reason: JoinBlockedReason | null = null;
   if (status !== INVITE_STATUS.ACTIVE) {
     reason = INVITE_STATUS_TO_REASON[status];
   } else if (membership) {
     reason = JOIN_BLOCKED_REASON.ALREADY_MEMBER;
-  } else if (row.league.status !== LEAGUE_STATUS.ACTIVE) {
+  } else if (season.status !== LEAGUE_STATUS.ACTIVE) {
     reason = JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED;
   } else if (!isPreStart(startsAt, clock)) {
     reason = JOIN_BLOCKED_REASON.JOIN_CLOSED;
-  } else if (memberCount >= row.league.maxMembers) {
+  } else if (memberCount >= league.maxMembers) {
     reason = JOIN_BLOCKED_REASON.LEAGUE_FULL;
   }
 
   return {
     league: {
-      id: row.league.id,
-      name: row.league.name,
-      mode: row.league.mode,
-      visibility: row.league.visibility,
+      id: league.id,
+      name: league.name,
+      mode: league.mode,
+      visibility: league.visibility,
       memberCount,
-      seasonYear: row.seasonYear,
+      seasonYear: season.seasonYear,
       startsAt: startsAt ? startsAt.toISOString() : null,
     },
     joinable: reason === null,

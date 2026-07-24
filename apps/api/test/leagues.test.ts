@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers, leagues, leagueSettings } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import { LEAGUE_STATUS, MEMBER_ROLE, SPORT, type LeagueResponse } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { DEFAULT_PICKEM_SETTINGS, insertLeague, seedSeason } from "./setup/league-helpers";
@@ -108,11 +108,15 @@ describe("POST /api/leagues", () => {
     expect(body.members).toHaveLength(1);
     expect(body.members[0]).toMatchObject({ userId: user.id, role: "commissioner" });
 
-    const [settingsRow] = await db
+    const instanceRows = await db
       .select()
-      .from(leagueSettings)
-      .where(eq(leagueSettings.leagueId, body.id));
-    expect(settingsRow?.settings).toMatchObject({ picksPerWeek: 5 });
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.leagueId, body.id));
+    // Creating a league mints exactly one season instance (ADR-0009) carrying
+    // the parsed settings.
+    expect(instanceRows).toHaveLength(1);
+    expect(instanceRows[0]?.settings).toMatchObject({ picksPerWeek: 5 });
+    expect(instanceRows[0]?.status).toBe("active");
     const memberRows = await db
       .select()
       .from(leagueMembers)
@@ -272,25 +276,91 @@ describe("POST /api/leagues", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("does not count concluded leagues toward the cap", async () => {
-    const { seasonId } = await seedDefaultSeason();
+  // ADR-0009: the cap consults each league's CURRENT instance (greatest season
+  // year), never "any instance is active/concluded" — these two cases would
+  // both trip a naive exists-any implementation.
+  async function addSeasonInstance(
+    leagueId: string,
+    seasonId: string,
+    status: (typeof LEAGUE_STATUS)[keyof typeof LEAGUE_STATUS],
+  ): Promise<void> {
+    const seedAt = new Date("2026-01-01T00:00:00.000Z");
+    await db.insert(leagueSeasons).values({
+      leagueId,
+      seasonId,
+      settings: DEFAULT_PICKEM_SETTINGS,
+      status,
+      createdAt: seedAt,
+      updatedAt: seedAt,
+    });
+  }
+
+  it("does not count a league whose CURRENT instance is concluded, despite an older active one", async () => {
+    const { seasonId: y2026 } = await seedDefaultSeason();
+    const { seasonId: y2027 } = await seedSeason(db, { year: 2027, weeks: [] });
     const { user, cookie } = await createAuthenticatedUser(auth);
     for (let i = 0; i < 9; i++) {
       await insertLeague(db, {
-        seasonId,
+        seasonId: y2026,
         name: `League ${i}`,
         members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
       });
     }
-    await insertLeague(db, {
-      seasonId,
-      name: "Done League",
+    // Older 2026 instance active, current 2027 instance concluded → excluded.
+    const multi = await insertLeague(db, {
+      seasonId: y2026,
+      name: "Renewed Then Concluded",
+      status: LEAGUE_STATUS.ACTIVE,
+      members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+    });
+    await addSeasonInstance(multi.id, y2027, LEAGUE_STATUS.CONCLUDED);
+
+    // 9 active + the new one = 10; the multi-season league is concluded-current.
+    const res = await postLeague(cookie, VALID_PICKEM_BODY);
+    expect(res.status).toBe(201);
+  });
+
+  it("counts a league whose CURRENT instance is active exactly once, despite an older concluded one", async () => {
+    const { seasonId: y2026 } = await seedDefaultSeason();
+    const { seasonId: y2027 } = await seedSeason(db, { year: 2027, weeks: [] });
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    for (let i = 0; i < 9; i++) {
+      await insertLeague(db, {
+        seasonId: y2026,
+        name: `League ${i}`,
+        members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+    }
+    // Older 2026 instance concluded, current 2027 instance active → counts once.
+    const multi = await insertLeague(db, {
+      seasonId: y2026,
+      name: "Concluded Then Renewed",
       status: LEAGUE_STATUS.CONCLUDED,
       members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
+    await addSeasonInstance(multi.id, y2027, LEAGUE_STATUS.ACTIVE);
 
+    // 9 active + active-current multi = 10; the 11th trips the cap.
     const res = await postLeague(cookie, VALID_PICKEM_BODY);
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "cap_exceeded" });
+  });
+
+  it("enforces one instance per league per season (unique constraint)", async () => {
+    const { seasonId } = await seedDefaultSeason();
+    const league = await insertLeague(db, { seasonId, name: "Dup Season" });
+    const seedAt = new Date("2026-01-01T00:00:00.000Z");
+
+    await expect(
+      db.insert(leagueSeasons).values({
+        leagueId: league.id,
+        seasonId,
+        settings: DEFAULT_PICKEM_SETTINGS,
+        status: LEAGUE_STATUS.ACTIVE,
+        createdAt: seedAt,
+        updatedAt: seedAt,
+      }),
+    ).rejects.toThrow();
   });
 
   it("409s a start week that has already begun — a league must be born pre-start", async () => {

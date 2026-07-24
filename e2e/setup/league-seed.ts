@@ -52,8 +52,15 @@ export async function seedFutureSeason(): Promise<{ seasonId: string }> {
 }
 
 export async function cleanupFutureSeason(): Promise<void> {
+  // Leagues no longer carry season_id (ADR-0009) — the season anchor lives on
+  // league_seasons. Delete leagues that have an instance on the 2099 season
+  // (the FK cascade removes the instances), then the now-unreferenced season.
   await pool.query(
-    `delete from leagues where season_id in (select id from sport_seasons where year = $1)`,
+    `delete from leagues where id in (
+       select ls.league_id from league_seasons ls
+       join sport_seasons s on s.id = ls.season_id
+       where s.year = $1
+     )`,
     [E2E_SEASON_YEAR],
   );
   await pool.query(`delete from sport_seasons where year = $1`, [E2E_SEASON_YEAR]);

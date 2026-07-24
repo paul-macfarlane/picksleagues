@@ -8,7 +8,7 @@ import {
   sessions,
   users,
 } from "@picksleagues/db";
-import { lockUserRow } from "./leagues";
+import { currentLeagueSeason, lockUserRow } from "./leagues";
 import type { Clock } from "@picksleagues/core";
 import {
   DELETED_USER_DISPLAY_NAME,
@@ -136,7 +136,9 @@ export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_comm
 /**
  * True when any active league would be left commissioner-less but not
  * member-less by this user's departure — the ADR-0004 invariant, evaluated
- * inside the deletion transaction.
+ * inside the deletion transaction. "Active" is the league's CURRENT instance
+ * being ACTIVE (ADR-0009): join the current season and filter status, so a
+ * league with a concluded past instance never counts.
  */
 async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string): Promise<boolean> {
   const commissionerCount = db
@@ -150,6 +152,7 @@ async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string):
     .from(leagueMembers)
     .where(eq(leagueMembers.leagueId, leagues.id));
 
+  const current = currentLeagueSeason(db);
   const rows = await db
     .select({ id: leagues.id })
     .from(leagues)
@@ -161,8 +164,9 @@ async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string):
         eq(leagueMembers.role, MEMBER_ROLE.COMMISSIONER),
       ),
     )
+    .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
     .where(
-      and(eq(leagues.status, LEAGUE_STATUS.ACTIVE), eq(commissionerCount, 1), gt(memberCount, 1)),
+      and(eq(current.status, LEAGUE_STATUS.ACTIVE), eq(commissionerCount, 1), gt(memberCount, 1)),
     )
     .limit(1);
   return rows.length > 0;

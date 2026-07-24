@@ -6,6 +6,7 @@ import {
   type LeagueMember,
   type LeagueResponse,
   type LeagueSettings,
+  type LeagueStatus,
 } from "@picksleagues/schemas";
 
 export type LeagueRow = typeof leagues.$inferSelect;
@@ -39,6 +40,9 @@ function serializeMember(row: {
 
 export function serializeLeague(
   league: LeagueRow,
+  // status/seasonYear/settings come from the league's current instance
+  // (ADR-0009); the wire shape stays flat, unchanged from the pre-split rows.
+  status: LeagueStatus,
   seasonYear: number,
   settings: LeagueSettings,
   startsAt: Date | null,
@@ -53,7 +57,7 @@ export function serializeLeague(
     name: league.name,
     mode: league.mode,
     visibility: league.visibility,
-    status: league.status,
+    status,
     seasonYear,
     settings,
     startsAt: startsAt ? startsAt.toISOString() : null,

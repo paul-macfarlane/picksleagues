@@ -4,6 +4,7 @@
 // omitted: its `loadMembers`/`serializeLeague`/`LeagueRow` are module-public
 // only so `crud`/`start` can cross-import, not part of the service API.
 export * from "./locks";
+export * from "./current-season";
 export * from "./start";
 export * from "./authz";
 export * from "./join";
