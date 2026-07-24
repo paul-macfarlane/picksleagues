@@ -21,6 +21,11 @@ export const NOT_COMMISSIONER_403 = {
   content: { "application/json": { schema: ErrorResponseSchema } },
 };
 
+export const NOT_ADMIN_403 = {
+  description: "The caller is signed in but not on the admin allowlist",
+  content: { "application/json": { schema: ErrorResponseSchema } },
+};
+
 export const LEAGUE_NOT_FOUND_404 = {
   description:
     "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",

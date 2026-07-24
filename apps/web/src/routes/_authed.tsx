@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { MenuIcon } from "lucide-react";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
+import { useMe } from "@/api/me";
 import { useMyLeagues } from "@/api/leagues";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -54,6 +55,8 @@ export const Route = createFileRoute("/_authed")({
 });
 
 function AuthedLayout() {
+  const me = useMe();
+
   return (
     <div className="flex min-h-svh flex-col">
       {/* Overlays (Sheet/AlertDialog/DropdownMenu/Select, see components/ui) all
@@ -89,6 +92,16 @@ function AuthedLayout() {
               >
                 Discover
               </Link>
+              {me.data?.isAdmin && (
+                <Link
+                  to="/admin"
+                  className={navLinkClassName}
+                  inactiveProps={navLinkInactiveProps}
+                  activeProps={navLinkActiveProps}
+                >
+                  Admin
+                </Link>
+              )}
               <LeagueSwitcher />
             </nav>
           </div>
@@ -111,6 +124,7 @@ function AuthedLayout() {
 
 function MobileNav() {
   const [open, setOpen] = useState(false);
+  const me = useMe();
   const myLeagues = useMyLeagues();
   const leagues = myLeagues.data?.leagues ?? [];
 
@@ -147,6 +161,17 @@ function MobileNav() {
           >
             Discover
           </Link>
+          {me.data?.isAdmin && (
+            <Link
+              to="/admin"
+              className={drawerLinkClassName}
+              inactiveProps={navLinkInactiveProps}
+              activeProps={navLinkActiveProps}
+              onClick={() => setOpen(false)}
+            >
+              Admin
+            </Link>
+          )}
         </nav>
         {leagues.length > 0 && (
           <nav aria-label="My leagues" className="flex flex-col gap-1 text-sm">

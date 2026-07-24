@@ -97,6 +97,7 @@ describe("GET /api/me", () => {
       displayName: "Test User",
       email: user.email,
       image: null,
+      isAdmin: false,
     });
   });
 
@@ -109,6 +110,25 @@ describe("GET /api/me", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as MeResponse;
     expect(body.username).toBe("paulm");
+  });
+
+  it("200s with isAdmin true when the caller is on the ADMIN_USER_IDS allowlist", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    const adminApp = createApp({
+      auth,
+      db,
+      env: makeTestEnv({ ADMIN_USER_IDS: [user.id] }),
+      clock: async () => new FixedClock(FIXED_NOW),
+    });
+
+    const res = await adminApp.request("/api/me", {
+      method: "GET",
+      headers: { cookie },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as MeResponse;
+    expect(body.isAdmin).toBe(true);
   });
 });
 
@@ -132,6 +152,7 @@ describe("PATCH /api/me", () => {
       displayName: "Test User",
       email: user.email,
       image: null,
+      isAdmin: false,
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -201,6 +222,7 @@ describe("PATCH /api/me", () => {
       displayName: "New Name",
       email: user.email,
       image: null,
+      isAdmin: false,
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -221,6 +243,7 @@ describe("PATCH /api/me", () => {
       displayName: "New Name",
       email: user.email,
       image: null,
+      isAdmin: false,
     });
   });
 

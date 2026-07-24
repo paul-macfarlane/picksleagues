@@ -267,6 +267,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/jobs/nfl/{job}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Manually trigger an NFL data sync job */
+        post: operations["runAdminNflJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -281,6 +298,7 @@ export interface components {
             displayName: string;
             email: string;
             image: string | null;
+            isAdmin: boolean;
         };
         NullableUsername: string | null;
         ErrorResponse: {
@@ -511,6 +529,8 @@ export interface components {
             /** Format: date-time */
             startsAt: string | null;
         };
+        /** @enum {string} */
+        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
     };
     responses: never;
     parameters: never;
@@ -1783,6 +1803,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    runAdminNflJob: {
+        parameters: {
+            query?: {
+                season?: number;
+                week?: number;
+                weekType?: components["schemas"]["WeekType"];
+            };
+            header?: never;
+            path: {
+                job: components["schemas"]["NflSyncJob"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description Invalid job slug, or a supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
                 };
             };
         };

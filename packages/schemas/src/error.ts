@@ -13,6 +13,7 @@ export const ERROR_CODE = {
   INTERNAL: "internal",
   UNAUTHENTICATED: "unauthenticated",
   UNAUTHORIZED: "unauthorized",
+  NOT_ADMIN: "not_admin",
   VALIDATION: "validation",
   USERNAME_TAKEN: "username_taken",
   LAST_COMMISSIONER: "last_commissioner",

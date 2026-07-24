@@ -58,7 +58,7 @@ The spec's season simulator (local/staging only) drives three architectural requ
 
 **3. Step-through settlement.** Already native to the design: settlement is an idempotent endpoint over pure scoring functions, so the simulator just calls the same `settle` job per simulated week and the admin page renders resulting `pick_results` and `standings`. Recompute-from-scratch doubles as the simulator's reset for scoring state; a full environment reset truncates league/pick data and reloads fixtures.
 
-Simulator API surface (non-prod only): `POST /sim/clock` (set/advance), `POST /sim/fixtures` (load scenario / edit results), `POST /sim/settle` (run settlement for simulated now), `POST /sim/reset` (league or environment scope). All shared-secret protected on top of the env gate.
+Simulator API surface (non-prod only): `POST /sim/clock` (set/advance), `POST /sim/fixtures` (load scenario / edit results — including replaying a real past ESPN season, spreads synthesized since historical feeds strip odds), `POST /sim/settle` (run settlement for simulated now), `POST /sim/reset` (league or environment scope). Admin-session gated (env-var allowlist) on top of the env gate — the simulator is driven from the admin page, not by machine callers, so the shared-secret header stays a jobs-only mechanism (ADR-0011). E2E mints an admin session per ADR-0006.
 
 ## Automated Testing
 
@@ -76,7 +76,7 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status, missed cancellation) and there is no vendor SLA — the correction path is an app-admin override, available in **all environments including production**.
 
-**Admin role:** app admins (initially just the owner) are designated by an env-var allowlist of user IDs. Admins get an admin page: job triggers, standings rebuild, and game data editing. This is operational tooling, invisible to users (they just see corrected data), and distinct from the non-prod simulator.
+**Admin role:** app admins (initially just the owner) are designated by an env-var allowlist of user IDs. Admins get an admin page: job triggers, standings rebuild, game data editing, and read-only browsers over reference data (teams, seasons/weeks, games, odds snapshots). The same page hosts the simulator control panel in non-prod (ADR-0011); overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly, and teams/seasons/odds are view-only. Operational tooling is invisible to users (they just see corrected data).
 
 **Override semantics:**
 - Overridable per game: home/away final score, game status (`scheduled | final | cancelled | postponed | moved`), kickoff time, and current spread
@@ -339,7 +339,7 @@ DELETE /me                               account deletion: anonymize in place (g
 POST   /jobs/*                           secret-protected job triggers (prod cron)
 PUT    /admin/games/:id/override         set/clear overrides (admin allowlist; audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
-POST   /sim/*                            simulator (non-prod only; see Simulator section)
+POST   /sim/*                            simulator (non-prod only, admin allowlist; see Simulator section)
 GET    /openapi.json                     generated spec
 ```
 
@@ -353,4 +353,4 @@ Generate a client for Expo/React Native (or native) directly from the OpenAPI sp
 
 ## Deliberate MVP Exclusions
 
-No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a secret-protected admin page with job triggers, rebuild buttons, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
+No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (an allowlist-gated admin page with job triggers, rebuild buttons, data browsers, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
