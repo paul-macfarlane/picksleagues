@@ -37,11 +37,13 @@ function competitor(overrides: {
   abbreviation: string;
   displayName: string;
   score?: string;
+  teamId?: string;
 }) {
   return {
     homeAway: overrides.homeAway,
     score: overrides.score,
     team: {
+      id: overrides.teamId ?? `${overrides.abbreviation}-id`,
       abbreviation: overrides.abbreviation,
       displayName: overrides.displayName,
       // Extra field ESPN sends but we don't consume — proves passthrough.
@@ -256,8 +258,10 @@ describe("EspnProvider.fetchNflWeekGames", () => {
         weekNumber: 1,
         homeTeamAbbr: "PHI",
         homeTeamName: "Philadelphia Eagles",
+        homeTeamProviderId: "PHI-id",
         awayTeamAbbr: "DAL",
         awayTeamName: "Dallas Cowboys",
+        awayTeamProviderId: "DAL-id",
         kickoffAt: new Date("2026-09-14T17:00Z"),
         status: GAME_STATUS.SCHEDULED,
         homeScore: null,

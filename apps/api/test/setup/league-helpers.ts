@@ -6,6 +6,7 @@ import {
   leagueSeasons,
   leagues,
   sportSeasons,
+  teams,
   weeks,
 } from "@picksleagues/db";
 import {
@@ -49,6 +50,40 @@ export async function seedSeason(
     .returning();
   if (!season) throw new Error("season insert returned no row");
 
+  // Teams are reference data shared across seasons, not per-season (ADR-0010)
+  // — seedSeason runs multiple times per sport in some tests (renewal /
+  // multi-season fixtures), so this upserts on (sport, abbreviation) rather
+  // than blind-inserting a row that would collide on a second call.
+  const [homeTeam] = await db
+    .insert(teams)
+    .values({
+      sport,
+      abbreviation: "HOM",
+      name: "Home Team",
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
+    .onConflictDoUpdate({
+      target: [teams.sport, teams.abbreviation],
+      set: { updatedAt: SEED_AT },
+    })
+    .returning();
+  const [awayTeam] = await db
+    .insert(teams)
+    .values({
+      sport,
+      abbreviation: "AWY",
+      name: "Away Team",
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
+    .onConflictDoUpdate({
+      target: [teams.sport, teams.abbreviation],
+      set: { updatedAt: SEED_AT },
+    })
+    .returning();
+  if (!homeTeam || !awayTeam) throw new Error("team insert returned no row");
+
   const weekIds = new Map<string, string>();
   for (const spec of weekSpecs) {
     const weekType = spec.weekType ?? WEEK_TYPE.REGULAR;
@@ -72,10 +107,8 @@ export async function seedSeason(
       await db.insert(games).values({
         weekId: week.id,
         providerGameId: randomUUID(),
-        homeTeamAbbr: "HOM",
-        homeTeamName: "Home Team",
-        awayTeamAbbr: "AWY",
-        awayTeamName: "Away Team",
+        homeTeamId: homeTeam.id,
+        awayTeamId: awayTeam.id,
         kickoffAt: game.kickoffAt,
         overrideKickoffAt: game.overrideKickoffAt ?? null,
         status: GAME_STATUS.SCHEDULED,

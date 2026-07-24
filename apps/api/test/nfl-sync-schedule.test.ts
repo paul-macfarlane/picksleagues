@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, sportSeasons, weeks } from "@picksleagues/db";
+import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   FixedClock,
   type GameDataProvider,
@@ -8,7 +8,13 @@ import {
   type ProviderSeasonStructure,
   type ProviderWeek,
 } from "@picksleagues/core";
-import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  SPORT,
+  WEEK_TYPE,
+  type WeekType,
+  type JobRunResponse,
+} from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { resetDb } from "./setup/reset-db";
@@ -62,8 +68,10 @@ function providerGame(
     weekType: WEEK_TYPE.REGULAR,
     homeTeamAbbr: "HOM",
     homeTeamName: "Home Team",
+    homeTeamProviderId: "hom-id",
     awayTeamAbbr: "AWY",
     awayTeamName: "Away Team",
+    awayTeamProviderId: "awy-id",
     kickoffAt: new Date("2026-09-13T17:00:00.000Z"),
     status: GAME_STATUS.SCHEDULED,
     homeScore: null,
@@ -448,5 +456,86 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     const details = await runOk("?weekType=postseason&week=4");
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
     expect(await db.select().from(games)).toEqual([]);
+  });
+
+  it("upserts one teams row per distinct provider team even when it's shared across games", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z")],
+    };
+    provider.gamesByWeek = new Map([
+      [
+        weekKey(WEEK_TYPE.REGULAR, 1),
+        [
+          providerGame({
+            providerGameId: "g1",
+            weekNumber: 1,
+            homeTeamAbbr: "KC",
+            homeTeamName: "Kansas City Chiefs",
+            homeTeamProviderId: "kc-id",
+          }),
+          providerGame({
+            providerGameId: "g2",
+            weekNumber: 1,
+            awayTeamAbbr: "KC",
+            awayTeamName: "Kansas City Chiefs",
+            awayTeamProviderId: "kc-id",
+          }),
+        ],
+      ],
+    ]);
+
+    const details = await runOk();
+    // Distinct provider teams across g1/g2: hom-id, awy-id (g1), kc-id (g1 home
+    // / g2 away, same provider id) — three rows, not four.
+    expect(details).toMatchObject({ teamsCreated: 3 });
+
+    const kcTeams = await db.select().from(teams).where(eq(teams.providerTeamId, "kc-id"));
+    expect(kcTeams).toHaveLength(1);
+    expect(kcTeams[0]).toMatchObject({ sport: SPORT.NFL, abbreviation: "KC" });
+  });
+
+  it("updates a team's name/abbreviation on a provider rename, without creating a duplicate row", async () => {
+    seedBaselineProvider();
+    await runOk();
+
+    // Both week-1 games share the "hom-id" team — rename both consistently
+    // (a real provider sync would never report the same team under two
+    // different current names within one batch) and narrow to week 1 so
+    // week 2's still-default-named game doesn't race the rename.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g1", weekNumber: 1, homeTeamName: "New Home Name" }),
+      providerGame({ providerGameId: "g2", weekNumber: 1, homeTeamName: "New Home Name" }),
+    ]);
+
+    const details = await runOk("?week=1");
+    expect(details).toMatchObject({ teamsCreated: 0 });
+
+    const homeTeams = await db.select().from(teams).where(eq(teams.providerTeamId, "hom-id"));
+    expect(homeTeams).toHaveLength(1);
+    expect(homeTeams[0]?.name).toBe("New Home Name");
+  });
+
+  it("bootstrap: fills a pre-existing NULL-providerTeamId team's providerTeamId by abbreviation match, no duplicate", async () => {
+    const [bootstrapTeam] = await db
+      .insert(teams)
+      .values({
+        sport: SPORT.NFL,
+        abbreviation: "HOM",
+        name: "Home Team",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      })
+      .returning();
+
+    seedBaselineProvider();
+    const details = await runOk();
+    // Only AWY is a brand-new row — HOM matched the pre-existing bootstrap row.
+    expect(details).toMatchObject({ teamsCreated: 1 });
+
+    const homeTeams = await db.select().from(teams).where(eq(teams.abbreviation, "HOM"));
+    expect(homeTeams).toHaveLength(1);
+    expect(homeTeams[0]?.id).toBe(bootstrapTeam?.id);
+    expect(homeTeams[0]?.providerTeamId).toBe("hom-id");
   });
 });

@@ -28,6 +28,12 @@ export type ProviderGame = {
   homeTeamName: string;
   awayTeamAbbr: string;
   awayTeamName: string;
+  // Provider identity for each team (ESPN's team.id) — the real key teams are
+  // matched on; the four text fields above stay for display-data upsert
+  // (arch ADR-0010: provider id is the durable identity, abbreviation is the
+  // pre-provider-id bootstrap key).
+  homeTeamProviderId: string;
+  awayTeamProviderId: string;
   kickoffAt: Date;
   // Only the statuses a provider can produce — `moved` is override-only
   // (arch §Overrides): a provider "week move" surfaces as the game's week

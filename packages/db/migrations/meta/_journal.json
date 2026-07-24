@@ -50,6 +50,20 @@
       "when": 1784852541268,
       "tag": "0006_new_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784853838513,
+      "tag": "0007_goofy_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784853898014,
+      "tag": "0008_real_hitman",
+      "breakpoints": true
     }
   ]
 }

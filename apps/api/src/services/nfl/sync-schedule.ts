@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, sportSeasons, weeks } from "@picksleagues/db";
+import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   type Clock,
   type GameDataProvider,
@@ -13,6 +13,133 @@ import { logInfo } from "../../lib/logger";
 /** Composite key: regular and postseason week numbers overlap (both restart at 1). */
 function weekKey(weekType: WeekType, weekNumber: number): string {
   return `${weekType}:${weekNumber}`;
+}
+
+type ProviderTeam = { providerTeamId: string; abbreviation: string; name: string };
+
+/**
+ * Upserts the teams referenced by this batch of provider games (arch ADR-0010):
+ * schedule-sync owns reference-data creation the same way it owns
+ * seasons/weeks — recurring syncs only ever read `teams` (feedback: recurring
+ * syncs query reference data, don't upsert it).
+ *
+ * Two-key match: `(sport, providerTeamId)` is the real identity once a team
+ * has synced; a miss there falls back to `(sport, abbreviation)` against a
+ * not-yet-provider-linked row (the pre-provider-id bootstrap/backfill case)
+ * and fills its `providerTeamId`. A miss on both inserts a new row. A provider
+ * rename (name/abbreviation drift on an already-linked row) updates in place —
+ * never forks a second row for the same provider id.
+ */
+async function upsertTeams(
+  tx: Db,
+  now: Date,
+  providerGames: ProviderGame[],
+): Promise<{ teamIdByProviderTeamId: Map<string, string>; teamsCreated: number }> {
+  const providerTeamsById = new Map<string, ProviderTeam>();
+  for (const game of providerGames) {
+    providerTeamsById.set(game.homeTeamProviderId, {
+      providerTeamId: game.homeTeamProviderId,
+      abbreviation: game.homeTeamAbbr,
+      name: game.homeTeamName,
+    });
+    providerTeamsById.set(game.awayTeamProviderId, {
+      providerTeamId: game.awayTeamProviderId,
+      abbreviation: game.awayTeamAbbr,
+      name: game.awayTeamName,
+    });
+  }
+  const providerTeams = [...providerTeamsById.values()];
+
+  const teamIdByProviderTeamId = new Map<string, string>();
+  let teamsCreated = 0;
+  if (providerTeams.length === 0) {
+    return { teamIdByProviderTeamId, teamsCreated };
+  }
+
+  const providerTeamIds = providerTeams.map((team) => team.providerTeamId);
+  const existingByProviderId = await tx
+    .select()
+    .from(teams)
+    .where(and(eq(teams.sport, SPORT.NFL), inArray(teams.providerTeamId, providerTeamIds)));
+  const existingByProviderIdMap = new Map(
+    existingByProviderId.map((team) => [team.providerTeamId as string, team]),
+  );
+
+  const bootstrapAbbrs = providerTeams
+    .filter((team) => !existingByProviderIdMap.has(team.providerTeamId))
+    .map((team) => team.abbreviation);
+  const existingByAbbr =
+    bootstrapAbbrs.length > 0
+      ? await tx
+          .select()
+          .from(teams)
+          .where(
+            and(
+              eq(teams.sport, SPORT.NFL),
+              inArray(teams.abbreviation, bootstrapAbbrs),
+              isNull(teams.providerTeamId),
+            ),
+          )
+      : [];
+  const existingByAbbrMap = new Map(existingByAbbr.map((team) => [team.abbreviation, team]));
+
+  const newTeamValues: (typeof teams.$inferInsert)[] = [];
+
+  for (const providerTeam of providerTeams) {
+    const linked = existingByProviderIdMap.get(providerTeam.providerTeamId);
+    if (linked) {
+      teamIdByProviderTeamId.set(providerTeam.providerTeamId, linked.id);
+      const renamed =
+        linked.name !== providerTeam.name || linked.abbreviation !== providerTeam.abbreviation;
+      if (renamed) {
+        await tx
+          .update(teams)
+          .set({ name: providerTeam.name, abbreviation: providerTeam.abbreviation, updatedAt: now })
+          .where(eq(teams.id, linked.id));
+      }
+      continue;
+    }
+
+    const bootstrapped = existingByAbbrMap.get(providerTeam.abbreviation);
+    if (bootstrapped) {
+      teamIdByProviderTeamId.set(providerTeam.providerTeamId, bootstrapped.id);
+      await tx
+        .update(teams)
+        .set({
+          providerTeamId: providerTeam.providerTeamId,
+          name: providerTeam.name,
+          abbreviation: providerTeam.abbreviation,
+          updatedAt: now,
+        })
+        .where(eq(teams.id, bootstrapped.id));
+      continue;
+    }
+
+    newTeamValues.push({
+      sport: SPORT.NFL,
+      providerTeamId: providerTeam.providerTeamId,
+      abbreviation: providerTeam.abbreviation,
+      name: providerTeam.name,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (newTeamValues.length > 0) {
+    // DoNothing (not DoUpdate): a concurrent run winning the insert race wrote
+    // the same provider data — converge silently rather than abort (arch D7).
+    const inserted = await tx
+      .insert(teams)
+      .values(newTeamValues)
+      .onConflictDoNothing({ target: [teams.sport, teams.providerTeamId] })
+      .returning({ id: teams.id, providerTeamId: teams.providerTeamId });
+    teamsCreated = inserted.length;
+    for (const row of inserted) {
+      if (row.providerTeamId) teamIdByProviderTeamId.set(row.providerTeamId, row.id);
+    }
+  }
+
+  return { teamIdByProviderTeamId, teamsCreated };
 }
 
 /**
@@ -170,6 +297,10 @@ export async function syncNflSchedule(
     let weekMoves = 0;
     let kickoffChanges = 0;
 
+    // Teams are upserted before games so every game's FKs resolve against a
+    // row that exists in this same transaction (arch ADR-0010).
+    const { teamIdByProviderTeamId, teamsCreated } = await upsertTeams(tx, now, providerGames);
+
     if (providerGames.length > 0) {
       const providerGameIds = providerGames.map((game) => game.providerGameId);
       // Load existing rows first so we can diff provider-owned fields and write
@@ -190,6 +321,14 @@ export async function syncNflSchedule(
           );
         }
 
+        const homeTeamId = teamIdByProviderTeamId.get(game.homeTeamProviderId);
+        const awayTeamId = teamIdByProviderTeamId.get(game.awayTeamProviderId);
+        if (!homeTeamId || !awayTeamId) {
+          throw new Error(
+            `syncNflSchedule: team not resolved for game ${game.providerGameId} (home ${game.homeTeamProviderId}, away ${game.awayTeamProviderId})`,
+          );
+        }
+
         // Provider fields only — every override_* column is deliberately absent
         // (arch D15). Scores are included so a game can never sit at status=final
         // with null scores between job cadences.
@@ -197,10 +336,8 @@ export async function syncNflSchedule(
           weekId,
           kickoffAt: game.kickoffAt,
           status: game.status,
-          homeTeamAbbr: game.homeTeamAbbr,
-          homeTeamName: game.homeTeamName,
-          awayTeamAbbr: game.awayTeamAbbr,
-          awayTeamName: game.awayTeamName,
+          homeTeamId,
+          awayTeamId,
           homeScore: game.homeScore,
           awayScore: game.awayScore,
         };
@@ -237,10 +374,8 @@ export async function syncNflSchedule(
           existing.weekId !== weekId ||
           existing.kickoffAt.getTime() !== game.kickoffAt.getTime() ||
           existing.status !== game.status ||
-          existing.homeTeamAbbr !== game.homeTeamAbbr ||
-          existing.homeTeamName !== game.homeTeamName ||
-          existing.awayTeamAbbr !== game.awayTeamAbbr ||
-          existing.awayTeamName !== game.awayTeamName ||
+          existing.homeTeamId !== homeTeamId ||
+          existing.awayTeamId !== awayTeamId ||
           existing.homeScore !== game.homeScore ||
           existing.awayScore !== game.awayScore;
         if (!changed) continue;
@@ -268,6 +403,7 @@ export async function syncNflSchedule(
     return {
       seasonYear,
       weeksSynced: weekIdByKey.size,
+      teamsCreated,
       gamesCreated,
       gamesUpdated,
       duplicateProviderGames,

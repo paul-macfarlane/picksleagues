@@ -9,6 +9,7 @@ import {
   oddsSnapshots,
   sessions,
   sportSeasons,
+  teams,
   users,
   weeks,
 } from "@picksleagues/db";
@@ -30,6 +31,7 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(games);
   await db.delete(weeks);
   await db.delete(sportSeasons);
+  await db.delete(teams);
   await db.delete(sessions);
   await db.delete(accounts);
   await db.delete(users);

@@ -41,11 +41,33 @@ export async function seedFutureSeason(): Promise<{ seasonId: string }> {
     [seasonId, WEEK_TYPE.REGULAR, KICKOFF, SEED_AT],
   );
 
+  // Teams are normalized reference data (ADR-0010) — seed the two the game
+  // references. Scoped to the 2099 sport-year abbreviations so a rerun's
+  // cleanup (which deletes by abbreviation below) never collides with a real
+  // synced team row.
+  const homeTeam = await pool.query<{ id: string }>(
+    `insert into teams (sport, abbreviation, name, created_at, updated_at)
+     values ($1, 'E2H', 'E2E Home Team', $2, $2) returning id`,
+    [SPORT.NFL, SEED_AT],
+  );
+  const awayTeam = await pool.query<{ id: string }>(
+    `insert into teams (sport, abbreviation, name, created_at, updated_at)
+     values ($1, 'E2A', 'E2E Away Team', $2, $2) returning id`,
+    [SPORT.NFL, SEED_AT],
+  );
+
   await pool.query(
-    `insert into games (week_id, provider_game_id, home_team_abbr, home_team_name,
-       away_team_abbr, away_team_name, kickoff_at, status, created_at, updated_at)
-     values ($1, $2, 'HOM', 'Home Team', 'AWY', 'Away Team', $3, $4, $5, $5)`,
-    [week.rows[0]!.id, `e2e-${E2E_SEASON_YEAR}-wk1`, KICKOFF, GAME_STATUS.SCHEDULED, SEED_AT],
+    `insert into games (week_id, provider_game_id, home_team_id, away_team_id, kickoff_at, status, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $7)`,
+    [
+      week.rows[0]!.id,
+      `e2e-${E2E_SEASON_YEAR}-wk1`,
+      homeTeam.rows[0]!.id,
+      awayTeam.rows[0]!.id,
+      KICKOFF,
+      GAME_STATUS.SCHEDULED,
+      SEED_AT,
+    ],
   );
 
   return { seasonId };
@@ -54,7 +76,10 @@ export async function seedFutureSeason(): Promise<{ seasonId: string }> {
 export async function cleanupFutureSeason(): Promise<void> {
   // Leagues no longer carry season_id (ADR-0009) — the season anchor lives on
   // league_seasons. Delete leagues that have an instance on the 2099 season
-  // (the FK cascade removes the instances), then the now-unreferenced season.
+  // (the FK cascade removes the instances), then the now-unreferenced season
+  // (which cascades away its weeks and games). Teams are RESTRICT-referenced
+  // from games (ADR-0010), so they must be deleted last, after the cascade
+  // above has cleared the games that reference them.
   await pool.query(
     `delete from leagues where id in (
        select ls.league_id from league_seasons ls
@@ -64,6 +89,9 @@ export async function cleanupFutureSeason(): Promise<void> {
     [E2E_SEASON_YEAR],
   );
   await pool.query(`delete from sport_seasons where year = $1`, [E2E_SEASON_YEAR]);
+  await pool.query(`delete from teams where sport = $1 and abbreviation in ('E2H', 'E2A')`, [
+    SPORT.NFL,
+  ]);
 }
 
 /** The most recent invite code for a league — the UI only exposes copy-to-clipboard. */

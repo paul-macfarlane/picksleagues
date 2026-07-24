@@ -36,6 +36,7 @@ const CompetitorSchema = z.looseObject({
   homeAway: z.string(),
   score: z.string().optional(),
   team: z.looseObject({
+    id: z.string(),
     abbreviation: z.string(),
     displayName: z.string(),
   }),
@@ -131,8 +132,10 @@ function mapCompetitionToGame(
     weekNumber,
     homeTeamAbbr: home.team.abbreviation,
     homeTeamName: home.team.displayName,
+    homeTeamProviderId: home.team.id,
     awayTeamAbbr: away.team.abbreviation,
     awayTeamName: away.team.displayName,
+    awayTeamProviderId: away.team.id,
     kickoffAt: parseDateStrict(competition.date, `competition ${competition.id}`),
     status,
     // ESPN sends "0" pre-game; only trust scores once the game has started. A
