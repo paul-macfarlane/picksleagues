@@ -13,6 +13,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedAdminRouteImport } from './routes/_authed/admin'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
@@ -39,6 +40,11 @@ const SignInRoute = SignInRouteImport.update({
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedAdminRoute = AuthedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedDiscoveryRoute = AuthedDiscoveryRouteImport.update({
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/admin': typeof AuthedAdminRoute
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/admin': typeof AuthedAdminRoute
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
+  '/_authed/admin': typeof AuthedAdminRoute
   '/_authed/discovery': typeof AuthedDiscoveryRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/claim-username'
     | '/sign-in'
+    | '/admin'
     | '/discovery'
     | '/profile'
     | '/join/$code'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
   to:
     | '/claim-username'
     | '/sign-in'
+    | '/admin'
     | '/discovery'
     | '/profile'
     | '/join/$code'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/claim-username'
     | '/sign-in'
+    | '/_authed/admin'
     | '/_authed/discovery'
     | '/_authed/profile'
     | '/join/$code'
@@ -203,6 +215,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthedIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/admin': {
+      id: '/_authed/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthedAdminRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/discovery': {
@@ -283,6 +302,7 @@ const AuthedLeaguesLeagueIdRouteRouteWithChildren =
   )
 
 interface AuthedRouteChildren {
+  AuthedAdminRoute: typeof AuthedAdminRoute
   AuthedDiscoveryRoute: typeof AuthedDiscoveryRoute
   AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -291,6 +311,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedAdminRoute: AuthedAdminRoute,
   AuthedDiscoveryRoute: AuthedDiscoveryRoute,
   AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,
