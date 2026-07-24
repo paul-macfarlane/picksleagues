@@ -179,6 +179,24 @@ export class EspnProvider implements GameDataProvider {
     return response.json();
   }
 
+  /**
+   * Same as `#fetchJson`, except a 404 is a typed "not found" rather than a
+   * thrown error — used only for the weeks index, which ESPN legitimately
+   * 404s for a season it hasn't published a schedule for yet (ADR-0009
+   * "upcoming seasons exist before their data"). Any other non-OK status
+   * still throws: a genuine outage must still fail the job (arch D7/ADR-0007).
+   */
+  async #fetchJsonOrNotFound(url: string): Promise<unknown | null> {
+    const response = await this.#fetchImpl(url);
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`EspnProvider: GET ${url} failed with status ${response.status}`);
+    }
+    return response.json();
+  }
+
   async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
     // Fetch both season types; each week's `text` becomes its label, and the
     // week type is tagged from which index it came from.
@@ -194,7 +212,14 @@ export class EspnProvider implements GameDataProvider {
   async #fetchNflWeeks(seasonYear: number, weekType: WeekType): Promise<ProviderWeek[]> {
     const seasonType = ESPN_SEASON_TYPE_BY_WEEK_TYPE[weekType];
     const indexUrl = `${this.#coreApiBaseUrl}/football/leagues/nfl/seasons/${seasonYear}/types/${seasonType}/weeks?limit=32`;
-    const index = WeeksIndexSchema.parse(await this.#fetchJson(indexUrl));
+    // A future season ESPN hasn't published a schedule for yet 404s here —
+    // that's "not published", not an error (ADR-0009); map straight to no
+    // weeks for this season type rather than throwing.
+    const indexJson = await this.#fetchJsonOrNotFound(indexUrl);
+    if (indexJson === null) {
+      return [];
+    }
+    const index = WeeksIndexSchema.parse(indexJson);
 
     const weeks = await Promise.all(
       index.items.map(async (item) => {

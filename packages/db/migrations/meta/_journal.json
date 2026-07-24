@@ -64,6 +64,13 @@
       "when": 1784853898014,
       "tag": "0008_real_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784854842523,
+      "tag": "0009_vengeful_carnage",
+      "breakpoints": true
     }
   ]
 }

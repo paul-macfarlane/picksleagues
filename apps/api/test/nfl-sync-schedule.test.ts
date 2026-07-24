@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   FixedClock,
+  estimatedNflWeeks,
   type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
@@ -37,16 +38,28 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
 class FakeProvider implements GameDataProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
   gamesByWeek = new Map<string, ProviderGame[]>();
+  // Per-season-year overrides, consulted only when set — everything above
+  // stays year-agnostic for the bulk of tests (which only ever exercise one
+  // season year and rely on `fetchNflSeasonStructure`/`fetchNflWeekGames`
+  // ignoring the year argument). The offseason-lifecycle tests use these to
+  // give the "ensure next season" step's `seasonYear + 1` fetch an answer
+  // independent of the default season's fetch.
+  structureByYear = new Map<number, ProviderSeasonStructure>();
+  gamesByYearWeek = new Map<string, ProviderGame[]>();
 
-  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
-    return this.structure;
+  async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
+    return this.structureByYear.get(seasonYear) ?? this.structure;
   }
 
   async fetchNflWeekGames(
-    _seasonYear: number,
+    seasonYear: number,
     weekType: WeekType,
     weekNumber: number,
   ): Promise<ProviderGame[]> {
+    const yearKey = `${seasonYear}:${weekKey(weekType, weekNumber)}`;
+    if (this.gamesByYearWeek.has(yearKey)) {
+      return this.gamesByYearWeek.get(yearKey) ?? [];
+    }
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
   }
 }
@@ -130,6 +143,8 @@ beforeEach(async () => {
   await resetDb(db);
   provider.structure = { seasonYear: SEASON_YEAR, weeks: [] };
   provider.gamesByWeek = new Map();
+  provider.structureByYear = new Map();
+  provider.gamesByYearWeek = new Map();
 });
 
 afterAll(async () => {
@@ -494,7 +509,10 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
   it("upserts one teams row per distinct provider team even when it's shared across games", async () => {
     provider.structure = {
       seasonYear: SEASON_YEAR,
-      weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z")],
+      // Ends after FIXED_NOW (unlike the single-week fixtures below) so the
+      // default season isn't "concluded" — this test isn't exercising the
+      // offseason-lifecycle ensure step (see the dedicated describe block).
+      weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-22T00:00:00.000Z")],
     };
     provider.gamesByWeek = new Map([
       [
@@ -570,5 +588,166 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(homeTeams).toHaveLength(1);
     expect(homeTeams[0]?.id).toBe(bootstrapTeam?.id);
     expect(homeTeams[0]?.providerTeamId).toBe("hom-id");
+  });
+});
+
+describe("offseason lifecycle: ensure next NFL season exists (ADR-0009)", () => {
+  const UPCOMING_YEAR = SEASON_YEAR + 1;
+
+  /** A single default-season week ending well before FIXED_NOW — "concluded". */
+  function seedConcludedDefaultSeason() {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [providerWeek(1, "2026-09-01T00:00:00.000Z", "2026-09-08T00:00:00.000Z")],
+    };
+  }
+
+  async function upcomingSeasonRow() {
+    const [row] = await db.select().from(sportSeasons).where(eq(sportSeasons.year, UPCOMING_YEAR));
+    return row;
+  }
+
+  it("no weeks at all (fresh env) skips the ensure step", async () => {
+    // provider.structure defaults to weeks: [] in beforeEach, so the default
+    // season itself never gets any week rows this run.
+    const details = await runOk();
+    expect(details).toMatchObject({
+      upcoming: "skipped_no_weeks",
+      upcomingSeasonYear: UPCOMING_YEAR,
+    });
+    expect(await upcomingSeasonRow()).toBeUndefined();
+  });
+
+  it("default season not concluded (a week still ends after now) skips the ensure step", async () => {
+    seedBaselineProvider(); // week 2 ends 2026-09-22, after FIXED_NOW.
+    const details = await runOk();
+    expect(details).toMatchObject({
+      upcoming: "skipped_not_concluded",
+      upcomingSeasonYear: UPCOMING_YEAR,
+    });
+    expect(await upcomingSeasonRow()).toBeUndefined();
+  });
+
+  it("boundary: the greatest endsAt exactly equal to now counts as concluded (documented `<=`)", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [providerWeek(1, "2026-09-08T00:00:00.000Z", FIXED_NOW.toISOString())],
+    };
+    provider.structureByYear.set(UPCOMING_YEAR, { seasonYear: UPCOMING_YEAR, weeks: [] });
+
+    const details = await runOk();
+    expect(details).toMatchObject({ upcoming: "provisional", upcomingSeasonYear: UPCOMING_YEAR });
+  });
+
+  it("an explicit ?season= run never triggers the ensure step, even for a concluded season", async () => {
+    seedConcludedDefaultSeason();
+    provider.structureByYear.set(UPCOMING_YEAR, { seasonYear: UPCOMING_YEAR, weeks: [] });
+
+    const details = await runOk(`?season=${SEASON_YEAR}`);
+    expect(details).not.toHaveProperty("upcoming");
+    expect(details).not.toHaveProperty("upcomingSeasonYear");
+    expect(await upcomingSeasonRow()).toBeUndefined();
+  });
+
+  it("concluded + provider hasn't published next season yet → provisional season with the estimated skeleton, zero games", async () => {
+    seedConcludedDefaultSeason();
+    provider.structureByYear.set(UPCOMING_YEAR, { seasonYear: UPCOMING_YEAR, weeks: [] });
+
+    const details = await runOk();
+    expect(details).toMatchObject({ upcoming: "provisional", upcomingSeasonYear: UPCOMING_YEAR });
+
+    const upcomingSeason = await upcomingSeasonRow();
+    expect(upcomingSeason).toMatchObject({ sport: SPORT.NFL, provisional: true });
+
+    const upcomingWeeks = await db
+      .select()
+      .from(weeks)
+      .where(eq(weeks.seasonId, upcomingSeason!.id));
+    expect(upcomingWeeks).toHaveLength(22);
+    const week1 = upcomingWeeks.find(
+      (week) => week.weekType === WEEK_TYPE.REGULAR && week.weekNumber === 1,
+    );
+    expect(week1?.startsAt).toEqual(estimatedNflWeeks(UPCOMING_YEAR)[0]?.startsAt);
+
+    const upcomingGames = await db
+      .select()
+      .from(games)
+      .innerJoin(weeks, eq(games.weekId, weeks.id))
+      .where(eq(weeks.seasonId, upcomingSeason!.id));
+    expect(upcomingGames).toHaveLength(0);
+  });
+
+  it("is idempotent: re-running a concluded+unpublished offseason leaves the provisional season byte-identical", async () => {
+    seedConcludedDefaultSeason();
+    provider.structureByYear.set(UPCOMING_YEAR, { seasonYear: UPCOMING_YEAR, weeks: [] });
+    await runOk();
+
+    const firstSeason = await upcomingSeasonRow();
+    const firstWeeks = await db
+      .select()
+      .from(weeks)
+      .where(eq(weeks.seasonId, firstSeason!.id))
+      .orderBy(weeks.weekType, weeks.weekNumber);
+
+    // A strictly later clock proves the no-op re-run never touches updatedAt.
+    const laterClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    const details = await syncNflSchedule(db, laterClock, provider);
+    expect(details).toMatchObject({ upcoming: "provisional", upcomingSeasonYear: UPCOMING_YEAR });
+
+    const secondSeason = await upcomingSeasonRow();
+    const secondWeeks = await db
+      .select()
+      .from(weeks)
+      .where(eq(weeks.seasonId, secondSeason!.id))
+      .orderBy(weeks.weekType, weeks.weekNumber);
+    expect(secondSeason).toEqual(firstSeason);
+    expect(secondWeeks).toEqual(firstWeeks);
+  });
+
+  it("concluded + provider later publishes the real structure → clears provisional, corrects estimated weeks in place, ingests games", async () => {
+    seedConcludedDefaultSeason();
+    provider.structureByYear.set(UPCOMING_YEAR, { seasonYear: UPCOMING_YEAR, weeks: [] });
+    await runOk();
+
+    const provisionalSeason = await upcomingSeasonRow();
+    const [provisionalWeek1] = await db
+      .select()
+      .from(weeks)
+      .where(
+        and(
+          eq(weeks.seasonId, provisionalSeason!.id),
+          eq(weeks.weekType, WEEK_TYPE.REGULAR),
+          eq(weeks.weekNumber, 1),
+        ),
+      );
+
+    // ESPN publishes the real schedule — a different week 1 start than the estimate.
+    const realWeek1Starts = new Date("2027-09-10T00:00:00.000Z");
+    expect(provisionalWeek1?.startsAt.getTime()).not.toBe(realWeek1Starts.getTime());
+    provider.structureByYear.set(UPCOMING_YEAR, {
+      seasonYear: UPCOMING_YEAR,
+      weeks: [providerWeek(1, realWeek1Starts.toISOString(), "2027-09-17T00:00:00.000Z")],
+    });
+    provider.gamesByYearWeek.set(`${UPCOMING_YEAR}:${weekKey(WEEK_TYPE.REGULAR, 1)}`, [
+      providerGame({ providerGameId: "next-g1", weekNumber: 1, kickoffAt: realWeek1Starts }),
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ upcoming: "real", upcomingSeasonYear: UPCOMING_YEAR });
+
+    const realSeason = await upcomingSeasonRow();
+    // Corrected in place — never re-forked (ADR-0009).
+    expect(realSeason?.id).toBe(provisionalSeason?.id);
+    expect(realSeason?.provisional).toBe(false);
+
+    const [correctedWeek1] = await db
+      .select()
+      .from(weeks)
+      .where(eq(weeks.id, provisionalWeek1!.id));
+    expect(correctedWeek1?.id).toBe(provisionalWeek1?.id);
+    expect(correctedWeek1?.startsAt).toEqual(realWeek1Starts);
+
+    const upcomingGames = await db.select().from(games).where(eq(games.providerGameId, "next-g1"));
+    expect(upcomingGames).toHaveLength(1);
   });
 });

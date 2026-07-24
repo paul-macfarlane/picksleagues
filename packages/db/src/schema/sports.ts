@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   index,
   integer,
@@ -29,6 +30,12 @@ export const sportSeasons = pgTable(
     sport: text("sport").$type<Sport>().notNull(),
     // Year the season starts (e.g. 2025 = the season starting fall 2025).
     year: integer("year").notNull(),
+    // True for a season row the schedule sync fabricated ahead of real
+    // ingestion (ADR-0009 "upcoming seasons exist before their data") —
+    // estimated dates/weeks pending the provider publishing the real
+    // structure. Cleared in place (never re-forked) the day real ingestion
+    // lands; never set on a season with any games.
+    provisional: boolean("provisional").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

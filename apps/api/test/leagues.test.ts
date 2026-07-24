@@ -258,6 +258,33 @@ describe("POST /api/leagues", () => {
     });
   });
 
+  it("creates a pick'em league while only a provisional upcoming season exists (ADR-0009: provisional is pre-start, not unusable)", async () => {
+    // A provisional row the offseason schedule sync fabricated ahead of real
+    // ingestion — estimated weeks, zero games (never games — leagueStartAt
+    // must keep deriving null until real kickoffs land).
+    await seedSeason(db, {
+      year: 2027,
+      provisional: true,
+      weeks: [
+        { weekNumber: 1, kickoffs: [] },
+        { weekNumber: 18, kickoffs: [] },
+      ],
+    });
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, VALID_PICKEM_BODY);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as LeagueResponse;
+    // Binds to the provisional row (latest year desc) and is fully
+    // creatable/joinable/editable pre-start — the ADR's whole point.
+    expect(body).toMatchObject({
+      mode: "pickem",
+      status: "active",
+      seasonYear: 2027,
+      startsAt: null,
+    });
+  });
+
   it("409s the 11th active commissionership and rolls the creation back", async () => {
     const { seasonId } = await seedDefaultSeason();
     const { user, cookie } = await createAuthenticatedUser(auth);

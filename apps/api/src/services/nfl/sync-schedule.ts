@@ -1,145 +1,98 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import { sportSeasons, weeks } from "@picksleagues/db";
 import {
   type Clock,
   type GameDataProvider,
   type ProviderGame,
+  estimatedNflWeeks,
   nflSeasonYearFor,
 } from "@picksleagues/core";
-import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
-import { logInfo } from "../../lib/logger";
+import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import { ingestSeasonSnapshot } from "./ingest-season";
 
-/** Composite key: regular and postseason week numbers overlap (both restart at 1). */
-function weekKey(weekType: WeekType, weekNumber: number): string {
-  return `${weekType}:${weekNumber}`;
-}
-
-type ProviderTeam = { providerTeamId: string; abbreviation: string; name: string };
+const UPCOMING_STATUS = {
+  REAL: "real",
+  PROVISIONAL: "provisional",
+  SKIPPED_NOT_CONCLUDED: "skipped_not_concluded",
+  SKIPPED_NO_WEEKS: "skipped_no_weeks",
+} as const;
 
 /**
- * Upserts the teams referenced by this batch of provider games (arch ADR-0010):
- * schedule-sync owns reference-data creation the same way it owns
- * seasons/weeks — recurring syncs only ever read `teams` (feedback: recurring
- * syncs query reference data, don't upsert it).
- *
- * Two-key match: `(sport, providerTeamId)` is the real identity once a team
- * has synced; a miss there falls back to `(sport, abbreviation)` against a
- * not-yet-provider-linked row (the pre-provider-id bootstrap/backfill case)
- * and fills its `providerTeamId`. A miss on both inserts a new row. A provider
- * rename (name/abbreviation drift on an already-linked row) updates in place —
- * never forks a second row for the same provider id.
+ * Offseason lifecycle (ADR-0009 "upcoming seasons exist before their data"):
+ * once the default season's ingested weeks show it's concluded, ensures
+ * `seasonYear + 1` exists — real data if the provider has published it,
+ * otherwise a provisional estimate — so league creation never runs into a
+ * dead offseason window. Only called for the bare no-arg trigger (the daily
+ * cron shape); explicit `?season=`/`?week=` runs stay surgical and never
+ * reach here. Never writes games for a provisional target: `leagueStartAt`
+ * must keep deriving null until real kickoffs land.
  */
-async function upsertTeams(
-  tx: Db,
-  now: Date,
-  providerGames: ProviderGame[],
-): Promise<{ teamIdByProviderTeamId: Map<string, string>; teamsCreated: number }> {
-  const providerTeamsById = new Map<string, ProviderTeam>();
-  for (const game of providerGames) {
-    providerTeamsById.set(game.homeTeamProviderId, {
-      providerTeamId: game.homeTeamProviderId,
-      abbreviation: game.homeTeamAbbr,
-      name: game.homeTeamName,
-    });
-    providerTeamsById.set(game.awayTeamProviderId, {
-      providerTeamId: game.awayTeamProviderId,
-      abbreviation: game.awayTeamAbbr,
-      name: game.awayTeamName,
-    });
-  }
-  const providerTeams = [...providerTeamsById.values()];
+async function ensureUpcomingNflSeason(
+  db: Db,
+  clock: Clock,
+  provider: GameDataProvider,
+  defaultSeasonYear: number,
+): Promise<{ upcoming: string; upcomingSeasonYear: number }> {
+  const now = clock.now();
+  const upcomingSeasonYear = defaultSeasonYear + 1;
 
-  const teamIdByProviderTeamId = new Map<string, string>();
-  let teamsCreated = 0;
-  if (providerTeams.length === 0) {
-    return { teamIdByProviderTeamId, teamsCreated };
-  }
-
-  const providerTeamIds = providerTeams.map((team) => team.providerTeamId);
-  const existingByProviderId = await tx
-    .select()
-    .from(teams)
-    .where(and(eq(teams.sport, SPORT.NFL), inArray(teams.providerTeamId, providerTeamIds)));
-  const existingByProviderIdMap = new Map(
-    existingByProviderId.map((team) => [team.providerTeamId as string, team]),
+  // One query, from our own tables (arch §External Data never reads the
+  // provider on a request/decision path): the default season's furthest week
+  // boundary. Raw SQL `max()` skips drizzle's decoder, so map it back to Date.
+  const maxWeekEndsAt = sql<string | null>`max(${weeks.endsAt})`.mapWith((value): Date | null =>
+    value === null ? null : new Date(value as string),
   );
+  const [row] = await db
+    .select({ maxEndsAt: maxWeekEndsAt })
+    .from(weeks)
+    .innerJoin(sportSeasons, eq(sportSeasons.id, weeks.seasonId))
+    .where(and(eq(sportSeasons.sport, SPORT.NFL), eq(sportSeasons.year, defaultSeasonYear)));
 
-  const bootstrapAbbrs = providerTeams
-    .filter((team) => !existingByProviderIdMap.has(team.providerTeamId))
-    .map((team) => team.abbreviation);
-  const existingByAbbr =
-    bootstrapAbbrs.length > 0
-      ? await tx
-          .select()
-          .from(teams)
-          .where(
-            and(
-              eq(teams.sport, SPORT.NFL),
-              inArray(teams.abbreviation, bootstrapAbbrs),
-              isNull(teams.providerTeamId),
-            ),
-          )
-      : [];
-  const existingByAbbrMap = new Map(existingByAbbr.map((team) => [team.abbreviation, team]));
-
-  const newTeamValues: (typeof teams.$inferInsert)[] = [];
-
-  for (const providerTeam of providerTeams) {
-    const linked = existingByProviderIdMap.get(providerTeam.providerTeamId);
-    if (linked) {
-      teamIdByProviderTeamId.set(providerTeam.providerTeamId, linked.id);
-      const renamed =
-        linked.name !== providerTeam.name || linked.abbreviation !== providerTeam.abbreviation;
-      if (renamed) {
-        await tx
-          .update(teams)
-          .set({ name: providerTeam.name, abbreviation: providerTeam.abbreviation, updatedAt: now })
-          .where(eq(teams.id, linked.id));
-      }
-      continue;
-    }
-
-    const bootstrapped = existingByAbbrMap.get(providerTeam.abbreviation);
-    if (bootstrapped) {
-      teamIdByProviderTeamId.set(providerTeam.providerTeamId, bootstrapped.id);
-      await tx
-        .update(teams)
-        .set({
-          providerTeamId: providerTeam.providerTeamId,
-          name: providerTeam.name,
-          abbreviation: providerTeam.abbreviation,
-          updatedAt: now,
-        })
-        .where(eq(teams.id, bootstrapped.id));
-      continue;
-    }
-
-    newTeamValues.push({
-      sport: SPORT.NFL,
-      providerTeamId: providerTeam.providerTeamId,
-      abbreviation: providerTeam.abbreviation,
-      name: providerTeam.name,
-      createdAt: now,
-      updatedAt: now,
-    });
+  // No weeks at all (fresh env, nothing synced yet) — skip rather than assume
+  // "concluded" off an empty aggregate.
+  if (!row?.maxEndsAt) {
+    return { upcoming: UPCOMING_STATUS.SKIPPED_NO_WEEKS, upcomingSeasonYear };
+  }
+  // Boundary: the last week ending exactly at `now` counts as concluded.
+  if (row.maxEndsAt.getTime() > now.getTime()) {
+    return { upcoming: UPCOMING_STATUS.SKIPPED_NOT_CONCLUDED, upcomingSeasonYear };
   }
 
-  if (newTeamValues.length > 0) {
-    // DoNothing (not DoUpdate): a concurrent run winning the insert race wrote
-    // the same provider data — converge silently rather than abort (arch D7).
-    const inserted = await tx
-      .insert(teams)
-      .values(newTeamValues)
-      .onConflictDoNothing({ target: [teams.sport, teams.providerTeamId] })
-      .returning({ id: teams.id, providerTeamId: teams.providerTeamId });
-    teamsCreated = inserted.length;
-    for (const row of inserted) {
-      if (row.providerTeamId) teamIdByProviderTeamId.set(row.providerTeamId, row.id);
+  // Fetch phase before any transaction (never hold one open across a network
+  // call): ask the provider whether next year's structure is out yet.
+  const structure = await provider.fetchNflSeasonStructure(upcomingSeasonYear);
+
+  if (structure.weeks.length > 0) {
+    const fetchedGamesPerWeek = await Promise.all(
+      structure.weeks.map((week) =>
+        provider.fetchNflWeekGames(upcomingSeasonYear, week.weekType, week.weekNumber),
+      ),
+    );
+    // Same last-wins dedupe rationale as the main sync (a rescheduled game
+    // transiently double-listed would otherwise abort the multi-row upsert).
+    const dedupedByProviderId = new Map<string, ProviderGame>();
+    for (const game of fetchedGamesPerWeek.flat()) {
+      dedupedByProviderId.set(game.providerGameId, game);
     }
+    const providerGames = [...dedupedByProviderId.values()];
+
+    await db.transaction((tx) =>
+      ingestSeasonSnapshot(tx, now, upcomingSeasonYear, structure.weeks, providerGames, {
+        provisional: false,
+      }),
+    );
+    return { upcoming: UPCOMING_STATUS.REAL, upcomingSeasonYear };
   }
 
-  return { teamIdByProviderTeamId, teamsCreated };
+  // Not published yet — fabricate a plausible skeleton, never games
+  // (`leagueStartAt` must keep returning null for a provisional season).
+  await db.transaction((tx) =>
+    ingestSeasonSnapshot(tx, now, upcomingSeasonYear, estimatedNflWeeks(upcomingSeasonYear), [], {
+      provisional: true,
+    }),
+  );
+  return { upcoming: UPCOMING_STATUS.PROVISIONAL, upcomingSeasonYear };
 }
 
 /**
@@ -153,6 +106,11 @@ async function upsertTeams(
  * fields — never any `override_*` column, never `overriddenBy/At`. A re-sync
  * can never clobber an admin correction; reads/settlement resolve
  * `override_* ?? provider_*` elsewhere.
+ *
+ * A bare no-arg call (the daily cron shape) additionally ensures next year's
+ * season exists once the default season concludes (ADR-0009) — explicit
+ * `?season=`/`?week=` callers (manual/simulator) opt out of that step so they
+ * stay surgical.
  */
 export async function syncNflSchedule(
   db: Db,
@@ -163,6 +121,7 @@ export async function syncNflSchedule(
   // One `now` per run: season derivation and every row timestamp share one
   // instant, reaching SQL as a bound parameter (arch D13) — never SQL now().
   const now = clock.now();
+  const isBareTrigger = opts?.seasonYear === undefined && opts?.weekNumber === undefined;
   const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
 
   // Fetch phase: all network I/O happens here, before opening the transaction
@@ -206,211 +165,33 @@ export async function syncNflSchedule(
   }
   const providerGames = [...dedupedByProviderId.values()];
 
-  return db.transaction(async (tx) => {
-    const [existingSeason] = await tx
-      .select({ id: sportSeasons.id })
-      .from(sportSeasons)
-      .where(and(eq(sportSeasons.sport, SPORT.NFL), eq(sportSeasons.year, seasonYear)));
+  const result = await db.transaction((tx) =>
+    // A normal sync always represents real data — `provisional: false`
+    // clears an existing provisional flag in place if this season had one
+    // (ADR-0009), e.g. an explicit `?season=` trigger fired the day ESPN
+    // publishes.
+    ingestSeasonSnapshot(tx, now, seasonYear, structure.weeks, providerGames, {
+      provisional: false,
+    }),
+  );
 
-    let seasonId: string;
-    if (existingSeason) {
-      // Nothing on the season row changes across syncs — skip the update-touch
-      // so a no-op re-run leaves it byte-identical.
-      seasonId = existingSeason.id;
-    } else {
-      const [inserted] = await tx
-        .insert(sportSeasons)
-        .values({ sport: SPORT.NFL, year: seasonYear, createdAt: now, updatedAt: now })
-        // onConflictDoUpdate (not DoNothing) only to survive a rare concurrent
-        // first-insert and still return the row's id.
-        .onConflictDoUpdate({
-          target: [sportSeasons.sport, sportSeasons.year],
-          set: { updatedAt: now },
-        })
-        .returning({ id: sportSeasons.id });
-      if (!inserted) {
-        throw new Error(
-          `syncNflSchedule: sport_seasons insert returned no row for NFL ${seasonYear}`,
-        );
-      }
-      seasonId = inserted.id;
-    }
+  const details: Record<string, string | number | boolean> = {
+    seasonYear,
+    weeksSynced: result.weeksSynced,
+    teamsCreated: result.teamsCreated,
+    gamesCreated: result.gamesCreated,
+    gamesUpdated: result.gamesUpdated,
+    duplicateProviderGames,
+    postponements: result.postponements,
+    cancellations: result.cancellations,
+    weekMoves: result.weekMoves,
+    kickoffChanges: result.kickoffChanges,
+  };
 
-    // Diff weeks: insert new ones, UPDATE only those whose window or label
-    // actually moved, leave unchanged weeks untouched (no updatedAt churn on a
-    // no-op re-run). Keyed by (weekType, weekNumber) — regular and postseason
-    // week numbers overlap.
-    const existingWeeks = await tx.select().from(weeks).where(eq(weeks.seasonId, seasonId));
-    const existingWeekByKey = new Map(
-      existingWeeks.map((week) => [weekKey(week.weekType, week.weekNumber), week]),
-    );
-    const weekIdByKey = new Map<string, string>();
+  if (!isBareTrigger) {
+    return details;
+  }
 
-    for (const week of structure.weeks) {
-      const key = weekKey(week.weekType, week.weekNumber);
-      const existing = existingWeekByKey.get(key);
-      if (!existing) {
-        const [inserted] = await tx
-          .insert(weeks)
-          .values({
-            seasonId,
-            weekType: week.weekType,
-            weekNumber: week.weekNumber,
-            label: week.label,
-            startsAt: week.startsAt,
-            endsAt: week.endsAt,
-            createdAt: now,
-            updatedAt: now,
-          })
-          // Same rationale as the season insert: survive a concurrent
-          // first-insert (overlapping cron + manual trigger) and still return
-          // the row's id, keeping "safe to double-trigger" (arch D7).
-          .onConflictDoUpdate({
-            target: [weeks.seasonId, weeks.weekType, weeks.weekNumber],
-            set: { updatedAt: now },
-          })
-          .returning({ id: weeks.id });
-        if (!inserted) {
-          throw new Error(`syncNflSchedule: weeks insert returned no row for week ${key}`);
-        }
-        weekIdByKey.set(key, inserted.id);
-        continue;
-      }
-
-      weekIdByKey.set(key, existing.id);
-      const weekChanged =
-        existing.startsAt.getTime() !== week.startsAt.getTime() ||
-        existing.endsAt.getTime() !== week.endsAt.getTime() ||
-        existing.label !== week.label;
-      if (weekChanged) {
-        await tx
-          .update(weeks)
-          .set({ startsAt: week.startsAt, endsAt: week.endsAt, label: week.label, updatedAt: now })
-          .where(eq(weeks.id, existing.id));
-      }
-    }
-
-    let gamesCreated = 0;
-    let gamesUpdated = 0;
-    let postponements = 0;
-    let cancellations = 0;
-    let weekMoves = 0;
-    let kickoffChanges = 0;
-
-    // Teams are upserted before games so every game's FKs resolve against a
-    // row that exists in this same transaction (arch ADR-0010).
-    const { teamIdByProviderTeamId, teamsCreated } = await upsertTeams(tx, now, providerGames);
-
-    if (providerGames.length > 0) {
-      const providerGameIds = providerGames.map((game) => game.providerGameId);
-      // Load existing rows first so we can diff provider-owned fields and write
-      // only what actually changed (matches sync-scores; no updatedAt churn).
-      const existingRows = await tx
-        .select()
-        .from(games)
-        .where(inArray(games.providerGameId, providerGameIds));
-      const existingByProviderId = new Map(existingRows.map((row) => [row.providerGameId, row]));
-
-      const newGameValues: (typeof games.$inferInsert)[] = [];
-
-      for (const game of providerGames) {
-        const weekId = weekIdByKey.get(weekKey(game.weekType, game.weekNumber));
-        if (!weekId) {
-          throw new Error(
-            `syncNflSchedule: no week row for ${weekKey(game.weekType, game.weekNumber)} (game ${game.providerGameId})`,
-          );
-        }
-
-        const homeTeamId = teamIdByProviderTeamId.get(game.homeTeamProviderId);
-        const awayTeamId = teamIdByProviderTeamId.get(game.awayTeamProviderId);
-        if (!homeTeamId || !awayTeamId) {
-          throw new Error(
-            `syncNflSchedule: team not resolved for game ${game.providerGameId} (home ${game.homeTeamProviderId}, away ${game.awayTeamProviderId})`,
-          );
-        }
-
-        // Provider fields only — every override_* column is deliberately absent
-        // (arch D15). Scores are included so a game can never sit at status=final
-        // with null scores between job cadences.
-        const providerFields = {
-          weekId,
-          kickoffAt: game.kickoffAt,
-          status: game.status,
-          homeTeamId,
-          awayTeamId,
-          homeScore: game.homeScore,
-          awayScore: game.awayScore,
-        };
-
-        const existing = existingByProviderId.get(game.providerGameId);
-        if (!existing) {
-          newGameValues.push({
-            providerGameId: game.providerGameId,
-            ...providerFields,
-            createdAt: now,
-            updatedAt: now,
-          });
-          continue;
-        }
-
-        if (existing.status !== GAME_STATUS.POSTPONED && game.status === GAME_STATUS.POSTPONED) {
-          postponements += 1;
-          logInfo("nfl-sync-schedule.postponed", { providerGameId: game.providerGameId });
-        }
-        if (existing.status !== GAME_STATUS.CANCELLED && game.status === GAME_STATUS.CANCELLED) {
-          cancellations += 1;
-          logInfo("nfl-sync-schedule.cancelled", { providerGameId: game.providerGameId });
-        }
-        if (existing.weekId !== weekId) {
-          weekMoves += 1;
-          logInfo("nfl-sync-schedule.week-move", { providerGameId: game.providerGameId });
-        }
-        if (existing.kickoffAt.getTime() !== game.kickoffAt.getTime()) {
-          kickoffChanges += 1;
-          logInfo("nfl-sync-schedule.kickoff-change", { providerGameId: game.providerGameId });
-        }
-
-        const changed =
-          existing.weekId !== weekId ||
-          existing.kickoffAt.getTime() !== game.kickoffAt.getTime() ||
-          existing.status !== game.status ||
-          existing.homeTeamId !== homeTeamId ||
-          existing.awayTeamId !== awayTeamId ||
-          existing.homeScore !== game.homeScore ||
-          existing.awayScore !== game.awayScore;
-        if (!changed) continue;
-
-        await tx
-          .update(games)
-          .set({ ...providerFields, updatedAt: now })
-          .where(eq(games.id, existing.id));
-        gamesUpdated += 1;
-      }
-
-      if (newGameValues.length > 0) {
-        // DoNothing (not DoUpdate): if a concurrent run won the insert race it
-        // wrote the same provider data — converging silently beats aborting the
-        // run ("safe to double-trigger", arch D7). Count what we actually wrote.
-        const inserted = await tx
-          .insert(games)
-          .values(newGameValues)
-          .onConflictDoNothing({ target: games.providerGameId })
-          .returning({ id: games.id });
-        gamesCreated = inserted.length;
-      }
-    }
-
-    return {
-      seasonYear,
-      weeksSynced: weekIdByKey.size,
-      teamsCreated,
-      gamesCreated,
-      gamesUpdated,
-      duplicateProviderGames,
-      postponements,
-      cancellations,
-      weekMoves,
-      kickoffChanges,
-    };
-  });
+  const upcoming = await ensureUpcomingNflSeason(db, clock, provider, seasonYear);
+  return { ...details, ...upcoming };
 }

@@ -198,6 +198,81 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
     );
   });
 
+  it("maps a 404 on one season type's weeks index to no weeks for that type, not a throw", async () => {
+    const wildCardRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/3/weeks/1`;
+    const fetchImpl = stubFetch({
+      // ESPN hasn't published the regular-season schedule for this future
+      // year yet (ADR-0009 "upcoming seasons exist before their data").
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/2/weeks?limit=32`]:
+        jsonResponse({}, { status: 404 }),
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/3/weeks?limit=32`]:
+        jsonResponse({ items: [{ $ref: wildCardRef }] }),
+      [wildCardRef]: jsonResponse({
+        number: 1,
+        text: "Wild Card",
+        startDate: "2028-01-08T07:00Z",
+        endDate: "2028-01-12T06:59Z",
+      }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const structure = await provider.fetchNflSeasonStructure(2027);
+
+    expect(structure).toEqual({
+      seasonYear: 2027,
+      weeks: [
+        {
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 1,
+          label: "Wild Card",
+          startsAt: new Date("2028-01-08T07:00Z"),
+          endsAt: new Date("2028-01-12T06:59Z"),
+        },
+      ],
+    });
+  });
+
+  it("maps a 404 on both season types' weeks indexes to a typed 'nothing yet' with empty weeks", async () => {
+    const fetchImpl = stubFetch({
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/2/weeks?limit=32`]:
+        jsonResponse({}, { status: 404 }),
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/3/weeks?limit=32`]:
+        jsonResponse({}, { status: 404 }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const structure = await provider.fetchNflSeasonStructure(2027);
+
+    expect(structure).toEqual({ seasonYear: 2027, weeks: [] });
+  });
+
+  it("maps zero-items indexes on both season types the same as a 404 — empty weeks, not a throw", async () => {
+    const fetchImpl = stubFetch({
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/2/weeks?limit=32`]:
+        jsonResponse({ items: [] }),
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/3/weeks?limit=32`]:
+        jsonResponse({ items: [] }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const structure = await provider.fetchNflSeasonStructure(2027);
+
+    expect(structure).toEqual({ seasonYear: 2027, weeks: [] });
+  });
+
+  it("still throws on a genuine 5xx even though 404 is now special-cased", async () => {
+    const fetchImpl = stubFetch({
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/2/weeks?limit=32`]:
+        jsonResponse({ error: "boom" }, { status: 503 }),
+      [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2027/types/3/weeks?limit=32`]:
+        jsonResponse({ items: [] }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+
+    await expect(provider.fetchNflSeasonStructure(2027)).rejects.toThrow(/503/);
+  });
+
   it("throws a zod error when the weeks index payload shape is invalid", async () => {
     const fetchImpl = stubFetch({
       [REGULAR_INDEX_URL]: jsonResponse({ items: [{ notARef: "oops" }] }),

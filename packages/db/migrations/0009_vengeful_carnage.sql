@@ -1,0 +1,1 @@
+ALTER TABLE "sport_seasons" ADD COLUMN "provisional" boolean DEFAULT false NOT NULL;

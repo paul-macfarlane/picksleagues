@@ -42,11 +42,12 @@ export async function seedSeason(
     sport = SPORT.NFL,
     year = 2026,
     weeks: weekSpecs,
-  }: { sport?: Sport; year?: number; weeks: SeededWeek[] },
+    provisional = false,
+  }: { sport?: Sport; year?: number; weeks: SeededWeek[]; provisional?: boolean },
 ) {
   const [season] = await db
     .insert(sportSeasons)
-    .values({ sport, year, createdAt: SEED_AT, updatedAt: SEED_AT })
+    .values({ sport, year, provisional, createdAt: SEED_AT, updatedAt: SEED_AT })
     .returning();
   if (!season) throw new Error("season insert returned no row");
 
