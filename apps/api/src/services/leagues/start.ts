@@ -8,6 +8,7 @@ import {
   type LeagueSettings,
   type NflWeekRef,
 } from "@picksleagues/schemas";
+import { effectiveKickoffAtSql } from "../games";
 
 /**
  * Clock-derived league start (arch §Locking Model): the join cutoff and every
@@ -29,10 +30,9 @@ export async function leagueStartAt(
 ): Promise<Date | null> {
   // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
   // string), so the aggregate maps its own value back to a Date.
-  const earliestKickoff =
-    sql`min(coalesce(${games.overrideKickoffAt}, ${games.kickoffAt}))`.mapWith(
-      (value): Date | null => (value === null ? null : new Date(value as string)),
-    );
+  const earliestKickoff = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+    value === null ? null : new Date(value as string),
+  );
 
   if (league.mode === LEAGUE_MODE.MARCH_MADNESS) {
     const [row] = await db

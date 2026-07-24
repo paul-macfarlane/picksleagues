@@ -130,7 +130,11 @@ export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]
         rows.map((row) => row.game.id),
       ),
     )
-    .orderBy(oddsSnapshots.gameId, desc(oddsSnapshots.capturedAt));
+    // `id` breaks the tie: a sync run stamps every row it inserts with one
+    // `clock.now()`, so two snapshots for a game CAN share `captured_at`
+    // exactly (trivially so under the simulator's fixed clock) and DISTINCT ON
+    // would otherwise pick between them arbitrarily.
+    .orderBy(oddsSnapshots.gameId, desc(oddsSnapshots.capturedAt), desc(oddsSnapshots.id));
   const latestByGame = new Map(latestSnapshots.map((snapshot) => [snapshot.gameId, snapshot]));
 
   return rows.map(({ game, homeTeam, awayTeam }) => {
@@ -173,7 +177,9 @@ export async function listGameOdds(db: Db, gameId: string): Promise<AdminOddsSna
     .select()
     .from(oddsSnapshots)
     .where(eq(oddsSnapshots.gameId, gameId))
-    .orderBy(desc(oddsSnapshots.capturedAt))
+    // Same tiebreak as the latest-snapshot query above — without it, which rows
+    // survive the LIMIT boundary is arbitrary among equal `captured_at`.
+    .orderBy(desc(oddsSnapshots.capturedAt), desc(oddsSnapshots.id))
     .limit(ADMIN_ODDS_SNAPSHOT_LIMIT);
 
   return rows.map((snapshot) => ({
