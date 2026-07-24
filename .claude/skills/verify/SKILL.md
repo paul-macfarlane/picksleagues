@@ -29,7 +29,7 @@ pnpm typecheck && pnpm lint && pnpm contract:check   # static gates; contract:ch
 ## Drive
 
 - The SPA consumes the generated OpenAPI client, so most behavior is verifiable straight against the API — `curl` routes per the committed spec in `openapi/openapi.json`.
-- **The simulator is the primary verification harness once SIM lands** (non-prod only): load a scenario (`POST /sim/fixtures`), set or advance time (`POST /sim/clock`), run settlement (`POST /sim/settle`), then assert via ordinary API reads. Record the shared-secret header/env-var name and scenario file locations here when SIM lands. Time-dependent behavior (locking, cutoffs, deadlines) must be verified by moving the simulated clock, never by editing kickoff timestamps. Until SIM lands, the clock offset can be set directly on the `app_state` row (`id='singleton'`, `sim_clock_offset_ms`).
+- **The simulator is the primary verification harness once SIM lands** (non-prod only): load a scenario (`POST /sim/fixtures`), set or advance time (`POST /sim/clock`), run settlement (`POST /sim/settle`), then assert via ordinary API reads. `/sim/*` is admin-session-gated (ADR-0011) — mint a session for an allowlisted user per the Auth-gated flows section below, no shared-secret header. Record the allowlist env-var name and scenario file locations here when SIM lands. Time-dependent behavior (locking, cutoffs, deadlines) must be verified by moving the simulated clock, never by editing kickoff timestamps. Until SIM lands, the clock offset can be set directly on the `app_state` row (`id='singleton'`, `sim_clock_offset_ms`).
 - DB inspection: `docker compose exec db psql -U postgres -d picksleagues` (`-d picksleagues_test` for the integration DB). Clean up synthetic rows afterward.
 
 ## Auth-gated flows

@@ -26,12 +26,13 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `01-identity.md`       | `ID`   | Username claim, profile, onboarding                         |
 | `02-game-data.md`      | `DATA` | Seasons/weeks/games schema, ESPN provider, sync jobs        |
 | `03-leagues.md`        | `LG`   | Leagues, settings, invites, membership, discovery           |
-| `04-simulator.md`      | `SIM`  | Simulated clock, fixtures, scenarios, reset                 |
+| `04-simulator-admin.md` | `SIM`/`ADM` | Admin page + simulator: data browsers, sim clock/replay UI, overrides, audit (merged per ADR-0011) |
 | `05-pickem.md`         | `PKM`  | Pick'em mode + shared settlement core (results, standings)  |
 | `06-elimination.md`    | `ELM`  | Elimination mode, survivor board                            |
 | `07-march-madness.md`  | `MM`   | Bracket ingestion, builder, scoring, pool leaderboard       |
-| `08-admin-ops.md`      | `ADM`  | Admin page, data overrides, audit, alerts                   |
 | `09-launch.md`         | `LNCH` | Rules guide, prod cron, mobile QA, launch                   |
+| `10-trust-safety.md`   | `TS`   | Post-MVP: public-league abuse resistance, member notifications |
+| `11-schema-foundations.md` | `SF` | Season/team schema scalability ahead of the picks epics    |
 
 ## Working the backlog
 
