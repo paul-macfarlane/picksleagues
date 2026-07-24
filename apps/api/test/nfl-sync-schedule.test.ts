@@ -170,6 +170,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     const firstGames = await db.select().from(games).orderBy(games.providerGameId);
     const firstWeeks = await db.select().from(weeks).orderBy(weeks.weekNumber);
     const firstSeason = await db.select().from(sportSeasons);
+    const firstTeams = await db.select().from(teams).orderBy(teams.providerTeamId);
 
     // A strictly later instant proves no-op re-runs never touch updatedAt (a
     // byte-identical re-run under the old unconditional upsert would have churned
@@ -181,6 +182,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(await db.select().from(games).orderBy(games.providerGameId)).toEqual(firstGames);
     expect(await db.select().from(weeks).orderBy(weeks.weekNumber)).toEqual(firstWeeks);
     expect(await db.select().from(sportSeasons)).toEqual(firstSeason);
+    expect(await db.select().from(teams).orderBy(teams.providerTeamId)).toEqual(firstTeams);
   });
 
   it("dedupes a game listed under two weeks (last-wins) so the upsert never hits the same row twice", async () => {
@@ -261,6 +263,37 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
 
     const [week2] = await db.select().from(weeks).where(eq(weeks.weekNumber, 2));
     expect(after?.weekId).toBe(week2?.id);
+  });
+
+  it("updates a game's team FK when the provider swaps its home team and counts it in gamesUpdated", async () => {
+    seedBaselineProvider();
+    await runOk();
+
+    // g1's home team changes to a brand-new provider team (a correction, not a
+    // rename of the same provider id) — the game row's homeTeamId must follow.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g1",
+        weekNumber: 1,
+        homeTeamProviderId: "new-hom-id",
+        homeTeamAbbr: "NEW",
+        homeTeamName: "New Home Team",
+      }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ gamesUpdated: 1, gamesCreated: 0, teamsCreated: 1 });
+
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    const [newHomeTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.providerTeamId, "new-hom-id"));
+    expect(g1?.homeTeamId).toBe(newHomeTeam?.id);
+    expect(g1?.homeTeamId).not.toBe(
+      (await db.select().from(teams).where(eq(teams.providerTeamId, "hom-id")))[0]?.id,
+    );
   });
 
   it("never clobbers admin override fields on re-sync (arch D15)", async () => {
