@@ -1,32 +1,37 @@
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagues, leagueSettings, sportSeasons } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
-  LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
-  SPORT,
   leagueActionIsPreStartOnly,
   type CreateLeagueRequest,
   type LeagueAction,
   type LeagueResponse,
   type LeagueSummary,
   type LeagueVisibility,
-  type Sport,
 } from "@picksleagues/schemas";
 import { isPreStart, leagueStartAt } from "./start";
 import { lockLeagueRow, lockUserRow } from "./locks";
-import { authorizeLeagueAction, countActiveCommissionerships, countMembers } from "./authz";
-import { loadMembers, serializeLeague } from "./serialize";
-
-/** The sport whose seasons a mode's leagues bind to. */
-function sportForMode(mode: CreateLeagueRequest["mode"]): Sport {
-  return mode === LEAGUE_MODE.MARCH_MADNESS ? SPORT.NCAAMB : SPORT.NFL;
-}
+import {
+  authorizeLeagueAction,
+  countActiveCommissionerships,
+  countMembers,
+  getMembership,
+} from "./authz";
+import {
+  currentLeagueSeason,
+  getLeagueWithCurrentSeason,
+  isRenewable,
+  latestSeasonForSport,
+  latestSeasonYearBySport,
+  readAndSerializeLeague,
+  sportForMode,
+} from "./current-season";
 
 export type CreateLeagueResult =
   | { ok: true; league: LeagueResponse }
@@ -42,12 +47,7 @@ export async function createLeague(
 ): Promise<CreateLeagueResult> {
   // Latest ingested season for the mode's sport — leagues bind to a season at
   // creation so cutoffs/windows know which games to derive from.
-  const [season] = await db
-    .select()
-    .from(sportSeasons)
-    .where(eq(sportSeasons.sport, sportForMode(input.mode)))
-    .orderBy(sql`${sportSeasons.year} desc`)
-    .limit(1);
+  const season = await latestSeasonForSport(db, sportForMode(input.mode));
   if (!season) {
     return { ok: false, reason: "no_active_season" };
   }
@@ -82,8 +82,6 @@ export async function createLeague(
           name: input.name,
           mode: input.mode,
           visibility: input.visibility,
-          status: LEAGUE_STATUS.ACTIVE,
-          seasonId: season.id,
           maxMembers: input.maxMembers,
           createdAt: now,
           updatedAt: now,
@@ -93,9 +91,13 @@ export async function createLeague(
         throw new Error("League insert returned no row.");
       }
 
-      await tx.insert(leagueSettings).values({
+      // The league's first season instance (ADR-0009) — carries the per-season
+      // settings/status and the season anchor locks derive from.
+      await tx.insert(leagueSeasons).values({
         leagueId: created.id,
+        seasonId: season.id,
         settings,
+        status: LEAGUE_STATUS.ACTIVE,
         createdAt: now,
         updatedAt: now,
       });
@@ -119,12 +121,12 @@ export async function createLeague(
       return created;
     });
 
-    const startsAt = await leagueStartAt(db, league, settings);
-    const members = await loadMembers(db, league.id);
-    return {
-      ok: true,
-      league: serializeLeague(league, season.year, settings, startsAt, members, userId),
-    };
+    // Same assembly `getLeague`/renewal serialize through, re-read post-commit
+    // (accepted extra read — this path isn't hot, and the output is identical
+    // to hand-assembling it from the just-inserted rows).
+    const serialized = await readAndSerializeLeague(db, league.id, userId);
+    if (!serialized) throw new Error("Created league unreadable immediately after creation.");
+    return { ok: true, league: serialized };
   } catch (error) {
     if (error instanceof CapExceededError) {
       return { ok: false, reason: "cap_exceeded" };
@@ -187,15 +189,18 @@ export async function updateLeague(
     );
     if (!gate.ok) return gate;
 
-    const [row] = await tx
-      .select({ league: leagues, settings: leagueSettings.settings })
-      .from(leagues)
-      .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-      .where(eq(leagues.id, leagueId));
-    if (!row) return { ok: false, reason: "league_not_found" };
+    // Read the current instance inside the same tx AFTER the lock so the
+    // window/roster invariants below stay serialized against concurrent joins.
+    const current = await getLeagueWithCurrentSeason(tx, leagueId);
+    if (!current) return { ok: false, reason: "league_not_found" };
+    const { league, season } = current;
 
     if (requestedActions.some(leagueActionIsPreStartOnly)) {
-      const startsAt = await leagueStartAt(tx, row.league, row.settings);
+      const startsAt = await leagueStartAt(
+        tx,
+        { mode: league.mode, seasonId: season.seasonId },
+        season.settings,
+      );
       if (!isPreStart(startsAt, clock)) {
         return { ok: false, reason: "league_started" };
       }
@@ -213,7 +218,7 @@ export async function updateLeague(
 
     const now = clock.now();
     if (input.settings !== undefined) {
-      const parsed = LEAGUE_SETTINGS_SCHEMAS[row.league.mode].safeParse(input.settings);
+      const parsed = LEAGUE_SETTINGS_SCHEMAS[league.mode].safeParse(input.settings);
       if (!parsed.success) {
         return {
           ok: false,
@@ -224,14 +229,19 @@ export async function updateLeague(
       // The gate above checked the OLD start week; the new settings must not
       // move the start into the past either — that would instantly start (and
       // permanently freeze) the league, same trap as creating one post-start.
-      const newStartsAt = await leagueStartAt(tx, row.league, parsed.data);
+      const newStartsAt = await leagueStartAt(
+        tx,
+        { mode: league.mode, seasonId: season.seasonId },
+        parsed.data,
+      );
       if (!isPreStart(newStartsAt, clock)) {
         return { ok: false, reason: "start_week_passed" };
       }
+      // Settings live on the current instance now (ADR-0009).
       await tx
-        .update(leagueSettings)
+        .update(leagueSeasons)
         .set({ settings: parsed.data, updatedAt: now })
-        .where(eq(leagueSettings.leagueId, leagueId));
+        .where(eq(leagueSeasons.id, season.id));
     }
 
     if (
@@ -273,15 +283,15 @@ export async function deleteLeague(
     const gate = await authorizeLeagueAction(tx, leagueId, userId, LEAGUE_ACTION.DELETE_LEAGUE);
     if (!gate.ok) return gate;
 
-    const [row] = await tx
-      .select({ league: leagues, settings: leagueSettings.settings })
-      .from(leagues)
-      .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-      .where(eq(leagues.id, leagueId));
-    if (!row) return { ok: false, reason: "league_not_found" as const };
+    const current = await getLeagueWithCurrentSeason(tx, leagueId);
+    if (!current) return { ok: false, reason: "league_not_found" as const };
 
     if (leagueActionIsPreStartOnly(LEAGUE_ACTION.DELETE_LEAGUE)) {
-      const startsAt = await leagueStartAt(tx, row.league, row.settings);
+      const startsAt = await leagueStartAt(
+        tx,
+        { mode: current.league.mode, seasonId: current.season.seasonId },
+        current.season.settings,
+      );
       if (!isPreStart(startsAt, clock)) {
         return { ok: false, reason: "league_started" as const };
       }
@@ -301,38 +311,27 @@ export async function getLeague(
   leagueId: string,
   userId: string,
 ): Promise<LeagueResponse | null> {
-  const [row] = await db
-    .select({
-      league: leagues,
-      settings: leagueSettings.settings,
-      seasonYear: sportSeasons.year,
-      myRole: leagueMembers.role,
-    })
-    .from(leagues)
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
-    .innerJoin(sportSeasons, eq(leagues.seasonId, sportSeasons.id))
-    .innerJoin(
-      leagueMembers,
-      and(eq(leagueMembers.leagueId, leagues.id), eq(leagueMembers.userId, userId)),
-    )
-    .where(eq(leagues.id, leagueId));
-  if (!row) return null;
+  // Membership is the visibility gate — non-members get null (route 404s), so a
+  // private league is indistinguishable from an absent one.
+  if (!(await getMembership(db, leagueId, userId))) return null;
 
-  const startsAt = await leagueStartAt(db, row.league, row.settings);
-  const members = await loadMembers(db, leagueId);
-  return serializeLeague(row.league, row.seasonYear, row.settings, startsAt, members, userId);
+  return readAndSerializeLeague(db, leagueId, userId);
 }
 
 export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSummary[]> {
+  const current = currentLeagueSeason(db);
   const rows = await db
     .select({
       league: leagues,
-      settings: leagueSettings.settings,
+      settings: current.settings,
+      status: current.status,
+      seasonId: current.seasonId,
+      seasonYear: current.seasonYear,
       myRole: leagueMembers.role,
     })
     .from(leagueMembers)
     .innerJoin(leagues, eq(leagueMembers.leagueId, leagues.id))
-    .innerJoin(leagueSettings, eq(leagueSettings.leagueId, leagues.id))
+    .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
     .where(eq(leagueMembers.userId, userId))
     .orderBy(asc(leagues.createdAt));
   if (rows.length === 0) return [];
@@ -349,22 +348,34 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
     .groupBy(leagueMembers.leagueId);
   const countByLeague = new Map(counts.map((c) => [c.leagueId, c.value]));
 
+  // The per-sport latest ingested year, fetched once (not per league) — the
+  // `renewable` signal compares each league's current-instance year against it.
+  const latestBySport = await latestSeasonYearBySport(db);
+
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
   // per-mode) beats a hand-rolled batch join.
   return Promise.all(
     rows.map(async (row) => {
-      const startsAt = await leagueStartAt(db, row.league, row.settings);
+      const startsAt = await leagueStartAt(
+        db,
+        { mode: row.league.mode, seasonId: row.seasonId },
+        row.settings,
+      );
       return {
         id: row.league.id,
         name: row.league.name,
         mode: row.league.mode,
         visibility: row.league.visibility,
-        status: row.league.status,
+        status: row.status,
         memberCount: countByLeague.get(row.league.id) ?? 0,
         maxMembers: row.league.maxMembers,
         myRole: row.myRole,
         startsAt: startsAt ? startsAt.toISOString() : null,
+        renewable: isRenewable(
+          latestBySport.get(sportForMode(row.league.mode)) ?? null,
+          row.seasonYear,
+        ),
       };
     }),
   );

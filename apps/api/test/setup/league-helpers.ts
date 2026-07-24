@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   games,
   leagueMembers,
+  leagueSeasons,
   leagues,
-  leagueSettings,
   sportSeasons,
+  teams,
   weeks,
 } from "@picksleagues/db";
 import {
@@ -41,13 +43,54 @@ export async function seedSeason(
     sport = SPORT.NFL,
     year = 2026,
     weeks: weekSpecs,
-  }: { sport?: Sport; year?: number; weeks: SeededWeek[] },
+    provisional = false,
+  }: { sport?: Sport; year?: number; weeks: SeededWeek[]; provisional?: boolean },
 ) {
   const [season] = await db
     .insert(sportSeasons)
-    .values({ sport, year, createdAt: SEED_AT, updatedAt: SEED_AT })
+    .values({ sport, year, provisional, createdAt: SEED_AT, updatedAt: SEED_AT })
     .returning();
   if (!season) throw new Error("season insert returned no row");
+
+  // Teams are reference data shared across seasons, not per-season (ADR-0010)
+  // — seedSeason runs multiple times per sport in some tests (renewal /
+  // multi-season fixtures), so this upserts on (sport, abbreviation) rather
+  // than blind-inserting a row that would collide on a second call. The
+  // abbreviation unique is a partial index scoped to provider-id-less rows
+  // (SF-4 amendment: ESPN's placeholder "TBD" teams share an abbreviation
+  // across distinct provider ids) — `targetWhere` must restate that predicate
+  // for Postgres to infer this as the conflict arbiter.
+  const [homeTeam] = await db
+    .insert(teams)
+    .values({
+      sport,
+      abbreviation: "HOM",
+      name: "Home Team",
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
+    .onConflictDoUpdate({
+      target: [teams.sport, teams.abbreviation],
+      targetWhere: sql`${teams.providerTeamId} is null`,
+      set: { updatedAt: SEED_AT },
+    })
+    .returning();
+  const [awayTeam] = await db
+    .insert(teams)
+    .values({
+      sport,
+      abbreviation: "AWY",
+      name: "Away Team",
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
+    .onConflictDoUpdate({
+      target: [teams.sport, teams.abbreviation],
+      targetWhere: sql`${teams.providerTeamId} is null`,
+      set: { updatedAt: SEED_AT },
+    })
+    .returning();
+  if (!homeTeam || !awayTeam) throw new Error("team insert returned no row");
 
   const weekIds = new Map<string, string>();
   for (const spec of weekSpecs) {
@@ -72,10 +115,8 @@ export async function seedSeason(
       await db.insert(games).values({
         weekId: week.id,
         providerGameId: randomUUID(),
-        homeTeamAbbr: "HOM",
-        homeTeamName: "Home Team",
-        awayTeamAbbr: "AWY",
-        awayTeamName: "Away Team",
+        homeTeamId: homeTeam.id,
+        awayTeamId: awayTeam.id,
         kickoffAt: game.kickoffAt,
         overrideKickoffAt: game.overrideKickoffAt ?? null,
         status: GAME_STATUS.SCHEDULED,
@@ -97,8 +138,9 @@ export const DEFAULT_PICKEM_SETTINGS: LeagueSettings = {
 };
 
 /**
- * Directly inserts a league + settings + members, bypassing the API — for
- * arranging preconditions (cap counts, join targets) without N requests.
+ * Directly inserts a league + one season instance + members, bypassing the API
+ * — for arranging preconditions (cap counts, join targets) without N requests.
+ * `status`/`seasonId`/`settings` land on the instance now (ADR-0009).
  */
 export async function insertLeague(
   db: Db,
@@ -128,8 +170,6 @@ export async function insertLeague(
       name,
       mode,
       visibility,
-      status,
-      seasonId,
       maxMembers,
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
@@ -137,9 +177,14 @@ export async function insertLeague(
     .returning();
   if (!league) throw new Error("league insert returned no row");
 
-  await db
-    .insert(leagueSettings)
-    .values({ leagueId: league.id, settings, createdAt: SEED_AT, updatedAt: SEED_AT });
+  await db.insert(leagueSeasons).values({
+    leagueId: league.id,
+    seasonId,
+    settings,
+    status,
+    createdAt: SEED_AT,
+    updatedAt: SEED_AT,
+  });
 
   for (const member of members) {
     await db.insert(leagueMembers).values({

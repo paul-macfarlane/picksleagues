@@ -2,8 +2,12 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
-import { LEAGUE_MODE, type LeagueSettings, type NflWeekRef } from "@picksleagues/schemas";
-import type { LeagueRow } from "./serialize";
+import {
+  LEAGUE_MODE,
+  type LeagueMode,
+  type LeagueSettings,
+  type NflWeekRef,
+} from "@picksleagues/schemas";
 
 /**
  * Clock-derived league start (arch §Locking Model): the join cutoff and every
@@ -20,7 +24,7 @@ import type { LeagueRow } from "./serialize";
  */
 export async function leagueStartAt(
   db: Db,
-  league: Pick<LeagueRow, "mode" | "seasonId">,
+  league: { mode: LeagueMode; seasonId: string },
   settings: LeagueSettings,
 ): Promise<Date | null> {
   // Raw SQL fragments skip drizzle's column decoders (the driver hands back a

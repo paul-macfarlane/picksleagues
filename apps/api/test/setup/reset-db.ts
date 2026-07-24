@@ -4,11 +4,12 @@ import {
   games,
   leagueInvites,
   leagueMembers,
+  leagueSeasons,
   leagues,
-  leagueSettings,
   oddsSnapshots,
   sessions,
   sportSeasons,
+  teams,
   users,
   weeks,
 } from "@picksleagues/db";
@@ -24,12 +25,13 @@ import {
 export async function resetDb(db: Db): Promise<void> {
   await db.delete(leagueInvites);
   await db.delete(leagueMembers);
-  await db.delete(leagueSettings);
+  await db.delete(leagueSeasons);
   await db.delete(leagues);
   await db.delete(oddsSnapshots);
   await db.delete(games);
   await db.delete(weeks);
   await db.delete(sportSeasons);
+  await db.delete(teams);
   await db.delete(sessions);
   await db.delete(accounts);
   await db.delete(users);

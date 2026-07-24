@@ -25,6 +25,7 @@ export const ERROR_CODE = {
   START_WEEK_PASSED: "start_week_passed",
   CAP_EXCEEDED: "cap_exceeded",
   NO_ACTIVE_SEASON: "no_active_season",
+  NO_NEWER_SEASON: "no_newer_season",
   SOLE_MEMBER: "sole_member",
   CANNOT_KICK_SELF: "cannot_kick_self",
   ALREADY_MEMBER: "already_member",

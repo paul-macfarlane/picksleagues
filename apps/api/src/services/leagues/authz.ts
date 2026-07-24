@@ -1,28 +1,35 @@
 import { and, count, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagues } from "@picksleagues/db";
+import { leagueMembers } from "@picksleagues/db";
 import {
   LEAGUE_STATUS,
   MEMBER_ROLE,
   leagueActionRequiresCommissioner,
   type LeagueAction,
 } from "@picksleagues/schemas";
+import { currentLeagueSeason } from "./current-season";
 
 /**
  * Counts the caller's commissioner roles across active leagues — the
  * spec §Limits cap. Shared by create (above) and promote (LG-6), both of
  * which run it inside their mutating transaction.
+ *
+ * "Active" is the league's CURRENT instance being ACTIVE (ADR-0009): join each
+ * league to its current season and filter status, so a league with a concluded
+ * past instance and an active current one counts exactly once — never
+ * exists-any-active, which would over-count multi-season leagues.
  */
 export async function countActiveCommissionerships(db: Db, userId: string): Promise<number> {
+  const current = currentLeagueSeason(db);
   const [row] = await db
     .select({ value: count() })
     .from(leagueMembers)
-    .innerJoin(leagues, eq(leagueMembers.leagueId, leagues.id))
+    .innerJoin(current, and(eq(current.leagueId, leagueMembers.leagueId), eq(current.rank, 1)))
     .where(
       and(
         eq(leagueMembers.userId, userId),
         eq(leagueMembers.role, MEMBER_ROLE.COMMISSIONER),
-        eq(leagues.status, LEAGUE_STATUS.ACTIVE),
+        eq(current.status, LEAGUE_STATUS.ACTIVE),
       ),
     );
   return row?.value ?? 0;

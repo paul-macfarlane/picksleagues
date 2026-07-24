@@ -2,6 +2,11 @@ import { type GameStatus, type WeekType } from "@picksleagues/schemas";
 
 export type ProviderWeek = {
   weekType: WeekType;
+  // DOMAIN numbering, not the provider's: regular 1..18, postseason contiguous
+  // 1..4 with Super Bowl = 4 (aligned with `NflWeekRefSchema` and
+  // `estimatedNflWeeks`). Adapters own any translation from their own scheme
+  // — e.g. ESPN numbers the postseason 1,2,3,5 (its 4 is the excluded Pro
+  // Bowl); its adapter maps that gap away so this field is always domain.
   weekNumber: number;
   // Provider display label ("Week 1", "Wild Card") — the only correct wording
   // for a postseason round, which a bare weekNumber can't produce.
@@ -28,6 +33,12 @@ export type ProviderGame = {
   homeTeamName: string;
   awayTeamAbbr: string;
   awayTeamName: string;
+  // Provider identity for each team (ESPN's team.id) — the real key teams are
+  // matched on; the four text fields above stay for display-data upsert
+  // (arch ADR-0010: provider id is the durable identity, abbreviation is the
+  // pre-provider-id bootstrap key).
+  homeTeamProviderId: string;
+  awayTeamProviderId: string;
   kickoffAt: Date;
   // Only the statuses a provider can produce — `moved` is override-only
   // (arch §Overrides): a provider "week move" surfaces as the game's week
@@ -40,6 +51,18 @@ export type ProviderGame = {
   // Home-relative spread (negative = home favored); null when the provider
   // has no line yet.
   spread: number | null;
+};
+
+export type ProviderTeam = {
+  providerTeamId: string;
+  abbreviation: string;
+  name: string;
+  // City/market (ESPN's `location`, e.g. "Kansas City").
+  location: string;
+  // Light-background and dark-background logo variants; null when the
+  // provider's listing has no corresponding asset for a team.
+  logoLightUrl: string | null;
+  logoDarkUrl: string | null;
 };
 
 /**
@@ -63,4 +86,9 @@ export interface GameDataProvider {
     weekType: WeekType,
     weekNumber: number,
   ): Promise<ProviderGame[]>;
+  // The full current NFL teams listing (season-independent) — used to enrich
+  // `teams` rows with display metadata the per-game scoreboard shape doesn't
+  // carry (location, logos). A provider team not yet in this listing (e.g. a
+  // TBD playoff placeholder) simply never gets enriched.
+  fetchNflTeams(): Promise<ProviderTeam[]>;
 }

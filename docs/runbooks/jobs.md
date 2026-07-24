@@ -24,14 +24,22 @@ replay drives these same endpoints with explicit values. A requested week the pr
 doesn't expose (e.g. the excluded Pro Bowl week) returns `{ skipped: true, reason:
 "week_not_synced" }`.
 
-**Offseason gotcha — the upcoming season needs one explicit trigger.** The no-arg
-default (`nflSeasonYearFor`) targets the season in progress, which from February through
-July is the one that just *ended* — so the daily cron alone never ingests the upcoming
-season, and league creation (which binds to the latest ingested season, ADR-0008)
-refuses with `start_week_passed` until it exists. Once the NFL releases the new schedule
-(typically May), fire the sync once per environment with the explicit season:
-`POST /api/jobs/nfl/sync-schedule?season=<upcoming year>`. After August 1 the default
-rolls forward on its own.
+**Offseason — the daily job self-heals; no manual trigger required.** A bare (no-query)
+run of `nfl-sync-schedule` — the daily cron shape — additionally checks whether the
+*default* season (`nflSeasonYearFor`) has concluded (its greatest ingested week's
+`endsAt <= now`) and, if so, ensures `seasonYear + 1` exists (ADR-0009 "upcoming seasons
+exist before their data"): real data if ESPN has published it, otherwise a **provisional**
+placeholder built from a plausible NFL calendar skeleton (18 regular weeks anchored to
+the first Thursday of September, then the four postseason rounds) — flagged
+`provisional: true` and carrying **zero games**, so `leagueStartAt` keeps deriving `null`
+and the league stays a normal pre-start league. League creation (which binds to the
+latest season row, ADR-0009) therefore works through the entire offseason, not just after
+ESPN publishes. Once ESPN's real structure lands — typically May — the very next daily
+run overwrites the provisional weeks in place (same row ids, corrected dates) and clears
+the flag; games start ingesting normally. An explicit early trigger still works and is
+harmless (`POST /api/jobs/nfl/sync-schedule?season=<upcoming year>`) but is no longer
+required. Explicit `?season=`/`?week=` triggers (manual/simulator) never run this
+self-heal step — only a bare no-arg call does.
 
 ## Authentication
 
@@ -90,3 +98,8 @@ postponements, cancellations, weekMoves, kickoffChanges }`. `gamesUpdated` count
 whose provider fields actually changed — a healthy no-op re-run reports zeros. Skipped
 runs return `{ skipped: true, reason }` (`no_active_games`, `no_current_week`,
 `week_not_synced`, `season_not_synced`).
+
+A bare (no-arg) sync-schedule run additionally carries the offseason self-heal outcome:
+`upcoming` (`"real"` | `"provisional"` | `"skipped_not_concluded"` | `"skipped_no_weeks"`)
+and `upcomingSeasonYear`. `skipped_not_concluded` is the normal in-season/most-of-the-year
+result; `provisional`/`real` only appear once the default season has concluded.

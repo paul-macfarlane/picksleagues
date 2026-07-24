@@ -59,9 +59,6 @@ export function LeagueSwitcher() {
             <DropdownMenuItem onClick={() => navigate({ to: "/leagues/new" })}>
               Create league
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ to: "/discovery" })}>
-              Browse public leagues
-            </DropdownMenuItem>
           </DropdownMenuGroup>
         ) : (
           <>

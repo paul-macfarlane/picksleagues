@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   index,
   integer,
@@ -6,8 +7,10 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 import { users } from "./auth";
 
@@ -29,10 +32,58 @@ export const sportSeasons = pgTable(
     sport: text("sport").$type<Sport>().notNull(),
     // Year the season starts (e.g. 2025 = the season starting fall 2025).
     year: integer("year").notNull(),
+    // True for a season row the schedule sync fabricated ahead of real
+    // ingestion (ADR-0009 "upcoming seasons exist before their data") —
+    // estimated dates/weeks pending the provider publishing the real
+    // structure. Cleared in place (never re-forked) the day real ingestion
+    // lands; never set on a season with any games.
+    provisional: boolean("provisional").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [unique("sport_seasons_sport_year_unique").on(table.sport, table.year)],
+);
+
+/**
+ * Reference data (arch D15/ADR-0010): teams are upserted by the schedule sync
+ * the same way seasons are — never forked per game row. Two-key design:
+ * `providerTeamId` is the real identity once a team has synced, but rows can
+ * exist before that (backfill from the old text columns) — `abbreviation` is
+ * the pre-provider-id bootstrap key those rows are matched on (NFL
+ * abbreviations are stable), and that bootstrap uniqueness is scoped to rows
+ * WITHOUT a provider id (partial index below). Once a row is provider-linked,
+ * provider identity is the only key: ESPN ships placeholder "TBD" teams for
+ * undetermined playoff matchups as distinct provider ids sharing the same
+ * abbreviation, so a full (sport, abbreviation) unique across all rows would
+ * reject legitimate provider data. `providerTeamId` is declared unique per
+ * sport; Postgres treats NULLs as distinct, so that nullable unique index
+ * never blocks multiple not-yet-synced rows. `location`/`logo*Url` are filled
+ * in by the same schedule sync from ESPN's separate teams-listing endpoint
+ * (a provider team not yet in that listing — e.g. a TBD playoff placeholder —
+ * simply keeps these null until it resolves to a real team).
+ */
+export const teams = pgTable(
+  "teams",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sport: text("sport").$type<Sport>().notNull(),
+    providerTeamId: text("provider_team_id"),
+    abbreviation: text("abbreviation").notNull(),
+    name: text("name").notNull(),
+    // City/market (ESPN's `location`) — nullable: bootstrap/TBD rows have no
+    // provider metadata until the teams-listing enrichment step links them.
+    location: text("location"),
+    logoLightUrl: text("logo_light_url"),
+    logoDarkUrl: text("logo_dark_url"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("teams_sport_provider_team_id_unique").on(table.sport, table.providerTeamId),
+    uniqueIndex("teams_sport_abbreviation_bootstrap_unique")
+      .on(table.sport, table.abbreviation)
+      .where(sql`${table.providerTeamId} is null`),
+  ],
 );
 
 export const weeks = pgTable(
@@ -70,10 +121,14 @@ export const games = pgTable(
       .references(() => weeks.id, { onDelete: "cascade" }),
     // ESPN event id — globally unique at the provider.
     providerGameId: text("provider_game_id").notNull().unique(),
-    homeTeamAbbr: text("home_team_abbr").notNull(),
-    homeTeamName: text("home_team_name").notNull(),
-    awayTeamAbbr: text("away_team_abbr").notNull(),
-    awayTeamName: text("away_team_name").notNull(),
+    // RESTRICT (arch ADR-0010): a team can't be deleted out from under a game
+    // row; teams are reference data with no deletion path in the app anyway.
+    homeTeamId: uuid("home_team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "restrict" }),
+    awayTeamId: uuid("away_team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "restrict" }),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
     status: text("status").$type<GameStatus>().notNull(),
     // Null until the game is in progress or final.

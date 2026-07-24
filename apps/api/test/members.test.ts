@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers, leagues, leagueSettings, users } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import { LEAGUE_STATUS, MEMBER_ROLE, type LeagueResponse } from "@picksleagues/schemas";
 import { updateMemberRole } from "../src/services/members";
@@ -197,7 +197,7 @@ describe("DELETE /api/leagues/:leagueId", () => {
     expect(res.status).toBe(204);
     expect(await db.select().from(leagues).where(eq(leagues.id, league.id))).toHaveLength(0);
     expect(
-      await db.select().from(leagueSettings).where(eq(leagueSettings.leagueId, league.id)),
+      await db.select().from(leagueSeasons).where(eq(leagueSeasons.leagueId, league.id)),
     ).toHaveLength(0);
     expect(
       await db.select().from(leagueMembers).where(eq(leagueMembers.leagueId, league.id)),
@@ -421,10 +421,11 @@ describe("DELETE /api/me — last-commissioner guard (LG-6 closes the ID-3 TODO)
 
   it("deletes the last commissioner of a CONCLUDED league (guard is active-only)", async () => {
     const { commish, league } = await seedLeague();
+    // Status is per-instance now (ADR-0009) — conclude the current instance.
     await db
-      .update(leagues)
+      .update(leagueSeasons)
       .set({ status: LEAGUE_STATUS.CONCLUDED })
-      .where(eq(leagues.id, league.id));
+      .where(eq(leagueSeasons.leagueId, league.id));
     expect((await deleteMe(commish.cookie)).status).toBe(204);
   });
 

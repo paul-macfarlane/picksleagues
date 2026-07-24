@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueInvites, leagueMembers, leagues, users } from "@picksleagues/db";
+import { leagueInvites, leagueMembers, leagueSeasons, users } from "@picksleagues/db";
 import {
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
@@ -227,9 +227,9 @@ describe("invite management", () => {
   });
 
   it("404s revoking a code that belongs to a different league", async () => {
-    const { commissioner, league } = await seedLeagueWithCommissioner();
+    const { seasonId, commissioner, league } = await seedLeagueWithCommissioner();
     const otherLeague = await insertLeague(db, {
-      seasonId: league.seasonId,
+      seasonId,
       name: "Other",
       members: [{ userId: commissioner.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -434,10 +434,11 @@ describe("POST /api/join/:code", () => {
   it("409s a concluded league", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();
     const code = await createCode(commissioner.cookie, league.id);
+    // Status is per-instance now (ADR-0009) — conclude the current instance.
     await db
-      .update(leagues)
+      .update(leagueSeasons)
       .set({ status: LEAGUE_STATUS.CONCLUDED })
-      .where(eq(leagues.id, league.id));
+      .where(eq(leagueSeasons.leagueId, league.id));
     const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
 
     const res = await postJoin(joiner.cookie, code);

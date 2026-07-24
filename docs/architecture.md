@@ -229,14 +229,17 @@ Settlement is **recompute-friendly** (see D10). Vercel function limits are a non
 
 ```
 users                       # Better Auth + username (citext unique), display_name
-leagues                     # mode discriminator, visibility, name, status, season FK (ADR-0008)
-league_settings             # 1:1 with leagues; JSONB validated by per-mode Zod schema
+leagues                     # identity only: mode discriminator, visibility, name, max_members (ADR-0009)
+league_seasons              # per-season instance: league FK + season FK (unique pair), settings JSONB
+                            #   (per-mode Zod schema), status; a league's newest instance is current
 league_members              # role (commissioner/member), joined_at; ≥1 commissioner per league (ADR-0004)
 league_invites              # invite code, created_by, expires_at?, max_uses?, revoked_at?
 
-sport_seasons               # NFL 2026, NCAAMB 2027, ...
+sport_seasons               # NFL 2026, NCAAMB 2027, ...; upcoming season exists (possibly
+                            #   provisional, never with fabricated games) before its data (ADR-0009)
+teams                       # normalized reference data: sport, provider id, name, abbr (ADR-0010)
 weeks                       # week type (regular/postseason) + number, label, start/end, season FK
-games                       # provider id, week FK, home/away, kickoff_at, status,
+games                       # provider id, week FK, home/away team FKs, kickoff_at, status,
                             #   final scores + override_* parallels, overridden_by/at
 odds_snapshots              # game FK, spread, captured_at
 
@@ -247,7 +250,8 @@ brackets                    # league_member FK, label, champ_score_prediction
 bracket_picks               # bracket FK, slot id (1–63), picked team
 
 pick_results                # pick FK (per mode), outcome, points, differential
-standings                   # materialized: league FK, member FK, week?, points, rank
+standings                   # materialized: league_season FK, member FK, week?, points, rank
+                            #   (picks/results/standings key off league_seasons, ADR-0009)
 
 app_state                   # singleton rows: simulated clock offset (non-prod), flags
 sim_fixtures                # non-prod: scenario-loaded game results/spreads for SimulatedProvider

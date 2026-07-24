@@ -6,6 +6,7 @@ import {
   type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
+  type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
@@ -50,6 +51,10 @@ class FakeProvider implements GameDataProvider {
     this.fetchCalls.push([seasonYear, weekType, weekNumber]);
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
   }
+
+  async fetchNflTeams(): Promise<ProviderTeam[]> {
+    return [];
+  }
 }
 
 function providerWeek(
@@ -69,8 +74,10 @@ function providerGame(
     weekType: WEEK_TYPE.REGULAR,
     homeTeamAbbr: "HOM",
     homeTeamName: "Home Team",
+    homeTeamProviderId: "hom-id",
     awayTeamAbbr: "AWY",
     awayTeamName: "Away Team",
+    awayTeamProviderId: "awy-id",
     kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
     status: GAME_STATUS.SCHEDULED,
     homeScore: null,

@@ -38,13 +38,6 @@ export const leagues = pgTable(
     name: text("name").notNull(),
     mode: text("mode").$type<LeagueMode>().notNull(),
     visibility: text("visibility").$type<LeagueVisibility>().notNull(),
-    status: text("status").$type<LeagueStatus>().notNull(),
-    // Season anchor for the clock-derived join cutoff and pre/post-start
-    // windows ("first week started / Round of 64 tipped" needs to know which
-    // season's games). Restrict: a season with leagues can't be swept away.
-    seasonId: uuid("season_id")
-      .notNull()
-      .references(() => sportSeasons.id, { onDelete: "restrict" }),
     // Commissioner-configurable cap, never above the global MAX_LEAGUE_SIZE
     // ceiling (packages/schemas) — the join transaction reads this column
     // instead of the global constant so a league can shrink its own room.
@@ -53,9 +46,9 @@ export const leagues = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    // Serves discovery: public + active leagues, pre-cutoff filtering and
-    // name search happen on that narrowed set.
-    index("leagues_visibility_status_idx").on(table.visibility, table.status),
+    // Serves discovery's visibility filter; the active-status and pre-cutoff
+    // narrowing joins `league_seasons` (status is now per-season, ADR-0009).
+    index("leagues_visibility_idx").on(table.visibility),
     // 2 and 100 are intentionally duplicated from MAX_LEAGUE_SIZE
     // (packages/schemas) — SQL DDL can't import a TS constant. If that
     // constant changes, this literal must move with it via a new migration.
@@ -63,17 +56,43 @@ export const leagues = pgTable(
   ],
 );
 
-export const leagueSettings = pgTable("league_settings", {
-  // 1:1 with leagues — the league id is the row's identity.
-  leagueId: uuid("league_id")
-    .primaryKey()
-    .references(() => leagues.id, { onDelete: "cascade" }),
-  // Shape per `leagues.mode`, validated by that mode's Zod schema
-  // (LEAGUE_SETTINGS_SCHEMAS) on every write — the DB stores, the schema gates.
-  settings: jsonb("settings").$type<LeagueSettings>().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-});
+/**
+ * Per-season instance of a league (ADR-0009): a league keeps identity only, and
+ * everything that is per-year — the settings JSONB (absorbing the old
+ * `league_settings` table), the status, and the clock-derived start boundary's
+ * season anchor — lives here. A league's *current* season is its instance with
+ * the greatest `sport_seasons.year` (derived at read time, no pointer column).
+ * Renewal (SF-3) mints the next instance with settings copied. Existing leagues
+ * backfilled to exactly one instance.
+ */
+export const leagueSeasons = pgTable(
+  "league_seasons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    // Season anchor for the clock-derived join cutoff and pre/post-start
+    // windows ("first week started / Round of 64 tipped" needs to know which
+    // season's games). Restrict: a season with leagues can't be swept away.
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => sportSeasons.id, { onDelete: "restrict" }),
+    // Shape per the league's mode, validated by that mode's Zod schema
+    // (LEAGUE_SETTINGS_SCHEMAS) on every write — the DB stores, the schema gates.
+    settings: jsonb("settings").$type<LeagueSettings>().notNull(),
+    status: text("status").$type<LeagueStatus>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // One instance per league per season (ADR-0009) — the DB encodes it so
+    // renewal can't double-mint the same season.
+    unique("league_seasons_league_season_unique").on(table.leagueId, table.seasonId),
+    // Serves the current-instance lookup (join a league to its seasons).
+    index("league_seasons_league_id_idx").on(table.leagueId),
+  ],
+);
 
 export const leagueMembers = pgTable(
   "league_members",

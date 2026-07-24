@@ -43,6 +43,48 @@
       "when": 1784780460823,
       "tag": "0005_pink_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784852541268,
+      "tag": "0006_new_cerise",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784853838513,
+      "tag": "0007_goofy_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784853898014,
+      "tag": "0008_real_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784854842523,
+      "tag": "0009_vengeful_carnage",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784855860366,
+      "tag": "0010_partial-unique-abbreviation-teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784862937010,
+      "tag": "0011_dazzling_strong_guy",
+      "breakpoints": true
     }
   ]
 }
