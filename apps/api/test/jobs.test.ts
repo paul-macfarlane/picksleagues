@@ -1,26 +1,12 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { describe, expect, it } from "vitest";
-import { type Env } from "@picksleagues/core";
 import { JobRunResponseSchema, type JobRunResponse } from "@picksleagues/schemas";
 import { runJob } from "../src/lib/job-runner";
 import { jobSecretMiddleware } from "../src/middleware/job-secret";
 import { createApp } from "../src/app";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
+import { makeTestEnv } from "./setup/test-env";
 
-// Matches packages/core's Env shape without going through loadEnv (which
-// caches process-wide) — mirrors test/me.test.ts's testEnv.
-const testEnv: Env = {
-  APP_ENV: "local",
-  DATABASE_URL: getTestDatabaseUrl(),
-  BETTER_AUTH_SECRET: "a".repeat(32),
-  BETTER_AUTH_URL: "http://localhost:3000",
-  GOOGLE_CLIENT_ID: "google-id",
-  GOOGLE_CLIENT_SECRET: "google-secret",
-  DISCORD_CLIENT_ID: "discord-id",
-  DISCORD_CLIENT_SECRET: "discord-secret",
-  JOB_SECRET: "b".repeat(32),
-  ADMIN_USER_IDS: [],
-};
+const testEnv = makeTestEnv();
 
 /**
  * No concrete `/api/jobs/*` route exists yet (DATA-4/5/6 add the first

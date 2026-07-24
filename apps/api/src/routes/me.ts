@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import {
+  ERROR_CODE,
   ErrorResponseSchema,
   MeResponseSchema,
   UpdateMeRequestSchema,
@@ -8,7 +9,9 @@ import {
 import type { users } from "@picksleagues/db";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
-import { sessionMiddleware, type SessionVariables } from "../middleware/session";
+import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
+import { errorResponse, MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/route-responses";
+import type { SessionVariables } from "../middleware/session";
 import { deleteAccount, getUser, updateProfile } from "../services/users";
 
 function serializeMe(user: typeof users.$inferSelect): MeResponse {
@@ -31,15 +34,8 @@ const getMe = createRoute({
       description: "The caller's profile",
       content: { "application/json": { schema: MeResponseSchema } },
     },
-    401: {
-      description: "No valid session",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    500: {
-      description:
-        "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    401: UNAUTHENTICATED_401,
+    500: MISCONFIGURED_500,
   },
 });
 
@@ -58,23 +54,10 @@ const updateMe = createRoute({
       description: "Profile updated",
       content: { "application/json": { schema: MeResponseSchema } },
     },
-    400: {
-      description: "No fields supplied, or a supplied field fails its format rule",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    401: {
-      description: "No valid session",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    409: {
-      description: "Username already taken by another user",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    500: {
-      description:
-        "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    400: errorResponse("No fields supplied, or a supplied field fails its format rule"),
+    401: UNAUTHENTICATED_401,
+    409: errorResponse("Username already taken by another user"),
+    500: MISCONFIGURED_500,
   },
 });
 
@@ -87,50 +70,35 @@ const deleteMe = createRoute({
     204: {
       description: "Account deleted — profile anonymized, OAuth identities and sessions removed",
     },
-    401: {
-      description: "No valid session",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
-    500: {
-      description:
-        "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-      content: { "application/json": { schema: ErrorResponseSchema } },
-    },
+    401: UNAUTHENTICATED_401,
+    409: errorResponse(
+      "Blocked: the caller is the last commissioner of a non-empty active league (ADR-0004) — promote a replacement first",
+    ),
+    500: MISCONFIGURED_500,
   },
 });
 
 export function meRoutes(deps: AppDeps) {
-  const app = new OpenAPIHono<{ Variables: SessionVariables }>({ defaultHook: zodValidationHook });
-
-  app.use("/me", async (c, next) => {
-    if (!deps.auth) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: "misconfigured", message: "Auth is not configured." }),
-        500,
-      );
-    }
-    return sessionMiddleware(deps.auth)(c, next);
+  const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
+    defaultHook: zodValidationHook,
   });
 
-  app.openapi(getMe, async (c) => {
-    if (!deps.db) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database is not configured.",
-        }),
-        500,
-      );
-    }
+  app.use("/me", requireSession(deps));
+  // GET /me only needs db, but the middleware resolves clock too when
+  // configured — cheap, and keeps one guard for the whole sub-app instead of
+  // per-handler variants.
+  app.use("/me", requireDbAndClock(deps));
 
+  app.openapi(getMe, async (c) => {
+    const db = c.get("db");
     const sessionUser = c.get("sessionUser");
-    const user = await getUser(deps.db, sessionUser.id);
+    const user = await getUser(db, sessionUser.id);
     if (!user) {
       // Session cookie is still valid but the user row is gone (e.g. deleted
       // mid-session) — treat it as unauthenticated rather than 404ing /me.
       return c.json(
         ErrorResponseSchema.parse({
-          error: "unauthenticated",
+          error: ERROR_CODE.UNAUTHENTICATED,
           message: "Sign in to continue.",
         }),
         401,
@@ -141,25 +109,16 @@ export function meRoutes(deps: AppDeps) {
   });
 
   app.openapi(updateMe, async (c) => {
-    if (!deps.db || !deps.clock) {
-      return c.json(
-        ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
-        }),
-        500,
-      );
-    }
-
+    const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
     const { username, displayName } = c.req.valid("json");
 
-    const result = await updateProfile(deps.db, clock, sessionUser.id, { username, displayName });
+    const result = await updateProfile(db, clock, sessionUser.id, { username, displayName });
     if (!result.ok) {
       return c.json(
         ErrorResponseSchema.parse({
-          error: "username_taken",
+          error: ERROR_CODE.USERNAME_TAKEN,
           message: "That username is already taken.",
         }),
         409,
@@ -170,20 +129,21 @@ export function meRoutes(deps: AppDeps) {
   });
 
   app.openapi(deleteMe, async (c) => {
-    if (!deps.db || !deps.clock) {
+    const db = c.get("db");
+    const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
+
+    const result = await deleteAccount(db, clock, sessionUser.id);
+    if (!result.ok) {
       return c.json(
         ErrorResponseSchema.parse({
-          error: "misconfigured",
-          message: "Database/clock are not configured.",
+          error: ERROR_CODE.LAST_COMMISSIONER,
+          message:
+            "You're the last commissioner of a league with other members — promote a replacement first.",
         }),
-        500,
+        409,
       );
     }
-
-    const sessionUser = c.get("sessionUser");
-    const clock = await deps.clock();
-
-    await deleteAccount(deps.db, clock, sessionUser.id);
 
     return c.body(null, 204);
   });

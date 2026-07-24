@@ -1,10 +1,8 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
-import { toast } from "sonner";
 import { UsernameSchema } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useUpdateMe } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
 import { FormTextField } from "@/components/form-field";
@@ -40,28 +38,16 @@ function ClaimUsername() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const claim = useMutation({
-    mutationFn: async (value: string) => {
-      const { data, error, response } = await api.PATCH("/api/me", { body: { username: value } });
-      if (error) {
-        // Taken is field-level feedback, not a toast — surface inline and stop.
-        if (response.status === 409) {
-          form.setErrorMap({
-            onSubmit: { fields: { username: "That username is already taken." } },
-          });
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: (data) => {
-      if (!data) return;
+  const claim = useUpdateMe({
+    // Taken is field-level feedback, not a toast — surface inline and stop.
+    onUsernameTaken: () =>
+      form.setErrorMap({
+        onSubmit: { fields: { username: "That username is already taken." } },
+      }),
+    onSuccess: () => {
       navigate({ to: safeInternalPath(search.redirect) });
     },
-    onError: () => {
-      toast.error("Couldn't claim that username — please try again.");
-    },
+    errorToastMessage: "Couldn't claim that username — please try again.",
   });
 
   const form = useForm({
@@ -71,7 +57,7 @@ function ClaimUsername() {
       // parse again to send the trimmed+lowercased canonical value the API expects.
       // Fire-and-forget `mutate`: form-core re-throws an awaited rejection out of
       // handleSubmit as an unhandled rejection; the mutation's onError owns failures.
-      claim.mutate(UsernameSchema.parse(value.username));
+      claim.mutate({ username: UsernameSchema.parse(value.username) });
     },
   });
 

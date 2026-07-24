@@ -1,9 +1,22 @@
-import { eq } from "drizzle-orm";
-import { DatabaseError } from "pg";
+import { and, count, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { accounts, sessions, users } from "@picksleagues/db";
+import {
+  accounts,
+  isUniqueViolation,
+  leagueMembers,
+  leagues,
+  sessions,
+  users,
+} from "@picksleagues/db";
+import { lockUserRow } from "./leagues";
 import type { Clock } from "@picksleagues/core";
-import { DELETED_USER_DISPLAY_NAME, type DisplayName, type Username } from "@picksleagues/schemas";
+import {
+  DELETED_USER_DISPLAY_NAME,
+  LEAGUE_STATUS,
+  MEMBER_ROLE,
+  type DisplayName,
+  type Username,
+} from "@picksleagues/schemas";
 
 export type UpdateProfileResult =
   { ok: true; user: typeof users.$inferSelect } | { ok: false; reason: "username_taken" };
@@ -44,14 +57,7 @@ export async function updateProfile(
     }
     return { ok: true, user };
   } catch (error) {
-    // drizzle-orm wraps the driver error in a DrizzleQueryError; the pg
-    // DatabaseError we care about is its `.cause`.
-    const cause = error instanceof Error ? error.cause : undefined;
-    if (
-      cause instanceof DatabaseError &&
-      cause.code === "23505" &&
-      cause.constraint === USERNAME_UNIQUE_CONSTRAINT
-    ) {
+    if (isUniqueViolation(error, USERNAME_UNIQUE_CONSTRAINT)) {
       return { ok: false, reason: "username_taken" };
     }
     throw error;
@@ -79,14 +85,35 @@ export async function getUser(db: Db, userId: string) {
  * social-only OAuth (our only sign-in method) never mints rows there. If
  * email/OTP flows are ever added, revisit — its `identifier` can hold an email.
  *
- * TODO(LG-6, ADR-0004): once leagues exist, this transaction must first
- * check the same ≥1-commissioner invariant as leaving a league — block
- * deletion while the caller is the last commissioner of any non-empty active
- * league until they promote a replacement. No league tables exist yet, so
- * that guard is vacuously satisfied today.
+ * Deletion is blocked (ADR-0004, same invariant as leaving a league, LG-6)
+ * while the caller is the last commissioner of any non-empty active league —
+ * they must promote a replacement first. Membership rows themselves survive
+ * deletion (the anonymized user remains a member everywhere), so this is the
+ * only league-side check deletion needs.
  */
-export async function deleteAccount(db: Db, clock: Clock, userId: string): Promise<void> {
-  await db.transaction(async (tx) => {
+export async function deleteAccount(
+  db: Db,
+  clock: Clock,
+  userId: string,
+): Promise<DeleteAccountResult> {
+  return db.transaction(async (tx) => {
+    // Serializes the invariant check against concurrent role mutations: lock
+    // the user row (create/promote take it for cap counts) and every league
+    // the user commissions (demote/kick/leave take the league row lock) —
+    // without these, a concurrent demote could invalidate the guard's
+    // snapshot between check and commit.
+    await lockUserRow(tx, userId);
+    await tx.execute(sql`
+      select l.id from ${leagues} l
+      join ${leagueMembers} m on m.league_id = l.id
+      where m.user_id = ${userId} and m.role = ${MEMBER_ROLE.COMMISSIONER}
+      for update of l
+    `);
+
+    if (await isLastCommissionerOfNonEmptyActiveLeague(tx, userId)) {
+      return { ok: false as const, reason: "last_commissioner" as const };
+    }
+
     await tx
       .update(users)
       .set({
@@ -100,5 +127,43 @@ export async function deleteAccount(db: Db, clock: Clock, userId: string): Promi
       .where(eq(users.id, userId));
     await tx.delete(accounts).where(eq(accounts.userId, userId));
     await tx.delete(sessions).where(eq(sessions.userId, userId));
+    return { ok: true as const };
   });
+}
+
+export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_commissioner" };
+
+/**
+ * True when any active league would be left commissioner-less but not
+ * member-less by this user's departure — the ADR-0004 invariant, evaluated
+ * inside the deletion transaction.
+ */
+async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string): Promise<boolean> {
+  const commissionerCount = db
+    .select({ value: count() })
+    .from(leagueMembers)
+    .where(
+      and(eq(leagueMembers.leagueId, leagues.id), eq(leagueMembers.role, MEMBER_ROLE.COMMISSIONER)),
+    );
+  const memberCount = db
+    .select({ value: count() })
+    .from(leagueMembers)
+    .where(eq(leagueMembers.leagueId, leagues.id));
+
+  const rows = await db
+    .select({ id: leagues.id })
+    .from(leagues)
+    .innerJoin(
+      leagueMembers,
+      and(
+        eq(leagueMembers.leagueId, leagues.id),
+        eq(leagueMembers.userId, userId),
+        eq(leagueMembers.role, MEMBER_ROLE.COMMISSIONER),
+      ),
+    )
+    .where(
+      and(eq(leagues.status, LEAGUE_STATUS.ACTIVE), eq(commissionerCount, 1), gt(memberCount, 1)),
+    )
+    .limit(1);
+  return rows.length > 0;
 }

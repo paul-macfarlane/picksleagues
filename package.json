@@ -7,6 +7,7 @@
   },
   "packageManager": "pnpm@11.1.2",
   "scripts": {
+    "predev": "./scripts/kill-stale-dev.sh",
     "dev": "pnpm --parallel --filter @picksleagues/web --filter @picksleagues/api dev",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
@@ -19,6 +20,7 @@
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @picksleagues/db generate",
     "db:migrate": "pnpm --filter @picksleagues/db migrate",
+    "db:studio": "pnpm --filter @picksleagues/db studio",
     "contract:generate": "pnpm --filter @picksleagues/api generate:openapi",
     "contract:check": "pnpm contract:generate && test -z \"$(git status --porcelain -- openapi)\" || (git status --porcelain -- openapi && echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)",
     "prepare": "husky"

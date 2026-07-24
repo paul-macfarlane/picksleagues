@@ -229,7 +229,7 @@ Settlement is **recompute-friendly** (see D10). Vercel function limits are a non
 
 ```
 users                       # Better Auth + username (citext unique), display_name
-leagues                     # mode discriminator, visibility, name, status
+leagues                     # mode discriminator, visibility, name, status, season FK (ADR-0008)
 league_settings             # 1:1 with leagues; JSONB validated by per-mode Zod schema
 league_members              # role (commissioner/member), joined_at; ≥1 commissioner per league (ADR-0004)
 league_invites              # invite code, created_by, expires_at?, max_uses?, revoked_at?
@@ -310,15 +310,20 @@ The settlement job orchestrates: load inputs → call pure functions → persist
 
 ```
 POST   /leagues                          create (mode + settings; enforces commissioner cap)
-GET    /leagues/:id                      league + settings + members
-PATCH  /leagues/:id                      cosmetics anytime; settings pre-start
+GET    /leagues                          my leagues (dashboard)
+GET    /leagues/:id                      league + settings + members (members only)
+PATCH  /leagues/:id                      name anytime; visibility + settings pre-start
 DELETE /leagues/:id                      pre-start only
 PATCH  /leagues/:id/members/:memberId    promote/demote commissioner (ADR-0004)
+DELETE /leagues/:id/members/:memberId    kick (pre-start only; commissioner)
 DELETE /leagues/:id/members/me           leave league (pre-start only, ADR-0004)
 POST   /leagues/:id/invites              generate invite code (commissioner)
+GET    /leagues/:id/invites              list invites + derived status (commissioner)
 DELETE /leagues/:id/invites/:code        revoke
+GET    /join/:code                       join preview (league card + exact refusal reason)
 POST   /join/:code                       join via invite link
-GET    /discovery                        public leagues, ?q= name search
+POST   /leagues/:id/join                 join a public league directly (discovery path)
+GET    /discovery                        public pre-cutoff leagues, ?q= name search
 GET    /leagues/:id/standings            ?week= for weekly view
 GET    /weeks/:id/games                  slate + latest spreads
 PUT    /leagues/:id/picks/week/:week     batch upsert pick'em picks (validates spreads)

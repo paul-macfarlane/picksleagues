@@ -1,10 +1,10 @@
 import { useEffect } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { DisplayNameSchema, UsernameSchema, type MeResponse } from "@picksleagues/schemas";
-import { api } from "@/lib/api";
+import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { initialsOf } from "@/lib/user";
 import { FormTextField } from "@/components/form-field";
@@ -25,8 +25,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const ME_QUERY_KEY = ["me"];
-
 export const Route = createFileRoute("/_authed/profile")({
   component: Profile,
 });
@@ -37,14 +35,7 @@ function Profile() {
   // /api/me, so invalidating the "me" query alone wouldn't touch it.
   const { refetch: refetchSession } = authClient.useSession();
 
-  const me = useQuery({
-    queryKey: ME_QUERY_KEY,
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/me");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const me = useMe();
 
   useEffect(() => {
     if (me.isError) {
@@ -54,7 +45,7 @@ function Profile() {
 
   if (me.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Loading profile…</p>
       </main>
     );
@@ -62,7 +53,7 @@ function Profile() {
 
   if (me.isError || !me.data) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your profile.</p>
         <Button variant="outline" onClick={() => me.refetch()}>
           Retry
@@ -92,30 +83,18 @@ function ProfileForm({
 }) {
   const queryClient = useQueryClient();
 
-  const update = useMutation({
-    mutationFn: async (body: { username?: string; displayName?: string }) => {
-      const { data, error, response } = await api.PATCH("/api/me", { body });
-      if (error) {
-        // Taken is field-level feedback, not a toast — mirrors claim-username.
-        if (response.status === 409) {
-          form.setErrorMap({
-            onSubmit: { fields: { username: "That username is already taken." } },
-          });
-          return null;
-        }
-        throw error;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data) return;
+  const update = useUpdateMe({
+    // Taken is field-level feedback, not a toast — mirrors claim-username.
+    onUsernameTaken: () =>
+      form.setErrorMap({
+        onSubmit: { fields: { username: "That username is already taken." } },
+      }),
+    onSuccess: async () => {
       toast.success("Profile updated");
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       await refetchSession();
     },
-    onError: () => {
-      toast.error("Couldn't update your profile — please try again.");
-    },
+    errorToastMessage: "Couldn't update your profile — please try again.",
   });
 
   const form = useForm({
@@ -237,27 +216,7 @@ function ProfileForm({
 }
 
 function DangerZone() {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-
-  const deleteAccount = useMutation({
-    mutationFn: async () => {
-      // 204 has no body — success is "no error", not a `data` payload.
-      const { error } = await api.DELETE("/api/me");
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      // The account and every session are already gone server-side, so there's
-      // nothing left for authClient.signOut() to revoke; clearing the query
-      // cache drops every stale fetch, and /sign-in's beforeLoad re-checks
-      // getSession() itself, which will find no session to bounce back from.
-      queryClient.clear();
-      navigate({ to: "/sign-in" });
-    },
-    onError: () => {
-      toast.error("Couldn't delete your account — please try again.");
-    },
-  });
+  const deleteAccount = useDeleteAccount();
 
   return (
     <Card className="w-full max-w-sm ring-destructive/30">

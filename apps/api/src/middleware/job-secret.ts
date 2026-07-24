@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
-import { ErrorResponseSchema } from "@picksleagues/schemas";
+import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 
 /**
  * `timingSafeEqual` throws on unequal-length buffers rather than returning
@@ -26,7 +26,7 @@ export function jobSecretMiddleware(jobSecret: string): MiddlewareHandler {
     if (!provided || !constantTimeEquals(provided, jobSecret)) {
       return c.json(
         ErrorResponseSchema.parse({
-          error: "unauthorized",
+          error: ERROR_CODE.UNAUTHORIZED,
           message: "Missing or invalid job secret.",
         }),
         401,

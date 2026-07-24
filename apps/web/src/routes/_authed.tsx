@@ -1,8 +1,15 @@
-import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { MenuIcon } from "lucide-react";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
+import { useMyLeagues } from "@/api/leagues";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LeagueSwitcher } from "@/components/league-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +19,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+
+const navLinkClassName = "outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+const navLinkInactiveProps = { className: "text-muted-foreground" };
+const navLinkActiveProps = {
+  className: "text-foreground font-medium",
+  "aria-current": "page" as const,
+};
+const drawerLinkClassName = cn(
+  navLinkClassName,
+  "rounded-md px-2 py-1.5 hover:bg-muted hover:text-foreground",
+);
 
 // Pathless layout gating every signed-in route (mvp-spec has no anonymous browsing):
 // beforeLoad re-checks the session on every navigation into this subtree.
@@ -37,12 +56,133 @@ export const Route = createFileRoute("/_authed")({
 function AuthedLayout() {
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <span className="text-sm font-semibold text-foreground">Picks Leagues</span>
-        <SessionMenu />
+      <header className="border-b border-border">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-4">
+            <Link
+              to="/"
+              className="text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              Picks Leagues
+            </Link>
+            {/* sm and up: full inline nav + league switcher. Below sm, this
+                collapses into the hamburger drawer (MobileNav) so nothing
+                overflows at phone width. */}
+            <nav aria-label="Primary" className="hidden items-center gap-3 text-sm sm:flex">
+              <Link
+                to="/"
+                className={navLinkClassName}
+                inactiveProps={navLinkInactiveProps}
+                activeProps={navLinkActiveProps}
+                activeOptions={{ exact: true }}
+              >
+                Home
+              </Link>
+              <Link
+                to="/discovery"
+                className={navLinkClassName}
+                inactiveProps={navLinkInactiveProps}
+                activeProps={navLinkActiveProps}
+              >
+                Discover
+              </Link>
+              <LeagueSwitcher />
+            </nav>
+          </div>
+          <div className="flex items-center gap-2">
+            <MobileNav />
+            <ThemeToggle />
+            <SessionMenu />
+          </div>
+        </div>
       </header>
-      <Outlet />
+      {/* Every authed page inherits this one column — pages never set their own
+          page width, only intentionally-narrow content (single-card states,
+          forms) centered inside it. */}
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+        <Outlet />
+      </div>
     </div>
+  );
+}
+
+function MobileNav() {
+  const [open, setOpen] = useState(false);
+  const myLeagues = useMyLeagues();
+  const leagues = myLeagues.data?.leagues ?? [];
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger
+        render={
+          <Button variant="ghost" size="icon" aria-label="Open navigation" className="sm:hidden" />
+        }
+      >
+        <MenuIcon aria-hidden="true" />
+      </SheetTrigger>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Picks Leagues</SheetTitle>
+        </SheetHeader>
+        <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
+          <Link
+            to="/"
+            className={drawerLinkClassName}
+            inactiveProps={navLinkInactiveProps}
+            activeProps={navLinkActiveProps}
+            activeOptions={{ exact: true }}
+            onClick={() => setOpen(false)}
+          >
+            Home
+          </Link>
+          <Link
+            to="/discovery"
+            className={drawerLinkClassName}
+            inactiveProps={navLinkInactiveProps}
+            activeProps={navLinkActiveProps}
+            onClick={() => setOpen(false)}
+          >
+            Discover
+          </Link>
+        </nav>
+        {leagues.length > 0 && (
+          <nav aria-label="My leagues" className="flex flex-col gap-1 text-sm">
+            <span className="px-2 py-1 text-xs font-medium text-muted-foreground">My leagues</span>
+            {leagues.map((league) => (
+              <Link
+                key={league.id}
+                to="/leagues/$leagueId"
+                params={{ leagueId: league.id }}
+                className={cn(drawerLinkClassName, "truncate")}
+                inactiveProps={navLinkInactiveProps}
+                activeProps={{
+                  ...navLinkActiveProps,
+                  className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
+                }}
+                onClick={() => setOpen(false)}
+              >
+                {league.name}
+              </Link>
+            ))}
+          </nav>
+        )}
+        {/* Same row idiom as the league links above — Router CONCATENATES base and
+            active classNames (no tailwind-merge), so a buttonVariants base whose
+            bg-background would outrank the appended bg-accent can't be used here. */}
+        <Link
+          to="/leagues/new"
+          className={drawerLinkClassName}
+          inactiveProps={navLinkInactiveProps}
+          activeProps={{
+            ...navLinkActiveProps,
+            className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
+          }}
+          onClick={() => setOpen(false)}
+        >
+          Create league
+        </Link>
+      </SheetContent>
+    </Sheet>
   );
 }
 

@@ -22,6 +22,27 @@
       "when": 1784693153799,
       "tag": "0002_dizzy_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784739099317,
+      "tag": "0003_concerned_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784777225370,
+      "tag": "0004_brown_iceman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784780460823,
+      "tag": "0005_pink_hammerhead",
+      "breakpoints": true
     }
   ]
 }
