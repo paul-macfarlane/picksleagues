@@ -284,6 +284,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse synced teams for a sport */
+        get: operations["listAdminTeams"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse synced seasons and their weeks for a sport */
+        get: operations["listAdminSeasons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse a week's games with provider, override, and resolved values */
+        get: operations["listAdminGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/games/{gameId}/odds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse a game's most recent odds snapshots */
+        get: operations["listAdminGameOdds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -531,6 +599,93 @@ export interface components {
         };
         /** @enum {string} */
         NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
+        AdminTeamsResponse: {
+            teams: components["schemas"]["AdminTeam"][];
+        };
+        AdminTeam: {
+            id: string;
+            sport: components["schemas"]["Sport"];
+            providerTeamId: string | null;
+            abbreviation: string;
+            name: string;
+            location: string | null;
+            logoLightUrl: string | null;
+            logoDarkUrl: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @enum {string} */
+        Sport: "nfl" | "ncaamb";
+        AdminSeasonsResponse: {
+            seasons: components["schemas"]["AdminSeason"][];
+        };
+        AdminSeason: {
+            id: string;
+            sport: components["schemas"]["Sport"];
+            year: number;
+            provisional: boolean;
+            weeks: components["schemas"]["AdminWeek"][];
+        };
+        AdminWeek: {
+            id: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            label: string;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            gameCount: number;
+        };
+        AdminGamesResponse: {
+            games: components["schemas"]["AdminGame"][];
+        };
+        AdminGame: {
+            id: string;
+            weekId: string;
+            providerGameId: string;
+            homeTeam: components["schemas"]["AdminGameTeam"];
+            awayTeam: components["schemas"]["AdminGameTeam"];
+            /** Format: date-time */
+            kickoffAt: string;
+            status: components["schemas"]["GameStatus"];
+            homeScore: number | null;
+            awayScore: number | null;
+            latestSpread: number | null;
+            /** Format: date-time */
+            latestSpreadCapturedAt: string | null;
+            /** Format: date-time */
+            overrideKickoffAt: string | null;
+            overrideStatus: components["schemas"]["GameStatus"] & (string | null);
+            overrideHomeScore: number | null;
+            overrideAwayScore: number | null;
+            overrideSpread: number | null;
+            overriddenBy: string | null;
+            /** Format: date-time */
+            overriddenAt: string | null;
+            /** Format: date-time */
+            effectiveKickoffAt: string;
+            effectiveStatus: components["schemas"]["GameStatus"];
+            effectiveHomeScore: number | null;
+            effectiveAwayScore: number | null;
+            effectiveSpread: number | null;
+        };
+        AdminGameTeam: {
+            id: string;
+            abbreviation: string;
+            name: string;
+        };
+        /** @enum {string} */
+        GameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | "moved";
+        AdminGameOddsResponse: {
+            snapshots: components["schemas"]["AdminOddsSnapshot"][];
+        };
+        AdminOddsSnapshot: {
+            id: string;
+            spread: number;
+            /** Format: date-time */
+            capturedAt: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1865,6 +2020,247 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    listAdminTeams: {
+        parameters: {
+            query: {
+                sport: components["schemas"]["Sport"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every team row for the sport, ordered by abbreviation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTeamsResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminSeasons: {
+        parameters: {
+            query: {
+                sport: components["schemas"]["Sport"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Seasons newest-first, each with its weeks in chronological order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSeasonsResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminGames: {
+        parameters: {
+            query: {
+                weekId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The week's games ordered by resolved kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGamesResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminGameOdds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The game's most recent spread snapshots, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGameOddsResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

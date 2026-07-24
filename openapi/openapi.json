@@ -974,6 +974,395 @@
           "sync-odds",
           "sync-scores"
         ]
+      },
+      "AdminTeamsResponse": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTeam"
+            }
+          }
+        },
+        "required": [
+          "teams"
+        ]
+      },
+      "AdminTeam": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "providerTeamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "abbreviation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logoLightUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logoDarkUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "sport",
+          "providerTeamId",
+          "abbreviation",
+          "name",
+          "location",
+          "logoLightUrl",
+          "logoDarkUrl",
+          "updatedAt"
+        ]
+      },
+      "Sport": {
+        "type": "string",
+        "enum": [
+          "nfl",
+          "ncaamb"
+        ]
+      },
+      "AdminSeasonsResponse": {
+        "type": "object",
+        "properties": {
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSeason"
+            }
+          }
+        },
+        "required": [
+          "seasons"
+        ]
+      },
+      "AdminSeason": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminWeek"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "sport",
+          "year",
+          "provisional",
+          "weeks"
+        ]
+      },
+      "AdminWeek": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "weekType",
+          "weekNumber",
+          "label",
+          "startsAt",
+          "endsAt",
+          "gameCount"
+        ]
+      },
+      "AdminGamesResponse": {
+        "type": "object",
+        "properties": {
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGame"
+            }
+          }
+        },
+        "required": [
+          "games"
+        ]
+      },
+      "AdminGame": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weekId": {
+            "type": "string"
+          },
+          "providerGameId": {
+            "type": "string"
+          },
+          "homeTeam": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "awayTeam": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "latestSpread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latestSpreadCapturedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "overrideKickoffAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "overrideStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GameStatus"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "overrideHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideSpread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "overriddenBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effectiveKickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveStatus": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "effectiveHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effectiveAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effectiveSpread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "weekId",
+          "providerGameId",
+          "homeTeam",
+          "awayTeam",
+          "kickoffAt",
+          "status",
+          "homeScore",
+          "awayScore",
+          "latestSpread",
+          "latestSpreadCapturedAt",
+          "overrideKickoffAt",
+          "overrideStatus",
+          "overrideHomeScore",
+          "overrideAwayScore",
+          "overrideSpread",
+          "overriddenBy",
+          "overriddenAt",
+          "effectiveKickoffAt",
+          "effectiveStatus",
+          "effectiveHomeScore",
+          "effectiveAwayScore",
+          "effectiveSpread"
+        ]
+      },
+      "AdminGameTeam": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "abbreviation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "abbreviation",
+          "name"
+        ]
+      },
+      "GameStatus": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "in_progress",
+          "final",
+          "postponed",
+          "cancelled",
+          "moved"
+        ]
+      },
+      "AdminGameOddsResponse": {
+        "type": "object",
+        "properties": {
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminOddsSnapshot"
+            }
+          }
+        },
+        "required": [
+          "snapshots"
+        ]
+      },
+      "AdminOddsSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "spread": {
+            "type": "number"
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "spread",
+          "capturedAt"
+        ]
       }
     },
     "parameters": {}
@@ -2580,6 +2969,290 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/teams": {
+      "get": {
+        "operationId": "listAdminTeams",
+        "summary": "Browse synced teams for a sport",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Sport"
+            },
+            "required": true,
+            "name": "sport",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every team row for the sport, ordered by abbreviation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTeamsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but not on the admin allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/seasons": {
+      "get": {
+        "operationId": "listAdminSeasons",
+        "summary": "Browse synced seasons and their weeks for a sport",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Sport"
+            },
+            "required": true,
+            "name": "sport",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seasons newest-first, each with its weeks in chronological order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSeasonsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but not on the admin allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/games": {
+      "get": {
+        "operationId": "listAdminGames",
+        "summary": "Browse a week's games with provider, override, and resolved values",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The week's games ordered by resolved kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but not on the admin allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/games/{gameId}/odds": {
+      "get": {
+        "operationId": "listAdminGameOdds",
+        "summary": "Browse a game's most recent odds snapshots",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The game's most recent spread snapshots, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGameOddsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but not on the admin allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
