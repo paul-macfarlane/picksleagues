@@ -6,18 +6,11 @@ import { LeagueHeader } from "@/components/league/league-header";
 import { useLeague } from "@/api/leagues";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { TabNav, tabLinkProps } from "@/components/tab-nav";
 
 export const Route = createFileRoute("/_authed/leagues/$leagueId")({
   component: LeagueLayout,
 });
-
-const tabLinkClassName =
-  "border-b-2 border-transparent px-1 pb-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
-const activeTabLinkClassName = cn(
-  tabLinkClassName,
-  "border-foreground font-medium text-foreground",
-);
 
 function LeagueLayout() {
   const { leagueId } = Route.useParams();
@@ -74,36 +67,22 @@ function LeagueLayout() {
             isCommissioner={league.data.myRole === MEMBER_ROLE.COMMISSIONER}
           />
 
-          <nav aria-label="League sections" className="flex gap-4 border-b border-border text-sm">
+          <TabNav label="League sections">
             <Link
               to="/leagues/$leagueId"
               params={{ leagueId }}
               activeOptions={{ exact: true }}
-              className={tabLinkClassName}
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: activeTabLinkClassName, "aria-current": "page" }}
+              {...tabLinkProps}
             >
               Overview
             </Link>
-            <Link
-              to="/leagues/$leagueId/members"
-              params={{ leagueId }}
-              className={tabLinkClassName}
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: activeTabLinkClassName, "aria-current": "page" }}
-            >
+            <Link to="/leagues/$leagueId/members" params={{ leagueId }} {...tabLinkProps}>
               Members
             </Link>
-            <Link
-              to="/leagues/$leagueId/settings"
-              params={{ leagueId }}
-              className={tabLinkClassName}
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: activeTabLinkClassName, "aria-current": "page" }}
-            >
+            <Link to="/leagues/$leagueId/settings" params={{ leagueId }} {...tabLinkProps}>
               Settings
             </Link>
-          </nav>
+          </TabNav>
 
           <Outlet />
         </>

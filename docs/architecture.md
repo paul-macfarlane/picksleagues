@@ -337,6 +337,11 @@ GET    /leagues/:id/picks/week/:week     own always; others' filtered by kickoff
 GET/PATCH /me                            username claim/change, display name
 DELETE /me                               account deletion: anonymize in place (guarded by ADR-0004 once leagues exist)
 POST   /jobs/*                           secret-protected job triggers (prod cron)
+POST   /admin/jobs/nfl/:job              manual sync trigger from the admin page (ADR-0011)
+GET    /admin/teams                      ?sport= — read-only reference-data browsers
+GET    /admin/seasons                    ?sport= — seasons + weeks + per-week game counts
+GET    /admin/games                      ?weekId= — provider, override, and resolved values
+GET    /admin/games/:id/odds             recent spread snapshots for one game
 PUT    /admin/games/:id/override         set/clear overrides (admin allowlist; audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
 POST   /sim/*                            simulator (non-prod only, admin allowlist; see Simulator section)

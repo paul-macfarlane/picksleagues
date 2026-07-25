@@ -18,6 +18,7 @@ export const ERROR_CODE = {
   USERNAME_TAKEN: "username_taken",
   LAST_COMMISSIONER: "last_commissioner",
   LEAGUE_NOT_FOUND: "league_not_found",
+  GAME_NOT_FOUND: "game_not_found",
   NOT_COMMISSIONER: "not_commissioner",
   MEMBER_NOT_FOUND: "member_not_found",
   INVITE_NOT_FOUND: "invite_not_found",

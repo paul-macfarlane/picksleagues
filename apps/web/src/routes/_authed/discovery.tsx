@@ -4,6 +4,7 @@ import type { DiscoveryLeague } from "@picksleagues/schemas";
 import { useDiscovery } from "@/api/discovery";
 import { useJoinPublicLeague } from "@/api/members";
 import { leagueModeLabel } from "@/lib/league";
+import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -99,11 +100,7 @@ function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
           </span>
           <span>{league.seasonYear}</span>
         </div>
-        <p>
-          {league.startsAt
-            ? `Starts ${new Date(league.startsAt).toLocaleString()}`
-            : "Start date TBD"}
-        </p>
+        <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
         <Button
           size="lg"
           className="w-full justify-center"
