@@ -31,17 +31,35 @@ function isOverridden(game: AdminGame) {
   );
 }
 
-export function GamesBrowser() {
+/**
+ * Selection lives in the URL (owned by the route), not in state: a specific
+ * week's slate is worth sharing while debugging a sync, and it survives a
+ * refresh. Both params are optional — an absent one derives to the newest
+ * season and its earliest week (seasons arrive newest-first, weeks
+ * chronological), so the browser opens on something useful with no effect-driven
+ * setState cascade.
+ */
+export function GamesBrowser({
+  seasonId,
+  weekId,
+  onSeasonChange,
+  onWeekChange,
+}: {
+  seasonId?: string;
+  weekId?: string;
+  onSeasonChange: (seasonId: string) => void;
+  onWeekChange: (weekId: string) => void;
+}) {
   const seasons = useAdminSeasons(SPORT.NFL);
-  // `undefined` means "no explicit choice yet" — derived below to the newest
-  // season / its earliest week (seasons arrive newest-first, weeks
-  // chronological) so the browser opens on the current week without an
-  // effect-driven setState render cascade.
-  const [seasonId, setSeasonId] = useState<string | undefined>();
-  const [weekId, setWeekId] = useState<string | undefined>();
 
-  const effectiveSeasonId = seasonId ?? seasons.data?.seasons[0]?.id;
-  const selectedSeason = seasons.data?.seasons.find((season) => season.id === effectiveSeasonId);
+  const all = seasons.data?.seasons ?? [];
+  // A week identifies its own season, so an inbound link needs only `weekId`
+  // and `seasonId` is the fallback for "a season is chosen but no week yet"
+  // (which is also how a season with zero weeks stays selected).
+  const selectedSeason =
+    all.find((season) => season.weeks.some((week) => week.id === weekId)) ??
+    all.find((season) => season.id === seasonId) ??
+    all[0];
   const effectiveWeekId = weekId ?? selectedSeason?.weeks[0]?.id;
   const games = useAdminGames(effectiveWeekId);
 
@@ -59,7 +77,7 @@ export function GamesBrowser() {
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
           errorMessage="Couldn't load seasons."
-          isEmpty={seasons.data?.seasons.length === 0}
+          isEmpty={all.length === 0}
           emptyMessage="No seasons synced yet."
         >
           <div className="flex flex-col gap-4">
@@ -67,14 +85,11 @@ export function GamesBrowser() {
               <LabeledSelect
                 id="games-browser-season"
                 label="Season"
-                value={effectiveSeasonId ?? null}
-                onValueChange={(next) => {
-                  setSeasonId(next);
-                  // Reset to the newly selected season's first week rather
-                  // than carrying over a week id from a different season.
-                  setWeekId(undefined);
-                }}
-                options={(seasons.data?.seasons ?? []).map((season) => ({
+                value={selectedSeason?.id ?? null}
+                // Drops the week: carrying one over from a different season
+                // would select a week this season doesn't have.
+                onValueChange={onSeasonChange}
+                options={all.map((season) => ({
                   value: season.id,
                   label: seasonLabel(season),
                 }))}
@@ -83,7 +98,7 @@ export function GamesBrowser() {
                 id="games-browser-week"
                 label="Week"
                 value={effectiveWeekId ?? null}
-                onValueChange={setWeekId}
+                onValueChange={onWeekChange}
                 options={(selectedSeason?.weeks ?? []).map((week) => ({
                   value: week.id,
                   label: week.label,

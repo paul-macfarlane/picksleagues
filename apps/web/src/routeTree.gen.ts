@@ -13,10 +13,14 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
-import { Route as AuthedAdminRouteImport } from './routes/_authed/admin'
+import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
+import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
+import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
+import { Route as AuthedAdminSeasonsRouteImport } from './routes/_authed/admin/seasons'
+import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
 import { Route as AuthedLeaguesLeagueIdRouteRouteImport } from './routes/_authed/leagues/$leagueId/route'
 import { Route as AuthedLeaguesNewRouteImport } from './routes/_authed/leagues/new'
 import { Route as AuthedLeaguesLeagueIdIndexRouteImport } from './routes/_authed/leagues/$leagueId/index'
@@ -42,7 +46,7 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedAdminRoute = AuthedAdminRouteImport.update({
+const AuthedAdminRouteRoute = AuthedAdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => AuthedRoute,
@@ -61,6 +65,26 @@ const JoinCodeRoute = JoinCodeRouteImport.update({
   id: '/join/$code',
   path: '/join/$code',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedAdminIndexRoute = AuthedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
+const AuthedAdminGamesRoute = AuthedAdminGamesRouteImport.update({
+  id: '/games',
+  path: '/games',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
+const AuthedAdminSeasonsRoute = AuthedAdminSeasonsRouteImport.update({
+  id: '/seasons',
+  path: '/seasons',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
+const AuthedAdminTeamsRoute = AuthedAdminTeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
 const AuthedLeaguesLeagueIdRouteRoute =
   AuthedLeaguesLeagueIdRouteRouteImport.update({
@@ -96,12 +120,16 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
-  '/admin': typeof AuthedAdminRoute
+  '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
+  '/admin/games': typeof AuthedAdminGamesRoute
+  '/admin/seasons': typeof AuthedAdminSeasonsRoute
+  '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
+  '/admin/': typeof AuthedAdminIndexRoute
   '/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
   '/leagues/$leagueId/': typeof AuthedLeaguesLeagueIdIndexRoute
@@ -109,12 +137,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
-  '/admin': typeof AuthedAdminRoute
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/': typeof AuthedIndexRoute
+  '/admin/games': typeof AuthedAdminGamesRoute
+  '/admin/seasons': typeof AuthedAdminSeasonsRoute
+  '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
+  '/admin': typeof AuthedAdminIndexRoute
   '/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdIndexRoute
@@ -124,13 +155,17 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
-  '/_authed/admin': typeof AuthedAdminRoute
+  '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
   '/_authed/discovery': typeof AuthedDiscoveryRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
+  '/_authed/admin/games': typeof AuthedAdminGamesRoute
+  '/_authed/admin/seasons': typeof AuthedAdminSeasonsRoute
+  '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
   '/_authed/leagues/new': typeof AuthedLeaguesNewRoute
+  '/_authed/admin/': typeof AuthedAdminIndexRoute
   '/_authed/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/_authed/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
   '/_authed/leagues/$leagueId/': typeof AuthedLeaguesLeagueIdIndexRoute
@@ -146,7 +181,11 @@ export interface FileRouteTypes {
     | '/profile'
     | '/join/$code'
     | '/leagues/$leagueId'
+    | '/admin/games'
+    | '/admin/seasons'
+    | '/admin/teams'
     | '/leagues/new'
+    | '/admin/'
     | '/leagues/$leagueId/members'
     | '/leagues/$leagueId/settings'
     | '/leagues/$leagueId/'
@@ -154,12 +193,15 @@ export interface FileRouteTypes {
   to:
     | '/claim-username'
     | '/sign-in'
-    | '/admin'
     | '/discovery'
     | '/profile'
     | '/join/$code'
     | '/'
+    | '/admin/games'
+    | '/admin/seasons'
+    | '/admin/teams'
     | '/leagues/new'
+    | '/admin'
     | '/leagues/$leagueId/members'
     | '/leagues/$leagueId/settings'
     | '/leagues/$leagueId'
@@ -174,7 +216,11 @@ export interface FileRouteTypes {
     | '/join/$code'
     | '/_authed/'
     | '/_authed/leagues/$leagueId'
+    | '/_authed/admin/games'
+    | '/_authed/admin/seasons'
+    | '/_authed/admin/teams'
     | '/_authed/leagues/new'
+    | '/_authed/admin/'
     | '/_authed/leagues/$leagueId/members'
     | '/_authed/leagues/$leagueId/settings'
     | '/_authed/leagues/$leagueId/'
@@ -221,7 +267,7 @@ declare module '@tanstack/react-router' {
       id: '/_authed/admin'
       path: '/admin'
       fullPath: '/admin'
-      preLoaderRoute: typeof AuthedAdminRouteImport
+      preLoaderRoute: typeof AuthedAdminRouteRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/discovery': {
@@ -244,6 +290,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/join/$code'
       preLoaderRoute: typeof JoinCodeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authed/admin/': {
+      id: '/_authed/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthedAdminIndexRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/admin/games': {
+      id: '/_authed/admin/games'
+      path: '/games'
+      fullPath: '/admin/games'
+      preLoaderRoute: typeof AuthedAdminGamesRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/admin/seasons': {
+      id: '/_authed/admin/seasons'
+      path: '/seasons'
+      fullPath: '/admin/seasons'
+      preLoaderRoute: typeof AuthedAdminSeasonsRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/admin/teams': {
+      id: '/_authed/admin/teams'
+      path: '/teams'
+      fullPath: '/admin/teams'
+      preLoaderRoute: typeof AuthedAdminTeamsRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
     }
     '/_authed/leagues/$leagueId': {
       id: '/_authed/leagues/$leagueId'
@@ -283,6 +357,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthedAdminRouteRouteChildren {
+  AuthedAdminGamesRoute: typeof AuthedAdminGamesRoute
+  AuthedAdminSeasonsRoute: typeof AuthedAdminSeasonsRoute
+  AuthedAdminTeamsRoute: typeof AuthedAdminTeamsRoute
+  AuthedAdminIndexRoute: typeof AuthedAdminIndexRoute
+}
+
+const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
+  AuthedAdminGamesRoute: AuthedAdminGamesRoute,
+  AuthedAdminSeasonsRoute: AuthedAdminSeasonsRoute,
+  AuthedAdminTeamsRoute: AuthedAdminTeamsRoute,
+  AuthedAdminIndexRoute: AuthedAdminIndexRoute,
+}
+
+const AuthedAdminRouteRouteWithChildren =
+  AuthedAdminRouteRoute._addFileChildren(AuthedAdminRouteRouteChildren)
+
 interface AuthedLeaguesLeagueIdRouteRouteChildren {
   AuthedLeaguesLeagueIdMembersRoute: typeof AuthedLeaguesLeagueIdMembersRoute
   AuthedLeaguesLeagueIdSettingsRoute: typeof AuthedLeaguesLeagueIdSettingsRoute
@@ -302,7 +393,7 @@ const AuthedLeaguesLeagueIdRouteRouteWithChildren =
   )
 
 interface AuthedRouteChildren {
-  AuthedAdminRoute: typeof AuthedAdminRoute
+  AuthedAdminRouteRoute: typeof AuthedAdminRouteRouteWithChildren
   AuthedDiscoveryRoute: typeof AuthedDiscoveryRoute
   AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -311,7 +402,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
-  AuthedAdminRoute: AuthedAdminRoute,
+  AuthedAdminRouteRoute: AuthedAdminRouteRouteWithChildren,
   AuthedDiscoveryRoute: AuthedDiscoveryRoute,
   AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,

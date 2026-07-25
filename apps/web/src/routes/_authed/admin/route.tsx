@@ -1,16 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useMe } from "@/api/me";
 import { Button } from "@/components/ui/button";
-import { SyncJobsCard } from "@/components/admin/sync-jobs-card";
-import { TeamsBrowser } from "@/components/admin/teams-browser";
-import { SeasonsBrowser } from "@/components/admin/seasons-browser";
-import { GamesBrowser } from "@/components/admin/games-browser";
+import { TabNav, tabLinkProps } from "@/components/tab-nav";
 
 export const Route = createFileRoute("/_authed/admin")({
-  component: Admin,
+  component: AdminLayout,
 });
 
-function Admin() {
+/**
+ * The admin surface's shell: one home for the allowlist guard, so no child
+ * route can be reached without it, and the tab bar the sections hang off.
+ * Sections are routes rather than local tab state — each is deep-linkable
+ * (a week's game slate is worth sharing while debugging a sync), survives a
+ * refresh, and only the open section's queries run.
+ */
+function AdminLayout() {
   const me = useMe();
 
   if (me.isPending) {
@@ -46,10 +50,21 @@ function Admin() {
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
       <h1 className="text-2xl font-semibold text-foreground">Admin</h1>
-      <SyncJobsCard />
-      <SeasonsBrowser />
-      <GamesBrowser />
-      <TeamsBrowser />
+      <TabNav label="Admin sections">
+        <Link to="/admin" activeOptions={{ exact: true }} {...tabLinkProps}>
+          Jobs
+        </Link>
+        <Link to="/admin/seasons" {...tabLinkProps}>
+          Seasons
+        </Link>
+        <Link to="/admin/games" {...tabLinkProps}>
+          Games
+        </Link>
+        <Link to="/admin/teams" {...tabLinkProps}>
+          Teams
+        </Link>
+      </TabNav>
+      <Outlet />
     </main>
   );
 }
