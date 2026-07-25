@@ -4,12 +4,12 @@ import { sportSeasons, weeks } from "@picksleagues/db";
 import {
   type Clock,
   type GameDataProvider,
-  type ProviderGame,
   type ProviderTeam,
   estimatedNflWeeks,
   nflSeasonYearFor,
 } from "@picksleagues/core";
 import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import { fetchSeasonGames } from "./fetch-week-games";
 import { ingestSeasonSnapshot } from "./ingest-season";
 
 const UPCOMING_STATUS = {
@@ -68,18 +68,11 @@ async function ensureUpcomingNflSeason(
   const structure = await provider.fetchNflSeasonStructure(upcomingSeasonYear);
 
   if (structure.weeks.length > 0) {
-    const fetchedGamesPerWeek = await Promise.all(
-      structure.weeks.map((week) =>
-        provider.fetchNflWeekGames(upcomingSeasonYear, week.weekType, week.weekNumber),
-      ),
+    const { games: providerGames } = await fetchSeasonGames(
+      provider,
+      upcomingSeasonYear,
+      structure.weeks,
     );
-    // Same last-wins dedupe rationale as the main sync (a rescheduled game
-    // transiently double-listed would otherwise abort the multi-row upsert).
-    const dedupedByProviderId = new Map<string, ProviderGame>();
-    for (const game of fetchedGamesPerWeek.flat()) {
-      dedupedByProviderId.set(game.providerGameId, game);
-    }
-    const providerGames = [...dedupedByProviderId.values()];
 
     await db.transaction((tx) =>
       ingestSeasonSnapshot(tx, now, upcomingSeasonYear, structure.weeks, providerGames, {
@@ -154,29 +147,11 @@ export async function syncNflSchedule(
   // per-week game fetches) and forwarded to every `ingestSeasonSnapshot` call
   // this run makes, including the offseason "ensure next season" step below,
   // so a single job run never hits the endpoint more than once.
-  const [fetchedGamesPerWeek, providerTeams] = await Promise.all([
-    Promise.all(
-      weeksToFetch.map((week) =>
-        provider.fetchNflWeekGames(seasonYear, week.weekType, week.weekNumber),
-      ),
-    ),
-    provider.fetchNflTeams(),
-  ]);
-
-  // Dedupe by providerGameId before the write: ESPN transiently lists a
-  // rescheduled game under both its old and new week, so the flat concat can
-  // carry the same id twice. A multi-row INSERT ... ON CONFLICT DO UPDATE that
-  // hits the same row twice throws Postgres "cannot affect row a second time"
-  // and aborts the whole run — so collapse to last-wins (the later week's copy).
-  const dedupedByProviderId = new Map<string, ProviderGame>();
-  let duplicateProviderGames = 0;
-  for (const game of fetchedGamesPerWeek.flat()) {
-    if (dedupedByProviderId.has(game.providerGameId)) {
-      duplicateProviderGames += 1;
-    }
-    dedupedByProviderId.set(game.providerGameId, game);
-  }
-  const providerGames = [...dedupedByProviderId.values()];
+  const [{ games: providerGames, duplicates: duplicateProviderGames }, providerTeams] =
+    await Promise.all([
+      fetchSeasonGames(provider, seasonYear, weeksToFetch),
+      provider.fetchNflTeams(),
+    ]);
 
   const result = await db.transaction((tx) =>
     // A normal sync always represents real data — `provisional: false`
