@@ -18,7 +18,10 @@ const EnvSchema = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   JOB_SECRET: z.string().min(32),
-  // Comma-separated Better Auth user ids; admin capability is this allowlist (arch §Overrides).
+  // Comma-separated Better Auth user ids. NOT the authorization source (that is
+  // `users.app_role`, ADR-0013) — a bootstrap seed only: an id listed here is
+  // promoted to the admin role on sign-in, so a fresh environment reaches its
+  // first admin with no manual SQL. Removing an id never demotes anyone.
   ADMIN_USER_IDS: z
     .string()
     .default("")

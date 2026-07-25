@@ -113,7 +113,7 @@ describe("GET /api/me", () => {
     expect(body.username).toBe("paulm");
   });
 
-  it("200s with isAdmin true when the caller is on the ADMIN_USER_IDS allowlist", async () => {
+  it("200s with isAdmin true when the ADMIN_USER_IDS seed promotes the caller", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
     const adminApp = createApp({
       auth,

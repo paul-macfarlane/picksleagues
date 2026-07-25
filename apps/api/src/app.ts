@@ -55,14 +55,14 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/", memberRoutes(deps));
   app.route("/", discoveryRoutes(deps));
 
-  // Admin surface (env-var allowlist, arch §Overrides) — mounted unconditionally
-  // in every env, unlike the sim routes; server-side auth gates it, not
+  // Admin surface (`users.app_role`, ADR-0013) — mounted unconditionally in
+  // every env, unlike the sim routes; server-side auth gates it, not
   // non-registration (that's for simulator-only routes per APP_ENV=production).
   app.route("/", adminRoutes(deps));
 
   // The simulator is the one surface gated by *not existing* rather than by auth
   // (ADR-0011): in production these paths 404 because no handler was ever
-  // registered, so no allowlist bug can expose them.
+  // registered, so no authorization bug can expose them.
   //
   // The condition is "not production" rather than "env is non-prod" so that
   // generate-openapi.ts — which builds the app with no deps at all — still emits

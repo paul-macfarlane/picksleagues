@@ -35,7 +35,8 @@ const db = createDb(getTestDatabaseUrl());
 const provider = new FakeProvider();
 // One `auth` instance shared by every app built below — session cookies it
 // mints stay valid across them since they all share `db` and the same
-// `BETTER_AUTH_SECRET` (makeTestEnv's default); only `ADMIN_USER_IDS` varies.
+// `BETTER_AUTH_SECRET` (makeTestEnv's default); only the `ADMIN_USER_IDS`
+// admin seed varies (ADR-0013 — the seed promotes `users.app_role` on sign-in).
 const auth = createAuth({ env: makeTestEnv(), db });
 
 function buildApp(adminUserIds: string[] = []) {
@@ -74,7 +75,7 @@ describe("POST /api/admin/jobs/nfl/{job}", () => {
     expect(await res.json()).toMatchObject({ error: "unauthenticated" });
   });
 
-  it("403s for an authenticated caller who isn't on the admin allowlist", async () => {
+  it("403s for an authenticated caller who isn't an admin", async () => {
     const app = buildApp();
     const { cookie } = await createAuthenticatedUser(auth);
 
@@ -93,7 +94,7 @@ describe("POST /api/admin/jobs/nfl/{job}", () => {
     expect(res.status).toBe(400);
   });
 
-  it("200s and runs the job for an admin-allowlisted caller", async () => {
+  it("200s and runs the job for an admin caller", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
     const app = buildApp([user.id]);
 

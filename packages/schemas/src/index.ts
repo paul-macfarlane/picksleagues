@@ -1,4 +1,5 @@
 export * from "./admin-data";
+export * from "./app-role";
 export * from "./discovery";
 export * from "./display-name";
 export * from "./error";

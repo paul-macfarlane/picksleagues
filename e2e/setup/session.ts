@@ -3,6 +3,7 @@ import { createDb } from "../../packages/db/src/client";
 import { loadEnv } from "../../packages/core/src/env";
 import { createAuth } from "../../apps/api/src/auth";
 import { createAuthenticatedUser } from "../../apps/api/test/setup/auth-helpers";
+import type { AppRole } from "../../packages/schemas/src/app-role";
 
 // Bare specifiers like "better-auth" or "@picksleagues/db" only resolve from
 // inside the package that actually declares them as a dependency — pnpm gives
@@ -39,10 +40,25 @@ export type MintedSession = {
 };
 
 export async function mintSession(
-  overrides: { email?: string; displayName?: string; username?: string | null } = {},
+  overrides: {
+    email?: string;
+    displayName?: string;
+    username?: string | null;
+    appRole?: AppRole;
+  } = {},
 ): Promise<MintedSession> {
-  const { user, cookie } = await createAuthenticatedUser(auth, overrides);
+  const { appRole, ...profileOverrides } = overrides;
+  const { user, cookie } = await createAuthenticatedUser(auth, profileOverrides);
   const rawValue = cookie.slice(`${SESSION_COOKIE_NAME}=`.length);
+
+  // The whole reason app-wide admin capability is a column rather than the
+  // `ADMIN_USER_IDS` env allowlist (ADR-0013): the dev API read its env long
+  // before this user existed, so only a runtime grant can make a minted user an
+  // admin. Written directly (not through Better Auth) because Better Auth has no
+  // `additionalFields` entry for `app_role` — nothing in it touches the column.
+  if (appRole !== undefined) {
+    await db.$client.query("UPDATE users SET app_role = $1 WHERE id = $2", [appRole, user.id]);
+  }
 
   return {
     user,

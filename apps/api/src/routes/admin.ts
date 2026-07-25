@@ -128,11 +128,11 @@ const listAdminGameOddsRoute = createRoute({
 });
 
 /**
- * The allowlist-gated admin surface (ADR-0011): manual sync-job triggers plus
+ * The role-gated admin surface (ADR-0011): manual sync-job triggers plus
  * the read-only reference-data browsers those triggers are verified with (arch
  * §Manual Sports Data Overrides). Mounted unconditionally in app.ts — the admin
- * surface exists in every env and is gated server-side by the allowlist, not by
- * env registration (that is the simulator routes' mechanism).
+ * surface exists in every env and is gated server-side by `users.app_role`
+ * (ADR-0013), not by env registration (that is the simulator routes' mechanism).
  *
  * Triggers exist because the SPA can't hold the cron shared secret; they
  * dispatch to the identical service calls as `/api/jobs/nfl/*` via the shared

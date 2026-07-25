@@ -59,7 +59,7 @@ function get(app: ReturnType<typeof buildApp>, path: string, cookie?: string) {
   return app.request(path, { headers: { ...(cookie ? { cookie } : {}) } });
 }
 
-/** Signs in a user, puts them on the allowlist, and returns an admin-ready app. */
+/** Signs in a user, seeds them into the admin role, and returns an admin-ready app. */
 async function adminCaller() {
   const { user, cookie } = await createAuthenticatedUser(auth);
   return { app: buildApp([user.id]), cookie, userId: user.id };
@@ -276,7 +276,7 @@ describe("admin reference-data browsers", () => {
     expect(await res.json()).toMatchObject({ error: "unauthenticated" });
   });
 
-  it.each(paths)("403s for a signed-in caller off the allowlist: %s", async (path) => {
+  it.each(paths)("403s for a signed-in non-admin caller: %s", async (path) => {
     const { cookie } = await createAuthenticatedUser(auth);
 
     const res = await get(buildApp(), path, cookie);

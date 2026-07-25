@@ -37,7 +37,7 @@ import { loadScenario, readSimState } from "../services/sim/state";
 
 const REPLAY_JOB_NAME = "sim-import-replay";
 
-// Every sim route sits behind the same session + allowlist pair, so they share
+// Every sim route sits behind the same session + admin-role pair, so they share
 // one descriptor set rather than restating it per route (ADR-0011: these are
 // admin-session gated, not shared-secret gated).
 const simResponses = {
@@ -179,8 +179,8 @@ const resetSimRoute = createRoute({
  * The simulator's control surface (SIM-2/3/6; spec §Testing & Internal Tooling).
  *
  * Registered by app.ts **only outside production** — non-registration is the
- * load-bearing gate (ADR-0011), and the session + allowlist guards below are the
- * second line, not the first.
+ * load-bearing gate (ADR-0011), and the session + admin-role guards below are
+ * the second line, not the first.
  *
  * These routes *are* in the committed OpenAPI contract (ADR-0012 decision 5):
  * `generate-openapi.ts` builds the app with no env, which is not production, so

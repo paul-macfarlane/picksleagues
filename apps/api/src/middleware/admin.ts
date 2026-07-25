@@ -1,20 +1,20 @@
 import type { MiddlewareHandler } from "hono";
-import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
+import { APP_ROLE, ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
+import type { Db } from "@picksleagues/db";
+import { getAppRole } from "../services/users";
 import type { SessionVariables } from "./session";
 
 /**
- * Requires the caller's session user to be in the admin allowlist; 403s
- * otherwise. Must run after `sessionMiddleware`/`requireSession` — reads
- * `sessionUser` off the context rather than re-deriving it. Admin capability
- * is the env-var user-ID allowlist (`ADMIN_USER_IDS`), not a role column
- * (arch §Overrides).
+ * Requires the caller's session user to hold the admin role; 403s otherwise.
+ * Must run after `sessionMiddleware`/`requireSession` — reads `sessionUser` off
+ * the context rather than re-deriving it. `users.app_role` is the sole
+ * authorization source (ADR-0013); `ADMIN_USER_IDS` only seeds that column on
+ * sign-in, so a role granted at runtime takes effect without a redeploy.
  */
-export function adminMiddleware(
-  adminUserIds: string[],
-): MiddlewareHandler<{ Variables: SessionVariables }> {
+export function adminMiddleware(db: Db): MiddlewareHandler<{ Variables: SessionVariables }> {
   return async (c, next) => {
     const sessionUser = c.get("sessionUser");
-    if (!adminUserIds.includes(sessionUser.id)) {
+    if ((await getAppRole(db, sessionUser.id)) !== APP_ROLE.ADMIN) {
       return c.json(
         ErrorResponseSchema.parse({
           error: ERROR_CODE.NOT_ADMIN,

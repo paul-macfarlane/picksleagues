@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "app_role" text DEFAULT 'user' NOT NULL;

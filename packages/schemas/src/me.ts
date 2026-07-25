@@ -16,8 +16,8 @@ export const MeResponseSchema = z
     displayName: z.string(),
     email: z.string(),
     image: z.string().nullable(),
-    // Admin capability = env-var user-ID allowlist (arch §Overrides), not a
-    // role column — the SPA uses this to show/hide the admin surface.
+    // Admin capability = the caller's `users.app_role` (ADR-0013) — the SPA uses
+    // this to show/hide the admin surface.
     isAdmin: z.boolean(),
     // Whether the simulator exists in this environment (`APP_ENV !== production`,
     // ADR-0011). Served as a typed signal rather than letting the SPA read env

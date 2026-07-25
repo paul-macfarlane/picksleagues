@@ -22,7 +22,7 @@ export const NOT_COMMISSIONER_403 = {
 };
 
 export const NOT_ADMIN_403 = {
-  description: "The caller is signed in but not on the admin allowlist",
+  description: "The caller is signed in but does not hold the admin role",
   content: { "application/json": { schema: ErrorResponseSchema } },
 };
 

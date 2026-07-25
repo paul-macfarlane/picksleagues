@@ -142,7 +142,7 @@ function buildApp(
   });
 }
 
-/** Signs in a user, puts them on the allowlist, and returns an admin-ready app. */
+/** Signs in a user, seeds them into the admin role, and returns an admin-ready app. */
 async function adminCaller(fakeEspn?: GameDataProvider) {
   const { user, cookie } = await createAuthenticatedUser(auth);
   return { app: buildApp([user.id], { fakeEspn }), cookie, userId: user.id };
@@ -266,7 +266,7 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Route gating (ADR-0011): session + admin allowlist on every route, and
+// Route gating (ADR-0011): session + admin role on every route, and
 // non-registration in production.
 // ---------------------------------------------------------------------------
 
@@ -313,7 +313,7 @@ describe("sim route gating", () => {
   });
 
   it.each(SIM_ROUTE_CASES)(
-    "403s for a signed-in caller off the admin allowlist: $method $path",
+    "403s for a signed-in non-admin caller: $method $path",
     async (route) => {
       const { cookie } = await createAuthenticatedUser(auth);
       const app = buildApp();

@@ -78,7 +78,7 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status, missed cancellation) and there is no vendor SLA — the correction path is an app-admin override, available in **all environments including production**.
 
-**Admin role:** app admins (initially just the owner) are designated by an env-var allowlist of user IDs. Admins get an admin page: job triggers, standings rebuild, game data editing, and read-only browsers over reference data (teams, seasons/weeks, games, odds snapshots). The same page hosts the simulator control panel in non-prod (ADR-0011); overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly, and teams/seasons/odds are view-only. Operational tooling is invisible to users (they just see corrected data).
+**Admin role:** app admins (initially just the owner) hold `admin` in `users.app_role`, which is the sole authorization source (ADR-0013). `ADMIN_USER_IDS` remains as a promote-only bootstrap seed — a listed user is granted the role on sign-in — so a fresh environment reaches its first admin with no manual SQL; it grants nothing by itself. Admins get an admin page: job triggers, standings rebuild, game data editing, and read-only browsers over reference data (teams, seasons/weeks, games, odds snapshots). The same page hosts the simulator control panel in non-prod (ADR-0011); overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly, and teams/seasons/odds are view-only. Operational tooling is invisible to users (they just see corrected data).
 
 **Override semantics:**
 - Overridable per game: home/away final score, game status (`scheduled | final | cancelled | postponed | moved`), kickoff time, and current spread
@@ -347,9 +347,9 @@ GET    /admin/teams                      ?sport= — read-only reference-data br
 GET    /admin/seasons                    ?sport= — seasons + weeks + per-week game counts
 GET    /admin/games                      ?weekId= — provider, override, and resolved values
 GET    /admin/games/:id/odds             recent spread snapshots for one game
-PUT    /admin/games/:id/override         set/clear overrides (admin allowlist; audited)
+PUT    /admin/games/:id/override         set/clear overrides (admin role; audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
-POST   /sim/*                            simulator (non-prod only, admin allowlist; see Simulator section)
+POST   /sim/*                            simulator (non-prod only, admin role; see Simulator section)
 GET    /openapi.json                     generated spec
 ```
 
@@ -363,4 +363,4 @@ Generate a client for Expo/React Native (or native) directly from the OpenAPI sp
 
 ## Deliberate MVP Exclusions
 
-No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (an allowlist-gated admin page with job triggers, rebuild buttons, data browsers, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
+No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a role-gated admin page with job triggers, rebuild buttons, data browsers, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
