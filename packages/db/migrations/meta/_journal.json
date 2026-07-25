@@ -85,6 +85,13 @@
       "when": 1784862937010,
       "tag": "0011_dazzling_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784941216814,
+      "tag": "0012_legal_punisher",
+      "breakpoints": true
     }
   ]
 }

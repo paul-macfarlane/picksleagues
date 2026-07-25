@@ -19,6 +19,11 @@ export const MeResponseSchema = z
     // Admin capability = env-var user-ID allowlist (arch §Overrides), not a
     // role column — the SPA uses this to show/hide the admin surface.
     isAdmin: z.boolean(),
+    // Whether the simulator exists in this environment (`APP_ENV !== production`,
+    // ADR-0011). Served as a typed signal rather than letting the SPA read env
+    // vars or infer availability from a 404 on an unregistered route — the sim
+    // routes' absence in prod is the actual gate, this only hides the UI.
+    simEnabled: z.boolean(),
   })
   .openapi("MeResponse");
 
