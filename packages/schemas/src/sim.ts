@@ -5,8 +5,10 @@ import { WeekTypeSchema } from "./week-type";
 
 /**
  * The season simulator's wire contract (spec §Testing & Internal Tooling; arch
- * §Simulator & Time; ADR-0011/ADR-0012). Non-prod only — these routes are not
- * registered when `APP_ENV=production`, so nothing here reaches a prod client.
+ * §Simulator & Time; ADR-0011/ADR-0012/ADR-0014). Gated by `isSimEnabled`
+ * (`APP_ENV !== production && SIM_ENABLED`, with production a hard override
+ * regardless of the flag) — these routes are not registered where that's
+ * false, so nothing here reaches a prod client.
  */
 
 /**

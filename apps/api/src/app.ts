@@ -69,9 +69,10 @@ export function createApp(deps: AppDeps = {}) {
   // app with no deps at all and these routes have to land in the committed
   // contract for the SPA to reach them through the generated client like every
   // other endpoint (ADR-0012). A real deployment always supplies env (loadEnv
-  // throws otherwise), so the only caller taking that branch is spec
-  // generation; and even then the handlers' own guards 500 without auth/db
-  // rather than serving anything.
+  // throws otherwise), so nothing outside generate-openapi.ts and the tests
+  // that deliberately mimic it constructs an env-less app — and constructing
+  // one with `auth`/`db`/`clock` supplied but no `env` (as some tests do to
+  // exercise other routes) would serve the sim routes normally, not 500 them.
   if (deps.env === undefined || isSimEnabled(deps.env)) {
     app.route("/", simRoutes(deps));
   }

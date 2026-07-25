@@ -38,27 +38,41 @@ epic's later tasks (ADM-3's `admin_audit`) will want.
 the same shape as `league_members.role` (ADR-0004), not a Postgres enum. `adminMiddleware`
 reads it; `/me`'s `isAdmin` derives from the already-loaded user row.
 
-**2. `ADMIN_USER_IDS` is demoted to a bootstrap seed.** On session resolution, a user whose
-id appears in the list is promoted to `admin` in the database if they are not already. The
-env var grants nothing by itself — authorization never consults it. This keeps a zero-SQL
-path to the first admin in any fresh environment (a new Neon branch, a teammate's laptop,
-CI) without making configuration the source of truth.
+**2. `ADMIN_USER_IDS` is demoted to a bootstrap seed.** It is applied on **every**
+authenticated request, not once at sign-in: a user whose id appears in the list is promoted
+to `admin` if they are not already. The env var grants nothing by itself — authorization
+reads only the column. This keeps a zero-SQL path to the first admin in any fresh
+environment (a new Neon branch, a teammate's laptop, CI) without making configuration the
+source of truth.
 
-The seed is deliberately **promote-only**: removing an id never demotes anyone. A seed that
-revoked would make the env var authoritative again by the back door, and would silently
-strip a role granted deliberately at runtime.
+The seed is **promote-only, and a standing floor rather than a one-time event**. Two
+consequences worth stating plainly, because they are easy to get wrong:
 
-**3. Seeding hooks into session resolution, not the admin guard.** `GET /me` must report a
-seeded admin's capability on their very first request, because the SPA renders its admin
-surfaces off that flag and would otherwise never route them to an admin endpoint at all.
-Cost when the list is empty — the normal case — is one array check and no query.
+- Removing an id never demotes anyone. A seed that revoked would make the env var
+  authoritative again by the back door, and would silently strip a role granted at runtime.
+- While an id remains listed, revoking that user in the database does not stick — the next
+  request re-grants it. **Revoking a seeded admin therefore means removing the id from
+  `ADMIN_USER_IDS` as well as updating the row.** Listing an id is a declaration that the
+  user is an admin, not a request to make them one once.
 
-**4. `requireAdmin` reads `db` from `deps`, not from the request context.** They are the same
+Applied on every request rather than at sign-in because there is no clean sign-in seam
+short of Better Auth hooks, and because `GET /me` must report a seeded admin's capability on
+their very first request — the SPA renders its admin surfaces off that flag and would
+otherwise never route them anywhere that could promote them. The cost is bounded: an empty
+list (the normal case) does no query at all, and for an already-admin user the guarded
+UPDATE matches zero rows.
+
+**3. `requireAdmin` reads `db` from `deps`, not from the request context.** They are the same
 instance (`requireDbAndClock` sets `deps.db` on the context), and reading from `deps` keeps
-the guard mountable on the two routes that deliberately resolve their own dependencies to
-preserve a `JobRunResponse`-shaped misconfiguration 500 — `/admin/jobs/nfl/{job}` and
-`/sim/scenarios/replay`. Requiring context order would have forced either a dead fallback or
-a second deps guard that re-parses the job slug.
+the guard mountable on the two routes that deliberately resolve their own dependencies —
+`/admin/jobs/nfl/{job}` and `/sim/scenarios/replay`. Requiring context order would have
+forced either a dead fallback or a second deps guard that re-parses the job slug to name it.
+
+Note what this does *not* buy: when `db` itself is the missing dependency, `requireAdmin`
+returns an `ErrorResponse` 500 before the handler runs, so those two routes' declared
+`JobRunResponse` 500 envelope survives only for a missing clock or provider. That was
+already true of `requireSession`'s auth-500 and is not a regression — but the ordering choice
+is justified by keeping the guard mountable at all, not by preserving the envelope.
 
 ## Consequences
 
@@ -71,7 +85,16 @@ check — irrelevant at this scale, and the same read `/me` already performs. Ad
 application state, so an application bug *could* grant it; the mitigations are that only the
 seed path writes the column, that path is promote-only and matches on primary key, and no
 route exposes role mutation (an admin-managed promotion UI is deliberately not built —
-revisit if a second admin ever needs onboarding without DB access).
+revisit if a second admin ever needs onboarding without DB access). Better Auth cannot write
+the column either, because it is absent from the adapter's `additionalFields` — a regression
+test pins that rather than leaving it to inspection.
+
+The seed writes a capability with no timestamp and no audit row. `users.updated_at` is
+deliberately not stamped: the seed runs inside `requireSession`, *before* `requireDbAndClock`
+resolves the request's `Clock`, and taking a second Clock there would break the
+one-resolution-per-request invariant (arch D13) that keeps every time comparison in a request
+consistent. When ADM-3 lands `admin_audit`, the seed path is one of the writes that should
+record into it.
 
 `APP_ROLE` is a two-value set today. It is a role column rather than an `is_admin` boolean so
 a third value (a read-only support role, say) doesn't require a migration to a different

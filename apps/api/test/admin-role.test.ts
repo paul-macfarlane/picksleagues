@@ -91,6 +91,28 @@ describe("ADMIN_USER_IDS bootstrap seeding", () => {
     expect((await getAdminTeams(unseeded, cookie)).status).toBe(200);
   });
 
+  // The seed is a floor, not a one-time grant: it is applied on every
+  // authenticated request (require-deps.ts's requireSession), not just at
+  // sign-in, so a database-level revocation of a still-seeded id doesn't
+  // stick — the very next request re-grants it. Revoking a seeded admin for
+  // real requires removing the id from ADMIN_USER_IDS as well as the DB row.
+  it("re-grants a seeded id on the next request after a DB revocation, since the seed stays a floor", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    const app = buildApp([user.id]);
+    expect((await getMe(app, cookie)).status).toBe(200);
+    expect(await readAppRole(user.id)).toBe("admin");
+
+    await db.update(users).set({ appRole: APP_ROLE.USER }).where(eq(users.id, user.id));
+    expect(await readAppRole(user.id)).toBe("user");
+
+    const res = await getMe(app, cookie);
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as MeResponse).isAdmin).toBe(true);
+    expect(await readAppRole(user.id)).toBe("admin");
+    expect((await getAdminTeams(app, cookie)).status).toBe(200);
+  });
+
   it("leaves a user who isn't seeded at the default role", async () => {
     const seeded = await createAuthenticatedUser(auth);
     const other = await createAuthenticatedUser(auth);

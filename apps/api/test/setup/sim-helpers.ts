@@ -114,7 +114,9 @@ export function buildApp(
     espnProvider: fakeEspn,
     clock: () => resolveClock(simEnabled, () => getSimClockOffsetMs(db)),
     provider: async (clock) => {
-      const { activeScenarioId } = await getSimState(db);
+      // Mirrors runtime.ts's own short-circuit: with the simulator off, no
+      // sim state is read at all.
+      const activeScenarioId = simEnabled ? (await getSimState(db)).activeScenarioId : null;
       return resolveGameDataProvider({
         simEnabled,
         espn: fakeEspn,

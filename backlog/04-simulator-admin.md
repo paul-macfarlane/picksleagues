@@ -2,11 +2,11 @@
 
 The UI-driven testing and operations surface, merged from the former Simulator and Admin & Operations epics (ADR-0011). One admin page serves both: in all environments, data browsing, job triggers, and (post-PKM-4) overrides + audit; in non-prod, the simulator control panel — replay a real past season, advance weeks, load edge-case scenarios, reset. Ref: spec §Testing & Internal Tooling; arch §Simulator & Time, §Manual Sports Data Overrides, D13–D15.
 
-**Auth model (ADR-0011):** `/sim/*` routes are admin-session-gated (env-var user-ID allowlist) and **not registered** when `APP_ENV=production`. The shared-secret header remains for `/api/jobs/*` only. Admin surfaces are invisible to non-admins everywhere.
+**Auth model (ADR-0013, ADR-0014):** `/sim/*` routes are gated on the `admin` role in `users.app_role` and **not registered** unless `isSimEnabled(env)` — `SIM_ENABLED=true` and `APP_ENV !== "production"` (production ignores the flag). The shared-secret header remains for `/api/jobs/*` only. Admin surfaces are invisible to non-admins everywhere.
 
 ## Shell & data visibility (deps already met — buildable now)
 
-- [x] **ADM-1** — Admin role via env-var user-ID allowlist + admin page shell: manual job triggers, standings rebuild buttons (as those features land); hosts the sim control panel in non-prod. _(deps: DATA-3, FND-11)_
+- [x] **ADM-1** — Admin role (env-var allowlist as shipped; moved into `users.app_role` by ADR-0013) + admin page shell: manual job triggers, standings rebuild buttons (as those features land); hosts the sim control panel in non-prod. _(deps: DATA-3, FND-11)_
 - [x] **ADM-4** — Read-only reference-data browsers on the admin page: teams, seasons/weeks, games (provider + override fields visible), odds snapshots. Doubles as verification for the sync jobs. _(deps: ADM-1)_
 
 ## Simulator backend
@@ -21,7 +21,7 @@ The UI-driven testing and operations surface, merged from the former Simulator a
 - [ ] **SIM-7** — Sim control panel on the admin page (non-prod only): pick a season to replay (SIM-6), advance week / jump clock, load scenario, reset, and a persistent indicator of current simulated time + active scenario. _(deps: ADM-1, SIM-2, SIM-3, SIM-6)_
 - [x] **SIM-4** — Edge-case scenario library covering the spec's NFL-expressible cases: pushes, ties, cancellations, postponements, week moves, all-eliminated weeks. Acceptance bar (spec): every scoring rule and edge case is reproducible in the simulator — bracket cases split to MM-8, which is what closes that bar. _(deps: SIM-3)_
 
-  Bracket scenario fixtures (vacated bracket slots, auto-advance) moved to the March Madness epic as MM-8 — they need the NCAAMB provider surface MM-2 introduces, not this epic's NFL fixtures. See `07-march-madness.md`.
+  Bracket scenario fixtures (vacated bracket slots, auto-advance) moved to the March Madness epic — originally id'd SIM-8, renumbered to **MM-8** (grep landed here) — they need the NCAAMB provider surface MM-2 introduces, not this epic's NFL fixtures. See `07-march-madness.md`.
 
 ## Settlement-dependent tail (after PKM-4)
 

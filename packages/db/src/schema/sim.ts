@@ -11,10 +11,11 @@ import {
 import type { SimFinalStatus, SimScenarioSource, Sport, WeekType } from "@picksleagues/schemas";
 
 /**
- * Simulator fixture tables (SIM-1; arch §Simulator & Time, ADR-0011/ADR-0012).
- * Non-prod only in practice — the routes that write them are not registered when
- * `APP_ENV=production` — but the tables exist in every environment so migrations
- * stay identical across envs.
+ * Simulator fixture tables (SIM-1; arch §Simulator & Time, ADR-0011/ADR-0012/
+ * ADR-0014). Non-prod only in practice — the routes that write them are not
+ * registered where `isSimEnabled` (`APP_ENV !== production && SIM_ENABLED`,
+ * production a hard override) is false — but the tables exist in every
+ * environment so migrations stay identical across envs.
  *
  * These are the `SimulatedProvider`'s backing store, standing in for ESPN's API
  * rather than for our own synced tables: fixtures hold *provider-shaped* rows

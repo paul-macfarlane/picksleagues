@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-07-24
 - **Related:** extends ADR-0011 (simulator/admin merge); mvp-spec.md §Testing & Internal Tooling; architecture.md §Simulator & Time, §Environments, D13, D14; backlog SIM-1…SIM-6
+- **Amended by ADR-0014:** where this record says the gate is `APP_ENV !== production` (decisions 3 and 5), the gate is now `isSimEnabled` = `APP_ENV !== production && SIM_ENABLED`. Production remains structurally excluded, so every conclusion below still holds; only the predicate widened.
 
 ## Context
 
@@ -88,5 +89,5 @@ production; the route summaries say so. Simulated and live seasons cannot be mix
 run — a loaded scenario means the environment is under test.
 
 Revisit if a mode ever needs a scoring rule keyed to in-game state (none in the MVP), or
-if bracket fixtures (SIM-8, March Madness) need a projection rule that game-level
+if bracket fixtures (MM-8, renumbered from SIM-8) need a projection rule that game-level
 kickoffs cannot express.

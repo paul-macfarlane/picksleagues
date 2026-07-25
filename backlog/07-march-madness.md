@@ -8,5 +8,5 @@ Bracket pools — last MVP mode; needed by Feb 2027 (picks open after the First 
 - [ ] **MM-4** — `scoreBracket` pure function + table-driven tests: standard doubling + custom values, correct-regardless-of-path, vacated/cancelled as push with slot auto-advance neutrality, absolute-difference tiebreaker. _(deps: FND-7)_
 - [ ] **MM-5** — Bracket builder UI (mobile-first 63-pick flow) + bracket views. _(deps: MM-3)_
 - [ ] **MM-6** — Settlement integration + pool leaderboard (one row per bracket); pre-deadline seed-correction wipe-and-resubmit flow. _(deps: MM-4, PKM-4)_
-- [ ] **MM-7** — E2E journey: full bracket lifecycle including a vacated-team auto-advance. _(deps: MM-6, SIM-4)_
+- [ ] **MM-7** — E2E journey: full bracket lifecycle including a vacated-team auto-advance. _(deps: MM-6, MM-8)_
 - [ ] **MM-8** — Bracket scenario fixtures for the spec's remaining edge case, vacated bracket slots: NCAAMB bracket methods on `GameDataProvider` + `SimulatedProvider`, and the scenarios that exercise auto-advance. Split out of SIM-4 because bracket fixtures need the provider surface bracket ingestion (MM-2) introduces. _(deps: SIM-4, MM-2)_

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { accounts, createDb, sessions, users } from "@picksleagues/db";
 import { FixedClock, type Env } from "@picksleagues/core";
-import { DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
+import { APP_ROLE, DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
@@ -304,6 +304,32 @@ describe("PATCH /api/me", () => {
   });
 });
 
+describe("Better Auth's /api/auth/update-user cannot write app_role", () => {
+  // Omitting `app_role` from `user.fields`/`additionalFields` (apps/api/src/
+  // auth.ts) is the only thing keeping Better Auth's own update-user route
+  // from granting admin. This guards that claim against a future edit adding
+  // an `additionalFields` entry for any of the plausible key spellings.
+  it("drops app_role/appRole/role write attempts while the legitimate field still applies", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await app.request("/api/auth/update-user", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        name: "New Name",
+        app_role: APP_ROLE.ADMIN,
+        appRole: APP_ROLE.ADMIN,
+        role: APP_ROLE.ADMIN,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.display_name).toBe("New Name");
+    expect(row?.appRole).toBe(APP_ROLE.USER);
+  });
+});
+
 describe("DELETE /api/me", () => {
   it("401s with no session cookie", async () => {
     const res = await deleteMe(undefined);
@@ -337,6 +363,17 @@ describe("DELETE /api/me", () => {
 
     const followUp = await getMe(cookie);
     expect(followUp.status).toBe(401);
+  });
+
+  it("clears app_role to user, so a deleted admin's tombstone row holds no capability", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    await db.update(users).set({ appRole: APP_ROLE.ADMIN }).where(eq(users.id, user.id));
+
+    const res = await deleteMe(cookie);
+    expect(res.status).toBe(204);
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.appRole).toBe(APP_ROLE.USER);
   });
 
   it("releases the deleted user's username immediately, so another user can claim it", async () => {

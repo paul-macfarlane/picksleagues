@@ -30,7 +30,8 @@ export const users = pgTable("users", {
   // (the app stores/displays lowercase per spec, enforced in packages/schemas).
   username: citext("username").unique(),
   // App-wide admin capability (ADR-0013), the sole authorization source for the
-  // admin/sim surfaces — `ADMIN_USER_IDS` only seeds it on sign-in. Better Auth
+  // admin/sim surfaces — `ADMIN_USER_IDS` only seeds it, promoting on every
+  // authenticated request rather than a one-time sign-in event. Better Auth
   // never reads or writes this column (no `additionalFields` entry), so plain
   // `text` + `$type` like `league_members.role`, not a Postgres enum.
   appRole: text("app_role").$type<AppRole>().notNull().default(APP_ROLE.USER),

@@ -163,6 +163,9 @@ export async function deleteAccount(
         image: null,
         email: `deleted-${userId}@deleted.invalid`,
         emailVerified: false,
+        // The row survives deletion (FK history), so it must not survive
+        // holding a capability — a deleted admin's tombstone is never admin.
+        appRole: APP_ROLE.USER,
         updatedAt: clock.now(),
       })
       .where(eq(users.id, userId));

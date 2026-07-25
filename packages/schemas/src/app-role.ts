@@ -6,7 +6,9 @@ import { z } from "@hono/zod-openapi";
  * because capability must be grantable at runtime: the e2e suite mints users
  * with random ids *after* the API process has already read its env, so an
  * env-cached allowlist can never cover them. `ADMIN_USER_IDS` survives only as
- * a bootstrap seed that promotes to this role on sign-in.
+ * a bootstrap seed that promotes to this role on every authenticated request
+ * (not a one-time sign-in event) and never demotes — this column is never an
+ * authorization input itself, only its output.
  */
 export const APP_ROLE = {
   USER: "user",
