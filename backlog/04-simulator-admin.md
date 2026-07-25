@@ -19,8 +19,9 @@ The UI-driven testing and operations surface, merged from the former Simulator a
 ## Simulator UI
 
 - [ ] **SIM-7** — Sim control panel on the admin page (non-prod only): pick a season to replay (SIM-6), advance week / jump clock, load scenario, reset, and a persistent indicator of current simulated time + active scenario. _(deps: ADM-1, SIM-2, SIM-3, SIM-6)_
-- [x] **SIM-4** — Edge-case scenario library covering the spec's NFL-expressible cases: pushes, ties, cancellations, postponements, week moves, all-eliminated weeks. Acceptance bar (spec): every scoring rule and edge case is reproducible in the simulator — bracket cases split to SIM-8, which is what closes that bar. _(deps: SIM-3)_
-- [ ] **SIM-8** — Bracket scenario fixtures for the spec's remaining edge case, vacated bracket slots: NCAAMB bracket methods on `GameDataProvider` + `SimulatedProvider`, and the scenarios that exercise auto-advance. Split out of SIM-4 because bracket fixtures need the provider surface the March Madness epic introduces. _(deps: SIM-4, MM-1)_
+- [x] **SIM-4** — Edge-case scenario library covering the spec's NFL-expressible cases: pushes, ties, cancellations, postponements, week moves, all-eliminated weeks. Acceptance bar (spec): every scoring rule and edge case is reproducible in the simulator — bracket cases split to MM-8, which is what closes that bar. _(deps: SIM-3)_
+
+  Bracket scenario fixtures (vacated bracket slots, auto-advance) moved to the March Madness epic as MM-8 — they need the NCAAMB provider surface MM-2 introduces, not this epic's NFL fixtures. See `07-march-madness.md`.
 
 ## Settlement-dependent tail (after PKM-4)
 

@@ -5,7 +5,7 @@ import {
   nflSeasonYearFor,
   synthesizeSpread,
 } from "@picksleagues/core";
-import { fetchSeasonGames } from "../nfl/fetch-week-games";
+import { fetchSeasonGames } from "../nfl/fetch-season-games";
 import {
   ERROR_CODE,
   GAME_STATUS,

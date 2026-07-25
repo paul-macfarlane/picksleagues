@@ -9,7 +9,7 @@ import {
   nflSeasonYearFor,
 } from "@picksleagues/core";
 import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
-import { fetchSeasonGames } from "./fetch-week-games";
+import { fetchSeasonGames } from "./fetch-season-games";
 import { ingestSeasonSnapshot } from "./ingest-season";
 
 const UPCOMING_STATUS = {
