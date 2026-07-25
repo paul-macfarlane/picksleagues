@@ -1,5 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
+import { APP_ENV } from "@picksleagues/core";
 import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
@@ -12,6 +13,7 @@ import { inviteRoutes } from "./routes/invites";
 import { leagueRoutes } from "./routes/leagues";
 import { memberRoutes } from "./routes/members";
 import { meRoutes } from "./routes/me";
+import { simRoutes } from "./routes/sim";
 
 export type { AppDeps };
 
@@ -57,6 +59,21 @@ export function createApp(deps: AppDeps = {}) {
   // in every env, unlike the sim routes; server-side auth gates it, not
   // non-registration (that's for simulator-only routes per APP_ENV=production).
   app.route("/", adminRoutes(deps));
+
+  // The simulator is the one surface gated by *not existing* rather than by auth
+  // (ADR-0011): in production these paths 404 because no handler was ever
+  // registered, so no allowlist bug can expose them.
+  //
+  // The condition is "not production" rather than "env is non-prod" so that
+  // generate-openapi.ts — which builds the app with no deps at all — still emits
+  // these routes into the committed contract, which is what lets the SPA reach
+  // them through the generated client like every other endpoint. A real
+  // deployment always supplies env (loadEnv throws otherwise), so the only
+  // caller that takes this branch env-less is spec generation; and even then the
+  // handlers' own guards 500 without auth/db rather than serving anything.
+  if (deps.env?.APP_ENV !== APP_ENV.PRODUCTION) {
+    app.route("/", simRoutes(deps));
+  }
 
   // Better Auth owns /api/auth/* as its own typed surface (client generated
   // from the auth instance, not this OpenAPI doc) — deliberately outside the

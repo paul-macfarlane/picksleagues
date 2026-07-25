@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { APP_ENV } from "@picksleagues/core";
 import {
   ERROR_CODE,
   ErrorResponseSchema,
@@ -14,14 +15,17 @@ import { errorResponse, MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/ro
 import type { SessionVariables } from "../middleware/session";
 import { deleteAccount, getUser, updateProfile } from "../services/users";
 
-function serializeMe(user: typeof users.$inferSelect, isAdmin: boolean): MeResponse {
+function serializeMe(
+  user: typeof users.$inferSelect,
+  capabilities: { isAdmin: boolean; simEnabled: boolean },
+): MeResponse {
   return {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
     email: user.email,
     image: user.image,
-    isAdmin,
+    ...capabilities,
   };
 }
 
@@ -93,6 +97,15 @@ export function meRoutes(deps: AppDeps) {
   // Admin capability = env-var user-ID allowlist (arch §Overrides), not a role
   // column — resolved from `deps.env` in closure so `serializeMe` stays pure.
   const adminUserIds = deps.env?.ADMIN_USER_IDS ?? [];
+  // Whether the simulator exists here at all (ADR-0011): the real gate is that
+  // `/api/sim/*` is not registered in production, so this only tells the SPA
+  // whether to render sim surfaces — it grants nothing.
+  const simEnabled = deps.env?.APP_ENV !== undefined && deps.env.APP_ENV !== APP_ENV.PRODUCTION;
+
+  const capabilitiesFor = (userId: string) => ({
+    isAdmin: adminUserIds.includes(userId),
+    simEnabled,
+  });
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
@@ -110,7 +123,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(user, adminUserIds.includes(user.id)), 200);
+    return c.json(serializeMe(user, capabilitiesFor(user.id)), 200);
   });
 
   app.openapi(updateMe, async (c) => {
@@ -130,7 +143,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(result.user, adminUserIds.includes(result.user.id)), 200);
+    return c.json(serializeMe(result.user, capabilitiesFor(result.user.id)), 200);
   });
 
   app.openapi(deleteMe, async (c) => {

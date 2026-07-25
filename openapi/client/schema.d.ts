@@ -352,6 +352,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sim/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the simulated clock, the active scenario, and the scenario library */
+        get: operations["getSimState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sim/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set, advance, or reset the simulated clock */
+        post: operations["setSimClock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sim/scenarios/{slug}/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Load a scenario's fixtures and make it the active data source */
+        post: operations["loadSimScenario"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sim/scenarios/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a real past ESPN season into fixtures for replay */
+        post: operations["importSimReplay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sim/fixtures/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse a scenario's fixture games with their projection at the simulated now */
+        get: operations["listSimFixtureGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sim/fixtures/games/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Hand-edit one fixture game's kickoff, week, spread, or result */
+        patch: operations["updateSimFixtureGame"];
+        trace?: never;
+    };
+    "/api/sim/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Wipe a test league, or the whole environment, back to a known state */
+        post: operations["resetSim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -367,6 +486,7 @@ export interface components {
             email: string;
             image: string | null;
             isAdmin: boolean;
+            simEnabled: boolean;
         };
         NullableUsername: string | null;
         ErrorResponse: {
@@ -685,6 +805,120 @@ export interface components {
             spread: number;
             /** Format: date-time */
             capturedAt: string;
+        };
+        SimStateResponse: {
+            clock: components["schemas"]["SimClockState"];
+            activeScenario: components["schemas"]["SimScenario"];
+            scenarios: components["schemas"]["SimScenario"][];
+            library: components["schemas"]["SimLibraryEntry"][];
+        };
+        SimClockState: {
+            /** Format: date-time */
+            now: string;
+            /** Format: date-time */
+            realNow: string;
+            offsetMs: number;
+        };
+        SimScenario: {
+            id: string;
+            slug: string;
+            name: string;
+            description: string;
+            sport: components["schemas"]["Sport"];
+            seasonYear: number;
+            source: components["schemas"]["SimScenarioSource"];
+            /** Format: date-time */
+            startsAt: string;
+            gameCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        /** @enum {string} */
+        SimScenarioSource: "library" | "replay";
+        SimLibraryEntry: {
+            slug: string;
+            name: string;
+            description: string;
+            sport: components["schemas"]["Sport"];
+            covers: string;
+        };
+        SimClockAdjustment: {
+            /** @enum {string} */
+            kind: "instant";
+            /** Format: date-time */
+            instant: string;
+        } | {
+            /** @enum {string} */
+            kind: "advance";
+            ms: number;
+        } | {
+            /** @enum {string} */
+            kind: "week";
+            /** Format: uuid */
+            weekId: string;
+            anchor: components["schemas"]["SimClockAnchor"];
+        } | {
+            /** @enum {string} */
+            kind: "reset";
+        };
+        /** @enum {string} */
+        SimClockAnchor: "week_start" | "before_first_kickoff" | "after_last_game";
+        SimReplayRequest: {
+            seasonYear: number;
+        };
+        SimFixtureGamesResponse: {
+            games: components["schemas"]["SimFixtureGame"][];
+        };
+        SimFixtureGame: {
+            id: string;
+            scenarioId: string;
+            providerGameId: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            homeTeamAbbr: string;
+            homeTeamName: string;
+            awayTeamAbbr: string;
+            awayTeamName: string;
+            /** Format: date-time */
+            kickoffAt: string;
+            spread: number | null;
+            finalStatus: components["schemas"]["SimFinalStatus"];
+            finalHomeScore: number | null;
+            finalAwayScore: number | null;
+            projectedStatus: components["schemas"]["GameStatus"];
+            projectedHomeScore: number | null;
+            projectedAwayScore: number | null;
+        };
+        /** @enum {string} */
+        SimFinalStatus: "final" | "cancelled" | "postponed";
+        UpdateSimFixtureGameRequest: {
+            /** Format: date-time */
+            kickoffAt?: string;
+            weekType?: components["schemas"]["WeekType"];
+            weekNumber?: number;
+            spread?: number | null;
+            finalStatus?: components["schemas"]["SimFinalStatus"];
+            finalHomeScore?: number | null;
+            finalAwayScore?: number | null;
+        };
+        SimResetResponse: {
+            /** @enum {string} */
+            scope: "league" | "environment";
+            deleted: {
+                [key: string]: number;
+            };
+            state: components["schemas"]["SimStateResponse"];
+        };
+        SimResetRequest: {
+            /** @enum {string} */
+            scope: "league";
+            /** Format: uuid */
+            leagueId: string;
+        } | {
+            /** @enum {string} */
+            scope: "environment";
+            /** @default false */
+            dropScenario: boolean;
         };
     };
     responses: never;
@@ -2246,6 +2480,458 @@ export interface operations {
                 };
             };
             /** @description No such game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getSimState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The simulator's current clock, active scenario, and everything loadable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimStateResponse"];
+                };
+            };
+            /** @description A request param or body field fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setSimClock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SimClockAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Simulator state with the clock as adjusted; the stored offset governs every request from this one onward. Fixture projections are not part of this response — read GET /sim/fixtures/games to see how the new instant projects them */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimStateResponse"];
+                };
+            };
+            /** @description A request param or body field fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such week, or the week has no games to anchor a jump to */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    loadSimScenario: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The simulator's current clock, active scenario, and everything loadable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimStateResponse"];
+                };
+            };
+            /** @description A request param or body field fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No library definition and no stored scenario with that slug */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importSimReplay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SimReplayRequest"];
+            };
+        };
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description Malformed body, or the requested season isn't finished — only past seasons can be replayed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    listSimFixtureGames: {
+        parameters: {
+            query: {
+                scenarioId: string;
+                weekType?: components["schemas"]["WeekType"];
+                weekNumber?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scenario's fixtures ordered by kickoff — empty for an unknown scenario id, indistinguishable from a scenario with no fixtures written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimFixtureGamesResponse"];
+                };
+            };
+            /** @description A request param or body field fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateSimFixtureGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateSimFixtureGameRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated fixture — re-run the sync jobs to ingest the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimFixtureGame"];
+                };
+            };
+            /** @description No fields supplied, a field fails its format rule, or the edit would leave the fixture final without both scores */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such fixture game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resetSim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SimResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Per-table deleted row counts and the simulator state afterwards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimResetResponse"];
+                };
+            };
+            /** @description A request param or body field fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but not on the admin allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description League scope: no such league */
             404: {
                 headers: {
                     [name: string]: unknown;

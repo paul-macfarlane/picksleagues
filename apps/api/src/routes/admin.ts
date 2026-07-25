@@ -21,6 +21,7 @@ import {
   jobRunResponses,
   misconfiguredJob,
   NFL_SYNC_JOBS,
+  resolveNflJobDeps,
   SyncQuerySchema,
 } from "../lib/nfl-sync-jobs";
 import { runJob } from "../lib/job-runner";
@@ -151,16 +152,19 @@ export function adminRoutes(deps: AppDeps) {
   }
 
   app.openapi(runAdminNflJobRoute, async (c) => {
-    const { db, provider, clock: resolveClock } = deps;
     const { job } = c.req.valid("param");
     const entry = NFL_SYNC_JOBS[job];
-    if (!db || !resolveClock || !provider) {
+    const resolved = await resolveNflJobDeps(deps);
+    if (!resolved) {
       return c.json(misconfiguredJob(entry.jobName), 500);
     }
-    const clock = await resolveClock();
     const { season, week, weekType } = c.req.valid("query");
     return runJob(c, entry.jobName, () =>
-      entry.run(db, clock, provider, { seasonYear: season, weekType, weekNumber: week }),
+      entry.run(resolved.db, resolved.clock, resolved.provider, {
+        seasonYear: season,
+        weekType,
+        weekNumber: week,
+      }),
     );
   });
 
