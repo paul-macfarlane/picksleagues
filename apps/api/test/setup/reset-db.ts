@@ -1,6 +1,7 @@
 import type { Db } from "@picksleagues/db";
 import {
   accounts,
+  appState,
   games,
   leagueInvites,
   leagueMembers,
@@ -8,6 +9,7 @@ import {
   leagues,
   oddsSnapshots,
   sessions,
+  simScenarios,
   sportSeasons,
   teams,
   users,
@@ -35,4 +37,10 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(sessions);
   await db.delete(accounts);
   await db.delete(users);
+  // Before the scenarios themselves: app_state references the active one, and
+  // the singleton row also carries the clock offset — a leaked offset would
+  // silently shift `now` for every later file in the run.
+  await db.delete(appState);
+  // Fixture weeks/games/teams cascade from the scenario row.
+  await db.delete(simScenarios);
 }

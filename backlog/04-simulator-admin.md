@@ -11,15 +11,16 @@ The UI-driven testing and operations surface, merged from the former Simulator a
 
 ## Simulator backend
 
-- [ ] **SIM-1** — `sim_fixtures` tables + `SimulatedProvider`: when a scenario is loaded, the provider reads simulator-controlled data instead of ESPN-synced tables for the leagues/season under test; ESPN remains the default otherwise. _(deps: DATA-2)_
-- [ ] **SIM-2** — `POST /sim/clock`: set/advance the persisted clock offset ("advance to Week 5", jump to timestamp), consistent across serverless instances via `app_state`. _(deps: FND-6, DATA-3)_
-- [ ] **SIM-3** — `POST /sim/fixtures` (load scenario / hand-edit results) + `POST /sim/reset` (league or environment scope: truncate league/pick data, reload fixtures). _(deps: SIM-1)_
-- [ ] **SIM-6** — Past-season replay importer: load a real historical ESPN season (structure, schedule, scores) into `sim_fixtures` for replay under the simulated clock. Historical ESPN data strips odds, so spreads are synthesized into the fixtures — acceptance criterion, per ADR-0011. _(deps: SIM-1)_
+- [~] **SIM-1** — `sim_fixtures` tables + `SimulatedProvider`: when a scenario is loaded, the provider reads simulator-controlled data instead of ESPN-synced tables for the leagues/season under test; ESPN remains the default otherwise. _(deps: DATA-2)_
+- [~] **SIM-2** — `POST /sim/clock`: set/advance the persisted clock offset ("advance to Week 5", jump to timestamp), consistent across serverless instances via `app_state`. _(deps: FND-6, DATA-3)_
+- [~] **SIM-3** — `POST /sim/fixtures` (load scenario / hand-edit results) + `POST /sim/reset` (league or environment scope: truncate league/pick data, reload fixtures). _(deps: SIM-1)_
+- [~] **SIM-6** — Past-season replay importer: load a real historical ESPN season (structure, schedule, scores) into `sim_fixtures` for replay under the simulated clock. Historical ESPN data strips odds, so spreads are synthesized into the fixtures — acceptance criterion, per ADR-0011. _(deps: SIM-1)_
 
 ## Simulator UI
 
 - [ ] **SIM-7** — Sim control panel on the admin page (non-prod only): pick a season to replay (SIM-6), advance week / jump clock, load scenario, reset, and a persistent indicator of current simulated time + active scenario. _(deps: ADM-1, SIM-2, SIM-3, SIM-6)_
-- [ ] **SIM-4** — Edge-case scenario library covering the spec's required cases: pushes, ties, cancellations, postponements, week moves, all-eliminated weeks, vacated bracket slots. Acceptance bar (spec): every scoring rule and edge case is reproducible in the simulator. _(deps: SIM-3)_
+- [~] **SIM-4** — Edge-case scenario library covering the spec's NFL-expressible cases: pushes, ties, cancellations, postponements, week moves, all-eliminated weeks. Acceptance bar (spec): every scoring rule and edge case is reproducible in the simulator — bracket cases split to SIM-8, which is what closes that bar. _(deps: SIM-3)_
+- [ ] **SIM-8** — Bracket scenario fixtures for the spec's remaining edge case, vacated bracket slots: NCAAMB bracket methods on `GameDataProvider` + `SimulatedProvider`, and the scenarios that exercise auto-advance. Split out of SIM-4 because bracket fixtures need the provider surface the March Madness epic introduces. _(deps: SIM-4, MM-1)_
 
 ## Settlement-dependent tail (after PKM-4)
 

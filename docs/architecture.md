@@ -56,9 +56,11 @@ The spec's season simulator (local/staging only) drives three architectural requ
 
 **2. Swappable data provider.** `GameDataProvider` is the interface (season structure, schedules, scores, odds, bracket); `EspnProvider` and `SimulatedProvider` both implement it. **ESPN is the default in every environment** — `SimulatedProvider` activates only when a simulator scenario is loaded (local/staging/CI), reading from `sim_fixtures` tables that simulator endpoints populate from canned scenario files or hand-edits. Scenarios cover the spec's required edge cases: pushes, ties, cancellations, week moves, all-eliminated weeks, vacated bracket slots. ("Fixture" here means simulator test data, nothing more.)
 
+Simulated data enters the app through the **normal sync jobs**, not a parallel read path: the jobs ingest from whichever provider is resolved into `sport_seasons`/`weeks`/`games`/`odds_snapshots`, so nothing downstream of ingestion knows the simulator exists (ADR-0012). Fixtures store each game's *terminal* truth (kickoff, spread, final status and scores) and the provider **projects it through `clock.now()`** — `scheduled` before kickoff, `in_progress` for a fixed game window, terminal after — so advancing the clock and re-running the jobs makes a week unfold as a real one does. Provider resolution mirrors `resolveClock`: production is structurally ESPN-only; non-prod swaps only while `app_state.sim_active_scenario_id` is set, and one active scenario owns one season year. Spreads for replayed seasons are synthesized deterministically from the provider game id, so a re-import reproduces them exactly.
+
 **3. Step-through settlement.** Already native to the design: settlement is an idempotent endpoint over pure scoring functions, so the simulator just calls the same `settle` job per simulated week and the admin page renders resulting `pick_results` and `standings`. Recompute-from-scratch doubles as the simulator's reset for scoring state; a full environment reset truncates league/pick data and reloads fixtures.
 
-Simulator API surface (non-prod only): `POST /sim/clock` (set/advance), `POST /sim/fixtures` (load scenario / edit results — including replaying a real past ESPN season, spreads synthesized since historical feeds strip odds), `POST /sim/settle` (run settlement for simulated now), `POST /sim/reset` (league or environment scope). Admin-session gated (env-var allowlist) on top of the env gate — the simulator is driven from the admin page, not by machine callers, so the shared-secret header stays a jobs-only mechanism (ADR-0011). E2E mints an admin session per ADR-0006.
+Simulator API surface (non-prod only), as built in SIM-1…SIM-6: `GET /sim/state` (clock, active scenario, library), `POST /sim/clock` (set instant / advance / week-anchored jump / reset), `POST /sim/scenarios/{slug}/load` (activate a library or imported scenario, positioning the clock at its start), `POST /sim/scenarios/replay` (import a real past ESPN season — spreads synthesized, since historical feeds strip odds), `GET /sim/fixtures/games` + `PATCH /sim/fixtures/games/{id}` (inspect / hand-edit results), `POST /sim/reset` (league or environment scope), and `POST /sim/settle` (run settlement for simulated now — SIM-5, after PKM-4). The single `POST /sim/fixtures` this list previously named split into the scenario and fixture routes above (ADR-0012); the capabilities are unchanged. Admin-session gated (env-var allowlist) on top of the env gate — the simulator is driven from the admin page, not by machine callers, so the shared-secret header stays a jobs-only mechanism (ADR-0011). These routes appear in the committed OpenAPI contract so the SPA reaches them through the generated client, but production never registers them (ADR-0012). E2E mints an admin session per ADR-0006.
 
 ## Automated Testing
 
@@ -253,8 +255,11 @@ pick_results                # pick FK (per mode), outcome, points, differential
 standings                   # materialized: league_season FK, member FK, week?, points, rank
                             #   (picks/results/standings key off league_seasons, ADR-0009)
 
-app_state                   # singleton rows: simulated clock offset (non-prod), flags
-sim_fixtures                # non-prod: scenario-loaded game results/spreads for SimulatedProvider
+app_state                   # singleton row: simulated clock offset + active scenario (non-prod), flags
+sim_scenarios               # non-prod: one loadable scenario (library case or imported past season)
+sim_fixture_weeks           # scenario FK: the week structure SimulatedProvider serves
+sim_fixture_games           # scenario FK: kickoff, spread, terminal status/scores (projected via Clock)
+sim_fixture_teams           # scenario FK: the team cast the fixtures reference
 admin_audit                 # override/rebuild actions: admin, action, target, prior value, at
 ```
 

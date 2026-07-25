@@ -51,7 +51,7 @@ function buildApp(adminUserIds: string[] = []) {
     db,
     env,
     clock: async () => new FixedClock(FIXED_NOW),
-    provider: new FakeProvider(),
+    provider: async () => new FakeProvider(),
   });
 }
 

@@ -13,6 +13,7 @@ import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@pic
 import { createApp } from "../src/app";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflScores } from "../src/services/nfl/sync-scores";
+import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -57,43 +58,13 @@ class FakeProvider implements GameDataProvider {
   }
 }
 
-function providerWeek(
-  weekNumber: number,
-  startsAt: string,
-  endsAt: string,
-  weekType: WeekType = WEEK_TYPE.REGULAR,
-  label = `Week ${weekNumber}`,
-): ProviderWeek {
-  return { weekType, weekNumber, label, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
-}
-
-function providerGame(
-  overrides: Partial<ProviderGame> & { providerGameId: string; weekNumber: number },
-): ProviderGame {
-  return {
-    weekType: WEEK_TYPE.REGULAR,
-    homeTeamAbbr: "HOM",
-    homeTeamName: "Home Team",
-    homeTeamProviderId: "hom-id",
-    awayTeamAbbr: "AWY",
-    awayTeamName: "Away Team",
-    awayTeamProviderId: "awy-id",
-    kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
-    status: GAME_STATUS.SCHEDULED,
-    homeScore: null,
-    awayScore: null,
-    spread: null,
-    ...overrides,
-  };
-}
-
 const db = createDb(getTestDatabaseUrl());
 const provider = new FakeProvider();
 const app = createApp({
   env: testEnv,
   db,
   clock: async () => afterClock,
-  provider,
+  provider: async () => provider,
 });
 
 /** Seeds one season + the given week with its games via the real schedule sync. */

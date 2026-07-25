@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { accounts, createDb, sessions, users } from "@picksleagues/db";
-import { FixedClock } from "@picksleagues/core";
+import { FixedClock, type Env } from "@picksleagues/core";
 import { DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
@@ -98,6 +98,7 @@ describe("GET /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
   });
 
@@ -130,6 +131,28 @@ describe("GET /api/me", () => {
     const body = (await res.json()) as MeResponse;
     expect(body.isAdmin).toBe(true);
   });
+
+  // The SPA hides sim surfaces off this flag; the real gate is that production
+  // never registers /api/sim/* at all (ADR-0011).
+  it.each([
+    { appEnv: "local", expected: true },
+    { appEnv: "staging", expected: true },
+    { appEnv: "production", expected: false },
+  ])("reports simEnabled $expected when APP_ENV is $appEnv", async ({ appEnv, expected }) => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    const envApp = createApp({
+      auth,
+      db,
+      env: makeTestEnv({ APP_ENV: appEnv as Env["APP_ENV"] }),
+      clock: async () => new FixedClock(FIXED_NOW),
+    });
+
+    const res = await envApp.request("/api/me", { method: "GET", headers: { cookie } });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as MeResponse;
+    expect(body.simEnabled).toBe(expected);
+  });
 });
 
 describe("PATCH /api/me", () => {
@@ -153,6 +176,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -223,6 +247,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -244,6 +269,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
   });
 

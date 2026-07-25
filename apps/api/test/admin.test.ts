@@ -40,7 +40,13 @@ const auth = createAuth({ env: makeTestEnv(), db });
 
 function buildApp(adminUserIds: string[] = []) {
   const env = makeTestEnv({ ADMIN_USER_IDS: adminUserIds });
-  return createApp({ auth, db, env, clock: async () => new FixedClock(FIXED_NOW), provider });
+  return createApp({
+    auth,
+    db,
+    env,
+    clock: async () => new FixedClock(FIXED_NOW),
+    provider: async () => provider,
+  });
 }
 
 function postAdminJob(app: ReturnType<typeof buildApp>, job: string, cookie: string | undefined) {
