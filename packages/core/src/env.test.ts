@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { loadEnv, resetEnvCache } from "./env";
+import { APP_ENV, isSimEnabled, loadEnv, resetEnvCache } from "./env";
 
 const validSource: Record<string, string | undefined> = {
   APP_ENV: "local",
@@ -36,5 +36,32 @@ describe("loadEnv", () => {
   ])("parses ADMIN_USER_IDS $raw", ({ raw, expected }) => {
     const env = loadEnv({ ...validSource, ADMIN_USER_IDS: raw });
     expect(env.ADMIN_USER_IDS).toEqual(expected);
+  });
+
+  it.each([
+    { label: '"true"', raw: "true", expected: true },
+    { label: '"false"', raw: "false", expected: false },
+    { label: "absent (fails closed)", raw: undefined, expected: false },
+  ])("parses SIM_ENABLED $label to $expected", ({ raw, expected }) => {
+    const env = loadEnv({ ...validSource, SIM_ENABLED: raw });
+    expect(env.SIM_ENABLED).toBe(expected);
+  });
+});
+
+describe("isSimEnabled", () => {
+  it.each([
+    { appEnv: APP_ENV.LOCAL, SIM_ENABLED: true, expected: true },
+    { appEnv: APP_ENV.LOCAL, SIM_ENABLED: false, expected: false },
+    { appEnv: APP_ENV.STAGING, SIM_ENABLED: true, expected: true },
+    { appEnv: APP_ENV.STAGING, SIM_ENABLED: false, expected: false },
+    { appEnv: APP_ENV.PRODUCTION, SIM_ENABLED: false, expected: false },
+  ])("$appEnv + SIM_ENABLED=$SIM_ENABLED → $expected", ({ appEnv, SIM_ENABLED, expected }) => {
+    expect(isSimEnabled({ APP_ENV: appEnv, SIM_ENABLED })).toBe(expected);
+  });
+
+  // The load-bearing case: production is a hard override, so a mis-set flag can
+  // never point the simulator's clock control or environment reset at prod.
+  it("stays false in production even when SIM_ENABLED is true", () => {
+    expect(isSimEnabled({ APP_ENV: "production", SIM_ENABLED: true })).toBe(false);
   });
 });

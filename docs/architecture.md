@@ -35,7 +35,7 @@ Three environments, branch-mapped:
 | --- | --- | --- | --- | --- | --- |
 | **Local** | Vite dev + Hono dev server | any | **Docker Postgres** | ESPN (default); simulated when running scenarios | Enabled |
 | **Staging** | Vercel, pinned to `staging` branch with a fixed domain | `staging` | Dedicated Neon branch (`staging`) | ESPN (default); simulated when running scenarios | Enabled |
-| **Production** | Vercel Production | `main` | Neon primary branch | ESPN only | **Disabled** (sim routes not registered) |
+| **Production** | Vercel Production | `main` | Neon primary branch | ESPN only | **Disabled** — `SIM_ENABLED` is ignored here (ADR-0014); sim routes not registered |
 
 **Data source, clarified:** ESPN is the provider in every environment — staging and local run against real ESPN data by default, which continuously exercises the real integration. "Simulated" is not an environment default but a **mode**: when a simulator scenario is loaded (local/staging/CI), the app reads game data from simulator-controlled tables instead of ESPN-synced ones for the leagues/season under test. E2E in CI always runs in simulated mode for determinism.
 
@@ -44,7 +44,7 @@ Mechanics:
 - **Neon:** staging is a long-lived Neon branch, resettable from seed data. Local dev runs Postgres in Docker (compose file in the repo); Drizzle migrations make local ↔ Neon parity a non-issue since it's plain Postgres either way.
 - **Auth:** separate Google and Discord OAuth apps per environment (different redirect URIs); Better Auth config is env-var driven.
 - **Jobs:** cron-job.org targets production only. Staging jobs run manually from the admin page or under simulator control — scheduled crons against staging would fight simulated time when a scenario is active.
-- **Env flags:** a single `APP_ENV` (`local` | `staging` | `production`) gates the simulator, and admin surfaces. Simulator routes are not registered at all when `APP_ENV=production` — not merely auth-gated.
+- **Env flags:** `APP_ENV` (`local` | `staging` | `production`) names the environment; `SIM_ENABLED` toggles the simulator (ADR-0014). Availability is the single predicate `isSimEnabled` = `APP_ENV !== production && SIM_ENABLED`, so **production ignores the flag entirely** — the simulator can move the clock and truncate data, and one mis-set variable must not be able to point that at the production database. When it resolves false, simulator routes are not registered at all — not merely auth-gated. Admin surfaces are gated separately, by the `admin` role (ADR-0013), and are mounted in every environment.
 
 ## Simulator & Time Architecture
 

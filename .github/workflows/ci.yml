@@ -54,6 +54,7 @@ jobs:
         run: |
           cat > .env <<EOF
           APP_ENV=local
+          SIM_ENABLED=true
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/picksleagues
           BETTER_AUTH_SECRET=$(openssl rand -hex 32)
           BETTER_AUTH_URL=http://localhost:5173

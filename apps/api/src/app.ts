@@ -1,6 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
-import { APP_ENV } from "@picksleagues/core";
+import { isSimEnabled } from "@picksleagues/core";
 import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
@@ -57,21 +57,22 @@ export function createApp(deps: AppDeps = {}) {
 
   // Admin surface (`users.app_role`, ADR-0013) — mounted unconditionally in
   // every env, unlike the sim routes; server-side auth gates it, not
-  // non-registration (that's for simulator-only routes per APP_ENV=production).
+  // non-registration (that's for simulator-only routes, per `isSimEnabled`).
   app.route("/", adminRoutes(deps));
 
   // The simulator is the one surface gated by *not existing* rather than by auth
-  // (ADR-0011): in production these paths 404 because no handler was ever
+  // (ADR-0011): where `isSimEnabled` is false — always in production, and
+  // wherever `SIM_ENABLED` is off — these paths 404 because no handler was ever
   // registered, so no authorization bug can expose them.
   //
-  // The condition is "not production" rather than "env is non-prod" so that
-  // generate-openapi.ts — which builds the app with no deps at all — still emits
-  // these routes into the committed contract, which is what lets the SPA reach
-  // them through the generated client like every other endpoint. A real
-  // deployment always supplies env (loadEnv throws otherwise), so the only
-  // caller that takes this branch env-less is spec generation; and even then the
-  // handlers' own guards 500 without auth/db rather than serving anything.
-  if (deps.env?.APP_ENV !== APP_ENV.PRODUCTION) {
+  // The env-less case must still mount, because generate-openapi.ts builds the
+  // app with no deps at all and these routes have to land in the committed
+  // contract for the SPA to reach them through the generated client like every
+  // other endpoint (ADR-0012). A real deployment always supplies env (loadEnv
+  // throws otherwise), so the only caller taking that branch is spec
+  // generation; and even then the handlers' own guards 500 without auth/db
+  // rather than serving anything.
+  if (deps.env === undefined || isSimEnabled(deps.env)) {
     app.route("/", simRoutes(deps));
   }
 

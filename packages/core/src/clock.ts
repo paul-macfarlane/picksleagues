@@ -1,5 +1,3 @@
-import { APP_ENV, type AppEnv } from "./env";
-
 /**
  * All "now" reads in domain logic go through a Clock (arch D13, lint-enforced).
  * `now()` is synchronous: a Clock is resolved once per request/job, so every
@@ -50,15 +48,16 @@ export class OffsetClock implements Clock {
 export type SimOffsetReader = () => Promise<number>;
 
 /**
- * Production always gets system time — the offset code path is structurally
- * unreachable there, matching the sim-routes-not-registered rule (arch D13).
- * Non-prod reads the DB-persisted offset so all serverless instances agree.
+ * Without the simulator there is no offset to read: system time, and the reader
+ * is never invoked — so the offset code path is structurally unreachable in
+ * production (arch D13), which `isSimEnabled` guarantees for `simEnabled`.
+ * With it, the offset comes from the DB so all serverless instances agree.
  */
 export async function resolveClock(
-  appEnv: AppEnv,
+  simEnabled: boolean,
   readSimOffsetMs: SimOffsetReader,
 ): Promise<Clock> {
-  if (appEnv === APP_ENV.PRODUCTION) {
+  if (!simEnabled) {
     return new SystemClock();
   }
   return new OffsetClock(new SystemClock(), await readSimOffsetMs());

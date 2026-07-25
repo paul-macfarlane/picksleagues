@@ -15,6 +15,7 @@ import {
   weeks,
 } from "@picksleagues/db";
 import {
+  isSimEnabled,
   nflSeasonYearFor,
   resolveClock,
   resolveGameDataProvider,
@@ -123,16 +124,17 @@ function buildApp(
 ) {
   const fakeEspn = opts.fakeEspn ?? UNUSED_PROVIDER;
   const env = makeTestEnv({ ADMIN_USER_IDS: adminUserIds, ...opts.envOverrides });
+  const simEnabled = isSimEnabled(env);
   return createApp({
     auth,
     db,
     env,
     espnProvider: fakeEspn,
-    clock: () => resolveClock(env.APP_ENV, () => getSimClockOffsetMs(db)),
+    clock: () => resolveClock(simEnabled, () => getSimClockOffsetMs(db)),
     provider: async (clock) => {
       const { activeScenarioId } = await getSimState(db);
       return resolveGameDataProvider({
-        appEnv: env.APP_ENV,
+        simEnabled,
         espn: fakeEspn,
         clock,
         activeScenarioId,
@@ -328,6 +330,28 @@ describe("sim route gating", () => {
   it("production: sim routes are not registered at all — GET /api/sim/state 404s even for an admin (ADR-0011)", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
     const app = buildApp([user.id], { envOverrides: { APP_ENV: "production" } });
+
+    const res = await get(app, "/api/sim/state", cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("SIM_ENABLED=false in a non-prod env: sim routes are not registered — GET /api/sim/state 404s for an admin", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    const app = buildApp([user.id], {
+      envOverrides: { APP_ENV: "local", SIM_ENABLED: false },
+    });
+
+    const res = await get(app, "/api/sim/state", cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("production overrides SIM_ENABLED=true: sim routes stay unregistered — GET /api/sim/state 404s for an admin", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    const app = buildApp([user.id], {
+      envOverrides: { APP_ENV: "production", SIM_ENABLED: true },
+    });
 
     const res = await get(app, "/api/sim/state", cookie);
 

@@ -1,6 +1,6 @@
 import {
-  APP_ENV,
   EspnProvider,
+  isSimEnabled,
   resolveClock,
   resolveGameDataProvider,
   type Env,
@@ -22,21 +22,24 @@ export function createRuntimeDeps(env: Env): AppDeps {
   // The real provider: the default source in every environment, and the only
   // one the replay importer may use (ADR-0012).
   const espnProvider = new EspnProvider();
+  // Resolved once here so the clock, the provider, and (via app.ts) the sim
+  // routes cannot disagree about whether the simulator exists.
+  const simEnabled = isSimEnabled(env);
 
   return {
     auth,
     db,
     env,
     espnProvider,
-    clock: () => resolveClock(env.APP_ENV, () => getSimClockOffsetMs(db)),
+    clock: () => resolveClock(simEnabled, () => getSimClockOffsetMs(db)),
     provider: async (clock) => {
-      // Production never reads simulator state at all — the short-circuit lives
-      // here as well as inside the resolver so the claim "production cannot
-      // reach the simulator" is true of the query, not just the outcome.
-      const activeScenarioId =
-        env.APP_ENV === APP_ENV.PRODUCTION ? null : (await getSimState(db)).activeScenarioId;
+      // With the simulator off, simulator state isn't read at all — the
+      // short-circuit lives here as well as inside the resolver so the claim
+      // "production cannot reach the simulator" is true of the query, not just
+      // the outcome.
+      const activeScenarioId = simEnabled ? (await getSimState(db)).activeScenarioId : null;
       return resolveGameDataProvider({
-        appEnv: env.APP_ENV,
+        simEnabled,
         espn: espnProvider,
         clock,
         activeScenarioId,

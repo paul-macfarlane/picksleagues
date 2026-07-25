@@ -132,27 +132,33 @@ describe("GET /api/me", () => {
     expect(body.isAdmin).toBe(true);
   });
 
-  // The SPA hides sim surfaces off this flag; the real gate is that production
-  // never registers /api/sim/* at all (ADR-0011).
+  // The SPA hides sim surfaces off this flag; the real gate is that /api/sim/*
+  // is never registered where the simulator is disabled (ADR-0011), and
+  // production is disabled regardless of SIM_ENABLED (ADR-0014).
   it.each([
-    { appEnv: "local", expected: true },
-    { appEnv: "staging", expected: true },
-    { appEnv: "production", expected: false },
-  ])("reports simEnabled $expected when APP_ENV is $appEnv", async ({ appEnv, expected }) => {
-    const { cookie } = await createAuthenticatedUser(auth);
-    const envApp = createApp({
-      auth,
-      db,
-      env: makeTestEnv({ APP_ENV: appEnv as Env["APP_ENV"] }),
-      clock: async () => new FixedClock(FIXED_NOW),
-    });
+    { appEnv: "local", simEnabled: true, expected: true },
+    { appEnv: "local", simEnabled: false, expected: false },
+    { appEnv: "staging", simEnabled: true, expected: true },
+    { appEnv: "production", simEnabled: false, expected: false },
+    { appEnv: "production", simEnabled: true, expected: false },
+  ])(
+    "reports simEnabled $expected when APP_ENV is $appEnv and SIM_ENABLED is $simEnabled",
+    async ({ appEnv, simEnabled, expected }) => {
+      const { cookie } = await createAuthenticatedUser(auth);
+      const envApp = createApp({
+        auth,
+        db,
+        env: makeTestEnv({ APP_ENV: appEnv as Env["APP_ENV"], SIM_ENABLED: simEnabled }),
+        clock: async () => new FixedClock(FIXED_NOW),
+      });
 
-    const res = await envApp.request("/api/me", { method: "GET", headers: { cookie } });
+      const res = await envApp.request("/api/me", { method: "GET", headers: { cookie } });
 
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as MeResponse;
-    expect(body.simEnabled).toBe(expected);
-  });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as MeResponse;
+      expect(body.simEnabled).toBe(expected);
+    },
+  );
 });
 
 describe("PATCH /api/me", () => {

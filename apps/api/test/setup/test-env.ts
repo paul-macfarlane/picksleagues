@@ -12,6 +12,9 @@ import { getTestDatabaseUrl } from "./test-database-url";
 export function makeTestEnv(overrides?: Partial<Env>): Env {
   return {
     APP_ENV: "local",
+    // Test default only (production code defaults to false): most integration
+    // tests exercise sim routes, so opting in per test would be noise.
+    SIM_ENABLED: true,
     DATABASE_URL: getTestDatabaseUrl(),
     BETTER_AUTH_SECRET: "a".repeat(32),
     BETTER_AUTH_URL: "http://localhost:3000",

@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { APP_ENV } from "@picksleagues/core";
+import { isSimEnabled } from "@picksleagues/core";
 import {
   APP_ROLE,
   ERROR_CODE,
@@ -99,10 +99,9 @@ export function meRoutes(deps: AppDeps) {
   app.use("/me", requireDbAndClock(deps));
 
   // Whether the simulator exists here at all (ADR-0011): the real gate is that
-  // `/api/sim/*` is not registered in production, so this only tells the SPA
+  // `/api/sim/*` is not registered when it doesn't, so this only tells the SPA
   // whether to render sim surfaces — it grants nothing.
-  const simEnabled = deps.env?.APP_ENV !== undefined && deps.env.APP_ENV !== APP_ENV.PRODUCTION;
-  const capabilities = { simEnabled };
+  const capabilities = { simEnabled: deps.env ? isSimEnabled(deps.env) : false };
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
