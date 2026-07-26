@@ -66,11 +66,17 @@ export async function readSimState(
     listScenarios(db),
   ]);
 
+  const clockState = clockOverride ?? simClockStateFrom(clock.now().getTime() - offsetMs, offsetMs);
+
   return {
-    clock: clockOverride ?? simClockStateFrom(clock.now().getTime() - offsetMs, offsetMs),
+    clock: clockState,
     activeScenario: scenarios.find((scenario) => scenario.id === activeScenarioId) ?? null,
     scenarios,
     library: listLibraryEntries(),
+    // Against real time, matching `isReplayableSeasonYear`'s own basis (replay.ts):
+    // a loaded replay parks the simulated clock inside the season it imported, so
+    // deriving this from simulated now would hide that season from the panel.
+    latestReplayableSeasonYear: nflSeasonYearFor(new Date(clockState.realNow)) - 1,
   };
 }
 

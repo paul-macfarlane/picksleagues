@@ -2,12 +2,14 @@ import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { simFixtureGames, simScenarios } from "@picksleagues/db";
 import { nflSeasonYearFor } from "@picksleagues/core";
+import { isReplayableSeasonYear } from "../src/services/sim/replay";
 import { GAME_STATUS, type JobRunResponse, type SimStateResponse } from "@picksleagues/schemas";
 import {
   adminCaller,
   closeSimDb,
   db,
   FakeProvider,
+  get,
   postJson,
   seedFakeEspnWeek,
 } from "./setup/sim-helpers";
@@ -144,6 +146,21 @@ describe("POST /api/sim/scenarios/replay", () => {
     expect(secondFixtures.map((f) => f.providerGameId)).toEqual(
       firstFixtures.map((f) => f.providerGameId),
     );
+  });
+
+  // Regression (SIM-7): the control panel's season picker counts down from
+  // `latestReplayableSeasonYear`, so if that field is ever off by one the
+  // panel's *default* option is the one the guard below rejects. It was, when
+  // the SPA derived candidates from the calendar year instead — an NFL season
+  // runs Aug–Feb, so Jan–Jul the previous calendar year is still in progress.
+  it("state's latestReplayableSeasonYear is the newest year the import guard accepts", async () => {
+    const { app, cookie } = await adminCaller();
+
+    const state = (await (await get(app, "/api/sim/state", cookie)).json()) as SimStateResponse;
+    const realNow = new Date(state.clock.realNow);
+
+    expect(isReplayableSeasonYear(realNow, state.latestReplayableSeasonYear)).toBe(true);
+    expect(isReplayableSeasonYear(realNow, state.latestReplayableSeasonYear + 1)).toBe(false);
   });
 
   // Asking for an unfinished season is a client mistake, so it refuses as a

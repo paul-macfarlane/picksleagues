@@ -808,9 +808,10 @@ export interface components {
         };
         SimStateResponse: {
             clock: components["schemas"]["SimClockState"];
-            activeScenario: components["schemas"]["SimScenario"];
+            activeScenario: components["schemas"]["NullableSimScenario"];
             scenarios: components["schemas"]["SimScenario"][];
             library: components["schemas"]["SimLibraryEntry"][];
+            latestReplayableSeasonYear: number;
         };
         SimClockState: {
             /** Format: date-time */
@@ -819,7 +820,7 @@ export interface components {
             realNow: string;
             offsetMs: number;
         };
-        SimScenario: {
+        NullableSimScenario: {
             id: string;
             slug: string;
             name: string;
@@ -835,6 +836,20 @@ export interface components {
         } | null;
         /** @enum {string} */
         SimScenarioSource: "library" | "replay";
+        SimScenario: {
+            id: string;
+            slug: string;
+            name: string;
+            description: string;
+            sport: components["schemas"]["Sport"];
+            seasonYear: number;
+            source: components["schemas"]["SimScenarioSource"];
+            /** Format: date-time */
+            startsAt: string;
+            gameCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         SimLibraryEntry: {
             slug: string;
             name: string;

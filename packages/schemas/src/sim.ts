@@ -91,16 +91,29 @@ export const SimClockStateSchema = z
 
 export type SimClockState = z.infer<typeof SimClockStateSchema>;
 
+// Registered under its own component name for the same reason as
+// `NullableUsername` (me.ts): `.nullable()` on an already-registered node folds
+// `null` into that shared component, and the first registration wins — which
+// silently widened `scenarios[]` below to `(SimScenario | null)[]` in the
+// generated client.
+const NullableSimScenarioSchema = SimScenarioSchema.nullable().openapi("NullableSimScenario");
+
 export const SimStateResponseSchema = z
   .object({
     clock: SimClockStateSchema,
     // Null when no scenario is loaded — the provider then serves real ESPN data,
     // which is the default in every environment (arch §Environments).
-    activeScenario: SimScenarioSchema.nullable(),
+    activeScenario: NullableSimScenarioSchema,
     // Scenarios with fixtures written, loadable immediately.
     scenarios: z.array(SimScenarioSchema),
     // Canned definitions available to load, whether or not fixtures exist yet.
     library: z.array(SimLibraryEntrySchema),
+    // The newest season `isReplayableSeasonYear` will accept (replay.ts). Served
+    // rather than derived client-side: which season is "current" is a calendar
+    // rule owned by `nflSeasonYearFor` in packages/core, which the browser
+    // bundle can't import — a restated copy would drift and offer the control
+    // panel a year the import then rejects.
+    latestReplayableSeasonYear: z.number().int(),
   })
   .openapi("SimStateResponse");
 

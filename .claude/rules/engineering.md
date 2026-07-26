@@ -38,6 +38,7 @@ Standards for all code in this repo. When a rule and `docs/architecture.md` conf
 ## Contract & codegen
 
 - The OpenAPI spec and generated web client in `openapi/` are **committed**; CI fails if regeneration dirties them. Change the Zod schema → regenerate → commit schema, spec, and client together.
+- **Never wrap an `.openapi()`-registered schema in `.nullable()` (or `.optional()`) inline** — the wrapper inherits the registration, and the first one to register wins, so `null` gets folded into the *shared component* and silently widens every other `$ref` to it. Register the nullable variant under its own component name instead (`NullableUsername` in `packages/schemas/src/me.ts`, `NullableSimScenario` in `sim.ts`). This fails silently — `pnpm contract:check` stays green because the spec is self-consistent; only the generated client's types are wrong.
 
 ## Quality
 

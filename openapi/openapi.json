@@ -1375,7 +1375,7 @@
             "$ref": "#/components/schemas/SimClockState"
           },
           "activeScenario": {
-            "$ref": "#/components/schemas/SimScenario"
+            "$ref": "#/components/schemas/NullableSimScenario"
           },
           "scenarios": {
             "type": "array",
@@ -1388,13 +1388,17 @@
             "items": {
               "$ref": "#/components/schemas/SimLibraryEntry"
             }
+          },
+          "latestReplayableSeasonYear": {
+            "type": "integer"
           }
         },
         "required": [
           "clock",
           "activeScenario",
           "scenarios",
-          "library"
+          "library",
+          "latestReplayableSeasonYear"
         ]
       },
       "SimClockState": {
@@ -1418,7 +1422,7 @@
           "offsetMs"
         ]
       },
-      "SimScenario": {
+      "NullableSimScenario": {
         "type": [
           "object",
           "null"
@@ -1475,6 +1479,55 @@
         "enum": [
           "library",
           "replay"
+        ]
+      },
+      "SimScenario": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SimScenarioSource"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCount": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description",
+          "sport",
+          "seasonYear",
+          "source",
+          "startsAt",
+          "gameCount",
+          "updatedAt"
         ]
       },
       "SimLibraryEntry": {
