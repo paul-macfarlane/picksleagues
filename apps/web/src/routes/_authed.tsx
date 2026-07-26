@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
+import { SimClockBanner } from "@/components/sim-clock-banner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,6 +112,9 @@ function AuthedLayout() {
             <SessionMenu />
           </div>
         </div>
+        {/* Inside the sticky header so the "now isn't real" warning survives
+            scrolling — an indicator you can scroll past is one you can forget. */}
+        <SimClockBanner />
       </header>
       {/* Every authed page inherits this one column — pages never set their own
           page width, only intentionally-narrow content (single-card states,

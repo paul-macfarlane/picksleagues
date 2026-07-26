@@ -20,6 +20,7 @@ import { Route as JoinCodeRouteImport } from './routes/join.$code'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
 import { Route as AuthedAdminSeasonsRouteImport } from './routes/_authed/admin/seasons'
+import { Route as AuthedAdminSimRouteImport } from './routes/_authed/admin/sim'
 import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
 import { Route as AuthedLeaguesLeagueIdRouteRouteImport } from './routes/_authed/leagues/$leagueId/route'
 import { Route as AuthedLeaguesNewRouteImport } from './routes/_authed/leagues/new'
@@ -81,6 +82,11 @@ const AuthedAdminSeasonsRoute = AuthedAdminSeasonsRouteImport.update({
   path: '/seasons',
   getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
+const AuthedAdminSimRoute = AuthedAdminSimRouteImport.update({
+  id: '/sim',
+  path: '/sim',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
 const AuthedAdminTeamsRoute = AuthedAdminTeamsRouteImport.update({
   id: '/teams',
   path: '/teams',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/admin/games': typeof AuthedAdminGamesRoute
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
+  '/admin/sim': typeof AuthedAdminSimRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
   '/admin/': typeof AuthedAdminIndexRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/admin/games': typeof AuthedAdminGamesRoute
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
+  '/admin/sim': typeof AuthedAdminSimRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
   '/admin': typeof AuthedAdminIndexRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/_authed/admin/games': typeof AuthedAdminGamesRoute
   '/_authed/admin/seasons': typeof AuthedAdminSeasonsRoute
+  '/_authed/admin/sim': typeof AuthedAdminSimRoute
   '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
   '/_authed/leagues/new': typeof AuthedLeaguesNewRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/leagues/$leagueId'
     | '/admin/games'
     | '/admin/seasons'
+    | '/admin/sim'
     | '/admin/teams'
     | '/leagues/new'
     | '/admin/'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/games'
     | '/admin/seasons'
+    | '/admin/sim'
     | '/admin/teams'
     | '/leagues/new'
     | '/admin'
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/_authed/leagues/$leagueId'
     | '/_authed/admin/games'
     | '/_authed/admin/seasons'
+    | '/_authed/admin/sim'
     | '/_authed/admin/teams'
     | '/_authed/leagues/new'
     | '/_authed/admin/'
@@ -312,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminSeasonsRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
+    '/_authed/admin/sim': {
+      id: '/_authed/admin/sim'
+      path: '/sim'
+      fullPath: '/admin/sim'
+      preLoaderRoute: typeof AuthedAdminSimRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
     '/_authed/admin/teams': {
       id: '/_authed/admin/teams'
       path: '/teams'
@@ -360,6 +379,7 @@ declare module '@tanstack/react-router' {
 interface AuthedAdminRouteRouteChildren {
   AuthedAdminGamesRoute: typeof AuthedAdminGamesRoute
   AuthedAdminSeasonsRoute: typeof AuthedAdminSeasonsRoute
+  AuthedAdminSimRoute: typeof AuthedAdminSimRoute
   AuthedAdminTeamsRoute: typeof AuthedAdminTeamsRoute
   AuthedAdminIndexRoute: typeof AuthedAdminIndexRoute
 }
@@ -367,6 +387,7 @@ interface AuthedAdminRouteRouteChildren {
 const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
   AuthedAdminGamesRoute: AuthedAdminGamesRoute,
   AuthedAdminSeasonsRoute: AuthedAdminSeasonsRoute,
+  AuthedAdminSimRoute: AuthedAdminSimRoute,
   AuthedAdminTeamsRoute: AuthedAdminTeamsRoute,
   AuthedAdminIndexRoute: AuthedAdminIndexRoute,
 }
