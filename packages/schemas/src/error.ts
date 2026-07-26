@@ -38,6 +38,11 @@ export const ERROR_CODE = {
   INVITE_EXPIRED: "invite_expired",
   INVITE_EXHAUSTED: "invite_exhausted",
   MAX_MEMBERS_BELOW_MEMBER_COUNT: "max_members_below_member_count",
+  SCENARIO_NOT_FOUND: "scenario_not_found",
+  FIXTURE_NOT_FOUND: "fixture_not_found",
+  WEEK_NOT_FOUND: "week_not_found",
+  WEEK_HAS_NO_GAMES: "week_has_no_games",
+  SEASON_NOT_AVAILABLE: "season_not_available",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

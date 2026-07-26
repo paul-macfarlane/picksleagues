@@ -6,11 +6,11 @@ Cloud, and Discord.
 
 ## Matrix
 
-| Environment | Deploy                                     | Branch  | Database                   | `APP_ENV`    | Simulator            |
-| ----------- | ------------------------------------------ | ------- | -------------------------- | ------------ | -------------------- |
-| Local       | `pnpm dev` (Vite :5173 + Hono :3000)       | any     | Docker Postgres :5433      | `local`      | enabled              |
-| Staging     | Vercel Preview pinned to `staging` + alias | staging | Neon branch `staging`      | `staging`    | enabled              |
-| Production  | Vercel Production                          | main    | Neon primary               | `production` | routes not registered |
+| Environment | Deploy                                     | Branch  | Database                   | `APP_ENV`    | `SIM_ENABLED`      | Simulator             |
+| ----------- | ------------------------------------------ | ------- | -------------------------- | ------------ | ------------------ | --------------------- |
+| Local       | `pnpm dev` (Vite :5173 + Hono :3000)       | any     | Docker Postgres :5433      | `local`      | `true`             | enabled               |
+| Staging     | Vercel Preview pinned to `staging` + alias | staging | Neon branch `staging`      | `staging`    | `true`             | enabled               |
+| Production  | Vercel Production                          | main    | Neon primary               | `production` | absent / `false`   | routes not registered |
 
 ## Local
 
@@ -96,9 +96,26 @@ sign-in request before any provider is contacted.
 ### Vercel env vars — per scope
 
 Set in three scopes (Production / Preview–`staging` / Development):
-`APP_ENV`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`,
-`GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `JOB_SECRET`,
-`ADMIN_USER_IDS`.
+`APP_ENV`, `SIM_ENABLED`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
+`JOB_SECRET`.
+
+`SIM_ENABLED` must be **absent or `false` in Production** and `true` in Preview–`staging` and
+Development. It defaults to false when unset, so forgetting it disables the simulator rather
+than exposing it. Production ignores the var entirely: `APP_ENV=production` keeps the
+simulator off even if it is set to `true`, so a mis-set flag can never point clock
+manipulation or an environment reset at the production database.
+
+Warning: "absent" means the variable is deleted, not blanked. Clearing a Vercel variable's
+value to an empty string (the easy mis-click when you meant to remove it) is not the same as
+removing it — `loadEnv` throws on an empty string rather than falling back to the default,
+which fails the function's cold start and takes the whole environment down. Delete the
+variable or set it to the literal `false`, never blank it. The same caution applies to any
+other boolean or required var in this list.
+
+Symptom: `/api/sim/*` returning 404 in Local or Staging means `SIM_ENABLED` is unset or
+`false` — that's the default, so a forgotten var reads as a missing route rather than a
+config error.
 
 Every environment gets its **own** `BETTER_AUTH_SECRET`. Known failure mode: if the staging
 Neon branch is created (copy-on-write) from a database that already has a `jwks` row encrypted

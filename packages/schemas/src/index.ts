@@ -1,4 +1,5 @@
 export * from "./admin-data";
+export * from "./app-role";
 export * from "./discovery";
 export * from "./display-name";
 export * from "./error";
@@ -15,6 +16,7 @@ export * from "./leagues";
 export * from "./me";
 export * from "./member-role";
 export * from "./pick-type";
+export * from "./sim";
 export * from "./sport";
 export * from "./username";
 export * from "./week-type";

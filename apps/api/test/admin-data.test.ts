@@ -18,7 +18,7 @@ import {
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -44,14 +44,13 @@ class FakeProvider implements GameDataProvider {
 const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: makeTestEnv(), db });
 
-function buildApp(adminUserIds: string[] = []) {
-  const env = makeTestEnv({ ADMIN_USER_IDS: adminUserIds });
+function buildApp() {
   return createApp({
     auth,
     db,
-    env,
+    env: makeTestEnv(),
     clock: async () => new FixedClock(FIXED_NOW),
-    provider: new FakeProvider(),
+    provider: async () => new FakeProvider(),
   });
 }
 
@@ -59,10 +58,11 @@ function get(app: ReturnType<typeof buildApp>, path: string, cookie?: string) {
   return app.request(path, { headers: { ...(cookie ? { cookie } : {}) } });
 }
 
-/** Signs in a user, puts them on the allowlist, and returns an admin-ready app. */
+/** Signs in a user, grants them the admin role, and returns an admin-ready app. */
 async function adminCaller() {
   const { user, cookie } = await createAuthenticatedUser(auth);
-  return { app: buildApp([user.id]), cookie, userId: user.id };
+  await grantAdmin(db, user.id);
+  return { app: buildApp(), cookie, userId: user.id };
 }
 
 /**
@@ -276,7 +276,7 @@ describe("admin reference-data browsers", () => {
     expect(await res.json()).toMatchObject({ error: "unauthenticated" });
   });
 
-  it.each(paths)("403s for a signed-in caller off the allowlist: %s", async (path) => {
+  it.each(paths)("403s for a signed-in non-admin caller: %s", async (path) => {
     const { cookie } = await createAuthenticatedUser(auth);
 
     const res = await get(buildApp(), path, cookie);

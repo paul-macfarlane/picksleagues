@@ -1,5 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
+import { isSimEnabled } from "@picksleagues/core";
 import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
@@ -12,6 +13,7 @@ import { inviteRoutes } from "./routes/invites";
 import { leagueRoutes } from "./routes/leagues";
 import { memberRoutes } from "./routes/members";
 import { meRoutes } from "./routes/me";
+import { simRoutes } from "./routes/sim";
 
 export type { AppDeps };
 
@@ -53,10 +55,27 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/", memberRoutes(deps));
   app.route("/", discoveryRoutes(deps));
 
-  // Admin surface (env-var allowlist, arch §Overrides) — mounted unconditionally
-  // in every env, unlike the sim routes; server-side auth gates it, not
-  // non-registration (that's for simulator-only routes per APP_ENV=production).
+  // Admin surface (`users.app_role`, ADR-0013) — mounted unconditionally in
+  // every env, unlike the sim routes; server-side auth gates it, not
+  // non-registration (that's for simulator-only routes, per `isSimEnabled`).
   app.route("/", adminRoutes(deps));
+
+  // The simulator is the one surface gated by *not existing* rather than by auth
+  // (ADR-0011): where `isSimEnabled` is false — always in production, and
+  // wherever `SIM_ENABLED` is off — these paths 404 because no handler was ever
+  // registered, so no authorization bug can expose them.
+  //
+  // The env-less case must still mount, because generate-openapi.ts builds the
+  // app with no deps at all and these routes have to land in the committed
+  // contract for the SPA to reach them through the generated client like every
+  // other endpoint (ADR-0012). A real deployment always supplies env (loadEnv
+  // throws otherwise), so nothing outside generate-openapi.ts and the tests
+  // that deliberately mimic it constructs an env-less app — and constructing
+  // one with `auth`/`db`/`clock` supplied but no `env` (as some tests do to
+  // exercise other routes) would serve the sim routes normally, not 500 them.
+  if (deps.env === undefined || isSimEnabled(deps.env)) {
+    app.route("/", simRoutes(deps));
+  }
 
   // Better Auth owns /api/auth/* as its own typed surface (client generated
   // from the auth instance, not this OpenAPI doc) — deliberately outside the

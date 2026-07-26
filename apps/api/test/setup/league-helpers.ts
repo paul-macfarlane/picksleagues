@@ -32,6 +32,9 @@ const SEED_AT = new Date("2026-01-01T00:00:00.000Z");
 export interface SeededWeek {
   weekType?: WeekType;
   weekNumber: number;
+  /** Defaults to `SEED_AT` — most callers don't care about the week's own bounds. */
+  startsAt?: Date;
+  endsAt?: Date;
   /** Kickoffs of the games in this week; empty = week with no games. */
   kickoffs?: Array<{ kickoffAt: Date; overrideKickoffAt?: Date }>;
 }
@@ -102,8 +105,8 @@ export async function seedSeason(
         weekType,
         weekNumber: spec.weekNumber,
         label: `Week ${spec.weekNumber}`,
-        startsAt: SEED_AT,
-        endsAt: SEED_AT,
+        startsAt: spec.startsAt ?? SEED_AT,
+        endsAt: spec.endsAt ?? SEED_AT,
         createdAt: SEED_AT,
         updatedAt: SEED_AT,
       })

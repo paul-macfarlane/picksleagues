@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import type { Db } from "@picksleagues/db";
 import type { Clock, GameDataProvider } from "@picksleagues/core";
+import type { AppDeps } from "../deps";
 import {
   JOB_RUN_STATUS,
   JobRunResponseSchema,
@@ -53,6 +54,27 @@ export const NFL_SYNC_JOBS: Record<
   [NFL_SYNC_JOB.SYNC_ODDS]: { jobName: "nfl-sync-odds", run: syncNflOdds },
   [NFL_SYNC_JOB.SYNC_SCORES]: { jobName: "nfl-sync-scores", run: syncNflScores },
 };
+
+/**
+ * Resolves the trio every sync-job handler needs, in the one order that keeps
+ * them consistent: the clock first, then the provider *for that clock* — a
+ * simulated provider projects fixtures against it, so they must be the same
+ * instant. Shared by `/api/jobs/nfl/*` and `/api/admin/jobs/nfl/{job}`, which
+ * would otherwise each restate the resolution and could drift apart.
+ *
+ * Null means a dependency is missing; callers turn that into `misconfiguredJob`
+ * so the 500 keeps the `JobRunResponse` shape.
+ */
+export async function resolveNflJobDeps(
+  deps: AppDeps,
+): Promise<{ db: Db; clock: Clock; provider: GameDataProvider } | null> {
+  const { db, clock: resolveClock, provider: resolveProvider } = deps;
+  if (!db || !resolveClock || !resolveProvider) {
+    return null;
+  }
+  const clock = await resolveClock();
+  return { db, clock, provider: await resolveProvider(clock) };
+}
 
 /**
  * Deviates from the me.ts idiom (which 500s with ErrorResponseSchema): job

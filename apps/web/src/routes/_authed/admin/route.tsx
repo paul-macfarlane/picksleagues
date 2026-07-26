@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authed/admin")({
 });
 
 /**
- * The admin surface's shell: one home for the allowlist guard, so no child
+ * The admin surface's shell: one home for the `isAdmin` guard, so no child
  * route can be reached without it, and the tab bar the sections hang off.
  * Sections are routes rather than local tab state — each is deep-linkable
  * (a week's game slate is worth sharing while debugging a sync), survives a

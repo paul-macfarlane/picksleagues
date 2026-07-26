@@ -35,7 +35,7 @@ Three environments, branch-mapped:
 | --- | --- | --- | --- | --- | --- |
 | **Local** | Vite dev + Hono dev server | any | **Docker Postgres** | ESPN (default); simulated when running scenarios | Enabled |
 | **Staging** | Vercel, pinned to `staging` branch with a fixed domain | `staging` | Dedicated Neon branch (`staging`) | ESPN (default); simulated when running scenarios | Enabled |
-| **Production** | Vercel Production | `main` | Neon primary branch | ESPN only | **Disabled** (sim routes not registered) |
+| **Production** | Vercel Production | `main` | Neon primary branch | ESPN only | **Disabled** — `SIM_ENABLED` is ignored here (ADR-0014); sim routes not registered |
 
 **Data source, clarified:** ESPN is the provider in every environment — staging and local run against real ESPN data by default, which continuously exercises the real integration. "Simulated" is not an environment default but a **mode**: when a simulator scenario is loaded (local/staging/CI), the app reads game data from simulator-controlled tables instead of ESPN-synced ones for the leagues/season under test. E2E in CI always runs in simulated mode for determinism.
 
@@ -44,21 +44,23 @@ Mechanics:
 - **Neon:** staging is a long-lived Neon branch, resettable from seed data. Local dev runs Postgres in Docker (compose file in the repo); Drizzle migrations make local ↔ Neon parity a non-issue since it's plain Postgres either way.
 - **Auth:** separate Google and Discord OAuth apps per environment (different redirect URIs); Better Auth config is env-var driven.
 - **Jobs:** cron-job.org targets production only. Staging jobs run manually from the admin page or under simulator control — scheduled crons against staging would fight simulated time when a scenario is active.
-- **Env flags:** a single `APP_ENV` (`local` | `staging` | `production`) gates the simulator, and admin surfaces. Simulator routes are not registered at all when `APP_ENV=production` — not merely auth-gated.
+- **Env flags:** `APP_ENV` (`local` | `staging` | `production`) names the environment; `SIM_ENABLED` toggles the simulator (ADR-0014). Availability is the single predicate `isSimEnabled` = `APP_ENV !== production && SIM_ENABLED`, so **production ignores the flag entirely** — the simulator can move the clock and truncate data, and one mis-set variable must not be able to point that at the production database. When it resolves false, simulator routes are not registered at all — not merely auth-gated. Admin surfaces are gated separately, by the `admin` role (ADR-0013), and are mounted in every environment.
 
 ## Simulator & Time Architecture
 
-The spec's season simulator (local/staging only) drives three architectural requirements, all cheap if built in from day one:
+The spec's season simulator (wherever `isSimEnabled` holds — local/staging, never production; ADR-0014) drives three architectural requirements, all cheap if built in from day one:
 
 **1. Injectable clock.** All time reads go through a `Clock` service, never `Date.now()` directly. Query-time locking, join cutoffs, and deadlines all derive from `clock.now()`.
-- Production: system time, always.
-- Local/staging: system time plus a persisted offset stored in an `app_state` row, settable via simulator endpoints ("advance to Week 5", "jump to 2026-10-04T13:00Z"). Because the offset lives in the DB, serverless function instances agree on the simulated time. SQL comparisons that need `now()` receive the clock value as a bound parameter rather than using the DB's `now()`.
+- Simulator off (always so in production): system time, always.
+- Simulator on: system time plus a persisted offset stored in an `app_state` row, settable via simulator endpoints ("advance to Week 5", "jump to 2026-10-04T13:00Z"). Because the offset lives in the DB, serverless function instances agree on the simulated time. SQL comparisons that need `now()` receive the clock value as a bound parameter rather than using the DB's `now()`.
 
 **2. Swappable data provider.** `GameDataProvider` is the interface (season structure, schedules, scores, odds, bracket); `EspnProvider` and `SimulatedProvider` both implement it. **ESPN is the default in every environment** — `SimulatedProvider` activates only when a simulator scenario is loaded (local/staging/CI), reading from `sim_fixtures` tables that simulator endpoints populate from canned scenario files or hand-edits. Scenarios cover the spec's required edge cases: pushes, ties, cancellations, week moves, all-eliminated weeks, vacated bracket slots. ("Fixture" here means simulator test data, nothing more.)
 
+Simulated data enters the app through the **normal sync jobs**, not a parallel read path: the jobs ingest from whichever provider is resolved into `sport_seasons`/`weeks`/`games`/`odds_snapshots`, so nothing downstream of ingestion knows the simulator exists (ADR-0012). Fixtures store each game's *terminal* truth (kickoff, spread, final status and scores) and the provider **projects it through `clock.now()`** — `scheduled` before kickoff, `in_progress` for a fixed game window, terminal after — so advancing the clock and re-running the jobs makes a week unfold as a real one does. Provider resolution mirrors `resolveClock` — both branch on the same `isSimEnabled` boolean, so production is structurally ESPN-only; non-prod swaps only while `app_state.sim_active_scenario_id` is set, and one active scenario owns one season year. Spreads for replayed seasons are synthesized deterministically from the provider game id, so a re-import reproduces them exactly.
+
 **3. Step-through settlement.** Already native to the design: settlement is an idempotent endpoint over pure scoring functions, so the simulator just calls the same `settle` job per simulated week and the admin page renders resulting `pick_results` and `standings`. Recompute-from-scratch doubles as the simulator's reset for scoring state; a full environment reset truncates league/pick data and reloads fixtures.
 
-Simulator API surface (non-prod only): `POST /sim/clock` (set/advance), `POST /sim/fixtures` (load scenario / edit results — including replaying a real past ESPN season, spreads synthesized since historical feeds strip odds), `POST /sim/settle` (run settlement for simulated now), `POST /sim/reset` (league or environment scope). Admin-session gated (env-var allowlist) on top of the env gate — the simulator is driven from the admin page, not by machine callers, so the shared-secret header stays a jobs-only mechanism (ADR-0011). E2E mints an admin session per ADR-0006.
+Simulator API surface (non-prod only), as built in SIM-1…SIM-6: `GET /sim/state` (clock, active scenario, library), `POST /sim/clock` (set instant / advance / week-anchored jump / reset), `POST /sim/scenarios/{slug}/load` (activate a library or imported scenario, positioning the clock at its start), `POST /sim/scenarios/replay` (import a real past ESPN season — spreads synthesized, since historical feeds strip odds), `GET /sim/fixtures/games` + `PATCH /sim/fixtures/games/{id}` (inspect / hand-edit results), `POST /sim/reset` (league or environment scope), and `POST /sim/settle` (run settlement for simulated now — SIM-5, after PKM-4). The single `POST /sim/fixtures` this list previously named split into the scenario and fixture routes above (ADR-0012); the capabilities are unchanged. Gated by the `admin` role in `users.app_role` (ADR-0013) on top of the env gate — the simulator is driven from the admin page, not by machine callers, so the shared-secret header stays a jobs-only mechanism (ADR-0011). These routes appear in the committed OpenAPI contract so the SPA reaches them through the generated client, but they are not registered where `isSimEnabled` is false, which always includes production (ADR-0012, ADR-0014). E2E mints a session and grants it the admin role (`mintSession({ appRole })`), extending ADR-0006's minted-session approach.
 
 ## Automated Testing
 
@@ -76,7 +78,7 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status, missed cancellation) and there is no vendor SLA — the correction path is an app-admin override, available in **all environments including production**.
 
-**Admin role:** app admins (initially just the owner) are designated by an env-var allowlist of user IDs. Admins get an admin page: job triggers, standings rebuild, game data editing, and read-only browsers over reference data (teams, seasons/weeks, games, odds snapshots). The same page hosts the simulator control panel in non-prod (ADR-0011); overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly, and teams/seasons/odds are view-only. Operational tooling is invisible to users (they just see corrected data).
+**Admin role:** app admins (initially just the owner) hold `admin` in `users.app_role`, the sole authorization source (ADR-0013). The role is granted by a direct database update (`UPDATE users SET app_role = 'admin' WHERE email = …`) — there is no env-var allowlist and no in-app promotion surface, so no configuration path can grant the capability behind the database's back. Admins get an admin page: job triggers, standings rebuild, game data editing, and read-only browsers over reference data (teams, seasons/weeks, games, odds snapshots). The same page hosts the simulator control panel in non-prod (ADR-0011); overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly, and teams/seasons/odds are view-only. Operational tooling is invisible to users (they just see corrected data).
 
 **Override semantics:**
 - Overridable per game: home/away final score, game status (`scheduled | final | cancelled | postponed | moved`), kickoff time, and current spread
@@ -228,7 +230,7 @@ Settlement is **recompute-friendly** (see D10). Vercel function limits are a non
 ## Domain Model (core tables)
 
 ```
-users                       # Better Auth + username (citext unique), display_name
+users                       # Better Auth + username (citext unique), display_name, app_role (ADR-0013)
 leagues                     # identity only: mode discriminator, visibility, name, max_members (ADR-0009)
 league_seasons              # per-season instance: league FK + season FK (unique pair), settings JSONB
                             #   (per-mode Zod schema), status; a league's newest instance is current
@@ -253,8 +255,11 @@ pick_results                # pick FK (per mode), outcome, points, differential
 standings                   # materialized: league_season FK, member FK, week?, points, rank
                             #   (picks/results/standings key off league_seasons, ADR-0009)
 
-app_state                   # singleton rows: simulated clock offset (non-prod), flags
-sim_fixtures                # non-prod: scenario-loaded game results/spreads for SimulatedProvider
+app_state                   # singleton row: simulated clock offset + active scenario (non-prod), flags
+sim_scenarios               # non-prod: one loadable scenario (library case or imported past season)
+sim_fixture_weeks           # scenario FK: the week structure SimulatedProvider serves
+sim_fixture_games           # scenario FK: kickoff, spread, terminal status/scores (projected via Clock)
+sim_fixture_teams           # scenario FK: the team cast the fixtures reference
 admin_audit                 # override/rebuild actions: admin, action, target, prior value, at
 ```
 
@@ -342,9 +347,9 @@ GET    /admin/teams                      ?sport= — read-only reference-data br
 GET    /admin/seasons                    ?sport= — seasons + weeks + per-week game counts
 GET    /admin/games                      ?weekId= — provider, override, and resolved values
 GET    /admin/games/:id/odds             recent spread snapshots for one game
-PUT    /admin/games/:id/override         set/clear overrides (admin allowlist; audited)
+PUT    /admin/games/:id/override         set/clear overrides (admin role; audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
-POST   /sim/*                            simulator (non-prod only, admin allowlist; see Simulator section)
+POST   /sim/*                            simulator (non-prod only, admin role; see Simulator section)
 GET    /openapi.json                     generated spec
 ```
 
@@ -358,4 +363,4 @@ Generate a client for Expo/React Native (or native) directly from the OpenAPI sp
 
 ## Deliberate MVP Exclusions
 
-No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (an allowlist-gated admin page with job triggers, rebuild buttons, data browsers, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
+No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a role-gated admin page with job triggers, rebuild buttons, data browsers, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).

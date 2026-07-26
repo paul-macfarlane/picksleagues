@@ -43,6 +43,9 @@
           },
           "isAdmin": {
             "type": "boolean"
+          },
+          "simEnabled": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -51,7 +54,8 @@
           "displayName",
           "email",
           "image",
-          "isAdmin"
+          "isAdmin",
+          "simEnabled"
         ]
       },
       "NullableUsername": {
@@ -1362,6 +1366,465 @@
           "id",
           "spread",
           "capturedAt"
+        ]
+      },
+      "SimStateResponse": {
+        "type": "object",
+        "properties": {
+          "clock": {
+            "$ref": "#/components/schemas/SimClockState"
+          },
+          "activeScenario": {
+            "$ref": "#/components/schemas/SimScenario"
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimScenario"
+            }
+          },
+          "library": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimLibraryEntry"
+            }
+          }
+        },
+        "required": [
+          "clock",
+          "activeScenario",
+          "scenarios",
+          "library"
+        ]
+      },
+      "SimClockState": {
+        "type": "object",
+        "properties": {
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "realNow": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "offsetMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "now",
+          "realNow",
+          "offsetMs"
+        ]
+      },
+      "SimScenario": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SimScenarioSource"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCount": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description",
+          "sport",
+          "seasonYear",
+          "source",
+          "startsAt",
+          "gameCount",
+          "updatedAt"
+        ]
+      },
+      "SimScenarioSource": {
+        "type": "string",
+        "enum": [
+          "library",
+          "replay"
+        ]
+      },
+      "SimLibraryEntry": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "covers": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "description",
+          "sport",
+          "covers"
+        ]
+      },
+      "SimClockAdjustment": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instant"
+                ]
+              },
+              "instant": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "kind",
+              "instant"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "advance"
+                ]
+              },
+              "ms": {
+                "type": "integer",
+                "minimum": -315360000000,
+                "maximum": 315360000000
+              }
+            },
+            "required": [
+              "kind",
+              "ms"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "week"
+                ]
+              },
+              "weekId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "anchor": {
+                "$ref": "#/components/schemas/SimClockAnchor"
+              }
+            },
+            "required": [
+              "kind",
+              "weekId",
+              "anchor"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "reset"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      },
+      "SimClockAnchor": {
+        "type": "string",
+        "enum": [
+          "week_start",
+          "before_first_kickoff",
+          "after_last_game"
+        ]
+      },
+      "SimReplayRequest": {
+        "type": "object",
+        "properties": {
+          "seasonYear": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100
+          }
+        },
+        "required": [
+          "seasonYear"
+        ]
+      },
+      "SimFixtureGamesResponse": {
+        "type": "object",
+        "properties": {
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimFixtureGame"
+            }
+          }
+        },
+        "required": [
+          "games"
+        ]
+      },
+      "SimFixtureGame": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "scenarioId": {
+            "type": "string"
+          },
+          "providerGameId": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "homeTeamAbbr": {
+            "type": "string"
+          },
+          "homeTeamName": {
+            "type": "string"
+          },
+          "awayTeamAbbr": {
+            "type": "string"
+          },
+          "awayTeamName": {
+            "type": "string"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "finalStatus": {
+            "$ref": "#/components/schemas/SimFinalStatus"
+          },
+          "finalHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finalAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectedStatus": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "projectedHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectedAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "scenarioId",
+          "providerGameId",
+          "weekType",
+          "weekNumber",
+          "homeTeamAbbr",
+          "homeTeamName",
+          "awayTeamAbbr",
+          "awayTeamName",
+          "kickoffAt",
+          "spread",
+          "finalStatus",
+          "finalHomeScore",
+          "finalAwayScore",
+          "projectedStatus",
+          "projectedHomeScore",
+          "projectedAwayScore"
+        ]
+      },
+      "SimFinalStatus": {
+        "type": "string",
+        "enum": [
+          "final",
+          "cancelled",
+          "postponed"
+        ]
+      },
+      "UpdateSimFixtureGameRequest": {
+        "type": "object",
+        "properties": {
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "finalStatus": {
+            "$ref": "#/components/schemas/SimFinalStatus"
+          },
+          "finalHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200
+          },
+          "finalAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200
+          }
+        }
+      },
+      "SimResetResponse": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "league",
+              "environment"
+            ]
+          },
+          "deleted": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/SimStateResponse"
+          }
+        },
+        "required": [
+          "scope",
+          "deleted",
+          "state"
+        ]
+      },
+      "SimResetRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "league"
+                ]
+              },
+              "leagueId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "scope",
+              "leagueId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "environment"
+                ]
+              },
+              "dropScenario": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          }
         ]
       }
     },
@@ -2954,7 +3417,7 @@
             }
           },
           "403": {
-            "description": "The caller is signed in but not on the admin allowlist",
+            "description": "The caller is signed in but does not hold the admin role",
             "content": {
               "application/json": {
                 "schema": {
@@ -3022,7 +3485,7 @@
             }
           },
           "403": {
-            "description": "The caller is signed in but not on the admin allowlist",
+            "description": "The caller is signed in but does not hold the admin role",
             "content": {
               "application/json": {
                 "schema": {
@@ -3090,7 +3553,7 @@
             }
           },
           "403": {
-            "description": "The caller is signed in but not on the admin allowlist",
+            "description": "The caller is signed in but does not hold the admin role",
             "content": {
               "application/json": {
                 "schema": {
@@ -3159,7 +3622,7 @@
             }
           },
           "403": {
-            "description": "The caller is signed in but not on the admin allowlist",
+            "description": "The caller is signed in but does not hold the admin role",
             "content": {
               "application/json": {
                 "schema": {
@@ -3228,7 +3691,7 @@
             }
           },
           "403": {
-            "description": "The caller is signed in but not on the admin allowlist",
+            "description": "The caller is signed in but does not hold the admin role",
             "content": {
               "application/json": {
                 "schema": {
@@ -3239,6 +3702,540 @@
           },
           "404": {
             "description": "No such game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/state": {
+      "get": {
+        "operationId": "getSimState",
+        "summary": "Read the simulated clock, the active scenario, and the scenario library",
+        "responses": {
+          "200": {
+            "description": "The simulator's current clock, active scenario, and everything loadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/clock": {
+      "post": {
+        "operationId": "setSimClock",
+        "summary": "Set, advance, or reset the simulated clock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimClockAdjustment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulator state with the clock as adjusted; the stored offset governs every request from this one onward. Fixture projections are not part of this response — read GET /sim/fixtures/games to see how the new instant projects them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such week, or the week has no games to anchor a jump to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/scenarios/{slug}/load": {
+      "post": {
+        "operationId": "loadSimScenario",
+        "summary": "Load a scenario's fixtures and make it the active data source",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The simulator's current clock, active scenario, and everything loadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No library definition and no stored scenario with that slug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/scenarios/replay": {
+      "post": {
+        "operationId": "importSimReplay",
+        "summary": "Import a real past ESPN season into fixtures for replay",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimReplayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body, or the requested season isn't finished — only past seasons can be replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/fixtures/games": {
+      "get": {
+        "operationId": "listSimFixtureGames",
+        "summary": "Browse a scenario's fixture games with their projection at the simulated now",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "scenarioId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "weekNumber",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The scenario's fixtures ordered by kickoff — empty for an unknown scenario id, indistinguishable from a scenario with no fixtures written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimFixtureGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/fixtures/games/{gameId}": {
+      "patch": {
+        "operationId": "updateSimFixtureGame",
+        "summary": "Hand-edit one fixture game's kickoff, week, spread, or result",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSimFixtureGameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated fixture — re-run the sync jobs to ingest the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimFixtureGame"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields supplied, a field fails its format rule, or the edit would leave the fixture final without both scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such fixture game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/reset": {
+      "post": {
+        "operationId": "resetSim",
+        "summary": "Wipe a test league, or the whole environment, back to a known state",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-table deleted row counts and the simulator state afterwards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimResetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "League scope: no such league",
             "content": {
               "application/json": {
                 "schema": {

@@ -1,6 +1,6 @@
 # Backlog
 
-Work split by epic to keep context small. One file per epic, ordered by dependency structure and season timing: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027). The app is launchable for the NFL season after `06-elimination`; March Madness ships as a follow-on.
+Work split by epic to keep context small. One file per epic, ordered by dependency structure and season timing: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027). All bracket/NCAAMB work — settings schema, ingestion, scoring, UI, and simulator fixtures — lives in `07-march-madness.md` and is sequenced after the NFL modes. The app is launchable for the NFL season after `06-elimination`, with none of it built.
 
 ## Task format
 

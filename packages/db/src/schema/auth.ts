@@ -1,4 +1,5 @@
 import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { APP_ROLE, type AppRole } from "@picksleagues/schemas";
 import { citext } from "./column-types";
 
 /**
@@ -28,6 +29,12 @@ export const users = pgTable("users", {
   // citext gives case-insensitive uniqueness while preserving stored casing
   // (the app stores/displays lowercase per spec, enforced in packages/schemas).
   username: citext("username").unique(),
+  // App-wide admin capability (ADR-0013), the sole authorization source for the
+  // admin/sim surfaces — granted by a direct database update, never by config.
+  // Better Auth never reads or writes this column (no `additionalFields`
+  // entry), so plain `text` + `$type` like `league_members.role`, not a
+  // Postgres enum.
+  appRole: text("app_role").$type<AppRole>().notNull().default(APP_ROLE.USER),
 });
 
 export const sessions = pgTable(

@@ -2,4 +2,7 @@ export * from "./env";
 export * from "./clock";
 export * from "./game-data-provider";
 export * from "./espn-provider";
+export * from "./provider-resolver";
 export * from "./season";
+export * from "./sim-provider";
+export * from "./sim-spread";

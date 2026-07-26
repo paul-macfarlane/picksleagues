@@ -2,11 +2,11 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { accounts, createDb, sessions, users } from "@picksleagues/db";
-import { FixedClock } from "@picksleagues/core";
-import { DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
+import { FixedClock, type Env } from "@picksleagues/core";
+import { APP_ROLE, DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -98,6 +98,7 @@ describe("GET /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
   });
 
@@ -112,24 +113,44 @@ describe("GET /api/me", () => {
     expect(body.username).toBe("paulm");
   });
 
-  it("200s with isAdmin true when the caller is on the ADMIN_USER_IDS allowlist", async () => {
+  it("200s with isAdmin true when the user holds the admin role", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const adminApp = createApp({
-      auth,
-      db,
-      env: makeTestEnv({ ADMIN_USER_IDS: [user.id] }),
-      clock: async () => new FixedClock(FIXED_NOW),
-    });
+    await grantAdmin(db, user.id);
 
-    const res = await adminApp.request("/api/me", {
-      method: "GET",
-      headers: { cookie },
-    });
+    const res = await getMe(cookie);
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as MeResponse;
     expect(body.isAdmin).toBe(true);
   });
+
+  // The SPA hides sim surfaces off this flag; the real gate is that /api/sim/*
+  // is never registered where the simulator is disabled (ADR-0011), and
+  // production is disabled regardless of SIM_ENABLED (ADR-0014).
+  it.each([
+    { appEnv: "local", simEnabled: true, expected: true },
+    { appEnv: "local", simEnabled: false, expected: false },
+    { appEnv: "staging", simEnabled: true, expected: true },
+    { appEnv: "production", simEnabled: false, expected: false },
+    { appEnv: "production", simEnabled: true, expected: false },
+  ])(
+    "reports simEnabled $expected when APP_ENV is $appEnv and SIM_ENABLED is $simEnabled",
+    async ({ appEnv, simEnabled, expected }) => {
+      const { cookie } = await createAuthenticatedUser(auth);
+      const envApp = createApp({
+        auth,
+        db,
+        env: makeTestEnv({ APP_ENV: appEnv as Env["APP_ENV"], SIM_ENABLED: simEnabled }),
+        clock: async () => new FixedClock(FIXED_NOW),
+      });
+
+      const res = await envApp.request("/api/me", { method: "GET", headers: { cookie } });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as MeResponse;
+      expect(body.simEnabled).toBe(expected);
+    },
+  );
 });
 
 describe("PATCH /api/me", () => {
@@ -153,6 +174,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -223,6 +245,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -244,6 +267,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       isAdmin: false,
+      simEnabled: false,
     });
   });
 
@@ -269,6 +293,32 @@ describe("PATCH /api/me", () => {
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
     expect(row?.display_name).toBe("padded");
+  });
+});
+
+describe("Better Auth's /api/auth/update-user cannot write app_role", () => {
+  // Omitting `app_role` from `user.fields`/`additionalFields` (apps/api/src/
+  // auth.ts) is the only thing keeping Better Auth's own update-user route
+  // from granting admin. This guards that claim against a future edit adding
+  // an `additionalFields` entry for any of the plausible key spellings.
+  it("drops app_role/appRole/role write attempts while the legitimate field still applies", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await app.request("/api/auth/update-user", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        name: "New Name",
+        app_role: APP_ROLE.ADMIN,
+        appRole: APP_ROLE.ADMIN,
+        role: APP_ROLE.ADMIN,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.display_name).toBe("New Name");
+    expect(row?.appRole).toBe(APP_ROLE.USER);
   });
 });
 
@@ -305,6 +355,17 @@ describe("DELETE /api/me", () => {
 
     const followUp = await getMe(cookie);
     expect(followUp.status).toBe(401);
+  });
+
+  it("clears app_role to user, so a deleted admin's tombstone row holds no capability", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    await grantAdmin(db, user.id);
+
+    const res = await deleteMe(cookie);
+    expect(res.status).toBe(204);
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.appRole).toBe(APP_ROLE.USER);
   });
 
   it("releases the deleted user's username immediately, so another user can claim it", async () => {

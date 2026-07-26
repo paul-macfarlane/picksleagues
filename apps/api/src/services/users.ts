@@ -11,9 +11,11 @@ import {
 import { currentLeagueSeason, lockUserRow } from "./leagues";
 import type { Clock } from "@picksleagues/core";
 import {
+  APP_ROLE,
   DELETED_USER_DISPLAY_NAME,
   LEAGUE_STATUS,
   MEMBER_ROLE,
+  type AppRole,
   type DisplayName,
   type Username,
 } from "@picksleagues/schemas";
@@ -71,6 +73,16 @@ export async function getUser(db: Db, userId: string) {
 }
 
 /**
+ * The caller's app-wide role — the sole authorization source for admin
+ * surfaces (ADR-0013). `null` means the user row is gone (session outlived it),
+ * which is never admin.
+ */
+export async function getAppRole(db: Db, userId: string): Promise<AppRole | null> {
+  const rows = await db.select({ appRole: users.appRole }).from(users).where(eq(users.id, userId));
+  return rows[0]?.appRole ?? null;
+}
+
+/**
  * Deletes the caller's account (mvp-spec §Users & Identity, ID-3): the
  * `users` row is anonymized in place, never removed — future picks/results/
  * standings FK to it and that history must survive. `username` is released
@@ -122,6 +134,9 @@ export async function deleteAccount(
         image: null,
         email: `deleted-${userId}@deleted.invalid`,
         emailVerified: false,
+        // The row survives deletion (FK history), so it must not survive
+        // holding a capability — a deleted admin's tombstone is never admin.
+        appRole: APP_ROLE.USER,
         updatedAt: clock.now(),
       })
       .where(eq(users.id, userId));

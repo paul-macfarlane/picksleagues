@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { APP_ENV } from "./env";
 import { FixedClock, OffsetClock, SystemClock, resolveClock } from "./clock";
 
 describe("FixedClock", () => {
@@ -40,29 +39,26 @@ describe("OffsetClock", () => {
 });
 
 describe("resolveClock", () => {
-  it("returns SystemClock for production without invoking the offset reader", async () => {
+  it("returns SystemClock without invoking the offset reader when the simulator is off", async () => {
     const readSimOffsetMs = vi.fn();
 
-    const clock = await resolveClock(APP_ENV.PRODUCTION, readSimOffsetMs);
+    const clock = await resolveClock(false, readSimOffsetMs);
 
     expect(clock).toBeInstanceOf(SystemClock);
     expect(readSimOffsetMs).not.toHaveBeenCalled();
   });
 
-  it.each([APP_ENV.LOCAL, APP_ENV.STAGING])(
-    "returns an offset clock using the reader's value for %s",
-    async (appEnv) => {
-      const readSimOffsetMs = vi.fn().mockResolvedValue(120_000);
+  it("returns an offset clock using the reader's value when the simulator is on", async () => {
+    const readSimOffsetMs = vi.fn().mockResolvedValue(120_000);
 
-      const clock = await resolveClock(appEnv, readSimOffsetMs);
+    const clock = await resolveClock(true, readSimOffsetMs);
 
-      expect(clock).toBeInstanceOf(OffsetClock);
-      expect(readSimOffsetMs).toHaveBeenCalledTimes(1);
+    expect(clock).toBeInstanceOf(OffsetClock);
+    expect(readSimOffsetMs).toHaveBeenCalledTimes(1);
 
-      const before = Date.now();
-      const now = clock.now().getTime();
-      expect(now).toBeGreaterThanOrEqual(before + 120_000 - 1_000);
-      expect(now).toBeLessThanOrEqual(before + 120_000 + 1_000);
-    },
-  );
+    const before = Date.now();
+    const now = clock.now().getTime();
+    expect(now).toBeGreaterThanOrEqual(before + 120_000 - 1_000);
+    expect(now).toBeLessThanOrEqual(before + 120_000 + 1_000);
+  });
 });

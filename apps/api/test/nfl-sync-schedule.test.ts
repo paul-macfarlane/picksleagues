@@ -20,6 +20,7 @@ import {
 import { createApp } from "../src/app";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
+import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -73,36 +74,6 @@ class FakeProvider implements GameDataProvider {
   }
 }
 
-function providerWeek(
-  weekNumber: number,
-  startsAt: string,
-  endsAt: string,
-  weekType: WeekType = WEEK_TYPE.REGULAR,
-  label = `Week ${weekNumber}`,
-): ProviderWeek {
-  return { weekType, weekNumber, label, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
-}
-
-function providerGame(
-  overrides: Partial<ProviderGame> & { providerGameId: string; weekNumber: number },
-): ProviderGame {
-  return {
-    weekType: WEEK_TYPE.REGULAR,
-    homeTeamAbbr: "HOM",
-    homeTeamName: "Home Team",
-    homeTeamProviderId: "hom-id",
-    awayTeamAbbr: "AWY",
-    awayTeamName: "Away Team",
-    awayTeamProviderId: "awy-id",
-    kickoffAt: new Date("2026-09-13T17:00:00.000Z"),
-    status: GAME_STATUS.SCHEDULED,
-    homeScore: null,
-    awayScore: null,
-    spread: null,
-    ...overrides,
-  };
-}
-
 function providerTeam(overrides: Partial<ProviderTeam> & { providerTeamId: string }): ProviderTeam {
   return {
     abbreviation: "HOM",
@@ -120,7 +91,7 @@ const app = createApp({
   env: testEnv,
   db,
   clock: async () => new FixedClock(FIXED_NOW),
-  provider,
+  provider: async () => provider,
 });
 
 function runSyncSchedule(query = "", secret: string | null = testEnv.JOB_SECRET) {

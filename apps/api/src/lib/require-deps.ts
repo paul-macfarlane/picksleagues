@@ -56,20 +56,23 @@ export function requireSession(deps: AppDeps): MiddlewareHandler<{ Variables: Se
 }
 
 /**
- * Requires the caller to be in the admin allowlist. Mount after
- * `requireSession` — depends on `sessionUser` already being on the context.
+ * Requires the caller to hold the admin role. Mount after `requireSession` —
+ * depends on `sessionUser` already being on the context. Reads `db` off `deps`
+ * rather than the context (they are the same instance: `requireDbAndClock` sets
+ * `deps.db`) so this stays mountable on the job/replay routes, which resolve
+ * their own deps to keep a `JobRunResponse`-shaped misconfiguration 500.
  */
 export function requireAdmin(deps: AppDeps): MiddlewareHandler<{ Variables: SessionVariables }> {
   return async (c, next) => {
-    if (!deps.env) {
+    if (!deps.db) {
       return c.json(
         ErrorResponseSchema.parse({
           error: ERROR_CODE.MISCONFIGURED,
-          message: "Admin allowlist is not configured.",
+          message: "Database is not configured.",
         }),
         500,
       );
     }
-    return adminMiddleware(deps.env.ADMIN_USER_IDS)(c, next);
+    return adminMiddleware(deps.db)(c, next);
   };
 }

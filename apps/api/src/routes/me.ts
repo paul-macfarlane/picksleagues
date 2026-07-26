@@ -1,5 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { isSimEnabled } from "@picksleagues/core";
 import {
+  APP_ROLE,
   ERROR_CODE,
   ErrorResponseSchema,
   MeResponseSchema,
@@ -14,14 +16,20 @@ import { errorResponse, MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/ro
 import type { SessionVariables } from "../middleware/session";
 import { deleteAccount, getUser, updateProfile } from "../services/users";
 
-function serializeMe(user: typeof users.$inferSelect, isAdmin: boolean): MeResponse {
+function serializeMe(
+  user: typeof users.$inferSelect,
+  capabilities: { simEnabled: boolean },
+): MeResponse {
   return {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
     email: user.email,
     image: user.image,
-    isAdmin,
+    // Admin capability is the user's own role column (ADR-0013), so it travels
+    // with the row rather than being resolved from env alongside `simEnabled`.
+    isAdmin: user.appRole === APP_ROLE.ADMIN,
+    ...capabilities,
   };
 }
 
@@ -90,9 +98,10 @@ export function meRoutes(deps: AppDeps) {
   // per-handler variants.
   app.use("/me", requireDbAndClock(deps));
 
-  // Admin capability = env-var user-ID allowlist (arch §Overrides), not a role
-  // column — resolved from `deps.env` in closure so `serializeMe` stays pure.
-  const adminUserIds = deps.env?.ADMIN_USER_IDS ?? [];
+  // Whether the simulator exists here at all (ADR-0011): the real gate is that
+  // `/api/sim/*` is not registered when it doesn't, so this only tells the SPA
+  // whether to render sim surfaces — it grants nothing.
+  const capabilities = { simEnabled: deps.env ? isSimEnabled(deps.env) : false };
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
@@ -110,7 +119,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(user, adminUserIds.includes(user.id)), 200);
+    return c.json(serializeMe(user, capabilities), 200);
   });
 
   app.openapi(updateMe, async (c) => {
@@ -130,7 +139,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(result.user, adminUserIds.includes(result.user.id)), 200);
+    return c.json(serializeMe(result.user, capabilities), 200);
   });
 
   app.openapi(deleteMe, async (c) => {
