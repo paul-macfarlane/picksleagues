@@ -2,13 +2,10 @@ import { z } from "@hono/zod-openapi";
 
 /**
  * `users.app_role` is the sole source of app-wide admin capability (ADR-0013).
- * It lives in the database rather than the `ADMIN_USER_IDS` env allowlist
- * because capability must be grantable at runtime: the e2e suite mints users
- * with random ids *after* the API process has already read its env, so an
- * env-cached allowlist can never cover them. `ADMIN_USER_IDS` survives only as
- * a bootstrap seed that promotes to this role on every authenticated request
- * (not a one-time sign-in event) and never demotes — this column is never an
- * authorization input itself, only its output.
+ * It lives in the database rather than an env allowlist because capability must
+ * be grantable at runtime: the e2e suite mints users with random ids *after*
+ * the API process has already read its env, so an env-cached allowlist can
+ * never cover them. The role is granted by a direct database update.
  */
 export const APP_ROLE = {
   USER: "user",

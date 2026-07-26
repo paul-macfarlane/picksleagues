@@ -6,7 +6,7 @@ import { getTestDatabaseUrl } from "./test-database-url";
  * caches process-wide) — shared by any integration test that builds its own
  * `Auth`/`createApp` instance directly. Returns a fresh object per call so no
  * test file can mutate a shared instance out from under another. `overrides`
- * lets a test narrow one field (e.g. `ADMIN_USER_IDS`) without restating the
+ * lets a test narrow one field (e.g. `SIM_ENABLED`) without restating the
  * rest.
  */
 export function makeTestEnv(overrides?: Partial<Env>): Env {
@@ -23,7 +23,6 @@ export function makeTestEnv(overrides?: Partial<Env>): Env {
     DISCORD_CLIENT_ID: "discord-id",
     DISCORD_CLIENT_SECRET: "discord-secret",
     JOB_SECRET: "b".repeat(32),
-    ADMIN_USER_IDS: [],
     ...overrides,
   };
 }

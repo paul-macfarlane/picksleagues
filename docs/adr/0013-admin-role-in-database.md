@@ -1,8 +1,8 @@
-# 0013. App-wide admin capability lives in `users.app_role`; `ADMIN_USER_IDS` becomes a bootstrap seed
+# 0013. App-wide admin capability lives in `users.app_role`; the `ADMIN_USER_IDS` env allowlist is removed
 
 - **Status:** Accepted
 - **Date:** 2026-07-25
-- **Related:** supersedes the env-var allowlist in `docs/architecture.md` §Manual Sports Data Overrides ("Admin role"); amends ADR-0011 (which described `/sim/*` as "admin-session-gated (env-var allowlist)"); relates to ADR-0006 (minted-session E2E); `.claude/rules/engineering.md` §Security
+- **Related:** removes the env-var allowlist described in `docs/architecture.md` §Manual Sports Data Overrides ("Admin role"); amends ADR-0011 (which described `/sim/*` as "admin-session-gated (env-var allowlist)"); relates to ADR-0006 (minted-session E2E); `.claude/rules/engineering.md` §Security
 
 ## Context
 
@@ -38,29 +38,24 @@ epic's later tasks (ADM-3's `admin_audit`) will want.
 the same shape as `league_members.role` (ADR-0004), not a Postgres enum. `adminMiddleware`
 reads it; `/me`'s `isAdmin` derives from the already-loaded user row.
 
-**2. `ADMIN_USER_IDS` is demoted to a bootstrap seed.** It is applied on **every**
-authenticated request, not once at sign-in: a user whose id appears in the list is promoted
-to `admin` if they are not already. The env var grants nothing by itself — authorization
-reads only the column. This keeps a zero-SQL path to the first admin in any fresh
-environment (a new Neon branch, a teammate's laptop, CI) without making configuration the
-source of truth.
+**2. `ADMIN_USER_IDS` is deleted outright.** Granting admin is a direct database update:
 
-The seed is **promote-only, and a standing floor rather than a one-time event**. Two
-consequences worth stating plainly, because they are easy to get wrong:
+```sql
+UPDATE users SET app_role = 'admin' WHERE email = 'you@example.com';
+```
 
-- Removing an id never demotes anyone. A seed that revoked would make the env var
-  authoritative again by the back door, and would silently strip a role granted at runtime.
-- While an id remains listed, revoking that user in the database does not stick — the next
-  request re-grants it. **Revoking a seeded admin therefore means removing the id from
-  `ADMIN_USER_IDS` as well as updating the row.** Listing an id is a declaration that the
-  user is an admin, not a request to make them one once.
+An earlier draft of this ADR kept the env var as a promote-only "bootstrap seed", on the
+theory that it gave a fresh environment a zero-SQL path to its first admin. That theory was
+wrong, and the review that caught it is the reason this decision reads as it does: **you have
+to query the database for a user's id before you can put it in the env var**, so the seed
+replaced one `UPDATE` with three steps — look up the id, set the variable, restart or
+redeploy so `loadEnv` re-reads it. It bought nothing and cost something real: because the
+seed re-applied on every authenticated request, a listed id was a standing grant that
+silently undid any database revocation, which is a footgun with no upside.
 
-Applied on every request rather than at sign-in because there is no clean sign-in seam
-short of Better Auth hooks, and because `GET /me` must report a seeded admin's capability on
-their very first request — the SPA renders its admin surfaces off that flag and would
-otherwise never route them anywhere that could promote them. The cost is bounded: an empty
-list (the normal case) does no query at all, and for an already-admin user the guarded
-UPDATE matches zero rows.
+There is deliberately no `pnpm admin:grant` script either. Anyone who can grant admin already
+has database access, and one documented SQL line beats a script that has to resolve
+credentials, parse arguments, and be kept working.
 
 **3. `requireAdmin` reads `db` from `deps`, not from the request context.** They are the same
 instance (`requireDbAndClock` sets `deps.db` on the context), and reading from `deps` keeps
@@ -81,20 +76,24 @@ simulator coverage. A role can be granted or revoked against a running deploymen
 UPDATE, no redeploy. Admin capability becomes auditable state that ADM-3 can record against.
 
 Harder/accepted: authorization now costs a query per admin request rather than an array
-check — irrelevant at this scale, and the same read `/me` already performs. Admin is now
-application state, so an application bug *could* grant it; the mitigations are that only the
-seed path writes the column, that path is promote-only and matches on primary key, and no
-route exposes role mutation (an admin-managed promotion UI is deliberately not built —
-revisit if a second admin ever needs onboarding without DB access). Better Auth cannot write
-the column either, because it is absent from the adapter's `additionalFields` — a regression
-test pins that rather than leaving it to inspection.
+check — irrelevant at this scale, and the same read `/me` already performs.
 
-The seed writes a capability with no timestamp and no audit row. `users.updated_at` is
-deliberately not stamped: the seed runs inside `requireSession`, *before* `requireDbAndClock`
-resolves the request's `Clock`, and taking a second Clock there would break the
-one-resolution-per-request invariant (arch D13) that keeps every time comparison in a request
-consistent. When ADM-3 lands `admin_audit`, the seed path is one of the writes that should
-record into it.
+Admin is now application state, so in principle an application bug could grant it. The
+mitigation is that **no application code writes the column at all**: the only writes are the
+manual `UPDATE`, the test helper, and `deleteAccount` clearing it back to `user` so an
+anonymized tombstone row doesn't keep a capability. No route exposes role mutation, and no
+admin-managed promotion UI is built — revisit only if a second admin ever needs onboarding
+without database access. Better Auth cannot write the column either, because it is absent
+from the adapter's `additionalFields`; a regression test pins that rather than leaving it to
+inspection, since adding an `additionalFields` entry later would silently make it writable.
+
+Bootstrapping a brand-new environment now requires database access. That is the intended
+trade: it is one SQL statement, whoever sets up an environment already has the credentials,
+and there is no configuration path that can grant a capability behind the database's back.
+
+Nothing records *when* or *by whom* a role was granted. That's acceptable while the grant is
+a deliberate manual act outside the app, and ADM-3's `admin_audit` is where in-app grants
+would be recorded if a promotion surface is ever built.
 
 `APP_ROLE` is a two-value set today. It is a role column rather than an `is_admin` boolean so
 a third value (a read-only support role, say) doesn't require a migration to a different

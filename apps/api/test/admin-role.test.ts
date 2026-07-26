@@ -5,16 +5,15 @@ import { FixedClock } from "@picksleagues/core";
 import { APP_ROLE, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
 
 /**
- * App-wide admin capability lives in `users.app_role`, with `ADMIN_USER_IDS`
- * demoted to a bootstrap seed applied on session resolution (ADR-0013). These
- * tests pin both halves: the column is what authorizes, and the seed is what
- * grants it without manual SQL.
+ * App-wide admin capability lives in `users.app_role` and nowhere else
+ * (ADR-0013): the column is what authorizes every request, and a direct
+ * database update is the only way to grant or revoke it.
  */
 
 const FIXED_NOW = new Date("2026-09-09T00:00:00.000Z");
@@ -24,11 +23,11 @@ const db = createDb(getTestDatabaseUrl());
 // since they share `db` and makeTestEnv's `BETTER_AUTH_SECRET`.
 const auth = createAuth({ env: makeTestEnv(), db });
 
-function buildApp(seedUserIds: string[] = []) {
+function buildApp() {
   return createApp({
     auth,
     db,
-    env: makeTestEnv({ ADMIN_USER_IDS: seedUserIds }),
+    env: makeTestEnv(),
     clock: async () => new FixedClock(FIXED_NOW),
   });
 }
@@ -42,11 +41,6 @@ function getAdminTeams(app: ReturnType<typeof buildApp>, cookie: string) {
   return app.request("/api/admin/teams?sport=nfl", { headers: { cookie } });
 }
 
-async function readAppRole(userId: string) {
-  const [row] = await db.select().from(users).where(eq(users.id, userId));
-  return row?.appRole;
-}
-
 beforeEach(async () => {
   await resetDb(db);
 });
@@ -55,96 +49,20 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("ADMIN_USER_IDS bootstrap seeding", () => {
-  it("promotes a seeded user's app_role on their first authenticated request", async () => {
-    const { user, cookie } = await createAuthenticatedUser(auth);
-    expect(await readAppRole(user.id)).toBe("user");
-
-    const res = await getMe(buildApp([user.id]), cookie);
-
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as MeResponse).isAdmin).toBe(true);
-    expect(await readAppRole(user.id)).toBe("admin");
-  });
-
-  it("is idempotent: repeat requests leave the caller admin", async () => {
-    const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id]);
-
-    expect((await getMe(app, cookie)).status).toBe(200);
-    expect((await getMe(app, cookie)).status).toBe(200);
-
-    expect(await readAppRole(user.id)).toBe("admin");
-    expect((await getAdminTeams(app, cookie)).status).toBe(200);
-  });
-
-  it("never demotes: dropping the id from the seed list keeps the granted role", async () => {
-    const { user, cookie } = await createAuthenticatedUser(auth);
-    expect((await getMe(buildApp([user.id]), cookie)).status).toBe(200);
-
-    const unseeded = buildApp();
-    const res = await getMe(unseeded, cookie);
-
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as MeResponse).isAdmin).toBe(true);
-    expect(await readAppRole(user.id)).toBe("admin");
-    expect((await getAdminTeams(unseeded, cookie)).status).toBe(200);
-  });
-
-  // The seed is a floor, not a one-time grant: it is applied on every
-  // authenticated request (require-deps.ts's requireSession), not just at
-  // sign-in, so a database-level revocation of a still-seeded id doesn't
-  // stick — the very next request re-grants it. Revoking a seeded admin for
-  // real requires removing the id from ADMIN_USER_IDS as well as the DB row.
-  it("re-grants a seeded id on the next request after a DB revocation, since the seed stays a floor", async () => {
-    const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id]);
-    expect((await getMe(app, cookie)).status).toBe(200);
-    expect(await readAppRole(user.id)).toBe("admin");
-
-    await db.update(users).set({ appRole: APP_ROLE.USER }).where(eq(users.id, user.id));
-    expect(await readAppRole(user.id)).toBe("user");
-
-    const res = await getMe(app, cookie);
-
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as MeResponse).isAdmin).toBe(true);
-    expect(await readAppRole(user.id)).toBe("admin");
-    expect((await getAdminTeams(app, cookie)).status).toBe(200);
-  });
-
-  it("leaves a user who isn't seeded at the default role", async () => {
-    const seeded = await createAuthenticatedUser(auth);
-    const other = await createAuthenticatedUser(auth);
-    const app = buildApp([seeded.user.id]);
-
-    const res = await getMe(app, other.cookie);
-
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as MeResponse).isAdmin).toBe(false);
-    expect(await readAppRole(other.user.id)).toBe("user");
-
-    const denied = await getAdminTeams(app, other.cookie);
-    expect(denied.status).toBe(403);
-    expect(await denied.json()).toMatchObject({ error: "not_admin" });
-  });
-});
-
 describe("users.app_role as the authorization source", () => {
-  it("grants admin routes to a DB-promoted user with an empty seed list", async () => {
+  it("grants admin routes to a DB-promoted user", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    await db.update(users).set({ appRole: APP_ROLE.ADMIN }).where(eq(users.id, user.id));
-    const app = buildApp();
+    await grantAdmin(db, user.id);
 
-    const res = await getAdminTeams(app, cookie);
+    const res = await getAdminTeams(buildApp(), cookie);
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ teams: [] });
   });
 
-  it("reports isAdmin off the column, not the env, for a DB-promoted user", async () => {
+  it("reports isAdmin off the column for a DB-promoted user", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    await db.update(users).set({ appRole: APP_ROLE.ADMIN }).where(eq(users.id, user.id));
+    await grantAdmin(db, user.id);
 
     const res = await getMe(buildApp(), cookie);
 
@@ -152,16 +70,18 @@ describe("users.app_role as the authorization source", () => {
     expect(((await res.json()) as MeResponse).isAdmin).toBe(true);
   });
 
-  it("403s a caller whose role is revoked in the DB while the seed list is empty", async () => {
+  it("403s a caller whose role is revoked in the DB, on their very next request", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id]);
+    await grantAdmin(db, user.id);
+    const app = buildApp();
     expect((await getAdminTeams(app, cookie)).status).toBe(200);
 
     await db.update(users).set({ appRole: APP_ROLE.USER }).where(eq(users.id, user.id));
-    const unseeded = buildApp();
 
-    const res = await getAdminTeams(unseeded, cookie);
+    const res = await getAdminTeams(app, cookie);
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ error: "not_admin" });
+    const me = await getMe(app, cookie);
+    expect(((await me.json()) as MeResponse).isAdmin).toBe(false);
   });
 });

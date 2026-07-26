@@ -98,7 +98,7 @@ sign-in request before any provider is contacted.
 Set in three scopes (Production / Preview–`staging` / Development):
 `APP_ENV`, `SIM_ENABLED`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
-`JOB_SECRET`, `ADMIN_USER_IDS`.
+`JOB_SECRET`.
 
 `SIM_ENABLED` must be **absent or `false` in Production** and `true` in Preview–`staging` and
 Development. It defaults to false when unset, so forgetting it disables the simulator rather

@@ -1,4 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { users, type Db } from "@picksleagues/db";
+import { APP_ROLE } from "@picksleagues/schemas";
 import type { Auth } from "../../src/auth";
 
 const SESSION_COOKIE_NAME = "better-auth.session_token";
@@ -41,4 +44,13 @@ export async function createAuthenticatedUser(
   const session = await ctx.internalAdapter.createSession(user.id);
   const cookie = `${SESSION_COOKIE_NAME}=${encodeURIComponent(signSessionToken(session.token, ctx.secret))}`;
   return { user, session, cookie };
+}
+
+/**
+ * Grants app-wide admin capability the only way the app supports it: writing
+ * `users.app_role`, the sole authorization source (ADR-0013). Mirrors the
+ * one-line UPDATE an operator runs against a real environment.
+ */
+export async function grantAdmin(db: Db, userId: string): Promise<void> {
+  await db.update(users).set({ appRole: APP_ROLE.ADMIN }).where(eq(users.id, userId));
 }

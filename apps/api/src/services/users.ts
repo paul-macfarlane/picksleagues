@@ -1,4 +1,4 @@
-import { and, count, eq, gt, ne, sql } from "drizzle-orm";
+import { and, count, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   accounts,
@@ -80,35 +80,6 @@ export async function getUser(db: Db, userId: string) {
 export async function getAppRole(db: Db, userId: string): Promise<AppRole | null> {
   const rows = await db.select({ appRole: users.appRole }).from(users).where(eq(users.id, userId));
   return rows[0]?.appRole ?? null;
-}
-
-/**
- * Grants the admin role to a user whose id is in the bootstrap seed list
- * (`ADMIN_USER_IDS`), so a fresh environment reaches its first admin with no
- * manual SQL (ADR-0013). Authorization itself never consults the seed list —
- * it reads `users.app_role`, which is what this writes.
- *
- * Runs on every session resolution, so it is deliberately free when the seed
- * list is empty (the normal case: no query at all) and a single primary-key
- * UPDATE that matches no rows once the grant has happened. One-way by design:
- * nothing here demotes, so dropping an id from the seed list leaves an existing
- * admin alone — revocation is a deliberate database change.
- *
- * `updated_at` is deliberately not stamped: it tracks profile edits (Better
- * Auth's adapter and `updateProfile` own it), and taking a `Clock` here would
- * mean resolving one a second time per request, which require-deps.ts keeps to
- * exactly once (arch D13).
- */
-export async function seedAdminRole(
-  db: Db,
-  userId: string,
-  seedUserIds: readonly string[],
-): Promise<void> {
-  if (!seedUserIds.includes(userId)) return;
-  await db
-    .update(users)
-    .set({ appRole: APP_ROLE.ADMIN })
-    .where(and(eq(users.id, userId), ne(users.appRole, APP_ROLE.ADMIN)));
 }
 
 /**

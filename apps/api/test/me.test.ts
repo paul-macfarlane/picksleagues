@@ -6,7 +6,7 @@ import { FixedClock, type Env } from "@picksleagues/core";
 import { APP_ROLE, DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -113,19 +113,11 @@ describe("GET /api/me", () => {
     expect(body.username).toBe("paulm");
   });
 
-  it("200s with isAdmin true when the ADMIN_USER_IDS seed promotes the caller", async () => {
+  it("200s with isAdmin true when the user holds the admin role", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const adminApp = createApp({
-      auth,
-      db,
-      env: makeTestEnv({ ADMIN_USER_IDS: [user.id] }),
-      clock: async () => new FixedClock(FIXED_NOW),
-    });
+    await grantAdmin(db, user.id);
 
-    const res = await adminApp.request("/api/me", {
-      method: "GET",
-      headers: { cookie },
-    });
+    const res = await getMe(cookie);
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as MeResponse;
@@ -367,7 +359,7 @@ describe("DELETE /api/me", () => {
 
   it("clears app_role to user, so a deleted admin's tombstone row holds no capability", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    await db.update(users).set({ appRole: APP_ROLE.ADMIN }).where(eq(users.id, user.id));
+    await grantAdmin(db, user.id);
 
     const res = await deleteMe(cookie);
     expect(res.status).toBe(204);

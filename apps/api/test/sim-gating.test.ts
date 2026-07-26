@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { auth, buildApp, closeSimDb, db, get, withCookie } from "./setup/sim-helpers";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 
 beforeEach(async () => {
@@ -73,7 +73,8 @@ describe("sim route gating", () => {
 
   it("production: sim routes are not registered at all — GET /api/sim/state 404s even for an admin (ADR-0011)", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id], { envOverrides: { APP_ENV: "production" } });
+    await grantAdmin(db, user.id);
+    const app = buildApp({ envOverrides: { APP_ENV: "production" } });
 
     const res = await get(app, "/api/sim/state", cookie);
 
@@ -82,7 +83,8 @@ describe("sim route gating", () => {
 
   it("SIM_ENABLED=false in a non-prod env: sim routes are not registered — GET /api/sim/state 404s for an admin", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id], {
+    await grantAdmin(db, user.id);
+    const app = buildApp({
       envOverrides: { APP_ENV: "local", SIM_ENABLED: false },
     });
 
@@ -93,7 +95,8 @@ describe("sim route gating", () => {
 
   it("production overrides SIM_ENABLED=true: sim routes stay unregistered — GET /api/sim/state 404s for an admin", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id], {
+    await grantAdmin(db, user.id);
+    const app = buildApp({
       envOverrides: { APP_ENV: "production", SIM_ENABLED: true },
     });
 

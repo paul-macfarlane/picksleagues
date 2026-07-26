@@ -8,8 +8,8 @@ import type { SessionVariables } from "./session";
  * Requires the caller's session user to hold the admin role; 403s otherwise.
  * Must run after `sessionMiddleware`/`requireSession` — reads `sessionUser` off
  * the context rather than re-deriving it. `users.app_role` is the sole
- * authorization source (ADR-0013); `ADMIN_USER_IDS` only seeds that column on
- * sign-in, so a role granted at runtime takes effect without a redeploy.
+ * authorization source (ADR-0013) and is granted by a direct database update,
+ * so a role change takes effect on the next request without a redeploy.
  */
 export function adminMiddleware(db: Db): MiddlewareHandler<{ Variables: SessionVariables }> {
   return async (c, next) => {

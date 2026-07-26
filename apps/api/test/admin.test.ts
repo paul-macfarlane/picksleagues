@@ -10,7 +10,7 @@ import {
 import type { JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -35,16 +35,14 @@ const db = createDb(getTestDatabaseUrl());
 const provider = new FakeProvider();
 // One `auth` instance shared by every app built below — session cookies it
 // mints stay valid across them since they all share `db` and the same
-// `BETTER_AUTH_SECRET` (makeTestEnv's default); only the `ADMIN_USER_IDS`
-// admin seed varies (ADR-0013 — the seed promotes `users.app_role` on sign-in).
+// `BETTER_AUTH_SECRET` (makeTestEnv's default).
 const auth = createAuth({ env: makeTestEnv(), db });
 
-function buildApp(adminUserIds: string[] = []) {
-  const env = makeTestEnv({ ADMIN_USER_IDS: adminUserIds });
+function buildApp() {
   return createApp({
     auth,
     db,
-    env,
+    env: makeTestEnv(),
     clock: async () => new FixedClock(FIXED_NOW),
     provider: async () => provider,
   });
@@ -87,7 +85,8 @@ describe("POST /api/admin/jobs/nfl/{job}", () => {
 
   it("400s on an invalid job slug for an admin caller", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id]);
+    await grantAdmin(db, user.id);
+    const app = buildApp();
 
     const res = await postAdminJob(app, "not-a-real-job", cookie);
 
@@ -96,7 +95,8 @@ describe("POST /api/admin/jobs/nfl/{job}", () => {
 
   it("200s and runs the job for an admin caller", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
-    const app = buildApp([user.id]);
+    await grantAdmin(db, user.id);
+    const app = buildApp();
 
     const res = await postAdminJob(app, "sync-scores", cookie);
 

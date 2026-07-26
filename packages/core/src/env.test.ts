@@ -31,14 +31,6 @@ describe("loadEnv", () => {
   });
 
   it.each([
-    { raw: "a, b", expected: ["a", "b"] },
-    { raw: "", expected: [] },
-  ])("parses ADMIN_USER_IDS $raw", ({ raw, expected }) => {
-    const env = loadEnv({ ...validSource, ADMIN_USER_IDS: raw });
-    expect(env.ADMIN_USER_IDS).toEqual(expected);
-  });
-
-  it.each([
     { label: '"true"', raw: "true", expected: true },
     { label: '"false"', raw: "false", expected: false },
     { label: "absent (fails closed)", raw: undefined, expected: false },

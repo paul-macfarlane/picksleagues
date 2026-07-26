@@ -14,7 +14,7 @@ import { expect } from "vitest";
 import { createApp } from "../../src/app";
 import { createAuth } from "../../src/auth";
 import { readSimFixtureSnapshot } from "../../src/services/sim/fixtures";
-import { createAuthenticatedUser } from "./auth-helpers";
+import { createAuthenticatedUser, grantAdmin } from "./auth-helpers";
 import { providerWeek } from "./provider-fixtures";
 import { getTestDatabaseUrl } from "./test-database-url";
 import { makeTestEnv } from "./test-env";
@@ -100,12 +100,9 @@ export async function closeSimDb(): Promise<void> {
  * end-to-end through the real HTTP surface rather than asserted against the
  * service functions directly.
  */
-export function buildApp(
-  adminUserIds: string[] = [],
-  opts: { fakeEspn?: GameDataProvider; envOverrides?: Partial<Env> } = {},
-) {
+export function buildApp(opts: { fakeEspn?: GameDataProvider; envOverrides?: Partial<Env> } = {}) {
   const fakeEspn = opts.fakeEspn ?? UNUSED_PROVIDER;
-  const env = makeTestEnv({ ADMIN_USER_IDS: adminUserIds, ...opts.envOverrides });
+  const env = makeTestEnv(opts.envOverrides);
   const simEnabled = isSimEnabled(env);
   return createApp({
     auth,
@@ -128,10 +125,11 @@ export function buildApp(
   });
 }
 
-/** Signs in a user, seeds them into the admin role, and returns an admin-ready app. */
+/** Signs in a user, grants them the admin role, and returns an admin-ready app. */
 export async function adminCaller(fakeEspn?: GameDataProvider) {
   const { user, cookie } = await createAuthenticatedUser(auth);
-  return { app: buildApp([user.id], { fakeEspn }), cookie, userId: user.id };
+  await grantAdmin(db, user.id);
+  return { app: buildApp({ fakeEspn }), cookie, userId: user.id };
 }
 
 export function withCookie(cookie?: string): Record<string, string> {

@@ -5,7 +5,6 @@ import type { Clock } from "@picksleagues/core";
 import type { AppDeps } from "../deps";
 import { adminMiddleware } from "../middleware/admin";
 import { sessionMiddleware, type SessionVariables } from "../middleware/session";
-import { seedAdminRole } from "../services/users";
 
 export type DepsVariables = { db: Db; clock: Clock };
 
@@ -40,14 +39,8 @@ export function requireDbAndClock(deps: AppDeps): MiddlewareHandler<{ Variables:
  * request time rather than app-construction time: generate-openapi.ts builds
  * every route with no deps and never invokes handlers, so real deployments
  * (which always supply `deps.auth`) never hit it.
- *
- * Session resolution is also where the `ADMIN_USER_IDS` bootstrap seed is
- * applied (ADR-0013) — not in `requireAdmin`, because `GET /me` must report a
- * seeded admin's capability on their very first request (the SPA renders its
- * admin surfaces off that flag, so it never reaches an admin route first).
  */
 export function requireSession(deps: AppDeps): MiddlewareHandler<{ Variables: SessionVariables }> {
-  const { db, env } = deps;
   return async (c, next) => {
     if (!deps.auth) {
       return c.json(
@@ -58,12 +51,7 @@ export function requireSession(deps: AppDeps): MiddlewareHandler<{ Variables: Se
         500,
       );
     }
-    return sessionMiddleware(deps.auth)(c, async () => {
-      if (db && env) {
-        await seedAdminRole(db, c.get("sessionUser").id, env.ADMIN_USER_IDS);
-      }
-      await next();
-    });
+    return sessionMiddleware(deps.auth)(c, next);
   };
 }
 

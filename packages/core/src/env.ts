@@ -22,21 +22,6 @@ const EnvSchema = z.object({
   // change. Defaults off so a config omission fails closed, and production
   // ignores it entirely (see `isSimEnabled`).
   SIM_ENABLED: z.stringbool().default(false),
-  // Comma-separated Better Auth user ids. NOT the authorization source (that is
-  // `users.app_role`, ADR-0013) — a bootstrap seed only: an id listed here is
-  // promoted to the admin role on every authenticated request (not just
-  // sign-in), so a fresh environment reaches its first admin with no manual
-  // SQL. Promote-only — removing an id never demotes anyone; revoking a
-  // seeded admin requires both a database change and removing the id here.
-  ADMIN_USER_IDS: z
-    .string()
-    .default("")
-    .transform((raw) =>
-      raw
-        .split(",")
-        .map((id) => id.trim())
-        .filter((id) => id.length > 0),
-    ),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

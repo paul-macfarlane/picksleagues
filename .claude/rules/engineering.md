@@ -61,5 +61,5 @@ Standards for all code in this repo. When a rule and `docs/architecture.md` conf
 ## Security
 
 - Job endpoints require the shared-secret header. Sim endpoints require an admin session **and** are not registered when the simulator is disabled (ADR-0011) — the secret header is a jobs-only mechanism.
-- **Admin capability = the `admin` role in `users.app_role`**, checked server-side against the database (ADR-0013). `ADMIN_USER_IDS` is a promote-only bootstrap seed applied on sign-in, never an authorization input — nothing may read it to decide access. Admin surfaces are invisible to non-admins.
+- **Admin capability = the `admin` role in `users.app_role`**, checked server-side against the database (ADR-0013). Granted only by a direct database update — no env-var allowlist, and no application code writes the column except `deleteAccount` clearing it. Admin surfaces are invisible to non-admins.
 - Secrets and DB access are server-only; nothing secret ships in the SPA bundle. No PII beyond what OAuth provides.

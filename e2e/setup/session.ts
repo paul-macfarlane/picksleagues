@@ -51,11 +51,11 @@ export async function mintSession(
   const { user, cookie } = await createAuthenticatedUser(auth, profileOverrides);
   const rawValue = cookie.slice(`${SESSION_COOKIE_NAME}=`.length);
 
-  // The whole reason app-wide admin capability is a column rather than the
-  // `ADMIN_USER_IDS` env allowlist (ADR-0013): the dev API read its env long
-  // before this user existed, so only a runtime grant can make a minted user an
-  // admin. Written directly (not through Better Auth) because Better Auth has no
-  // `additionalFields` entry for `app_role` — nothing in it touches the column.
+  // The whole reason app-wide admin capability is a column rather than config
+  // (ADR-0013): the dev API read its env long before this user existed, so only
+  // a runtime grant can make a minted user an admin. Written directly (not
+  // through Better Auth) because Better Auth has no `additionalFields` entry for
+  // `app_role` — nothing in it touches the column.
   if (appRole !== undefined) {
     await db.$client.query("UPDATE users SET app_role = $1 WHERE id = $2", [appRole, user.id]);
   }
