@@ -8,7 +8,7 @@ import {
 } from "@picksleagues/schemas";
 import { useAdminSeasons } from "@/api/admin";
 import { useAdjustSimClock } from "@/api/sim";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, toLocalDateTimeInputValue } from "@/lib/format";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,17 +36,6 @@ const ANCHOR_OPTIONS: { value: SimClockAnchor; label: string }[] = [
   { value: SIM_CLOCK_ANCHOR.BEFORE_FIRST_KICKOFF, label: "Before first kickoff" },
   { value: SIM_CLOCK_ANCHOR.AFTER_LAST_GAME, label: "After last game" },
 ];
-
-// Renders an ISO instant as the local "YYYY-MM-DDTHH:mm" a `datetime-local`
-// input expects — `toISOString` renders UTC, which would silently show the
-// operator a different instant than the one the clock is actually at.
-function toLocalDateTimeInputValue(iso: string): string {
-  const date = new Date(iso);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
-}
 
 // A signed human delta ("+3d 4h 12m"), zero units dropped, at least one unit
 // always shown — the raw ms offset is meaningless to an operator at a glance.

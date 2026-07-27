@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ADMIN_ODDS_SNAPSHOT_LIMIT, SPORT, type AdminGame } from "@picksleagues/schemas";
 import { useAdminGameOdds, useAdminGames, useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel } from "@/lib/game";
+import { gameStatusLabel, scoreText } from "@/lib/game";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
 import { AdminQueryState } from "@/components/admin/query-state";
@@ -13,12 +13,6 @@ import { AdminQueryState } from "@/components/admin/query-state";
 // thing this browser exists to surface.
 function seasonLabel(season: { year: number; provisional: boolean }) {
   return `${season.year}${season.provisional ? " (provisional)" : ""}`;
-}
-
-// Empty (not a placeholder dash) when unscored: this renders after the status
-// word, and "Scheduled –" reads as a truncated line rather than "no score yet".
-function scoreText(away: number | null, home: number | null) {
-  return away === null || home === null ? "" : ` ${away}–${home}`;
 }
 
 function isOverridden(game: AdminGame) {

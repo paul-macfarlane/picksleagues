@@ -11,22 +11,29 @@ import { Label } from "@/components/ui/label";
 export function FormTextField({
   field,
   label,
+  id,
   ...inputProps
 }: {
   field: AnyFieldApi;
   label: string;
+  // Overrides the DOM id (defaults to `field.name`) — needed when the same
+  // field name repeats across independent form instances, e.g. one editor per
+  // row in a list (sim-fixture-row.tsx), where `field.name` alone would
+  // collide across rows.
+  id?: string;
 } & Omit<
   ComponentProps<typeof Input>,
   "id" | "value" | "onChange" | "aria-invalid" | "aria-describedby"
 >) {
   const error = field.state.meta.errors[0] as unknown;
-  const errorId = `${field.name}-error`;
+  const fieldId = id ?? field.name;
+  const errorId = `${fieldId}-error`;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={field.name}>{label}</Label>
+      <Label htmlFor={fieldId}>{label}</Label>
       <Input
-        id={field.name}
+        id={fieldId}
         value={field.state.value}
         onChange={(event) => field.handleChange(event.target.value)}
         aria-invalid={error ? true : undefined}

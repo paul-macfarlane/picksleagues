@@ -49,6 +49,7 @@ test.describe("simulator control panel", () => {
       // scenarios card carry a heading role.
       await expect(page.getByText("Simulated clock", { exact: true })).toBeVisible();
       await expect(page.getByText("Scenarios", { exact: true })).toBeVisible();
+      await expect(page.getByText("Fixtures", { exact: true })).toBeVisible();
       await expect(page.getByText("Import a replay season", { exact: true })).toBeVisible();
       await expect(page.getByText("Reset", { exact: true })).toBeVisible();
 

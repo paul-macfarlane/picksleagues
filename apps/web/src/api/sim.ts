@@ -1,6 +1,18 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ERROR_CODE, type SimClockAdjustment, type SimResetRequest } from "@picksleagues/schemas";
+import {
+  ERROR_CODE,
+  type SimClockAdjustment,
+  type SimResetRequest,
+  type UpdateSimFixtureGameRequest,
+  type WeekType,
+} from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 import { formatDateTime } from "@/lib/format";
@@ -133,6 +145,77 @@ export function useImportReplaySeason() {
       await invalidateClockDerived(queryClient);
     },
     onError: () => toast.error("Replay import failed — check the server logs."),
+  });
+}
+
+export function simFixtureGamesQueryKey(
+  scenarioId: string | undefined,
+  weekType: WeekType | undefined,
+  weekNumber: number | undefined,
+) {
+  return [...SIM_QUERY_KEY_PREFIX, "fixtures", scenarioId, weekType, weekNumber];
+}
+
+// `skipToken` rather than `enabled` for the not-yet-chosen scenario: it narrows
+// `scenarioId` to a string inside the queryFn, so the required query param needs
+// no non-null assertion (same idiom as useAdminGames).
+export function useSimFixtureGames(
+  scenarioId: string | undefined,
+  weekType?: WeekType,
+  weekNumber?: number,
+) {
+  return useQuery({
+    queryKey: simFixtureGamesQueryKey(scenarioId, weekType, weekNumber),
+    queryFn: scenarioId
+      ? async () => {
+          const { data, error } = await api.GET("/api/sim/fixtures/games", {
+            params: { query: { scenarioId, weekType, weekNumber } },
+          });
+          if (error) throw error;
+          return data;
+        }
+      : skipToken,
+  });
+}
+
+export function useUpdateSimFixtureGame() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      gameId,
+      patch,
+    }: {
+      gameId: string;
+      patch: UpdateSimFixtureGameRequest;
+    }) => {
+      const { data, error, response } = await api.PATCH("/api/sim/fixtures/games/{gameId}", {
+        params: { path: { gameId } },
+        body: patch,
+      });
+      if (error) {
+        // Both refusals carry copy worth showing verbatim — the 400 in
+        // particular explains *why* an edit is incoherent ("a final fixture
+        // needs both scores"), which is the whole recovery instruction.
+        toastOnExpectedError(
+          error,
+          response,
+          (status, err) =>
+            (status === 404 && err.error === ERROR_CODE.FIXTURE_NOT_FOUND) ||
+            (status === 400 && err.error === ERROR_CODE.VALIDATION),
+        );
+        return null;
+      }
+      return data;
+    },
+    onSuccess: async (data) => {
+      if (!data) return;
+      toast.success(`Updated ${data.awayTeamAbbr} @ ${data.homeTeamAbbr}`);
+      // Only the simulator's own keys, deliberately unlike the clock mutations:
+      // editing a fixture changes what a *subsequent* sync would ingest, not
+      // any table the rest of the app reads right now.
+      await queryClient.invalidateQueries({ queryKey: SIM_QUERY_KEY_PREFIX });
+    },
+    onError: () => toast.error("Couldn't update that fixture — please try again."),
   });
 }
 

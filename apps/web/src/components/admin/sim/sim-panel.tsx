@@ -1,6 +1,7 @@
 import { useSimState } from "@/api/sim";
 import { AdminQueryState } from "@/components/admin/query-state";
 import { SimClockCard } from "@/components/admin/sim/sim-clock-card";
+import { SimFixturesCard } from "@/components/admin/sim/sim-fixtures-card";
 import { SimReplayCard } from "@/components/admin/sim/sim-replay-card";
 import { SimResetCard } from "@/components/admin/sim/sim-reset-card";
 import { SimScenariosCard } from "@/components/admin/sim/sim-scenarios-card";
@@ -28,6 +29,7 @@ export function SimPanel() {
         <div className="flex flex-col gap-4">
           <SimClockCard state={data} />
           <SimScenariosCard state={data} />
+          <SimFixturesCard state={data} />
           <SimReplayCard state={data} />
           <SimResetCard />
         </div>
