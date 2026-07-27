@@ -15,6 +15,28 @@ export function nflSeasonYearFor(now: Date): number {
   return isAugustThroughDecember ? utcYear : utcYear - 1;
 }
 
+/**
+ * The most recent NFL season year whose Super Bowl has definitely been
+ * played. This is a different question from `nflSeasonYearFor` — that
+ * function answers "which season does this instant belong to" (a Jan/Feb
+ * instant belongs to the *previous* label's postseason tail, i.e. a season
+ * still in progress); this one answers "which season has fully finished and
+ * is safe to treat as historical". Conflating the two made the replay
+ * picker reject the season that had just finished, since `nflSeasonYearFor`
+ * reports a season as "current" for months after its Super Bowl is over.
+ *
+ * Season `Y` runs Aug of `Y` through the Super Bowl in Feb of `Y+1`. March 1
+ * (UTC) of `Y+1` is used as a conservative boundary — a couple of weeks past
+ * the real Super Bowl — so the answer is never optimistic. Pure function of
+ * the given instant; callers pass `clock.now()` or real time as needed (arch
+ * D13), this module never reads time itself.
+ */
+export function latestCompletedNflSeasonYear(now: Date): number {
+  const utcYear = now.getUTCFullYear();
+  const marchFirstThisUtcYear = Date.UTC(utcYear, 2, 1);
+  return now.getTime() >= marchFirstThisUtcYear ? utcYear - 1 : utcYear - 2;
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MS_PER_WEEK = 7 * MS_PER_DAY;
 const THURSDAY = 4; // Date#getUTCDay(): 0 = Sunday.
