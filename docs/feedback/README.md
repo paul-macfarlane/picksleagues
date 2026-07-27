@@ -13,4 +13,5 @@ pointer from the others.
 
 - [03-leagues.md](03-leagues.md) — Leagues epic (rounds 1–5)
 - [04-simulator-admin.md](04-simulator-admin.md) — Simulator & Admin Ops epic (round 1)
+- [05-pickem.md](05-pickem.md) — NFL Pick'em epic (round 1)
 - [11-schema-foundations.md](11-schema-foundations.md) — Schema Foundations epic (round 1)

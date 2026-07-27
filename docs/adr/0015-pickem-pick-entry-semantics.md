@@ -119,9 +119,13 @@ not change; this is acceptable because `pick_results` is a pure derivation recom
 (picks, results, settings) at any time (arch D10) and cascades from the pick row, so id churn
 costs a recompute rather than data.
 
-A commissioner who lowers Picks Per Week pre-start silently discards everyone's picks. It is
-logged (`league.settings-reset-picks`) but there is no UI warning yet — worth adding to the
-settings form before launch, and the reason the predicate is deliberately narrow.
+A commissioner who lowers Picks Per Week pre-start discards everyone's picks. It is logged
+(`league.settings-reset-picks`), and this is the reason the predicate is deliberately narrow.
+**Resolved in feedback round 1:** `pickemSettingsInvalidatePicks` moved to
+`packages/schemas` so the settings form shares the API's exact rule, and
+`GET /leagues/{id}/pickem/pick-summary` supplies real counts — the form warns inline and
+requires a confirmation dialog, but only when the change invalidates *and* picks actually
+exist, so the dialog never fires over nothing.
 
 **PKM-7 needs its own path, and that path must be able to *remove* a retained pick.** The
 spec's cancellation re-pick is the one case where ATS acceptance applies to "the

@@ -25,3 +25,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0013](0013-admin-role-in-database.md)        | Admin capability lives in `users.app_role` | Accepted |
 | [0014](0014-sim-enabled-env-toggle.md)        | `SIM_ENABLED` toggles the simulator; production overrides it | Accepted |
 | [0015](0015-pickem-pick-entry-semantics.md)   | Pick'em pick entry: whole-week replace, unplayable games unpickable, settings change resets picks | Accepted |
+| [0016](0016-per-mode-result-and-standings-tables.md) | Results/standings are per-mode; mode-scoped naming repo-wide | Accepted |
