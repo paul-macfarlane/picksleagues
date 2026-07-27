@@ -8,8 +8,10 @@ import {
   leagueSeasons,
   leagues,
   oddsSnapshots,
+  pickResults,
   pickemPicks,
   setSimClockOffsetMs,
+  standings,
   setSimState,
   simScenarios,
   sportSeasons,
@@ -58,30 +60,43 @@ async function deleteAndCount(tx: Db, table: PgTable, where?: SQL): Promise<numb
  * scope); a value scopes to one league.
  *
  * Forward compatibility: every new league-owned table needs listing here for
- * reset to stay complete — `pickem_picks` (PKM-2) is the first; `pick_results`
- * and `standings` (PKM-4) join it, ahead of `league_members`/`leagues` since
- * they reference both.
+ * reset to stay complete — `pickem_picks` (PKM-2), `pick_results` and
+ * `standings` (PKM-4), each ahead of `league_members`/`leagues` since they
+ * reference both.
+ *
+ * Settlement output is deleted explicitly rather than left to cascade from
+ * members/picks. It would in fact cascade, but the counters this returns are
+ * the sim panel's report of what a reset did, and a table that vanishes without
+ * being counted reads as a table that was missed.
  */
 async function deleteLeagueOwnedData(
   tx: Db,
   leagueId: string | undefined,
 ): Promise<Record<string, number>> {
+  // Picks and settlement output carry no league id of their own, so a
+  // league-scoped reset matches them through that league's member rows.
+  const memberScope = leagueId
+    ? tx
+        .select({ id: leagueMembers.id })
+        .from(leagueMembers)
+        .where(eq(leagueMembers.leagueId, leagueId))
+    : undefined;
+
   return {
-    // Picks reference `league_members` and `league_seasons`, so they go first.
-    // Scoping by league means matching through the member rows, since the pick
-    // itself carries no league id.
+    pick_results: await deleteAndCount(
+      tx,
+      pickResults,
+      memberScope ? inArray(pickResults.leagueMemberId, memberScope) : undefined,
+    ),
+    standings: await deleteAndCount(
+      tx,
+      standings,
+      memberScope ? inArray(standings.leagueMemberId, memberScope) : undefined,
+    ),
     pickem_picks: await deleteAndCount(
       tx,
       pickemPicks,
-      leagueId
-        ? inArray(
-            pickemPicks.leagueMemberId,
-            tx
-              .select({ id: leagueMembers.id })
-              .from(leagueMembers)
-              .where(eq(leagueMembers.leagueId, leagueId)),
-          )
-        : undefined,
+      memberScope ? inArray(pickemPicks.leagueMemberId, memberScope) : undefined,
     ),
     league_invites: await deleteAndCount(
       tx,

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagues, users } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
 
 /**
  * Row locks serializing this epic's count-after-write invariant checks (the
@@ -17,6 +17,19 @@ export async function lockLeagueRow(tx: Db, leagueId: string): Promise<void> {
 
 export async function lockUserRow(tx: Db, userId: string): Promise<void> {
   await tx.execute(sql`select id from ${users} where id = ${userId} for update`);
+}
+
+/**
+ * Serializes settlement of one league season. Settlement writes `pick_results`
+ * and `standings` delete-then-insert, and two concurrent settlers of the same
+ * season would each take their snapshot before the other's insert, miss those
+ * rows in their DELETE, and then collide on the unique constraints — an
+ * aborted transaction and a 500, not corruption, but avoidable. The incremental
+ * (`sync-scores`), nightly (`settle-sweep`), admin-rebuild, and `/sim/settle`
+ * paths can all overlap, so every one of them takes this first.
+ */
+export async function lockLeagueSeasonRow(tx: Db, leagueSeasonId: string): Promise<void> {
+  await tx.execute(sql`select id from ${leagueSeasons} where id = ${leagueSeasonId} for update`);
 }
 
 /**

@@ -33,6 +33,9 @@ import {
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
 import { listGameOdds, listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
+import { rebuildLeagueSeason, settleSweep } from "../services/settlement/pickem";
+import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
 
 const AdminNflJobParamsSchema = z.object({ job: NflSyncJobSchema });
 
@@ -49,6 +52,35 @@ const runAdminNflJobRoute = createRoute({
     ),
     401: UNAUTHENTICATED_401,
     403: NOT_ADMIN_403,
+    500: jobRunResponses[500],
+  },
+});
+
+const runAdminSettleSweepRoute = createRoute({
+  method: "post",
+  path: "/admin/jobs/settle-sweep",
+  operationId: "runAdminSettleSweep",
+  summary: "Manually trigger the settlement reconciliation sweep",
+  responses: {
+    200: jobRunResponses[200],
+    401: UNAUTHENTICATED_401,
+    403: NOT_ADMIN_403,
+    500: jobRunResponses[500],
+  },
+});
+
+const rebuildLeagueRoute = createRoute({
+  method: "post",
+  path: "/admin/leagues/{leagueId}/rebuild",
+  operationId: "rebuildLeagueStandings",
+  summary: "Recompute one league's results and standings from stored picks and game results",
+  request: { params: z.object({ leagueId: z.uuid() }) },
+  responses: {
+    200: jobRunResponses[200],
+    400: errorResponse("The league id failed its format rule"),
+    401: UNAUTHENTICATED_401,
+    403: NOT_ADMIN_403,
+    404: errorResponse("No such league (league_not_found)"),
     500: jobRunResponses[500],
   },
 });
@@ -166,6 +198,35 @@ export function adminRoutes(deps: AppDeps) {
         weekNumber: week,
       }),
     );
+  });
+
+  app.openapi(runAdminSettleSweepRoute, async (c) => {
+    const { db, clock: resolveClock } = deps;
+    if (!db || !resolveClock) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
+    const clock = await resolveClock();
+    return runJob(c, SETTLE_SWEEP_JOB_NAME, () => settleSweep(db, clock));
+  });
+
+  app.openapi(rebuildLeagueRoute, async (c) => {
+    const { db, clock: resolveClock } = deps;
+    if (!db || !resolveClock) return c.json(misconfiguredJob(REBUILD_JOB_NAME), 500);
+    const clock = await resolveClock();
+    const { leagueId } = c.req.valid("param");
+
+    // Rebuild targets the league's current instance (ADR-0009) — the one whose
+    // picks and standings are live.
+    const current = await getLeagueWithCurrentSeason(db, leagueId);
+    if (!current) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: ERROR_CODE.LEAGUE_NOT_FOUND,
+          message: "League not found.",
+        }),
+        404,
+      );
+    }
+
+    return runJob(c, REBUILD_JOB_NAME, () => rebuildLeagueSeason(db, clock, current.season.id));
   });
 
   app.openapi(listAdminTeamsRoute, async (c) => {

@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ERROR_CODE,
   ErrorResponseSchema,
+  LeagueWeeksResponseSchema,
   PickemWeekPicksResponseSchema,
   SubmitPickemPicksRequestSchema,
   WeekSlateResponseSchema,
@@ -18,6 +19,7 @@ import {
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
 import { getWeekSlate } from "../services/picks/slate";
+import { listLeagueWeeks } from "../services/picks/weeks";
 import {
   getPickemWeekPicks,
   submitPickemPicks,
@@ -48,6 +50,7 @@ const REFUSAL_STATUS = {
   too_many_picks: 400,
   pick_locked: 409,
   spread_stale: 409,
+  spread_unavailable: 409,
 } as const satisfies Record<PickemRefusal, 400 | 404 | 409>;
 
 const REFUSAL_BODY = {
@@ -88,6 +91,10 @@ const REFUSAL_BODY = {
     error: ERROR_CODE.SPREAD_STALE,
     message: "The spreads moved — review the latest numbers and submit again.",
   },
+  spread_unavailable: {
+    error: ERROR_CODE.SPREAD_UNAVAILABLE,
+    message: "That game has no spread yet — it can't be picked until the line is posted.",
+  },
 } as const satisfies Record<PickemRefusal, ErrorResponse>;
 
 function pickemRefusal<R extends PickemRefusal>(
@@ -109,6 +116,24 @@ const getWeekGames = createRoute({
     },
     401: UNAUTHENTICATED_401,
     404: errorResponse("No such week"),
+    500: MISCONFIGURED_500,
+  },
+});
+
+const getLeagueWeeks = createRoute({
+  method: "get",
+  path: "/leagues/{leagueId}/weeks",
+  operationId: "listLeagueWeeks",
+  summary: "The weeks this league plays, clipped to its configured start/end week",
+  request: { params: z.object({ leagueId: z.uuid() }) },
+  responses: {
+    200: {
+      description: "Weeks in season order, plus the week a member lands on by default",
+      content: { "application/json": { schema: LeagueWeeksResponseSchema } },
+    },
+    400: errorResponse("Not a Pick'em league (wrong_league_mode)"),
+    401: UNAUTHENTICATED_401,
+    404: LEAGUE_NOT_FOUND_404,
     500: MISCONFIGURED_500,
   },
 });
@@ -155,7 +180,7 @@ const putLeagueWeekPicks = createRoute({
     401: UNAUTHENTICATED_401,
     404: LEAGUE_NOT_FOUND_404,
     409: errorResponse(
-      "A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), or the season has concluded (league_concluded)",
+      "A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -171,8 +196,10 @@ export function pickRoutes(deps: AppDeps) {
   // Scoped to this file's own routes rather than all of `/leagues/*`, matching
   // members.ts — a broader pattern would make the extra session lookup a
   // function of which route file mounts last.
-  app.use("/leagues/:leagueId/picks/*", requireSession(deps));
-  app.use("/leagues/:leagueId/picks/*", requireDbAndClock(deps));
+  for (const path of ["/leagues/:leagueId/picks/*", "/leagues/:leagueId/weeks"]) {
+    app.use(path, requireSession(deps));
+    app.use(path, requireDbAndClock(deps));
+  }
 
   app.openapi(getWeekGames, async (c) => {
     const db = c.get("db");
@@ -191,6 +218,21 @@ export function pickRoutes(deps: AppDeps) {
     }
 
     return c.json(slate, 200);
+  });
+
+  app.openapi(getLeagueWeeks, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
+    const { leagueId } = c.req.valid("param");
+
+    const result = await listLeagueWeeks(db, clock, leagueId, sessionUser.id);
+    if (!result.ok) {
+      const { body, status } = pickemRefusal(result.reason);
+      return c.json(ErrorResponseSchema.parse(body), status);
+    }
+
+    return c.json(result.value, 200);
   });
 
   app.openapi(getLeagueWeekPicks, async (c) => {

@@ -43,6 +43,7 @@ export const PICKEM_REFUSAL = {
   TOO_MANY_PICKS: "too_many_picks",
   PICK_LOCKED: "pick_locked",
   SPREAD_STALE: "spread_stale",
+  SPREAD_UNAVAILABLE: "spread_unavailable",
 } as const;
 
 export type PickemRefusal = (typeof PICKEM_REFUSAL)[keyof typeof PICKEM_REFUSAL];
@@ -239,11 +240,12 @@ export async function submitPickemPicks(
       if (!game.pickable) return PICKEM_REFUSAL.GAME_NOT_PICKABLE;
 
       if (settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD) {
-        // No current number means there is nothing to accept — the member
-        // refetches and finds the game unpickable until the odds sync lands.
-        if (game.spread === null || submission.spread !== game.spread) {
-          return PICKEM_REFUSAL.SPREAD_STALE;
-        }
+        // Two different situations that would otherwise share a code, and the
+        // member's next move differs: no line has been captured yet (wait for
+        // the odds sync — nothing to re-accept), versus the line moved under a
+        // submission in flight (refetch and accept the new numbers).
+        if (game.spread === null) return PICKEM_REFUSAL.SPREAD_UNAVAILABLE;
+        if (submission.spread !== game.spread) return PICKEM_REFUSAL.SPREAD_STALE;
       }
     }
 

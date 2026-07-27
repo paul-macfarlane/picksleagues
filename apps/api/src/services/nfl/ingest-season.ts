@@ -195,6 +195,13 @@ async function enrichTeamsFromListing(
 
 export type SeasonSnapshotResult = {
   seasonId: string;
+  /**
+   * Games whose status or week changed, so existing picks on them settle
+   * differently now. The caller re-settles their league-weeks — a cancellation
+   * or move must show as a push shortly after the schedule sync (spec §Data
+   * Freshness), not wait for the nightly sweep.
+   */
+  settlementAffectedGameIds: string[];
   weeksSynced: number;
   weeksDeleted: number;
   teamsCreated: number;
@@ -334,6 +341,7 @@ export async function ingestSeasonSnapshot(
   let postponements = 0;
   let cancellations = 0;
   let weekMoves = 0;
+  const settlementAffectedGameIds: string[] = [];
   let kickoffChanges = 0;
 
   // Teams are upserted before games so every game's FKs resolve against a
@@ -406,6 +414,14 @@ export async function ingestSeasonSnapshot(
       if (existing.weekId !== weekId) {
         weekMoves += 1;
         logInfo("nfl-sync-schedule.week-move", { providerGameId: game.providerGameId });
+      }
+      // A status or week change alters how existing picks on this game settle
+      // (cancelled and moved both resolve as a push, spec §Cancellations), so
+      // the caller re-settles them rather than leaving the push invisible until
+      // the nightly sweep. A kickoff change does not: locking is derived at
+      // read time, never stored.
+      if (existing.status !== game.status || existing.weekId !== weekId) {
+        settlementAffectedGameIds.push(existing.id);
       }
       if (existing.kickoffAt.getTime() !== game.kickoffAt.getTime()) {
         kickoffChanges += 1;
@@ -491,6 +507,7 @@ export async function ingestSeasonSnapshot(
 
   return {
     seasonId,
+    settlementAffectedGameIds,
     weeksSynced: weekIdByKey.size,
     weeksDeleted,
     teamsCreated,

@@ -4,6 +4,7 @@ import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
 import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { settlePicksForGames } from "../settlement/pickem";
 
 /** A refresh target: one provider week fetch mapped to our week row. */
 type ScoreTarget = {
@@ -112,7 +113,13 @@ export async function syncNflScores(
 
   const weekIds = targets.map((target) => target.weekId);
 
-  return db.transaction(async (tx) => {
+  // Collected inside the ingest transaction, settled after it commits: holding
+  // the games transaction open across every affected league's settlement would
+  // make one slow league block score ingestion for all of them, and settlement
+  // is idempotent so it loses nothing by running separately.
+  const finalGameIds: string[] = [];
+
+  const ingested = await db.transaction(async (tx) => {
     const ourGames = await tx.select().from(games).where(inArray(games.weekId, weekIds));
 
     let gamesUpdated = 0;
@@ -153,9 +160,8 @@ export async function syncNflScores(
 
       if (becameFinal) {
         wentFinal += 1;
+        finalGameIds.push(ours.id);
         logInfo("nfl-sync-scores.final", { providerGameId: providerGame.providerGameId });
-        // PKM-4 hookup site: settlement is invoked here once a game goes final
-        // (deferred to that task — sync-scores only ingests the final result).
       }
     }
 
@@ -175,4 +181,18 @@ export async function syncNflScores(
       unknownProviderGames,
     };
   });
+
+  // Scores and standings move together (arch §Background Jobs): a game going
+  // final resolves its picks and rebuilds the affected leagues' standings on
+  // the same tick.
+  const settled = await settlePicksForGames(db, clock, finalGameIds);
+
+  return {
+    ...ingested,
+    settledLeagueSeasons: settled.leagueSeasons,
+    settledResults: settled.results,
+    // Surfaced because a non-zero value here usually means a final game carries
+    // no score — the provider fault an admin override exists to correct.
+    settledUnsettled: settled.unsettled,
+  };
 }

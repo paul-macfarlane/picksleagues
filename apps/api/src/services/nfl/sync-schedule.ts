@@ -11,6 +11,7 @@ import {
 import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { fetchSeasonGames } from "./fetch-season-games";
 import { ingestSeasonSnapshot } from "./ingest-season";
+import { settlePicksForGames } from "../settlement/pickem";
 
 const UPCOMING_STATUS = {
   REAL: "real",
@@ -164,8 +165,15 @@ export async function syncNflSchedule(
     }),
   );
 
+  // Outside the ingest transaction, same reasoning as sync-scores: a cancelled
+  // or moved game must surface as a push shortly after this sync (spec §Data
+  // Freshness), not on the next nightly sweep ~21 hours later — and PKM-7's
+  // re-pick window depends on the member knowing they hold a push.
+  const settled = await settlePicksForGames(db, clock, result.settlementAffectedGameIds);
+
   const details: Record<string, string | number | boolean> = {
     seasonYear,
+    settledLeagueSeasons: settled.leagueSeasons,
     weeksSynced: result.weeksSynced,
     weeksDeleted: result.weeksDeleted,
     teamsCreated: result.teamsCreated,
