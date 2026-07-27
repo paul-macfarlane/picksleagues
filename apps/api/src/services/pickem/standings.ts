@@ -2,7 +2,11 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { leagueMembers, pickemStandings, users } from "@picksleagues/db";
 import { rankStandings } from "@picksleagues/scoring";
-import type { PickemStandingsResponse, PickemStandingsRow } from "@picksleagues/schemas";
+import {
+  LEAGUE_MODE,
+  type PickemStandingsResponse,
+  type PickemStandingsRow,
+} from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
 import { getMembership } from "../leagues/authz";
 import { getWeek } from "../slate";
@@ -19,8 +23,7 @@ import { PICKEM_REFUSAL, type PickemReadRefusal } from "./picks";
  */
 
 export type PickemStandingsResult =
-  | { ok: true; value: PickemStandingsResponse }
-  | { ok: false; reason: Extract<PickemReadRefusal, "league_not_found" | "week_out_of_range"> };
+  { ok: true; value: PickemStandingsResponse } | { ok: false; reason: PickemReadRefusal };
 
 export async function getPickemStandings(
   db: Db,
@@ -33,6 +36,14 @@ export async function getPickemStandings(
 
   const membership = await getMembership(db, leagueId, userId);
   if (!membership) return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_NOT_FOUND };
+
+  // Matches every sibling under /pickem/ (loadContext in picks.ts,
+  // getPickemPickSummary): a non-Pick'em league must refuse rather than
+  // serve a zero-filled board, and the check runs after league-not-found so
+  // a private league's existence is never revealed.
+  if (current.league.mode !== LEAGUE_MODE.PICKEM) {
+    return { ok: false, reason: PICKEM_REFUSAL.WRONG_LEAGUE_MODE };
+  }
 
   if (weekId !== undefined) {
     // Refused rather than answered with an empty board: without this, a week

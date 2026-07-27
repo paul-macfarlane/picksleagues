@@ -4,11 +4,14 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueMembers, oddsSnapshots, pickemPicks } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
+  ELIMINATION_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
+  LEAGUE_MODE,
   LEAGUE_STATUS,
   MEMBER_ROLE,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
+  WEEK_TYPE,
   type PickemStandingsResponse,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -18,6 +21,7 @@ import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
   FOUR_GAME_WEEK,
+  insertLeague,
   insertPick,
   membersOf,
   pickResultsFor,
@@ -111,6 +115,31 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     const res = await getStandings(users[0]!.cookie, league.id, `?week=${otherSeasonWeekId}`);
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "week_out_of_range" });
+  });
+
+  it("400s wrong_league_mode for a league that isn't Pick'em", async () => {
+    // Matches every sibling under /pickem/ (league-weeks.test.ts's identical
+    // case) — without this check the path would serve a zero-filled board
+    // for an Elimination league instead of refusing.
+    const { seasonId } = await seedSeason(db, {
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
+    });
+    const member = await createAuthenticatedUser(auth);
+    const league = await insertLeague(db, {
+      seasonId,
+      mode: LEAGUE_MODE.ELIMINATION,
+      settings: {
+        startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+        endWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+        pickType: PICK_TYPE.STRAIGHT_UP,
+        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+      },
+      members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+    });
+
+    const res = await getStandings(member.cookie, league.id);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "wrong_league_mode" });
   });
 
   it("shows every member at zero with a null lastUpdatedAt for a league that has never settled", async () => {

@@ -69,7 +69,7 @@ const getStandings = createRoute({
       content: { "application/json": { schema: PickemStandingsResponseSchema } },
     },
     400: errorResponse(
-      "A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range)",
+      "Not a Pick'em league (wrong_league_mode), or `week` is not a week of this league's season (week_out_of_range)",
     ),
     401: UNAUTHENTICATED_401,
     404: LEAGUE_NOT_FOUND_404,

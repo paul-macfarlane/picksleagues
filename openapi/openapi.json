@@ -4299,7 +4299,7 @@
             }
           },
           "400": {
-            "description": "A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range)",
+            "description": "Not a Pick'em league (wrong_league_mode), or `week` is not a week of this league's season (week_out_of_range)",
             "content": {
               "application/json": {
                 "schema": {

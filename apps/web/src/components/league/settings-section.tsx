@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
 import { usePickemPickSummary } from "@/api/pickem";
+import { useErrorToast } from "@/lib/use-error-toast";
 
 export function LeagueSettingsSection({
   league,
@@ -103,6 +104,12 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // (403 otherwise), and the two other modes have no pick-invalidation rule
   // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit);
+  // Every other failed query in this codebase surfaces via the shared toast
+  // — this one silently disabled the whole pre-save warning until this fix.
+  useErrorToast(
+    pickSummary.isError,
+    "Couldn't check how many picks this change would delete — please try again.",
+  );
 
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
@@ -176,6 +183,15 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // settings write clears picks with — computed here so the warning/confirm
   // below can never disagree with what a save would actually destroy.
   // Elimination has no picks yet (ELM-2), so it's Pick'em-only.
+  //
+  // Advisory only, not authoritative: this compares the draft against the
+  // *cached* `league.settings` the editor was opened with, while the
+  // server's write compares against the row it reads inside its own
+  // transaction (resetPicksInvalidatedBySettings). Two commissioners editing
+  // concurrently could see this disagree with what the server actually does
+  // — that's fine, because the server's decision is safe either way (it
+  // clears exactly what it decides to clear, or 409s on a locked pick); this
+  // value only ever governs whether the client shows a warning first.
   let wouldInvalidatePicks = false;
   if (isPickem) {
     const existing = league.settings as PickemSettings;
@@ -193,7 +209,19 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
       pickemPickType !== existing.pickType ||
       pickemPicksPerWeek !== existing.picksPerWeek ||
       pickemPushTie !== (existing.pushTieResolution ?? PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT);
-    wouldInvalidatePicks = pickemSettingsInvalidatePicks(existing, draft);
+    // Parsed, not cast: `picksPerWeek` carries a `.default()`, and the
+    // server's own settings write parses both sides through this same
+    // schema before comparing (services/pickem/settings-reset.ts) so its
+    // defaults materialize. Comparing against a bare cast of a stored row
+    // that predates a field would read `undefined` here but a real default
+    // there, letting this client silently decide a pick-destroying change
+    // was harmless when the server would clear every pick on save. A parse
+    // failure can't happen for any settings blob the server itself wrote,
+    // but fails safe (assume invalidation) rather than trust that blindly.
+    const existingParsed = LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].safeParse(league.settings);
+    wouldInvalidatePicks = existingParsed.success
+      ? pickemSettingsInvalidatePicks(existingParsed.data, draft)
+      : true;
   } else if (isElimination) {
     const existing = league.settings as EliminationSettings;
     assembledSettings = {
@@ -237,15 +265,31 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   const anyDirty = nameDirty || visibilityDirty || maxMembersDirty || settingsDirty;
   const pickCount = pickSummary.data?.pickCount ?? 0;
   const memberCount = pickSummary.data?.memberCount ?? 0;
-  // Real count only, never a fired-when-nothing's-at-stake dialog (a warning
-  // that fires with nothing to lose trains people to click through it) — so
-  // this stays false until the summary has actually loaded a nonzero count.
-  const pickWarningActive = wouldInvalidatePicks && pickCount > 0;
-  // While a change that WOULD invalidate is pending its real count, Save
-  // stays disabled rather than risk skipping the confirm because the count
-  // hasn't arrived yet — the summary query starts as soon as this editor is
-  // commissioner-visible, so this window is normally sub-second.
-  const pickSummaryPending = isPickem && wouldInvalidatePicks && pickSummary.isLoading;
+
+  // The pick-summary query's three states, named explicitly rather than
+  // derived from `isLoading` (TanStack Query v5: `isLoading === isPending &&
+  // isFetching`, which goes false once retries exhaust into `status:
+  // "error"`) — collapsing "errored" into "not loading" is exactly how the
+  // whole warning went silently unreachable from one transient 500. Keeping
+  // all three spelled out means a future edit can't re-collapse them.
+  //
+  // - pending: the count hasn't arrived yet. While a change that WOULD
+  //   invalidate is pending its real count, Save stays disabled rather than
+  //   risk skipping the confirm because the count hasn't arrived yet — the
+  //   summary query starts as soon as this editor is commissioner-visible,
+  //   so this window is normally sub-second.
+  const pickSummaryPending = isPickem && wouldInvalidatePicks && pickSummary.isPending;
+  // - errored: the count is UNKNOWN, not zero. Treating an unreachable
+  //   summary as "no picks at risk" is the defect this replaced — it let a
+  //   commissioner save a pick-destroying change with no warning and no
+  //   confirm. So an error is always treated as "picks might exist", and
+  //   Save must stay enabled (a genuinely harmless change must still be
+  //   saveable even if this side query is down).
+  const pickSummaryUnknown = isPickem && wouldInvalidatePicks && pickSummary.isError;
+  // - loaded: a real, nonzero count — never a fired-when-nothing's-at-stake
+  //   dialog (a warning that fires with nothing to lose trains people to
+  //   click through it).
+  const pickWarningActive = wouldInvalidatePicks && (pickSummaryUnknown || pickCount > 0);
   const canSave =
     canEdit &&
     anyDirty &&
@@ -368,14 +412,16 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
             be changed anytime.
           </p>
 
-          {/* Only rendered with a real, nonzero count (engineering rules §UI:
-              no arbitrary color — destructive is a theme token) — a warning
-              that could fire with nothing at stake would train commissioners
-              to click through it. */}
+          {/* Only rendered with a real, nonzero count OR an unknown one
+              (engineering rules §UI: no arbitrary color — destructive is a
+              theme token) — a warning that could fire with nothing at stake
+              would train commissioners to click through it, but an unknown
+              count must still warn (fail safe, see pickSummaryUnknown above). */}
           {pickWarningActive && (
             <p className="text-sm text-destructive">
-              Saving will permanently delete {pickCount} {pickCount === 1 ? "pick" : "picks"} from{" "}
-              {memberCount} {memberCount === 1 ? "member" : "members"} — this can&apos;t be undone.
+              {pickSummaryUnknown
+                ? "Saving will permanently delete every pick already submitted — we couldn't check how many, but this can't be undone."
+                : `Saving will permanently delete ${pickCount} ${pickCount === 1 ? "pick" : "picks"} from ${memberCount} ${memberCount === 1 ? "member" : "members"} — this can't be undone.`}
             </p>
           )}
 
@@ -389,12 +435,14 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>
-                    Delete {pickCount} {pickCount === 1 ? "pick" : "picks"}?
+                    {pickSummaryUnknown
+                      ? "Delete every submitted pick?"
+                      : `Delete ${pickCount} ${pickCount === 1 ? "pick" : "picks"}?`}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    This change clears {pickCount} {pickCount === 1 ? "pick" : "picks"} from{" "}
-                    {memberCount} {memberCount === 1 ? "member" : "members"}. This can&apos;t be
-                    undone.
+                    {pickSummaryUnknown
+                      ? "This change clears every pick already submitted on this league — we couldn't check how many. This can't be undone."
+                      : `This change clears ${pickCount} ${pickCount === 1 ? "pick" : "picks"} from ${memberCount} ${memberCount === 1 ? "member" : "members"}. This can't be undone.`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

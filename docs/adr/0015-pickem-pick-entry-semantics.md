@@ -6,7 +6,8 @@
 
 ## Context
 
-`PUT /leagues/:id/picks/week/:weekId` is the only write path for Pick'em picks. The spec
+`PUT /leagues/:id/pickem/weeks/:weekId/picks` (named `/leagues/:id/picks/week/:weekId` when
+this ADR was written; renamed by ADR-0016) is the only write path for Pick'em picks. The spec
 fixes its hard edges — picks lock per game at kickoff, ATS edits re-price every unstarted
 pick, cancelled games push, picks are hidden until kickoff — but leaves four questions the
 implementation had to answer, and answering them wrong is silently exploitable rather than

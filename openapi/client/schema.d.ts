@@ -2768,7 +2768,7 @@ export interface operations {
                     "application/json": components["schemas"]["PickemStandingsResponse"];
                 };
             };
-            /** @description A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range) */
+            /** @description Not a Pick'em league (wrong_league_mode), or `week` is not a week of this league's season (week_out_of_range) */
             400: {
                 headers: {
                     [name: string]: unknown;

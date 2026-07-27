@@ -1332,4 +1332,66 @@ describe("GET /api/leagues/:leagueId/pickem/pick-summary", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ pickCount: 0, memberCount: 0 });
   });
+
+  it("counts only the current season instance's picks, not a prior (renewed) season's — same scope as resetPicksInvalidatedBySettings", async () => {
+    // Two league_seasons rows on one league, following the multi-season
+    // fixture shape leagues.test.ts's `addSeasonInstance` uses: a second
+    // sport season year, a second `league_seasons` row inserted directly
+    // (bypassing the renewal endpoint), which `getLeagueWithCurrentSeason`
+    // then picks as "current" for having the greater season year.
+    const priorBase = await seedPickemLeagueBase(db, auth, {
+      year: 2026,
+      weeks: FOUR_GAME_WEEK,
+      members: [{ username: "member_a" }, { username: "member_b" }],
+    });
+    const [memberA] = priorBase.users;
+    const priorWeekId = priorBase.weekIds.get("regular:1")!;
+    const [priorGame1, priorGame2] = priorBase.gameIds.get("regular:1")!;
+    await insertPick(db, {
+      leagueSeasonId: priorBase.leagueSeasonId,
+      leagueMemberId: priorBase.members.get(memberA!.user.id)!,
+      weekId: priorWeekId,
+      gameId: priorGame1!,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+    await insertPick(db, {
+      leagueSeasonId: priorBase.leagueSeasonId,
+      leagueMemberId: priorBase.members.get(memberA!.user.id)!,
+      weekId: priorWeekId,
+      gameId: priorGame2!,
+      side: PICKEM_PICK_SIDE.AWAY,
+    });
+
+    const {
+      seasonId: currentSeasonId,
+      weekIds: currentWeekIds,
+      gameIds: currentGameIds,
+    } = await seedSeason(db, { year: 2027, weeks: FOUR_GAME_WEEK });
+    const [currentInstance] = await db
+      .insert(leagueSeasons)
+      .values({
+        leagueId: priorBase.league.id,
+        seasonId: currentSeasonId,
+        settings: DEFAULT_PICKEM_SETTINGS,
+        status: LEAGUE_STATUS.ACTIVE,
+        createdAt: SEED_AT,
+        updatedAt: SEED_AT,
+      })
+      .returning();
+    const currentLeagueSeasonId = currentInstance!.id;
+
+    const currentWeekId = currentWeekIds.get("regular:1")!;
+    const [currentGame] = currentGameIds.get("regular:1")!;
+    await insertPick(db, {
+      leagueSeasonId: currentLeagueSeasonId,
+      leagueMemberId: priorBase.members.get(memberA!.user.id)!,
+      weekId: currentWeekId,
+      gameId: currentGame!,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+
+    const res = await getPickSummary(memberA!.cookie, priorBase.league.id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pickCount: 1, memberCount: 1 });
+  });
 });
