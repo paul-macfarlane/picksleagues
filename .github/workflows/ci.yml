@@ -54,6 +54,7 @@ jobs:
         run: |
           cat > .env <<EOF
           APP_ENV=local
+          SIM_ENABLED=true
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/picksleagues
           BETTER_AUTH_SECRET=$(openssl rand -hex 32)
           BETTER_AUTH_URL=http://localhost:5173
@@ -62,7 +63,6 @@ jobs:
           DISCORD_CLIENT_ID=ci-placeholder-discord-client-id
           DISCORD_CLIENT_SECRET=ci-placeholder-discord-client-secret
           JOB_SECRET=$(openssl rand -hex 32)
-          ADMIN_USER_IDS=
           EOF
 
       - name: Run database migrations

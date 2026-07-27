@@ -18,7 +18,7 @@
 
 | Layer | Choice | Rationale |
 | --- | --- | --- |
-| SPA | Vite + React + TanStack Router + TanStack Query | Familiar stack; type-safe routing; Query handles all server state |
+| SPA | Vite + React + TanStack Router + TanStack Query + TanStack Form (ADR-0005) | Familiar stack; type-safe routing; Query handles all server state; Form takes shared Zod schemas as validators directly |
 | UI | Tailwind + shadcn/ui | Shared with Paulitakes; mobile-first responsive |
 | API | Hono + `@hono/zod-openapi` on Vercel Functions | Zod schemas → runtime validation + OpenAPI spec + TS types from one definition |
 | API client | `openapi-typescript` + `openapi-fetch` | Generated from the spec; the SPA consumes the contract like any future client would |
@@ -35,7 +35,7 @@ Three environments, branch-mapped:
 | --- | --- | --- | --- | --- | --- |
 | **Local** | Vite dev + Hono dev server | any | **Docker Postgres** | ESPN (default); simulated when running scenarios | Enabled |
 | **Staging** | Vercel, pinned to `staging` branch with a fixed domain | `staging` | Dedicated Neon branch (`staging`) | ESPN (default); simulated when running scenarios | Enabled |
-| **Production** | Vercel Production | `main` | Neon primary branch | ESPN only | **Disabled** (sim routes not registered) |
+| **Production** | Vercel Production | `main` | Neon primary branch | ESPN only | **Disabled** — `SIM_ENABLED` is ignored here (ADR-0014); sim routes not registered |
 
 **Data source, clarified:** ESPN is the provider in every environment — staging and local run against real ESPN data by default, which continuously exercises the real integration. "Simulated" is not an environment default but a **mode**: when a simulator scenario is loaded (local/staging/CI), the app reads game data from simulator-controlled tables instead of ESPN-synced ones for the leagues/season under test. E2E in CI always runs in simulated mode for determinism.
 
@@ -44,21 +44,23 @@ Mechanics:
 - **Neon:** staging is a long-lived Neon branch, resettable from seed data. Local dev runs Postgres in Docker (compose file in the repo); Drizzle migrations make local ↔ Neon parity a non-issue since it's plain Postgres either way.
 - **Auth:** separate Google and Discord OAuth apps per environment (different redirect URIs); Better Auth config is env-var driven.
 - **Jobs:** cron-job.org targets production only. Staging jobs run manually from the admin page or under simulator control — scheduled crons against staging would fight simulated time when a scenario is active.
-- **Env flags:** a single `APP_ENV` (`local` | `staging` | `production`) gates the simulator, and admin surfaces. Simulator routes are not registered at all when `APP_ENV=production` — not merely auth-gated.
+- **Env flags:** `APP_ENV` (`local` | `staging` | `production`) names the environment; `SIM_ENABLED` toggles the simulator (ADR-0014). Availability is the single predicate `isSimEnabled` = `APP_ENV !== production && SIM_ENABLED`, so **production ignores the flag entirely** — the simulator can move the clock and truncate data, and one mis-set variable must not be able to point that at the production database. When it resolves false, simulator routes are not registered at all — not merely auth-gated. Admin surfaces are gated separately, by the `admin` role (ADR-0013), and are mounted in every environment.
 
 ## Simulator & Time Architecture
 
-The spec's season simulator (local/staging only) drives three architectural requirements, all cheap if built in from day one:
+The spec's season simulator (wherever `isSimEnabled` holds — local/staging, never production; ADR-0014) drives three architectural requirements, all cheap if built in from day one:
 
 **1. Injectable clock.** All time reads go through a `Clock` service, never `Date.now()` directly. Query-time locking, join cutoffs, and deadlines all derive from `clock.now()`.
-- Production: system time, always.
-- Local/staging: system time plus a persisted offset stored in an `app_state` row, settable via simulator endpoints ("advance to Week 5", "jump to 2026-10-04T13:00Z"). Because the offset lives in the DB, serverless function instances agree on the simulated time. SQL comparisons that need `now()` receive the clock value as a bound parameter rather than using the DB's `now()`.
+- Simulator off (always so in production): system time, always.
+- Simulator on: system time plus a persisted offset stored in an `app_state` row, settable via simulator endpoints ("advance to Week 5", "jump to 2026-10-04T13:00Z"). Because the offset lives in the DB, serverless function instances agree on the simulated time. SQL comparisons that need `now()` receive the clock value as a bound parameter rather than using the DB's `now()`.
 
 **2. Swappable data provider.** `GameDataProvider` is the interface (season structure, schedules, scores, odds, bracket); `EspnProvider` and `SimulatedProvider` both implement it. **ESPN is the default in every environment** — `SimulatedProvider` activates only when a simulator scenario is loaded (local/staging/CI), reading from `sim_fixtures` tables that simulator endpoints populate from canned scenario files or hand-edits. Scenarios cover the spec's required edge cases: pushes, ties, cancellations, week moves, all-eliminated weeks, vacated bracket slots. ("Fixture" here means simulator test data, nothing more.)
 
+Simulated data enters the app through the **normal sync jobs**, not a parallel read path: the jobs ingest from whichever provider is resolved into `sport_seasons`/`weeks`/`games`/`odds_snapshots`, so nothing downstream of ingestion knows the simulator exists (ADR-0012). Fixtures store each game's *terminal* truth (kickoff, spread, final status and scores) and the provider **projects it through `clock.now()`** — `scheduled` before kickoff, `in_progress` for a fixed game window, terminal after — so advancing the clock and re-running the jobs makes a week unfold as a real one does. Provider resolution mirrors `resolveClock` — both branch on the same `isSimEnabled` boolean, so production is structurally ESPN-only; non-prod swaps only while `app_state.sim_active_scenario_id` is set, and one active scenario owns one season year. Spreads for replayed seasons are synthesized deterministically from the provider game id, so a re-import reproduces them exactly.
+
 **3. Step-through settlement.** Already native to the design: settlement is an idempotent endpoint over pure scoring functions, so the simulator just calls the same `settle` job per simulated week and the admin page renders resulting `pick_results` and `standings`. Recompute-from-scratch doubles as the simulator's reset for scoring state; a full environment reset truncates league/pick data and reloads fixtures.
 
-Simulator API surface (non-prod only): `POST /sim/clock` (set/advance), `POST /sim/fixtures` (load scenario / edit results), `POST /sim/settle` (run settlement for simulated now), `POST /sim/reset` (league or environment scope). All shared-secret protected on top of the env gate.
+Simulator API surface (non-prod only), as built in SIM-1…SIM-6: `GET /sim/state` (clock, active scenario, library), `POST /sim/clock` (set instant / advance / week-anchored jump / reset), `POST /sim/scenarios/{slug}/load` (activate a library or imported scenario, positioning the clock at its start), `POST /sim/scenarios/replay` (import a real past ESPN season — spreads synthesized, since historical feeds strip odds), `GET /sim/fixtures/games` + `PATCH /sim/fixtures/games/{id}` (inspect / hand-edit results), `POST /sim/reset` (league or environment scope), and `POST /sim/settle` (run settlement for simulated now — SIM-5, after PKM-4). The single `POST /sim/fixtures` this list previously named split into the scenario and fixture routes above (ADR-0012); the capabilities are unchanged. Gated by the `admin` role in `users.app_role` (ADR-0013) on top of the env gate — the simulator is driven from its own operator section in the SPA, not by machine callers, so the shared-secret header stays a jobs-only mechanism (ADR-0011). These routes appear in the committed OpenAPI contract so the SPA reaches them through the generated client, but they are not registered where `isSimEnabled` is false, which always includes production (ADR-0012, ADR-0014). E2E mints a session and grants it the admin role (`mintSession({ appRole })`), extending ADR-0006's minted-session approach.
 
 ## Automated Testing
 
@@ -68,7 +70,7 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 **2. Integration — API against a real Postgres.** Hono app exercised in-process (no HTTP server needed) against Docker Postgres (locally: the same compose file as dev; in CI: a Postgres service container). Covers what unit tests can't: transaction-level lock validation (409 on post-kickoff mutation), spread staleness rejection, pick visibility filtering, join cutoff and commissioner-cap enforcement, settlement idempotency (run twice, assert identical state), and override precedence (see Manual Sports Data Overrides).
 
-**3. E2E — Playwright against the full local stack.** Runs the real SPA + API + DB with `SimulatedProvider` and the simulated clock — no network mocking anywhere. Core journeys as simulator-scripted scenarios: create league → invite → join → pick → advance clock past kickoff → assert lock and visibility → settle → assert standings; an elimination season including a revival week; a full bracket lifecycle including a vacated-team auto-advance. Deterministic by construction because time and data are both controlled. This is the merge gate.
+**3. E2E — Playwright against the full local stack.** Runs the real SPA + API + DB with `SimulatedProvider` and the simulated clock — no network mocking anywhere. Core journeys as simulator-scripted scenarios: create league → invite → join → pick → advance clock past kickoff → assert lock and visibility → settle → assert standings; an elimination season including a revival week; a full bracket lifecycle including a vacated-team auto-advance. Deterministic by construction because time and data are both controlled. This is the merge gate. Time-independent flows additionally get thin per-epic E2E specs ahead of the simulator, authenticated via minted Better Auth sessions (`e2e/setup/session.ts` + Playwright `addCookies` — the OAuth provider hop itself stays manual); anything time-dependent waits for the simulated clock (ADR-0006).
 
 **CI:** GitHub Actions on every PR — typecheck, lint (including the no-raw-`Date.now()` rule), unit, integration, e2e. Green CI required to merge to `staging`; promotion `staging` → `main` re-runs the same suite. No separate manual QA phase — staging plus the simulator is the manual-exploration surface.
 
@@ -76,7 +78,7 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status, missed cancellation) and there is no vendor SLA — the correction path is an app-admin override, available in **all environments including production**.
 
-**Admin role:** app admins (initially just the owner) are designated by an env-var allowlist of user IDs. Admins get an admin page: job triggers, standings rebuild, and game data editing. This is operational tooling, invisible to users (they just see corrected data), and distinct from the non-prod simulator.
+**Admin role:** app admins (initially just the owner) hold `admin` in `users.app_role`, the sole authorization source (ADR-0013). The role is granted by a direct database update (`UPDATE users SET app_role = 'admin' WHERE email = …`) — there is no env-var allowlist and no in-app promotion surface, so no configuration path can grant the capability behind the database's back. Admins get an admin page: job triggers, standings rebuild, game data editing, and read-only browsers over reference data (teams, seasons/weeks, games, odds snapshots). The simulator control panel is a **separate top-level section** (`/sim`, sectioned into clock / scenarios / fixtures / reset) rather than a tab on that page: it carries a second gate — it exists only where `isSimEnabled` holds, and its routes are not registered otherwise (ADR-0011, ADR-0014) — so presenting it as one more admin tab implied a peer of surfaces that are always present. Overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly, and teams/seasons/odds are view-only. Operational tooling is invisible to users (they just see corrected data).
 
 **Override semantics:**
 - Overridable per game: home/away final score, game status (`scheduled | final | cancelled | postponed | moved`), kickoff time, and current spread
@@ -202,7 +204,7 @@ ESPN's undocumented endpoints cover everything the MVP needs, free:
 - **NFL:** season/week structure, schedules with kickoff timestamps, live + final scores, and odds (spread from ESPN BET) via the scoreboard and odds endpoints
 - **NCAA MBB:** tournament bracket, seeds, regions, game results
 
-**Risk & mitigation:** unofficial means it can change without notice. Mitigations: (1) all external data is ingested into our own tables — the app never reads ESPN at request time, so an outage degrades ingestion, not the product; (2) a thin `providers/espn.ts` adapter isolates their API shapes behind our own domain types, so swapping providers touches one module; (3) ingestion jobs alert (email/Discord webhook) on repeated failure. The Odds API remains the identified odds fallback, implemented post-MVP only if needed.
+**Risk & mitigation:** unofficial means it can change without notice. Mitigations: (1) all external data is ingested into our own tables — the app never reads ESPN at request time, so an outage degrades ingestion, not the product; (2) a thin `providers/espn.ts` adapter isolates their API shapes behind our own domain types, so swapping providers touches one module; (3) ingestion failures alert via the cron scheduler — jobs return 500 and cron-job.org emails on failed requests (ADR-0007). The Odds API remains the identified odds fallback, implemented post-MVP only if needed.
 
 **Spread strategy:** spreads are snapshotted into `odds_snapshots` on each odds sync. A pick stores the concrete spread it was made against (denormalized onto the pick row). The "accept latest spreads on all unstarted picks" rule: the client fetches current snapshots, displays them, and the write endpoint validates submitted spread values against the latest snapshot — rejecting stale submissions with 409 so the client re-prompts.
 
@@ -212,11 +214,14 @@ All jobs are HTTP endpoints under `/api/jobs/*`, protected by a shared-secret he
 
 | Job | Schedule | Work |
 | --- | --- | --- |
-| `sync-schedule` | Daily 6am ET | Upsert weeks, games, kickoff times; detect postponements/cancellations and flag affected picks |
-| `sync-odds` | 3×/day (in season) | Snapshot current spreads for unstarted games |
-| `sync-scores` | **Every 5 min** | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
+| `nfl-sync-schedule` | Daily 6am ET | Upsert NFL weeks (regular + postseason, Pro Bowl excluded — ADR-0007), games, kickoff times; detect postponements/cancellations/week moves (pick impact derives from game state at settlement) |
+| `nfl-sync-odds` | 3×/day (in season) | Snapshot current spreads for unstarted games |
+| `nfl-sync-scores` | **Every 5 min** | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
 | `settle-sweep` | Daily 3am ET | Full reconciliation pass: recompute all active leagues from stored results; catches anything the incremental path missed (late stat corrections, overrides, missed syncs) |
-| `sync-bracket` | Every 5 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots |
+| `ncaamb-sync-bracket` | Every 5 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots |
+
+Sport-specific jobs carry the sport in their route (`/api/jobs/nfl/*`) and service names
+(ADR-0007); operational setup lives in `docs/runbooks/jobs.md`.
 
 `sync-scores` runs every 5 minutes around the clock and **no-ops in milliseconds** when no games are in progress or recently final — cheaper and more robust than encoding NFL/NCAA game windows into cron schedules. cron-job.org supports minute-level scheduling on its free tier. Standings therefore update within ~5 minutes of a game going final; in-progress scores are also stored and can be surfaced in the UI with a "live as of" timestamp.
 
@@ -225,15 +230,18 @@ Settlement is **recompute-friendly** (see D10). Vercel function limits are a non
 ## Domain Model (core tables)
 
 ```
-users                       # Better Auth + username (citext unique), display_name
-leagues                     # mode discriminator, visibility, name, commissioner_id, status
-league_settings             # 1:1 with leagues; JSONB validated by per-mode Zod schema
-league_members              # role (commissioner/member), joined_at
+users                       # Better Auth + username (citext unique), display_name, app_role (ADR-0013)
+leagues                     # identity only: mode discriminator, visibility, name, max_members (ADR-0009)
+league_seasons              # per-season instance: league FK + season FK (unique pair), settings JSONB
+                            #   (per-mode Zod schema), status; a league's newest instance is current
+league_members              # role (commissioner/member), joined_at; ≥1 commissioner per league (ADR-0004)
 league_invites              # invite code, created_by, expires_at?, max_uses?, revoked_at?
 
-sport_seasons               # NFL 2026, NCAAMB 2027, ...
-weeks                       # week number, start/end, season FK
-games                       # provider id, week FK, home/away, kickoff_at, status,
+sport_seasons               # NFL 2026, NCAAMB 2027, ...; upcoming season exists (possibly
+                            #   provisional, never with fabricated games) before its data (ADR-0009)
+teams                       # normalized reference data: sport, provider id, name, abbr (ADR-0010)
+weeks                       # week type (regular/postseason) + number, label, start/end, season FK
+games                       # provider id, week FK, home/away team FKs, kickoff_at, status,
                             #   final scores + override_* parallels, overridden_by/at
 odds_snapshots              # game FK, spread, captured_at
 
@@ -244,16 +252,20 @@ brackets                    # league_member FK, label, champ_score_prediction
 bracket_picks               # bracket FK, slot id (1–63), picked team
 
 pick_results                # pick FK (per mode), outcome, points, differential
-standings                   # materialized: league FK, member FK, week?, points, rank
+standings                   # materialized: league_season FK, member FK, week?, points, rank
+                            #   (picks/results/standings key off league_seasons, ADR-0009)
 
-app_state                   # singleton rows: simulated clock offset (non-prod), flags
-sim_fixtures                # non-prod: scenario-loaded game results/spreads for SimulatedProvider
+app_state                   # singleton row: simulated clock offset + active scenario (non-prod), flags
+sim_scenarios               # non-prod: one loadable scenario (library case or imported past season)
+sim_fixture_weeks           # scenario FK: the week structure SimulatedProvider serves
+sim_fixture_games           # scenario FK: kickoff, spread, terminal status/scores (projected via Clock)
+sim_fixture_teams           # scenario FK: the team cast the fixtures reference
 admin_audit                 # override/rebuild actions: admin, action, target, prior value, at
 ```
 
 Spec-driven notes:
 - **Username:** unique case-insensitive (Postgres `citext` or lower-index), 3–20 chars `a-z0-9_`, validated in the schemas package so the same rule serves API and UI.
-- **Commissioner cap:** "max 10 active leagues as commissioner" is enforced at league-create and commissioner-transfer endpoints with a counted query inside the transaction — no denormalized counter needed at this scale.
+- **Commissioner cap:** "max 10 active leagues as commissioner" is enforced at league-create and commissioner-promote endpoints with a counted query inside the transaction — no denormalized counter needed at this scale. Commissionership lives only in `league_members.role` — leagues may have several commissioners and must keep ≥1; demote/kick/leave/deletion guard the invariant (ADR-0004).
 - **Deferred-feature columns:** `elimination_state.lives_remaining` exists with default 1 even though MVP fixes lives at 1, and `pickem_picks` omits confidence/money-pick columns entirely (added by migration when those features ship). Rule of thumb: keep a column only when it's free (a default), not speculatively.
 - **Rules guide:** static content in the SPA (MD/MDX per mode), no backend surface.
 
@@ -307,13 +319,20 @@ The settlement job orchestrates: load inputs → call pure functions → persist
 
 ```
 POST   /leagues                          create (mode + settings; enforces commissioner cap)
-GET    /leagues/:id                      league + settings + members
-PATCH  /leagues/:id                      cosmetics anytime; settings pre-start; transfer
+GET    /leagues                          my leagues (dashboard)
+GET    /leagues/:id                      league + settings + members (members only)
+PATCH  /leagues/:id                      name anytime; visibility + settings pre-start
 DELETE /leagues/:id                      pre-start only
+PATCH  /leagues/:id/members/:memberId    promote/demote commissioner (ADR-0004)
+DELETE /leagues/:id/members/:memberId    kick (pre-start only; commissioner)
+DELETE /leagues/:id/members/me           leave league (pre-start only, ADR-0004)
 POST   /leagues/:id/invites              generate invite code (commissioner)
+GET    /leagues/:id/invites              list invites + derived status (commissioner)
 DELETE /leagues/:id/invites/:code        revoke
+GET    /join/:code                       join preview (league card + exact refusal reason)
 POST   /join/:code                       join via invite link
-GET    /discovery                        public leagues, ?q= name search
+POST   /leagues/:id/join                 join a public league directly (discovery path)
+GET    /discovery                        public pre-cutoff leagues, ?q= name search
 GET    /leagues/:id/standings            ?week= for weekly view
 GET    /weeks/:id/games                  slate + latest spreads
 PUT    /leagues/:id/picks/week/:week     batch upsert pick'em picks (validates spreads)
@@ -321,10 +340,16 @@ PUT    /leagues/:id/picks/elimination/:week
 POST   /leagues/:id/brackets             submit bracket (all 63 + tiebreaker)
 GET    /leagues/:id/picks/week/:week     own always; others' filtered by kickoff
 GET/PATCH /me                            username claim/change, display name
+DELETE /me                               account deletion: anonymize in place (guarded by ADR-0004 once leagues exist)
 POST   /jobs/*                           secret-protected job triggers (prod cron)
-PUT    /admin/games/:id/override         set/clear overrides (admin allowlist; audited)
+POST   /admin/jobs/nfl/:job              manual sync trigger from the admin page (ADR-0011)
+GET    /admin/teams                      ?sport= — read-only reference-data browsers
+GET    /admin/seasons                    ?sport= — seasons + weeks + per-week game counts
+GET    /admin/games                      ?weekId= — provider, override, and resolved values
+GET    /admin/games/:id/odds             recent spread snapshots for one game
+PUT    /admin/games/:id/override         set/clear overrides (admin role; audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
-POST   /sim/*                            simulator (non-prod only; see Simulator section)
+POST   /sim/*                            simulator (non-prod only, admin role; see Simulator section)
 GET    /openapi.json                     generated spec
 ```
 
@@ -338,4 +363,4 @@ Generate a client for Expo/React Native (or native) directly from the OpenAPI sp
 
 ## Deliberate MVP Exclusions
 
-No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a secret-protected admin page with job triggers, rebuild buttons, and — in non-prod — simulator controls), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
+No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a role-gated admin page with job triggers, rebuild buttons, and data browsers, plus — in non-prod only — a separate simulator section), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).

@@ -15,6 +15,90 @@
       "when": 1784431918930,
       "tag": "0001_unusual_jack_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784693153799,
+      "tag": "0002_dizzy_greymalkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784739099317,
+      "tag": "0003_concerned_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784777225370,
+      "tag": "0004_brown_iceman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784780460823,
+      "tag": "0005_pink_hammerhead",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784852541268,
+      "tag": "0006_new_cerise",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784853838513,
+      "tag": "0007_goofy_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784853898014,
+      "tag": "0008_real_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784854842523,
+      "tag": "0009_vengeful_carnage",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784855860366,
+      "tag": "0010_partial-unique-abbreviation-teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784862937010,
+      "tag": "0011_dazzling_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784941216814,
+      "tag": "0012_legal_punisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784952423965,
+      "tag": "0013_magenta_pixie",
+      "breakpoints": true
     }
   ]
 }

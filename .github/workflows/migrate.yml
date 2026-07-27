@@ -44,6 +44,19 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # drizzle-kit's spinner swallows connection/auth errors (exit 1 with no
+      # message — cost a real outage diagnosis on 2026-07-22), so fail here
+      # first with the actual reason. Quoted values in psql's error (host,
+      # user) are redacted: this repo is public, so Actions logs are too.
+      - name: Connectivity preflight
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          if ! err=$(psql "$DATABASE_URL" -tAc 'select 1' 2>&1 >/dev/null); then
+            echo "::error::Target database unreachable: $(printf '%s' "$err" | sed -E 's/"[^"]*"/<redacted>/g')"
+            exit 1
+          fi
+          echo "Target database reachable."
+
       - if: steps.guard.outputs.run == 'true'
         uses: actions/checkout@v4
 

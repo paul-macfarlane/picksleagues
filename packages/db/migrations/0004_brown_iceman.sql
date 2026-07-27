@@ -1,0 +1,2 @@
+ALTER TABLE "leagues" ADD COLUMN "max_members" integer DEFAULT 100 NOT NULL;--> statement-breakpoint
+ALTER TABLE "leagues" ADD CONSTRAINT "leagues_max_members_range" CHECK ("leagues"."max_members" between 2 and 100);

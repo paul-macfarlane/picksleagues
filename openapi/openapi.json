@@ -19,6 +19,1866 @@
         "required": [
           "status"
         ]
+      },
+      "MeResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "$ref": "#/components/schemas/NullableUsername"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "simEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "email",
+          "image",
+          "isAdmin",
+          "simEnabled"
+        ]
+      },
+      "NullableUsername": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[a-z0-9_]{3,20}$"
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "message"
+        ]
+      },
+      "UpdateMeRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "$ref": "#/components/schemas/Username"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
+          }
+        }
+      },
+      "Username": {
+        "type": "string",
+        "pattern": "^[a-z0-9_]{3,20}$"
+      },
+      "DisplayName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "JobRunResponse": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "status",
+          "durationMs"
+        ]
+      },
+      "WeekType": {
+        "type": "string",
+        "enum": [
+          "regular",
+          "postseason"
+        ]
+      },
+      "LeagueResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/LeagueVisibility"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeagueStatus"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LeagueSettings"
+          },
+          "startsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "renewable": {
+            "type": "boolean"
+          },
+          "maxMembers": {
+            "type": "integer"
+          },
+          "myRole": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueMember"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "visibility",
+          "status",
+          "seasonYear",
+          "settings",
+          "startsAt",
+          "renewable",
+          "maxMembers",
+          "myRole",
+          "members"
+        ]
+      },
+      "LeagueName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "LeagueMode": {
+        "type": "string",
+        "enum": [
+          "pickem",
+          "elimination",
+          "march_madness"
+        ]
+      },
+      "LeagueVisibility": {
+        "type": "string",
+        "enum": [
+          "public",
+          "private"
+        ]
+      },
+      "LeagueStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "concluded"
+        ]
+      },
+      "LeagueSettings": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PickemSettings"
+          },
+          {
+            "$ref": "#/components/schemas/EliminationSettings"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "standard_doubling"
+                ]
+              }
+            },
+            "required": [
+              "scoringModel"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "custom"
+                ]
+              },
+              "roundValues": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "required": [
+              "scoringModel",
+              "roundValues"
+            ]
+          }
+        ]
+      },
+      "PickemSettings": {
+        "type": "object",
+        "properties": {
+          "startWeek": {
+            "$ref": "#/components/schemas/NflWeekRef"
+          },
+          "endWeek": {
+            "$ref": "#/components/schemas/NflWeekRef"
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 5
+          },
+          "pushTieResolution": {
+            "$ref": "#/components/schemas/PickemPushTieResolution"
+          }
+        },
+        "required": [
+          "startWeek",
+          "endWeek",
+          "pickType"
+        ]
+      },
+      "NflWeekRef": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regular"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "postseason"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          }
+        ]
+      },
+      "PickType": {
+        "type": "string",
+        "enum": [
+          "straight_up",
+          "against_the_spread"
+        ]
+      },
+      "PickemPushTieResolution": {
+        "type": "string",
+        "enum": [
+          "half_point",
+          "zero_points",
+          "full_point"
+        ],
+        "default": "half_point"
+      },
+      "EliminationSettings": {
+        "type": "object",
+        "properties": {
+          "startWeek": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regular"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          "endWeek": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regular"
+                ]
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "pushTieResolution": {
+            "$ref": "#/components/schemas/EliminationPushTieResolution"
+          }
+        },
+        "required": [
+          "startWeek",
+          "endWeek",
+          "pickType"
+        ]
+      },
+      "EliminationPushTieResolution": {
+        "type": "string",
+        "enum": [
+          "advance",
+          "eliminate"
+        ],
+        "default": "advance"
+      },
+      "MemberRole": {
+        "type": "string",
+        "enum": [
+          "commissioner",
+          "member"
+        ]
+      },
+      "LeagueMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "role",
+          "joinedAt"
+        ]
+      },
+      "CreateLeagueRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "pickem"
+                ]
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "maxMembers": {
+                "$ref": "#/components/schemas/MaxMembers"
+              },
+              "settings": {
+                "$ref": "#/components/schemas/PickemSettings"
+              }
+            },
+            "required": [
+              "mode",
+              "name",
+              "visibility",
+              "settings"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "elimination"
+                ]
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "maxMembers": {
+                "$ref": "#/components/schemas/MaxMembers"
+              },
+              "settings": {
+                "$ref": "#/components/schemas/EliminationSettings"
+              }
+            },
+            "required": [
+              "mode",
+              "name",
+              "visibility",
+              "settings"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "march_madness"
+                ]
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "maxMembers": {
+                "$ref": "#/components/schemas/MaxMembers"
+              },
+              "settings": {
+                "$ref": "#/components/schemas/MarchMadnessSettings"
+              }
+            },
+            "required": [
+              "mode",
+              "name",
+              "visibility",
+              "settings"
+            ]
+          }
+        ]
+      },
+      "MaxMembers": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 100,
+        "default": 10
+      },
+      "MarchMadnessSettings": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "standard_doubling"
+                ]
+              }
+            },
+            "required": [
+              "scoringModel"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "maxBracketsPerMember": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5
+              },
+              "scoringModel": {
+                "type": "string",
+                "enum": [
+                  "custom"
+                ]
+              },
+              "roundValues": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "required": [
+              "scoringModel",
+              "roundValues"
+            ]
+          }
+        ]
+      },
+      "MyLeaguesResponse": {
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueSummary"
+            }
+          }
+        },
+        "required": [
+          "leagues"
+        ]
+      },
+      "LeagueSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/LeagueVisibility"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeagueStatus"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "maxMembers": {
+            "type": "integer"
+          },
+          "myRole": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "startsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "renewable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "visibility",
+          "status",
+          "memberCount",
+          "maxMembers",
+          "myRole",
+          "startsAt",
+          "renewable"
+        ]
+      },
+      "UpdateLeagueRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/LeagueVisibility"
+          },
+          "maxMembers": {
+            "$ref": "#/components/schemas/MaxMembers"
+          },
+          "settings": {}
+        }
+      },
+      "LeagueInvite": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InviteStatus"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "maxUses": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "useCount": {
+            "type": "integer"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId",
+              "username",
+              "displayName"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "status",
+          "expiresAt",
+          "maxUses",
+          "useCount",
+          "revokedAt",
+          "createdAt",
+          "createdBy"
+        ]
+      },
+      "InviteStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "revoked",
+          "expired",
+          "exhausted"
+        ]
+      },
+      "CreateInviteRequest": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "maxUses": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        }
+      },
+      "InvitesResponse": {
+        "type": "object",
+        "properties": {
+          "invites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueInvite"
+            }
+          }
+        },
+        "required": [
+          "invites"
+        ]
+      },
+      "JoinPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "league": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "$ref": "#/components/schemas/LeagueName"
+              },
+              "mode": {
+                "$ref": "#/components/schemas/LeagueMode"
+              },
+              "visibility": {
+                "$ref": "#/components/schemas/LeagueVisibility"
+              },
+              "memberCount": {
+                "type": "integer"
+              },
+              "seasonYear": {
+                "type": "integer"
+              },
+              "startsAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "mode",
+              "visibility",
+              "memberCount",
+              "seasonYear",
+              "startsAt"
+            ]
+          },
+          "joinable": {
+            "type": "boolean"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/JoinBlockedReason"
+          }
+        },
+        "required": [
+          "league",
+          "joinable",
+          "reason"
+        ]
+      },
+      "JoinBlockedReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "invite_revoked",
+          "invite_expired",
+          "invite_exhausted",
+          "already_member",
+          "league_concluded",
+          "join_closed",
+          "league_full",
+          null
+        ]
+      },
+      "UpdateMemberRoleRequest": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/MemberRole"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "DiscoveryResponse": {
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryLeague"
+            }
+          }
+        },
+        "required": [
+          "leagues"
+        ]
+      },
+      "DiscoveryLeague": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LeagueName"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "memberCount",
+          "seasonYear",
+          "startsAt"
+        ]
+      },
+      "NflSyncJob": {
+        "type": "string",
+        "enum": [
+          "sync-schedule",
+          "sync-odds",
+          "sync-scores"
+        ]
+      },
+      "AdminTeamsResponse": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTeam"
+            }
+          }
+        },
+        "required": [
+          "teams"
+        ]
+      },
+      "AdminTeam": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "providerTeamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "abbreviation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logoLightUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logoDarkUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "sport",
+          "providerTeamId",
+          "abbreviation",
+          "name",
+          "location",
+          "logoLightUrl",
+          "logoDarkUrl",
+          "updatedAt"
+        ]
+      },
+      "Sport": {
+        "type": "string",
+        "enum": [
+          "nfl",
+          "ncaamb"
+        ]
+      },
+      "AdminSeasonsResponse": {
+        "type": "object",
+        "properties": {
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSeason"
+            }
+          }
+        },
+        "required": [
+          "seasons"
+        ]
+      },
+      "AdminSeason": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminWeek"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "sport",
+          "year",
+          "provisional",
+          "weeks"
+        ]
+      },
+      "AdminWeek": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "weekType",
+          "weekNumber",
+          "label",
+          "startsAt",
+          "endsAt",
+          "gameCount"
+        ]
+      },
+      "AdminGamesResponse": {
+        "type": "object",
+        "properties": {
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGame"
+            }
+          }
+        },
+        "required": [
+          "games"
+        ]
+      },
+      "AdminGame": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weekId": {
+            "type": "string"
+          },
+          "providerGameId": {
+            "type": "string"
+          },
+          "homeTeam": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "awayTeam": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "latestSpread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latestSpreadCapturedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "overrideKickoffAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "overrideStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GameStatus"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "overrideHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideSpread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "overriddenBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effectiveKickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveStatus": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "effectiveHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effectiveAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effectiveSpread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "weekId",
+          "providerGameId",
+          "homeTeam",
+          "awayTeam",
+          "kickoffAt",
+          "status",
+          "homeScore",
+          "awayScore",
+          "latestSpread",
+          "latestSpreadCapturedAt",
+          "overrideKickoffAt",
+          "overrideStatus",
+          "overrideHomeScore",
+          "overrideAwayScore",
+          "overrideSpread",
+          "overriddenBy",
+          "overriddenAt",
+          "effectiveKickoffAt",
+          "effectiveStatus",
+          "effectiveHomeScore",
+          "effectiveAwayScore",
+          "effectiveSpread"
+        ]
+      },
+      "AdminGameTeam": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "abbreviation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "abbreviation",
+          "name"
+        ]
+      },
+      "GameStatus": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "in_progress",
+          "final",
+          "postponed",
+          "cancelled",
+          "moved"
+        ]
+      },
+      "AdminGameOddsResponse": {
+        "type": "object",
+        "properties": {
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminOddsSnapshot"
+            }
+          }
+        },
+        "required": [
+          "snapshots"
+        ]
+      },
+      "AdminOddsSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "spread": {
+            "type": "number"
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "spread",
+          "capturedAt"
+        ]
+      },
+      "SimStateResponse": {
+        "type": "object",
+        "properties": {
+          "clock": {
+            "$ref": "#/components/schemas/SimClockState"
+          },
+          "activeScenario": {
+            "$ref": "#/components/schemas/NullableSimScenario"
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimScenario"
+            }
+          },
+          "library": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimLibraryEntry"
+            }
+          },
+          "latestReplayableSeasonYear": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clock",
+          "activeScenario",
+          "scenarios",
+          "library",
+          "latestReplayableSeasonYear"
+        ]
+      },
+      "SimClockState": {
+        "type": "object",
+        "properties": {
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "realNow": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "offsetMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "now",
+          "realNow",
+          "offsetMs"
+        ]
+      },
+      "NullableSimScenario": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SimScenarioSource"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCount": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description",
+          "sport",
+          "seasonYear",
+          "source",
+          "startsAt",
+          "gameCount",
+          "updatedAt"
+        ]
+      },
+      "SimScenarioSource": {
+        "type": "string",
+        "enum": [
+          "library",
+          "replay"
+        ]
+      },
+      "SimScenario": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SimScenarioSource"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCount": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description",
+          "sport",
+          "seasonYear",
+          "source",
+          "startsAt",
+          "gameCount",
+          "updatedAt"
+        ]
+      },
+      "SimLibraryEntry": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sport": {
+            "$ref": "#/components/schemas/Sport"
+          },
+          "covers": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "description",
+          "sport",
+          "covers"
+        ]
+      },
+      "SimClockAdjustment": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instant"
+                ]
+              },
+              "instant": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "kind",
+              "instant"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "advance"
+                ]
+              },
+              "ms": {
+                "type": "integer",
+                "minimum": -315360000000,
+                "maximum": 315360000000
+              }
+            },
+            "required": [
+              "kind",
+              "ms"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "week"
+                ]
+              },
+              "weekId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "anchor": {
+                "$ref": "#/components/schemas/SimClockAnchor"
+              }
+            },
+            "required": [
+              "kind",
+              "weekId",
+              "anchor"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "reset"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      },
+      "SimClockAnchor": {
+        "type": "string",
+        "enum": [
+          "week_start",
+          "before_first_kickoff",
+          "after_last_game"
+        ]
+      },
+      "SimReplayRequest": {
+        "type": "object",
+        "properties": {
+          "seasonYear": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100
+          }
+        },
+        "required": [
+          "seasonYear"
+        ]
+      },
+      "SimFixtureGamesResponse": {
+        "type": "object",
+        "properties": {
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimFixtureGame"
+            }
+          }
+        },
+        "required": [
+          "games"
+        ]
+      },
+      "SimFixtureGame": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "scenarioId": {
+            "type": "string"
+          },
+          "providerGameId": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "homeTeamAbbr": {
+            "type": "string"
+          },
+          "homeTeamName": {
+            "type": "string"
+          },
+          "awayTeamAbbr": {
+            "type": "string"
+          },
+          "awayTeamName": {
+            "type": "string"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "finalStatus": {
+            "$ref": "#/components/schemas/SimFinalStatus"
+          },
+          "finalHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finalAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectedStatus": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "projectedHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectedAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "scenarioId",
+          "providerGameId",
+          "weekType",
+          "weekNumber",
+          "homeTeamAbbr",
+          "homeTeamName",
+          "awayTeamAbbr",
+          "awayTeamName",
+          "kickoffAt",
+          "spread",
+          "finalStatus",
+          "finalHomeScore",
+          "finalAwayScore",
+          "projectedStatus",
+          "projectedHomeScore",
+          "projectedAwayScore"
+        ]
+      },
+      "SimFinalStatus": {
+        "type": "string",
+        "enum": [
+          "final",
+          "cancelled",
+          "postponed"
+        ]
+      },
+      "UpdateSimFixtureGameRequest": {
+        "type": "object",
+        "properties": {
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "finalStatus": {
+            "$ref": "#/components/schemas/SimFinalStatus"
+          },
+          "finalHomeScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200
+          },
+          "finalAwayScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200
+          }
+        }
+      },
+      "SimResetResponse": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "league",
+              "environment"
+            ]
+          },
+          "deleted": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/SimStateResponse"
+          }
+        },
+        "required": [
+          "scope",
+          "deleted",
+          "state"
+        ]
+      },
+      "SimResetRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "league"
+                ]
+              },
+              "leagueId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "scope",
+              "leagueId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "environment"
+                ]
+              },
+              "dropScenario": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          }
+        ]
       }
     },
     "parameters": {}
@@ -35,6 +1895,2414 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Get the caller's own profile",
+        "responses": {
+          "200": {
+            "description": "The caller's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "summary": "Claim/change the caller's username and/or edit their display name",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields supplied, or a supplied field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Username already taken by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMe",
+        "summary": "Delete (anonymize) the caller's own account",
+        "responses": {
+          "204": {
+            "description": "Account deleted — profile anonymized, OAuth identities and sessions removed"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Blocked: the caller is the last commissioner of a non-empty active league (ADR-0004) — promote a replacement first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/nfl/sync-schedule": {
+      "post": {
+        "operationId": "runNflSyncSchedule",
+        "summary": "Ingest the NFL schedule (regular season + postseason) into our tables",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong x-job-secret header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/nfl/sync-odds": {
+      "post": {
+        "operationId": "runNflSyncOdds",
+        "summary": "Snapshot spreads for unstarted games in the current NFL week",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong x-job-secret header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/nfl/sync-scores": {
+      "post": {
+        "operationId": "runNflSyncScores",
+        "summary": "Refresh live scores/statuses for in-flight NFL games from the provider",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong x-job-secret header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues": {
+      "post": {
+        "operationId": "createLeague",
+        "summary": "Create a league; the creator becomes a commissioner",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeagueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "League created in a pre-start state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name, mode, visibility, maxMembers, or mode settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listMyLeagues",
+        "summary": "List the caller's leagues (dashboard)",
+        "responses": {
+          "200": {
+            "description": "The caller's leagues, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyLeaguesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}": {
+      "get": {
+        "operationId": "getLeague",
+        "summary": "Get a league with settings and members (members only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The league, its settings, and its members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateLeague",
+        "summary": "Edit a league: name anytime; visibility, maxMembers, and settings pre-start only (commissioner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLeagueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated league",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty update, or settings that fail the league's mode schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteLeague",
+        "summary": "Delete a league, pre-start only (commissioner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "League deleted (settings, members, invites cascade)"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The league has started (league_started)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/join": {
+      "post": {
+        "operationId": "joinPublicLeague",
+        "summary": "Join a public league directly (discovery path)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Joined — the league as the new member sees it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such public league — private leagues require an invite and stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Join refused: already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/seasons": {
+      "post": {
+        "operationId": "renewLeagueSeason",
+        "summary": "Start the league's next season, copying the current settings (commissioner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The league on its new current season instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No newer season exists to renew into — the league is already on the latest season (no_newer_season)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/invites": {
+      "post": {
+        "operationId": "createInvite",
+        "summary": "Generate an invite link code (commissioner, anytime)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Invite created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueInvite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid expiry (in the past) or max-use bound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listInvites",
+        "summary": "List a league's invites with derived status (commissioner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All invites for the league, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/invites/{code}": {
+      "delete": {
+        "operationId": "revokeInvite",
+        "summary": "Revoke an invite (commissioner, anytime; idempotent)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Invite revoked (or already was)"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "League or invite not found (or caller not a member)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/join/{code}": {
+      "get": {
+        "operationId": "getJoinPreview",
+        "summary": "Preview the league behind an invite code and whether a join would succeed",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "League summary + joinability; `reason` explains exactly why a join would be refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinPreviewResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown invite code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "joinByCode",
+        "summary": "Join the league behind an invite code",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Joined — the league as the new member sees it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown invite code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Join refused: invite revoked/expired/exhausted, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/members/me": {
+      "delete": {
+        "operationId": "leaveLeague",
+        "summary": "Leave a league, pre-start only (spec §Membership, ADR-0004)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Left the league"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The league has started (league_started), the caller is the last commissioner of a league with other members (last_commissioner), or the sole member — delete the league instead (sole_member)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/members/{memberId}": {
+      "patch": {
+        "operationId": "updateMemberRole",
+        "summary": "Promote or demote a member (commissioner, anytime; ADR-0004)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Role updated (no-op if it already matched)"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "League or member not found (or caller not a member of the league)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Promotion past the recipient's 10-active-league cap (cap_exceeded), or a demotion that would leave zero commissioners (last_commissioner)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "kickMember",
+        "summary": "Kick a member, pre-start only (commissioner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed"
+          },
+          "400": {
+            "description": "A commissioner can't kick themselves — leave (or delete the league) instead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "League or member not found (or caller not a member of the league)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The league has started (league_started), or the kick would leave zero commissioners (last_commissioner)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery": {
+      "get": {
+        "operationId": "discoverLeagues",
+        "summary": "Browse public, joinable leagues with optional name search",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public, active leagues that haven't passed their join cutoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/jobs/nfl/{job}": {
+      "post": {
+        "operationId": "runAdminNflJob",
+        "summary": "Manually trigger an NFL data sync job",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/NflSyncJob"
+            },
+            "required": true,
+            "name": "job",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid job slug, or a supplied query param (season/week) fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/teams": {
+      "get": {
+        "operationId": "listAdminTeams",
+        "summary": "Browse synced teams for a sport",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Sport"
+            },
+            "required": true,
+            "name": "sport",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every team row for the sport, ordered by abbreviation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTeamsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/seasons": {
+      "get": {
+        "operationId": "listAdminSeasons",
+        "summary": "Browse synced seasons and their weeks for a sport",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Sport"
+            },
+            "required": true,
+            "name": "sport",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seasons newest-first, each with its weeks in chronological order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSeasonsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/games": {
+      "get": {
+        "operationId": "listAdminGames",
+        "summary": "Browse a week's games with provider, override, and resolved values",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The week's games ordered by resolved kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/games/{gameId}/odds": {
+      "get": {
+        "operationId": "listAdminGameOdds",
+        "summary": "Browse a game's most recent odds snapshots",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The game's most recent spread snapshots, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGameOddsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/state": {
+      "get": {
+        "operationId": "getSimState",
+        "summary": "Read the simulated clock, the active scenario, and the scenario library",
+        "responses": {
+          "200": {
+            "description": "The simulator's current clock, active scenario, and everything loadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/clock": {
+      "post": {
+        "operationId": "setSimClock",
+        "summary": "Set, advance, or reset the simulated clock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimClockAdjustment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulator state with the clock as adjusted; the stored offset governs every request from this one onward. Fixture projections are not part of this response — read GET /sim/fixtures/games to see how the new instant projects them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such week, or the week has no games to anchor a jump to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/scenarios/{slug}/load": {
+      "post": {
+        "operationId": "loadSimScenario",
+        "summary": "Load a scenario's fixtures and make it the active data source",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The simulator's current clock, active scenario, and everything loadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No library definition and no stored scenario with that slug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/scenarios/replay": {
+      "post": {
+        "operationId": "importSimReplay",
+        "summary": "Import a real past ESPN season into fixtures for replay",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimReplayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job completed — counters in `details`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body, or the requested season isn't finished — only past seasons can be replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Job failed, or a dependency is not configured — same envelope either way",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/fixtures/games": {
+      "get": {
+        "operationId": "listSimFixtureGames",
+        "summary": "Browse a scenario's fixture games with their projection at the simulated now",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "scenarioId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WeekType"
+            },
+            "required": false,
+            "name": "weekType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18
+            },
+            "required": false,
+            "name": "weekNumber",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The scenario's fixtures ordered by kickoff — empty for an unknown scenario id, indistinguishable from a scenario with no fixtures written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimFixtureGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/fixtures/games/{gameId}": {
+      "patch": {
+        "operationId": "updateSimFixtureGame",
+        "summary": "Hand-edit one fixture game's kickoff, week, spread, or result",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSimFixtureGameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated fixture — re-run the sync jobs to ingest the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimFixtureGame"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields supplied, a field fails its format rule, or the edit would leave the fixture final without both scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such fixture game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sim/reset": {
+      "post": {
+        "operationId": "resetSim",
+        "summary": "Wipe a test league, or the whole environment, back to a known state",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-table deleted row counts and the simulator state afterwards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimResetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param or body field fails its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "League scope: no such league",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

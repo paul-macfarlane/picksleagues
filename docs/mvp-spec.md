@@ -34,40 +34,49 @@ A web app where friends create and compete in sports pick'em leagues. MVP ships 
 
 **Limits:**
 - A user may **join** unlimited leagues (one membership per user per league; self-competition is impossible by construction).
-- A user may be **commissioner of at most 10 active leagues** (active = created and not yet concluded). Creating a league beyond the cap is blocked with a clear message. Deleting a pre-start league or a league concluding frees a slot. Transferring the commissioner role moves the league to the recipient's count (transfer is blocked if it would exceed the recipient's cap).
+- A user may be **commissioner of at most 10 active leagues** (active = created and not yet concluded). Creating a league — or being promoted to commissioner — beyond the cap is blocked with a clear message. Deleting a pre-start league, a league concluding, or being demoted frees a slot. (ADR-0004)
+
+**Account deletion:** permanent and immediate; the profile is **anonymized in place** rather than removed, so picks, results, and standings history survive in every league.
+- Username is released (immediately claimable by others); display name is replaced with a "Deleted User" placeholder; the email is replaced with a non-identifying placeholder; avatar, OAuth identities, and all sessions are removed.
+- Signing in again with the same provider afterward creates a brand-new account — there is no undelete or reconnection.
+- Deletion is **blocked** while the user is the last commissioner of any non-empty active league — they must promote a replacement first (same ≥1-commissioner guard as leaving; ADR-0004).
 
 ## Leagues (global rules, all game modes)
 
 ### Creation
-Any user can create a league (subject to the commissioner cap). Creator becomes commissioner. Flow: choose game mode → name the league → set visibility → configure mode settings → league exists in a pre-start state.
+Any user can create a league (subject to the commissioner cap). Creator becomes a commissioner — leagues may have several (see Commissioner Powers). Flow: choose game mode → name the league → set visibility → configure mode settings → league exists in a pre-start state.
 
 ### Visibility
 - **Private:** joinable only via invite link.
 - **Public:** appears in the discovery list and is joinable directly.
 
 ### Invites
-- Commissioner generates invite links containing an opaque code.
+- Any commissioner generates invite links containing an opaque code.
 - Links may optionally have an expiry and/or max-use cap.
 - Visiting a link while signed out routes through sign-in and back to the join screen.
-- Commissioner can revoke an outstanding invite link at any time.
+- Any commissioner can revoke an outstanding invite link at any time.
 - Invite links work for public leagues too (they're just an alternate path to the same join).
 
 ### Membership
 - League size: **2 minimum, 100 maximum**.
 - Join cutoff: no joins once the league's first week has started (NFL modes) or once the first Round of 64 game has tipped (March Madness). Enforced automatically; not configurable.
 - A league that never reaches 2 members by its start simply proceeds; standings with one member are valid but trivially uninteresting. No auto-cancellation.
+- Leaving: a member may leave a league **pre-start only** — once the league starts, membership is frozen and there is no mid-season leaving. The last commissioner of a league with other members must promote a replacement before leaving; a commissioner who is the only member deletes the league instead. (ADR-0004)
 
 ### Commissioner Powers
+A league has **one or more commissioners**, all with identical powers, and must have **at least one at all times** — any demotion, kick, leave, or account deletion that would leave zero commissioners is blocked. (ADR-0004)
+
 | Power | Availability |
 | --- | --- |
 | Edit cosmetic fields (league name) | Anytime |
 | Edit league settings | Pre-start only; settings lock at league start |
 | Kick members | Pre-start only |
 | Delete league | Pre-start only |
-| Transfer commissioner role | Anytime (to any current member, subject to recipient's cap) |
+| Promote a member to commissioner | Anytime (subject to the recipient's cap) |
+| Demote a commissioner (including stepping down) | Anytime, while at least one commissioner remains |
 | Generate/revoke invite links | Anytime (joins still blocked after cutoff) |
 
-Once a league starts: membership and settings are frozen except cosmetics and commissioner transfer. No mid-season kicks, deletes, or settings changes — disputes resolve socially, not in-app.
+Once a league starts: membership and settings are frozen except cosmetics and commissioner promotion/demotion. No mid-season kicks, deletes, leaves, or settings changes — disputes resolve socially, not in-app.
 
 ### Pick Visibility (all modes)
 A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. Eliminated players (Elimination mode) retain identical visibility rights to active players.
@@ -82,14 +91,15 @@ A browse page listing public leagues that have not passed their join cutoff, wit
 A season-long league where members compete to build the best record picking NFL games each week, on both a weekly and a cumulative season leaderboard.
 
 ### League Settings
-1. **Start Week** — NFL regular season week (1–18)
-2. **End Week** — regular season week (1–18), ≥ Start Week
+1. **Start Week** — NFL regular season week (1–18) or a playoff round (Wild Card, Divisional, Conference Championship, Super Bowl)
+2. **End Week** — regular season week (1–18) or a playoff round, at or after Start Week in season order (playoff rounds follow week 18)
 3. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
 4. **Picks Per Week** — 1–16 (default 5)
 5. **Push/Tie Resolution** — value awarded on an ATS push or SU tie: +0.5 (default), 0, or +1
 
 ### Core Rules
-- Each week, every member submits up to Picks Per Week picks from the current week's NFL regular-season slate. All regular season games, including Thursday night, are eligible. Preseason and postseason are not.
+- Each week, every member submits up to Picks Per Week picks from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose End Week extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
+- **Playoff weeks have small slates** (Wild Card 6 games → Super Bowl 1); the fewer-games rule below applies naturally — in a week with fewer available games than Picks Per Week, everyone picks every available game.
 - Members choose their own games; overlap with other members is not required.
 - **Fewer games than Picks Per Week:** if the week's slate has fewer available games than the configured count, all members pick every available game that week.
 - Picks may be submitted individually or in batches, any time before each game's kickoff.
@@ -142,6 +152,7 @@ A survivor pool. Each week, every member picks one team to win (SU or ATS per le
 4. **Push/Tie Resolution** — on an ATS push or SU tie: member advances and the team is consumed (default), or member is eliminated
 
 ### Core Rules
+- Elimination is **regular-season only** — playoff weeks are not supported for this mode (weekly team-consumption doesn't fit 2–14-team playoff slates).
 - One pick per week per member. Each member has exactly **one life** — a single incorrect pick eliminates.
 - **Team reuse:** a member may pick each NFL team at most once per league. Consumed teams are unavailable for that member's future weeks.
 - Picks can be made or changed until the picked game's kickoff, and become visible to the league at kickoff.
@@ -219,7 +230,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 3. **Join a league** — invite link or public discovery → confirm → member
 4. **Make picks** — league page → weekly slate (NFL modes) or bracket builder (MM) → submit; edit until per-game lock; ATS spread-acceptance prompt on changes
 5. **Check results** — scores and standings refresh every ~5 minutes on game days
-6. **Commission** — settings pre-start, invite management, kick/delete pre-start, transfer anytime
+6. **Commission** — settings pre-start, invite management, kick/delete pre-start, promote/demote commissioners anytime
 
 ## Screens (MVP inventory)
 
@@ -276,7 +287,7 @@ Confidence scoring · Money Pick · Elimination lives > 1 · Buy-back · Elimina
 | League creation cap | Max 10 active leagues as commissioner per user |
 | Visibility | Private + Public with browse/search discovery |
 | Public league abuse | No mitigation needed — no chat/UGC surface beyond league names |
-| Commissioner powers | Kick/delete pre-start; transfer anytime; settings lock at start |
+| Commissioner powers | Kick/delete pre-start; promote/demote commissioners anytime; settings lock at start |
 | Notifications | None |
 | Timezones | User's local timezone everywhere |
 | Rules guide | In-app static reference per mode, MVP rules only |
