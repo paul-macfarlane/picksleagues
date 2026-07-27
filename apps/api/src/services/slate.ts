@@ -9,16 +9,17 @@ import {
   type SlateTeam,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql, resolveGameOverrides } from "../games";
-import { latestSpreadsForGames } from "../odds";
+import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
+import { latestSpreadsForGames } from "./odds";
 
 /**
- * The weekly slate every Pick'em *request* surface reads from — the pick page
- * and the pick write path's validation. One loader, so "what the member saw"
- * and "what the server validated against" can't diverge.
+ * The weekly slate every *request* surface reads from — the pick page and the
+ * pick write path's validation. Mode-agnostic: every mode picking NFL games
+ * picks against this same slate. One loader, so "what the member saw" and "what
+ * the server validated against" can't diverge.
  *
  * Settlement deliberately does NOT read through here (see
- * `services/settlement/pickem.ts`): it grades against the spread stored on the
+ * `services/pickem/settlement.ts`): it grades against the spread stored on the
  * pick, not the current one, and it has to synthesize `moved` from a pick's own
  * week — neither of which this loader knows about. Sharing it would mean
  * teaching the read path about settlement's concerns for no benefit.

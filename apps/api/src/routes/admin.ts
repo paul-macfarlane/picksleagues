@@ -34,7 +34,7 @@ import {
 import type { SessionVariables } from "../middleware/session";
 import { listGameOdds, listSeasons, listTeams, listWeekGames } from "../services/admin-data";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
-import { rebuildLeagueSeason, settleSweep } from "../services/settlement/pickem";
+import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
 import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
 
 const AdminNflJobParamsSchema = z.object({ job: NflSyncJobSchema });

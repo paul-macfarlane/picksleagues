@@ -8,7 +8,7 @@ import {
 } from "@picksleagues/schemas";
 import { useLeague, useRenewLeague } from "@/api/leagues";
 import { canActOnLeague } from "@/lib/league";
-import { StandingsSection } from "@/components/league/standings-section";
+import { PickemStandingsSection } from "@/components/league/pickem-standings-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -41,7 +41,7 @@ function LeagueOverview() {
         <RenewSeasonBanner league={league.data} />
       )}
       {league.data.mode === LEAGUE_MODE.PICKEM ? (
-        <StandingsSection
+        <PickemStandingsSection
           leagueId={leagueId}
           weekId={week}
           onSelectWeek={(next) => navigate({ search: next ? { week: next } : {}, replace: true })}

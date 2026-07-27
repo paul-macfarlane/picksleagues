@@ -1,5 +1,5 @@
 {
-  "id": "f50d0ff3-2679-4a60-b3a5-c9f47fad606b",
+  "id": "7f24c160-f00e-4d97-a78c-ca9b7aa786fd",
   "prevId": "f5aea4df-4e25-4f4b-bf2e-cd548dc3c5d8",
   "version": "7",
   "dialect": "postgresql",
@@ -833,6 +833,157 @@
       },
       "isRLSEnabled": false
     },
+    "public.pickem_pick_results": {
+      "name": "pickem_pick_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pickem_pick_id": {
+          "name": "pickem_pick_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "league_season_id": {
+          "name": "league_season_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "league_member_id": {
+          "name": "league_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week_id": {
+          "name": "week_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "points": {
+          "name": "points",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "differential": {
+          "name": "differential",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pickem_pick_results_season_week_idx": {
+          "name": "pickem_pick_results_season_week_idx",
+          "columns": [
+            {
+              "expression": "league_season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "week_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pickem_pick_results_pickem_pick_id_pickem_picks_id_fk": {
+          "name": "pickem_pick_results_pickem_pick_id_pickem_picks_id_fk",
+          "tableFrom": "pickem_pick_results",
+          "tableTo": "pickem_picks",
+          "columnsFrom": [
+            "pickem_pick_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pickem_pick_results_league_season_id_league_seasons_id_fk": {
+          "name": "pickem_pick_results_league_season_id_league_seasons_id_fk",
+          "tableFrom": "pickem_pick_results",
+          "tableTo": "league_seasons",
+          "columnsFrom": [
+            "league_season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pickem_pick_results_league_member_id_league_members_id_fk": {
+          "name": "pickem_pick_results_league_member_id_league_members_id_fk",
+          "tableFrom": "pickem_pick_results",
+          "tableTo": "league_members",
+          "columnsFrom": [
+            "league_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pickem_pick_results_week_id_weeks_id_fk": {
+          "name": "pickem_pick_results_week_id_weeks_id_fk",
+          "tableFrom": "pickem_pick_results",
+          "tableTo": "weeks",
+          "columnsFrom": [
+            "week_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pickem_pick_results_pick_unique": {
+          "name": "pickem_pick_results_pick_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pickem_pick_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.pickem_picks": {
       "name": "pickem_picks",
       "schema": "",
@@ -1014,6 +1165,146 @@
           "columns": [
             "league_member_id",
             "game_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pickem_standings": {
+      "name": "pickem_standings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "league_season_id": {
+          "name": "league_season_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "league_member_id": {
+          "name": "league_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week_id": {
+          "name": "week_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "points": {
+          "name": "points",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "differential": {
+          "name": "differential",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rank": {
+          "name": "rank",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pickem_standings_season_week_rank_idx": {
+          "name": "pickem_standings_season_week_rank_idx",
+          "columns": [
+            {
+              "expression": "league_season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "week_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "rank",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pickem_standings_league_season_id_league_seasons_id_fk": {
+          "name": "pickem_standings_league_season_id_league_seasons_id_fk",
+          "tableFrom": "pickem_standings",
+          "tableTo": "league_seasons",
+          "columnsFrom": [
+            "league_season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pickem_standings_league_member_id_league_members_id_fk": {
+          "name": "pickem_standings_league_member_id_league_members_id_fk",
+          "tableFrom": "pickem_standings",
+          "tableTo": "league_members",
+          "columnsFrom": [
+            "league_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pickem_standings_week_id_weeks_id_fk": {
+          "name": "pickem_standings_week_id_weeks_id_fk",
+          "tableFrom": "pickem_standings",
+          "tableTo": "weeks",
+          "columnsFrom": [
+            "week_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pickem_standings_season_member_week_unique": {
+          "name": "pickem_standings_season_member_week_unique",
+          "nullsNotDistinct": true,
+          "columns": [
+            "league_season_id",
+            "league_member_id",
+            "week_id"
           ]
         }
       },

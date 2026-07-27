@@ -190,7 +190,7 @@ const settleSimRoute = createRoute({
   responses: {
     200: {
       description:
-        "The rebuilt pick_results/standings, read back from the tables — leagues ordered by name, weeks by start, standings by rank then display name",
+        "The rebuilt pickem_pick_results/pickem_standings, read back from the tables — leagues ordered by name, weeks by start, standings by rank then display name",
       content: { "application/json": { schema: SimSettleResponseSchema } },
     },
     ...simResponses,

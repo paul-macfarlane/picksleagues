@@ -20,8 +20,9 @@ export async function lockUserRow(tx: Db, userId: string): Promise<void> {
 }
 
 /**
- * Serializes settlement of one league season. Settlement writes `pick_results`
- * and `standings` delete-then-insert, and two concurrent settlers of the same
+ * Serializes settlement of one league season. Settlement writes its mode's
+ * result and standings tables delete-then-insert (`pickem_pick_results` and
+ * `pickem_standings` today), and two concurrent settlers of the same
  * season would each take their snapshot before the other's insert, miss those
  * rows in their DELETE, and then collide on the unique constraints — an
  * aborted transaction and a 500, not corruption, but avoidable. The incremental

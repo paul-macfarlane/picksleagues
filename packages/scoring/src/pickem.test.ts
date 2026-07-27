@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   GAME_STATUS,
-  PICK_SIDE,
   PICK_TYPE,
+  PICKEM_PICK_SIDE,
   PICKEM_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
-  type PickSide,
+  type PickemPickSide,
   type PickType,
   type PickemPushTieResolution,
 } from "@picksleagues/schemas";
@@ -31,7 +31,7 @@ function pick(overrides: Partial<PickemPickInput> = {}): PickemPickInput {
     pickId: "pick-1",
     memberId: "member-1",
     gameId: GAME_ID,
-    side: PICK_SIDE.HOME,
+    side: PICKEM_PICK_SIDE.HOME,
     spreadAtPick: null,
     ...overrides,
   };
@@ -57,7 +57,7 @@ function settings(
 describe("settlePickemWeek — straight up", () => {
   const cases: Array<{
     name: string;
-    side: PickSide;
+    side: PickemPickSide;
     homeScore: number;
     awayScore: number;
     outcome: PickOutcome;
@@ -66,7 +66,7 @@ describe("settlePickemWeek — straight up", () => {
   }> = [
     {
       name: "home pick, home wins by 7 → correct, +7 differential",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       homeScore: 24,
       awayScore: 17,
       outcome: "correct",
@@ -75,7 +75,7 @@ describe("settlePickemWeek — straight up", () => {
     },
     {
       name: "away pick, home wins by 7 → incorrect, -7 differential",
-      side: PICK_SIDE.AWAY,
+      side: PICKEM_PICK_SIDE.AWAY,
       homeScore: 24,
       awayScore: 17,
       outcome: "incorrect",
@@ -84,7 +84,7 @@ describe("settlePickemWeek — straight up", () => {
     },
     {
       name: "away pick, away wins by 10 → correct, +10 differential",
-      side: PICK_SIDE.AWAY,
+      side: PICKEM_PICK_SIDE.AWAY,
       homeScore: 13,
       awayScore: 23,
       outcome: "correct",
@@ -93,7 +93,7 @@ describe("settlePickemWeek — straight up", () => {
     },
     {
       name: "home pick, away wins by 10 → incorrect, -10 differential",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       homeScore: 13,
       awayScore: 23,
       outcome: "incorrect",
@@ -102,7 +102,7 @@ describe("settlePickemWeek — straight up", () => {
     },
     {
       name: "home pick, one-point win → correct, +1 differential",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       homeScore: 21,
       awayScore: 20,
       outcome: "correct",
@@ -128,7 +128,7 @@ describe("settlePickemWeek — straight up", () => {
     // A league switched to SU (or a stale row) must not have its grading bent
     // by a leftover number — SU never consults the spread.
     const { outcomes } = settlePickemWeek(
-      [pick({ side: PICK_SIDE.HOME, spreadAtPick: -14 })],
+      [pick({ side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -14 })],
       [result({ homeScore: 24, awayScore: 17 })],
       settings(PICK_TYPE.STRAIGHT_UP),
     );
@@ -141,7 +141,7 @@ describe("settlePickemWeek — against the spread", () => {
   // Spreads are home-relative: negative means the home side is favored.
   const cases: Array<{
     name: string;
-    side: PickSide;
+    side: PickemPickSide;
     spread: number;
     homeScore: number;
     awayScore: number;
@@ -151,7 +151,7 @@ describe("settlePickemWeek — against the spread", () => {
   }> = [
     {
       name: "home favored by 6, wins by 14 → covers, +8 differential",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: -6,
       homeScore: 27,
       awayScore: 13,
@@ -161,7 +161,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "home favored by 10, wins by 3 → fails to cover, -7 differential",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: -10,
       homeScore: 20,
       awayScore: 17,
@@ -171,7 +171,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "away pick against a 10-point favorite that wins by 3 → covers, +7 differential",
-      side: PICK_SIDE.AWAY,
+      side: PICKEM_PICK_SIDE.AWAY,
       spread: -10,
       homeScore: 20,
       awayScore: 17,
@@ -181,7 +181,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "home underdog by 3 loses by 1 → covers, +2 differential",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: 3,
       homeScore: 20,
       awayScore: 21,
@@ -191,7 +191,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "away pick laying 3 wins by 1 → fails to cover, -2 differential",
-      side: PICK_SIDE.AWAY,
+      side: PICKEM_PICK_SIDE.AWAY,
       spread: 3,
       homeScore: 20,
       awayScore: 21,
@@ -201,7 +201,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "half-point spread can never push — home favored by 3.5, wins by 3",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: -3.5,
       homeScore: 24,
       awayScore: 21,
@@ -211,7 +211,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "half-point spread, away side of the same game covers by 0.5",
-      side: PICK_SIDE.AWAY,
+      side: PICKEM_PICK_SIDE.AWAY,
       spread: -3.5,
       homeScore: 24,
       awayScore: 21,
@@ -221,7 +221,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "pick'em line (spread 0), home wins → covers by the margin",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: 0,
       homeScore: 24,
       awayScore: 17,
@@ -231,7 +231,7 @@ describe("settlePickemWeek — against the spread", () => {
     },
     {
       name: "pick'em line (spread 0), tied score → push",
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: 0,
       homeScore: 17,
       awayScore: 17,
@@ -271,7 +271,7 @@ describe("settlePickemWeek — pushes and ties", () => {
     ({ resolution, points }) => {
       // Home favored by 3 and wins by exactly 3.
       const { outcomes } = settlePickemWeek(
-        [pick({ side: PICK_SIDE.HOME, spreadAtPick: -3 })],
+        [pick({ side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -3 })],
         [result({ homeScore: 24, awayScore: 21 })],
         settings(PICK_TYPE.AGAINST_THE_SPREAD, resolution),
       );
@@ -282,7 +282,7 @@ describe("settlePickemWeek — pushes and ties", () => {
 
   it.each(PUSH_RESOLUTIONS)("SU tie awards $points under $resolution", ({ resolution, points }) => {
     const { outcomes } = settlePickemWeek(
-      [pick({ side: PICK_SIDE.HOME })],
+      [pick({ side: PICKEM_PICK_SIDE.HOME })],
       [result({ homeScore: 20, awayScore: 20 })],
       settings(PICK_TYPE.STRAIGHT_UP, resolution),
     );
@@ -292,7 +292,7 @@ describe("settlePickemWeek — pushes and ties", () => {
 
   it("pushes the away side of the same ATS push", () => {
     const { outcomes } = settlePickemWeek(
-      [pick({ side: PICK_SIDE.AWAY, spreadAtPick: -3 })],
+      [pick({ side: PICKEM_PICK_SIDE.AWAY, spreadAtPick: -3 })],
       [result({ homeScore: 24, awayScore: 21 })],
       settings(PICK_TYPE.AGAINST_THE_SPREAD),
     );
@@ -434,7 +434,7 @@ describe("settlePickemWeek — week shapes", () => {
       { gameId: "g3", status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 20 },
     ];
     const { outcomes } = settlePickemWeek(
-      [pick({ pickId: "p1", gameId: "g1", side: PICK_SIDE.HOME })],
+      [pick({ pickId: "p1", gameId: "g1", side: PICKEM_PICK_SIDE.HOME })],
       games,
       settings(PICK_TYPE.STRAIGHT_UP),
     );
@@ -448,8 +448,8 @@ describe("settlePickemWeek — week shapes", () => {
     // special casing — it is just a week with one game in it.
     const { outcomes } = settlePickemWeek(
       [
-        pick({ pickId: "p1", memberId: "m1", gameId: "sb", side: PICK_SIDE.HOME }),
-        pick({ pickId: "p2", memberId: "m2", gameId: "sb", side: PICK_SIDE.AWAY }),
+        pick({ pickId: "p1", memberId: "m1", gameId: "sb", side: PICKEM_PICK_SIDE.HOME }),
+        pick({ pickId: "p2", memberId: "m2", gameId: "sb", side: PICKEM_PICK_SIDE.AWAY }),
       ],
       [{ gameId: "sb", status: GAME_STATUS.FINAL, homeScore: 31, awayScore: 28 }],
       settings(PICK_TYPE.STRAIGHT_UP),
@@ -483,11 +483,11 @@ describe("settlePickemWeek — week shapes", () => {
       { gameId: "later", status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null },
     ];
     const picks: PickemPickInput[] = [
-      pick({ pickId: "p1", memberId: "m1", gameId: "won", side: PICK_SIDE.HOME }),
-      pick({ pickId: "p2", memberId: "m1", gameId: "tied", side: PICK_SIDE.HOME }),
-      pick({ pickId: "p3", memberId: "m1", gameId: "cancelled", side: PICK_SIDE.AWAY }),
-      pick({ pickId: "p4", memberId: "m1", gameId: "later", side: PICK_SIDE.HOME }),
-      pick({ pickId: "p5", memberId: "m2", gameId: "won", side: PICK_SIDE.AWAY }),
+      pick({ pickId: "p1", memberId: "m1", gameId: "won", side: PICKEM_PICK_SIDE.HOME }),
+      pick({ pickId: "p2", memberId: "m1", gameId: "tied", side: PICKEM_PICK_SIDE.HOME }),
+      pick({ pickId: "p3", memberId: "m1", gameId: "cancelled", side: PICKEM_PICK_SIDE.AWAY }),
+      pick({ pickId: "p4", memberId: "m1", gameId: "later", side: PICKEM_PICK_SIDE.HOME }),
+      pick({ pickId: "p5", memberId: "m2", gameId: "won", side: PICKEM_PICK_SIDE.AWAY }),
     ];
 
     const { outcomes, unsettled } = settlePickemWeek(picks, games, settings(PICK_TYPE.STRAIGHT_UP));
@@ -513,9 +513,9 @@ describe("settlePickemWeek — week shapes", () => {
       { gameId: "push", status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 },
     ];
     const picksFor = (memberId: string, prefix: string): PickemPickInput[] => [
-      pick({ pickId: `${prefix}1`, memberId, gameId: "win", side: PICK_SIDE.HOME }),
-      pick({ pickId: `${prefix}2`, memberId, gameId: "loss", side: PICK_SIDE.HOME }),
-      pick({ pickId: `${prefix}3`, memberId, gameId: "push", side: PICK_SIDE.HOME }),
+      pick({ pickId: `${prefix}1`, memberId, gameId: "win", side: PICKEM_PICK_SIDE.HOME }),
+      pick({ pickId: `${prefix}2`, memberId, gameId: "loss", side: PICKEM_PICK_SIDE.HOME }),
+      pick({ pickId: `${prefix}3`, memberId, gameId: "push", side: PICKEM_PICK_SIDE.HOME }),
     ];
 
     const { outcomes } = settlePickemWeek(
@@ -540,15 +540,15 @@ describe("settlePickemWeek — week shapes", () => {
   });
 
   it("is a pure derivation — settling the same inputs twice is identical", () => {
-    // Arch D10: pick_results must be recomputable at any time. The orchestrator
+    // Arch D10: pickem_pick_results must be recomputable at any time. The orchestrator
     // leans on this for the nightly sweep and on-demand rebuild.
     const games: PickemGameResult[] = [
       { gameId: "g1", status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 21 },
       { gameId: "g2", status: GAME_STATUS.CANCELLED, homeScore: null, awayScore: null },
     ];
     const picks: PickemPickInput[] = [
-      pick({ pickId: "p1", gameId: "g1", side: PICK_SIDE.HOME, spreadAtPick: -3 }),
-      pick({ pickId: "p2", gameId: "g2", side: PICK_SIDE.HOME, spreadAtPick: -7 }),
+      pick({ pickId: "p1", gameId: "g1", side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -3 }),
+      pick({ pickId: "p2", gameId: "g2", side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -7 }),
     ];
     const config = settings(PICK_TYPE.AGAINST_THE_SPREAD);
 

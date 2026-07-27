@@ -9,7 +9,7 @@ import {
   LEAGUE_STATUS,
   MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
   PICKEM_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
@@ -242,7 +242,7 @@ describe("GET /api/weeks/:weekId/games", () => {
       const gameId = pickGame === "g1" ? g1 : g2;
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(res.status).toBe(409);
       expect(await res.json()).toMatchObject({ error: "game_not_pickable" });
@@ -252,14 +252,14 @@ describe("GET /api/weeks/:weekId/games", () => {
       const { memberA, league, weekId, g3 } = await seedUnplayableSlate();
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g3, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(res.status).toBe(200);
     });
   });
 });
 
-describe("GET /api/leagues/:leagueId/picks/week/:weekId", () => {
+describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
   it("404s league_not_found for a non-member, and for an unknown league id", async () => {
     const { weekIds, league, memberA } = await seedPickemLeague();
     const weekId = weekIds.get("regular:1")!;
@@ -359,8 +359,8 @@ describe("GET /api/leagues/:leagueId/picks/week/:weekId", () => {
       (
         await putPicks(memberA.cookie, league.id, weekId, {
           picks: [
-            { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-            { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+            { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+            { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
           ],
         })
       ).status,
@@ -369,8 +369,8 @@ describe("GET /api/leagues/:leagueId/picks/week/:weekId", () => {
       (
         await putPicks(memberB.cookie, league.id, weekId, {
           picks: [
-            { gameId: g1, side: PICK_SIDE.AWAY, spread: null },
-            { gameId: g3, side: PICK_SIDE.AWAY, spread: null },
+            { gameId: g1, side: PICKEM_PICK_SIDE.AWAY, spread: null },
+            { gameId: g3, side: PICKEM_PICK_SIDE.AWAY, spread: null },
           ],
         })
       ).status,
@@ -404,7 +404,7 @@ describe("GET /api/leagues/:leagueId/picks/week/:weekId", () => {
     const postAEntryB = postAsA.members.find((m) => m.userId === memberB.user.id)!;
     expect(postAEntryB.hiddenPickCount).toBe(1);
     expect(postAEntryB.picks).toHaveLength(1);
-    expect(postAEntryB.picks[0]).toMatchObject({ gameId: g1, side: PICK_SIDE.AWAY });
+    expect(postAEntryB.picks[0]).toMatchObject({ gameId: g1, side: PICKEM_PICK_SIDE.AWAY });
 
     const postAsB = (await (
       await getPicks(memberB.cookie, league.id, weekId, appAtKickoff)
@@ -412,7 +412,7 @@ describe("GET /api/leagues/:leagueId/picks/week/:weekId", () => {
     const postBEntryA = postAsB.members.find((m) => m.userId === memberA.user.id)!;
     expect(postBEntryA.hiddenPickCount).toBe(1);
     expect(postBEntryA.picks).toHaveLength(1);
-    expect(postBEntryA.picks[0]).toMatchObject({ gameId: g1, side: PICK_SIDE.HOME });
+    expect(postBEntryA.picks[0]).toMatchObject({ gameId: g1, side: PICKEM_PICK_SIDE.HOME });
   });
 
   it("isViewer is true only on the caller's own entry", async () => {
@@ -465,7 +465,7 @@ describe("GET /api/leagues/:leagueId/picks/week/:weekId", () => {
   });
 });
 
-describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
+describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
   it("401s without a session", async () => {
     const { league, weekIds } = await seedPickemLeague();
     const res = await putPicks(undefined, league.id, weekIds.get("regular:1")!, { picks: [] });
@@ -490,9 +490,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     const first = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.AWAY, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.AWAY, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(first.status).toBe(200);
@@ -502,13 +502,13 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     // Re-submit a wholly different set — the old picks must be gone, not merged.
     const second = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(second.status).toBe(200);
     const secondBody = (await second.json()) as PickemWeekPicksResponse;
     const secondOwn = secondBody.members.find((m) => m.userId === memberA.user.id)!;
     expect(secondOwn.picks).toHaveLength(1);
-    expect(secondOwn.picks[0]).toMatchObject({ gameId: g2, side: PICK_SIDE.HOME });
+    expect(secondOwn.picks[0]).toMatchObject({ gameId: g2, side: PICKEM_PICK_SIDE.HOME });
   });
 
   it("clears the member's unstarted picks when submitting an empty array", async () => {
@@ -517,7 +517,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     const [g1] = gameIds.get("regular:1")!;
 
     await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     const res = await putPicks(memberA.cookie, league.id, weekId, { picks: [] });
     expect(res.status).toBe(200);
@@ -534,7 +534,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       memberA.cookie,
       league.id,
       weekId,
-      { picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }] },
+      { picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }] },
       appAfterKickoff,
     );
     expect(res.status).toBe(409);
@@ -550,7 +550,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       memberA.cookie,
       league.id,
       weekId,
-      { picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }] },
+      { picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }] },
       appAtKickoff,
     );
     expect(res.status).toBe(409);
@@ -566,7 +566,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     // g1 kicks off first — pick it while everything is still open.
     const pre = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(pre.status).toBe(200);
 
@@ -577,7 +577,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       memberA.cookie,
       league.id,
       weekId,
-      { picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }] },
+      { picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }] },
       appAfterKickoff,
     );
     expect(post.status).toBe(200);
@@ -594,8 +594,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       weekId,
       {
         picks: [
-          { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
         ],
       },
       appAfterKickoff,
@@ -634,9 +634,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
         const initial = await putPicks(memberA.cookie, league.id, weekId, {
           picks: [
-            { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-            { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-            { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+            { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+            { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+            { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
           ],
         });
         expect(initial.status).toBe(200);
@@ -649,8 +649,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
         const res = await putPicks(memberA.cookie, league.id, weekId, {
           picks: [
-            { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-            { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+            { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+            { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
           ],
         });
         expect(res.status).toBe(200);
@@ -671,9 +671,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
       const initial = await putPicks(memberA.cookie, league.id, weekId, {
         picks: [
-          { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
         ],
       });
       expect(initial.status).toBe(200);
@@ -684,7 +684,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       // still-scheduled g2 (an ordinary replaceable pick — must be dropped,
       // exactly like the pre-existing wholesale-replace behavior).
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g3, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(res.status).toBe(200);
       const own = ((await res.json()) as PickemWeekPicksResponse).members.find(
@@ -703,9 +703,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -727,7 +727,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     const [g1, g2, g3] = gameIds.get("regular:1")!;
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
 
@@ -738,15 +738,15 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     const tooMany = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(tooMany.status).toBe(400);
     expect(await tooMany.json()).toMatchObject({ error: "too_many_picks" });
 
     const ok = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(ok.status).toBe(200);
   });
@@ -779,8 +779,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
       const initial = await putPicks(memberA.cookie, league.id, week1Id, {
         picks: [
-          { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
         ],
       });
       expect(initial.status).toBe(200);
@@ -790,7 +790,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
       // Submitting only g2 must not destroy the now-unaddressable g1 pick.
       const later = await putPicks(memberA.cookie, league.id, week1Id, {
-        picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(later.status).toBe(200);
       const own = ((await later.json()) as PickemWeekPicksResponse).members.find(
@@ -804,8 +804,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
       await putPicks(memberA.cookie, league.id, week1Id, {
         picks: [
-          { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
         ],
       });
       await db.update(games).set({ weekId: week2Id }).where(eq(games.id, g1));
@@ -816,7 +816,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
         memberA.cookie,
         league.id,
         week1Id,
-        { picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }] },
+        { picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }] },
         appAfterKickoff,
       );
       expect(later.status).toBe(200);
@@ -831,8 +831,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
       await putPicks(memberA.cookie, league.id, week1Id, {
         picks: [
-          { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
         ],
       });
       await db.update(games).set({ weekId: week2Id }).where(eq(games.id, g1));
@@ -841,8 +841,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       // two brand-new picks push the total to three — over the cap.
       const res = await putPicks(memberA.cookie, league.id, week1Id, {
         picks: [
-          { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-          { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
         ],
       });
       expect(res.status).toBe(400);
@@ -866,8 +866,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     const initial = await putPicks(memberA.cookie, league.id, week1Id, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -876,9 +876,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     // submission must be refused, not just that one entry.
     const res = await putPicks(memberA.cookie, league.id, week1Id, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.AWAY, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
-        { gameId: week2GameId, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.AWAY, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: week2GameId, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(res.status).toBe(400);
@@ -889,7 +889,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       (m) => m.userId === memberA.user.id,
     )!;
     expect(own.picks.map((p) => p.gameId).sort()).toEqual([g1, g2].sort());
-    expect(own.picks.find((p) => p.gameId === g1)?.side).toBe(PICK_SIDE.HOME);
+    expect(own.picks.find((p) => p.gameId === g1)?.side).toBe(PICKEM_PICK_SIDE.HOME);
   });
 
   it("400s too_many_picks when submitting more than picksPerWeek", async () => {
@@ -901,9 +901,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     const res = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(res.status).toBe(400);
@@ -927,8 +927,8 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
 
     const res = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g1, side: PICK_SIDE.AWAY, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.AWAY, spread: null },
       ],
     });
     expect(res.status).toBe(400);
@@ -951,7 +951,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     const week2GameId = gameIds.get("regular:2")![0]!;
 
     const res = await putPicks(memberA.cookie, league.id, week1Id, {
-      picks: [{ gameId: week2GameId, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: week2GameId, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "game_not_in_week" });
@@ -965,7 +965,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     const [g1] = gameIds.get("regular:1")!;
 
     const res = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "league_concluded" });
@@ -975,7 +975,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     { label: "picks not an array", body: { picks: "nope" } },
     {
       label: "non-uuid gameId",
-      body: { picks: [{ gameId: "not-a-uuid", side: PICK_SIDE.HOME, spread: null }] },
+      body: { picks: [{ gameId: "not-a-uuid", side: PICKEM_PICK_SIDE.HOME, spread: null }] },
     },
   ])("400s a malformed body: $label — never a 500", async ({ body }) => {
     const { league, weekIds, memberA } = await seedPickemLeague();
@@ -1007,7 +1007,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       const [g1] = gameIds.get("regular:1")!;
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -3.5 }],
+        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 }],
       });
       expect(res.status).toBe(200);
       const body = (await res.json()) as PickemWeekPicksResponse;
@@ -1030,7 +1030,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       const [g1] = gameIds.get("regular:1")!;
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -4 }],
+        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -4 }],
       });
       expect(res.status).toBe(409);
       expect(await res.json()).toMatchObject({ error: "spread_stale" });
@@ -1051,7 +1051,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       const [g1] = gameIds.get("regular:1")!;
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -3.5 }],
+        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 }],
       });
       expect(res.status).toBe(409);
       // Distinct from spread_stale: nothing has been posted to accept, so the
@@ -1066,7 +1066,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
     const [g1] = gameIds.get("regular:1")!;
 
     const res = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -7 }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -7 }],
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as PickemWeekPicksResponse;
@@ -1085,7 +1085,7 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     const weekId = weekIds.get("regular:1")!;
     const [g1] = gameIds.get("regular:1")!;
     const res = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(res.status).toBe(200);
     return { league, memberA };
@@ -1151,9 +1151,9 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
 
     const picks = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(picks.status).toBe(200);
@@ -1189,7 +1189,7 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     const [g1] = gameIds.get("regular:2")!;
 
     const pickRes = await putPicks(memberA.cookie, league.id, week2Id, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(pickRes.status).toBe(200);
 

@@ -1,78 +1,23 @@
 import { z } from "@hono/zod-openapi";
-import { GameStatusSchema } from "./game-status";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
-import { PickSideSchema } from "./pick-side";
-import { WeekTypeSchema } from "./week-type";
+import { PickemPickSideSchema } from "./pickem-pick-side";
 
 /**
- * Pick'em pick entry and the weekly slate it is made against (spec §Game Mode 1).
+ * Pick'em pick entry, its standings, and the shapes only this mode has (spec
+ * §Game Mode 1). The slate these picks are made against and the league's week
+ * list are mode-agnostic and live in `slate.ts` / `league-weeks.ts`.
  *
  * Two rules shape these types and are worth stating once here:
- * - **Lock state is derived, never stored** (arch D11). `locked` is serialized
- *   per game from `effective kickoff <= clock.now()`; there is no column behind
- *   it and clients must not cache it across a session.
+ * - **Lock state is derived, never stored** (arch D11). Games carry `locked`
+ *   from the slate; there is no column behind it and clients must not cache it
+ *   across a session.
  * - **Pick visibility is enforced in the query layer** (arch §Locking Model).
  *   Another member's `picks` array only ever contains games that have kicked
  *   off; `hiddenPickCount` reports how many more they have submitted so the UI
  *   can show "5 picks in" without leaking which games those are.
  */
 
-export const SlateTeamSchema = z
-  .object({
-    id: z.string(),
-    abbreviation: z.string(),
-    name: z.string(),
-    location: z.string().nullable(),
-    logoLightUrl: z.string().nullable(),
-    logoDarkUrl: z.string().nullable(),
-  })
-  .openapi("SlateTeam");
-
-export type SlateTeam = z.infer<typeof SlateTeamSchema>;
-
-export const SlateGameSchema = z
-  .object({
-    id: z.string(),
-    homeTeam: SlateTeamSchema,
-    awayTeam: SlateTeamSchema,
-    // Every field below is override-resolved (`override_* ?? provider_*`,
-    // arch D15) — the client never sees the provider/override split.
-    kickoffAt: z.iso.datetime(),
-    status: GameStatusSchema,
-    homeScore: z.number().int().nullable(),
-    awayScore: z.number().int().nullable(),
-    // Home-relative; negative = home favored. Null until the odds sync captures
-    // a snapshot, and in straight-up leagues it is simply unused.
-    spread: z.number().nullable(),
-    // Derived per request from the injected Clock — not stored (arch D11).
-    locked: z.boolean(),
-    /**
-     * Whether a new pick may be placed here. False for cancelled and moved
-     * games: they still appear on the slate (so a member can see why a pick
-     * pushed) but settle as a push, so accepting a fresh pick would mint free
-     * points. Such games are also excluded from `picksAllowed`.
-     */
-    pickable: z.boolean(),
-  })
-  .openapi("SlateGame");
-
-export type SlateGame = z.infer<typeof SlateGameSchema>;
-
-export const WeekSlateResponseSchema = z
-  .object({
-    weekId: z.string(),
-    weekType: WeekTypeSchema,
-    weekNumber: z.number().int(),
-    label: z.string(),
-    startsAt: z.iso.datetime(),
-    endsAt: z.iso.datetime(),
-    games: z.array(SlateGameSchema),
-  })
-  .openapi("WeekSlateResponse");
-
-export type WeekSlateResponse = z.infer<typeof WeekSlateResponseSchema>;
-
-export const StandingsRowSchema = z
+export const PickemStandingsRowSchema = z
   .object({
     leagueMemberId: z.string(),
     userId: z.string(),
@@ -90,15 +35,15 @@ export const StandingsRowSchema = z
     /** Members level on points and differential share a rank. */
     rank: z.number().int(),
   })
-  .openapi("StandingsRow");
+  .openapi("PickemStandingsRow");
 
-export type StandingsRow = z.infer<typeof StandingsRowSchema>;
+export type PickemStandingsRow = z.infer<typeof PickemStandingsRowSchema>;
 
-export const LeagueStandingsResponseSchema = z
+export const PickemStandingsResponseSchema = z
   .object({
     /** Null on the season-cumulative board; set on a weekly one. */
     weekId: z.string().nullable(),
-    rows: z.array(StandingsRowSchema),
+    rows: z.array(PickemStandingsRowSchema),
     /**
      * When settlement last wrote this board. The spec requires standings show a
      * "last updated" stamp and never claim real-time freshness — null means
@@ -106,40 +51,9 @@ export const LeagueStandingsResponseSchema = z
      */
     lastUpdatedAt: z.iso.datetime().nullable(),
   })
-  .openapi("LeagueStandingsResponse");
+  .openapi("PickemStandingsResponse");
 
-export type LeagueStandingsResponse = z.infer<typeof LeagueStandingsResponseSchema>;
-
-export const LeagueWeekSchema = z
-  .object({
-    id: z.string(),
-    weekType: WeekTypeSchema,
-    weekNumber: z.number().int(),
-    label: z.string(),
-    startsAt: z.iso.datetime(),
-    endsAt: z.iso.datetime(),
-    // Zero means the schedule sync hasn't populated the week yet — the UI
-    // shows it but there is nothing to pick.
-    gameCount: z.number().int(),
-  })
-  .openapi("LeagueWeek");
-
-export type LeagueWeek = z.infer<typeof LeagueWeekSchema>;
-
-export const LeagueWeeksResponseSchema = z
-  .object({
-    // The league's season weeks clipped to its configured Start/End Week.
-    weeks: z.array(LeagueWeekSchema),
-    /**
-     * Where a member lands by default: the week in progress, else the next to
-     * start, else the last played. Derived from the Clock per request, never
-     * stored (arch D11). Null only when the league has no weeks yet.
-     */
-    currentWeekId: z.string().nullable(),
-  })
-  .openapi("LeagueWeeksResponse");
-
-export type LeagueWeeksResponse = z.infer<typeof LeagueWeeksResponseSchema>;
+export type PickemStandingsResponse = z.infer<typeof PickemStandingsResponseSchema>;
 
 /**
  * Substitutes one pick for another after its game was cancelled or moved out of
@@ -152,23 +66,23 @@ export type LeagueWeeksResponse = z.infer<typeof LeagueWeeksResponseSchema>;
  * the member holds if they do *not* re-pick, so a substitute that stacked on top
  * would hand them more scoring chances than Picks Per Week allows.
  */
-export const RepickRequestSchema = z
+export const PickemRepickRequestSchema = z
   .object({
     /** The pick being given up — its game must be cancelled or moved. */
     replacePickId: z.uuid(),
     gameId: z.uuid(),
-    side: PickSideSchema,
+    side: PickemPickSideSchema,
     /** Required in ATS leagues, and matched against the replacement's current spread only. */
     spread: z.number().nullable().default(null),
   })
-  .openapi("RepickRequest");
+  .openapi("PickemRepickRequest");
 
-export type RepickRequest = z.infer<typeof RepickRequestSchema>;
+export type PickemRepickRequest = z.infer<typeof PickemRepickRequestSchema>;
 
 export const PickemPickSubmissionSchema = z
   .object({
     gameId: z.uuid(),
-    side: PickSideSchema,
+    side: PickemPickSideSchema,
     /**
      * The spread the member is accepting for this pick. Required in ATS leagues
      * and rejected with `spread_stale` (409) when it no longer matches the
@@ -201,7 +115,7 @@ export const PickemPickSchema = z
   .object({
     id: z.string(),
     gameId: z.string(),
-    side: PickSideSchema,
+    side: PickemPickSideSchema,
     // The spread of record this pick was locked in against (null in SU leagues).
     spread: z.number().nullable(),
     updatedAt: z.iso.datetime(),

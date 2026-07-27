@@ -1,29 +1,30 @@
 import { useState } from "react";
 import {
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
-  type PickSide,
+  type PickemPickSide,
   type PickType,
   type PickemPick,
   type PickemPickSubmission,
   type SlateGame,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { useSubmitPicks, useWeekPicks, useWeekSlate } from "@/api/picks";
+import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
+import { useWeekSlate } from "@/api/weeks";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
-import { SubstitutePickDialog } from "@/components/league/substitute-pick-dialog";
+import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
 
 // Only games that are still replaceable (spec/ADR-0015: unlocked and
 // pickable) seed the editable selection — a locked, cancelled/moved, or
 // week-moved pick is retained server-side automatically and must never be
 // re-submitted, so it never enters this map.
 function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
-  const selections = new Map<string, PickSide>();
+  const selections = new Map<string, PickemPickSide>();
   const gameById = new Map(slate.games.map((game) => [game.id, game]));
   for (const pick of viewerPicks) {
     const game = gameById.get(pick.gameId);
@@ -34,7 +35,7 @@ function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) 
   return selections;
 }
 
-function selectionsEqual(a: Map<string, PickSide>, b: Map<string, PickSide>): boolean {
+function selectionsEqual(a: Map<string, PickemPickSide>, b: Map<string, PickemPickSide>): boolean {
   if (a.size !== b.size) return false;
   for (const [gameId, side] of a) {
     if (b.get(gameId) !== side) return false;
@@ -112,7 +113,7 @@ function PickemWeekEditor({
   // not silently discard picks the member is still deciding on, same
   // non-re-seeding rationale as the sim fixture editor.
   const [seed, setSeed] = useState(() => hydrateSelections(slate, viewerPicks));
-  const [selections, setSelections] = useState<Map<string, PickSide>>(() => new Map(seed));
+  const [selections, setSelections] = useState<Map<string, PickemPickSide>>(() => new Map(seed));
 
   // Retained picks (locked, or on a now-unpickable/moved-out game) count
   // against the member's cap but can never be edited from this endpoint
@@ -155,7 +156,7 @@ function PickemWeekEditor({
     .filter(([gameId, retained]) => retained.pushed && !gameById.has(gameId))
     .map(([, retained]) => retained.pick);
 
-  function toggle(gameId: string, side: PickSide) {
+  function toggle(gameId: string, side: PickemPickSide) {
     setSelections((prev) => {
       const next = new Map(prev);
       if (next.get(gameId) === side) {
@@ -172,7 +173,7 @@ function PickemWeekEditor({
   // immediately (heldCount, the "N / M picked" count, and the game's row)
   // rather than waiting on a remount. Written into `seed` too so the editor
   // doesn't read as dirty for a pick the member didn't touch.
-  function handleSubstituted(gameId: string, side: PickSide) {
+  function handleSubstituted(gameId: string, side: PickemPickSide) {
     setSelections((prev) => new Map(prev).set(gameId, side));
     setSeed((prev) => new Map(prev).set(gameId, side));
   }
@@ -182,7 +183,7 @@ function PickemWeekEditor({
       .filter((game) => selections.has(game.id))
       .map((game) => ({
         gameId: game.id,
-        side: selections.get(game.id) as PickSide,
+        side: selections.get(game.id) as PickemPickSide,
         // Every submitted pick carries the spread currently shown for that
         // game — the write path re-prices every unstarted pick on every
         // edit (ADR-0015); SU leagues send null (spec §Pick Type).
@@ -217,7 +218,7 @@ function PickemWeekEditor({
                 <p className="text-xs text-muted-foreground">
                   That game moved to a different week, so this pick resolved as a push.
                 </p>
-                <SubstitutePickDialog
+                <PickemSubstituteDialog
                   leagueId={leagueId}
                   weekId={weekId}
                   pickType={pickType}
@@ -275,12 +276,12 @@ function GameRow({
   weekId: string;
   game: SlateGame;
   pickType: PickType;
-  selectedSide: PickSide | undefined;
+  selectedSide: PickemPickSide | undefined;
   retained: { pick: PickemPick; pushed: boolean } | undefined;
   eligibleReplacementGames: SlateGame[];
   buttonsDisabled: boolean;
-  onToggle: (side: PickSide) => void;
-  onSubstituted: (gameId: string, side: PickSide) => void;
+  onToggle: (side: PickemPickSide) => void;
+  onSubstituted: (gameId: string, side: PickemPickSide) => void;
 }) {
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
   // ATS leagues can't submit a pick with no number to accept — the write path
@@ -323,20 +324,20 @@ function GameRow({
       <div className="grid grid-cols-2 gap-2">
         <Button
           type="button"
-          variant={selectedSide === PICK_SIDE.AWAY ? "default" : "outline"}
-          aria-pressed={selectedSide === PICK_SIDE.AWAY}
+          variant={selectedSide === PICKEM_PICK_SIDE.AWAY ? "default" : "outline"}
+          aria-pressed={selectedSide === PICKEM_PICK_SIDE.AWAY}
           disabled={!editable || buttonsDisabled}
-          onClick={() => onToggle(PICK_SIDE.AWAY)}
+          onClick={() => onToggle(PICKEM_PICK_SIDE.AWAY)}
         >
           {game.awayTeam.abbreviation}
           {awaySpread && ` ${awaySpread}`}
         </Button>
         <Button
           type="button"
-          variant={selectedSide === PICK_SIDE.HOME ? "default" : "outline"}
-          aria-pressed={selectedSide === PICK_SIDE.HOME}
+          variant={selectedSide === PICKEM_PICK_SIDE.HOME ? "default" : "outline"}
+          aria-pressed={selectedSide === PICKEM_PICK_SIDE.HOME}
           disabled={!editable || buttonsDisabled}
-          onClick={() => onToggle(PICK_SIDE.HOME)}
+          onClick={() => onToggle(PICKEM_PICK_SIDE.HOME)}
         >
           {game.homeTeam.abbreviation}
           {homeSpread && ` ${homeSpread}`}
@@ -348,7 +349,7 @@ function GameRow({
           <p className="text-xs text-muted-foreground">
             {retained
               ? `Your pick: ${
-                  retained.pick.side === PICK_SIDE.HOME
+                  retained.pick.side === PICKEM_PICK_SIDE.HOME
                     ? game.homeTeam.abbreviation
                     : game.awayTeam.abbreviation
                 }`
@@ -364,7 +365,7 @@ function GameRow({
                 This game was cancelled or moved, so the pick resolved as a push — your other picks
                 are unaffected.
               </p>
-              <SubstitutePickDialog
+              <PickemSubstituteDialog
                 leagueId={leagueId}
                 weekId={weekId}
                 pickType={pickType}

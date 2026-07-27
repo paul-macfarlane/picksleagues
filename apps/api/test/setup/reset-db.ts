@@ -9,11 +9,11 @@ import {
   leagues,
   oddsSnapshots,
   pickemPicks,
-  pickResults,
+  pickemPickResults,
   sessions,
   simScenarios,
   sportSeasons,
-  standings,
+  pickemStandings,
   teams,
   users,
   weeks,
@@ -29,8 +29,8 @@ import {
  */
 export async function resetDb(db: Db): Promise<void> {
   // Picks/results reference members, seasons, weeks, and games — deepest first.
-  await db.delete(pickResults);
-  await db.delete(standings);
+  await db.delete(pickemPickResults);
+  await db.delete(pickemStandings);
   await db.delete(pickemPicks);
   await db.delete(leagueInvites);
   await db.delete(leagueMembers);

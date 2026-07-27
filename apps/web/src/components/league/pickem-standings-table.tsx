@@ -1,4 +1,4 @@
-import { useLeagueStandings } from "@/api/standings";
+import { usePickemStandings } from "@/api/pickem";
 import { formatDateTime } from "@/lib/format";
 import { initialsOf } from "@/lib/user";
 import { useErrorToast } from "@/lib/use-error-toast";
@@ -22,8 +22,8 @@ export function rankLabel(rank: number, sharedCounts: Map<number, number>): stri
   return (sharedCounts.get(rank) ?? 0) > 1 ? `T-${rank}` : `${rank}`;
 }
 
-export function StandingsTable({ leagueId, weekId }: { leagueId: string; weekId?: string }) {
-  const standings = useLeagueStandings(leagueId, weekId);
+export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; weekId?: string }) {
+  const standings = usePickemStandings(leagueId, weekId);
 
   useErrorToast(standings.isError, "Couldn't load standings — please try again.");
 

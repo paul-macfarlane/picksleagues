@@ -7,7 +7,7 @@ import {
   GAME_STATUS,
   LEAGUE_STATUS,
   PICK_OUTCOME,
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
   type JobRunResponse,
   type PickemSettings,
@@ -18,7 +18,7 @@ import {
   settlePicksForGames,
   settleLeagueSeasonWeeks,
   settleSweep,
-} from "../src/services/settlement/pickem";
+} from "../src/services/pickem/settlement";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
@@ -47,7 +47,7 @@ afterAll(async () => {
 });
 
 /**
- * Comparable snapshots of `pick_results`/`standings` rows, `id` (and the
+ * Comparable snapshots of `pickem_pick_results`/`pickem_standings` rows, `id` (and the
  * write-time stamp) excluded — a delete-then-insert rebuild mints fresh row
  * ids every run, and this file's idempotency tests all reuse one `FixedClock`
  * instance, so `settledAt`/`updatedAt` are already stable, but the id
@@ -133,21 +133,21 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g3!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
 
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // home wins by 14
@@ -197,7 +197,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spreadAtPick: -3.5,
     });
 
@@ -232,7 +232,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
 
@@ -264,7 +264,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, {
       status: GAME_STATUS.FINAL,
@@ -306,14 +306,14 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, {
       status: GAME_STATUS.SCHEDULED,
@@ -356,7 +356,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     // Provider score says home lost by 10; the override flips it to a home win.
     await setGame(db, g1!, {
@@ -385,7 +385,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, {
       status: GAME_STATUS.FINAL,
@@ -401,7 +401,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, differential: 0 });
   });
 
-  it("produces no pick_results row for a pick on a still-scheduled game", async () => {
+  it("produces no pickem_pick_results row for a pick on a still-scheduled game", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement();
     const weekId = weekIds.get("regular:1")!;
     const [g1] = gameIds.get("regular:1")!;
@@ -412,7 +412,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
@@ -434,7 +434,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL }); // no scores
 
@@ -459,7 +459,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -498,14 +498,14 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week2Id,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct, +14
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
@@ -543,21 +543,21 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       leagueMemberId: memberD,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberE,
       weekId,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberF,
       weekId,
       gameId: g3!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
 
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // D: correct, +10
@@ -586,7 +586,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       leagueMemberId: picker,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -625,7 +625,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       leagueMemberId: picker,
       weekId: week1Id,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -635,7 +635,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       leagueMemberId: picker,
       weekId: week2Id,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
@@ -680,13 +680,13 @@ describe("settlement idempotency (arch D10)", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     return { leagueSeasonId, weekId, gameId: g1!, memberId };
   }
 
-  it("settling the same week twice produces identical pick_results and standings", async () => {
+  it("settling the same week twice produces identical pickem_pick_results and pickem_standings", async () => {
     const { leagueSeasonId, weekId } = await seedSimpleSettledWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
@@ -747,7 +747,7 @@ describe("settlement idempotency (arch D10)", () => {
     expect(seasonRow).toMatchObject({ points: 0, differential: -15 });
   });
 
-  it("a pick that stops being settleable (game reverts to scheduled) loses its pick_results row on the next settle", async () => {
+  it("a pick that stops being settleable (game reverts to scheduled) loses its pickem_pick_results row on the next settle", async () => {
     const { leagueSeasonId, weekId, gameId } = await seedSimpleSettledWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
@@ -777,14 +777,14 @@ describe("settlePicksForGames", () => {
       leagueMemberId: member1,
       weekId: week1Id,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId: league2.leagueSeasonId,
       leagueMemberId: member2,
       weekId: week2Id,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
@@ -836,7 +836,7 @@ describe("settleSweep", () => {
         leagueMemberId: memberId,
         weekId,
         gameId: gameId!,
-        side: PICK_SIDE.HOME,
+        side: PICKEM_PICK_SIDE.HOME,
       });
       await setGame(db, gameId!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     }
@@ -864,7 +864,7 @@ describe("settleSweep", () => {
         leagueMemberId: memberId,
         weekId,
         gameId: gameId!,
-        side: PICK_SIDE.HOME,
+        side: PICKEM_PICK_SIDE.HOME,
       });
       await setGame(db, gameId!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     }
@@ -894,7 +894,7 @@ describe("settleSweep", () => {
 });
 
 describe("concurrent settlement of one league season (FOR UPDATE row lock)", () => {
-  it("two overlapping settles of the same league season don't collide on the unique pick_results constraint", async () => {
+  it("two overlapping settles of the same league season don't collide on the unique pickem_pick_results constraint", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement();
     const weekId = weekIds.get("regular:1")!;
     const [g1] = gameIds.get("regular:1")!;
@@ -905,7 +905,7 @@ describe("concurrent settlement of one league season (FOR UPDATE row lock)", () 
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -922,7 +922,7 @@ describe("concurrent settlement of one league season (FOR UPDATE row lock)", () 
     expect(summaryA.results).toBe(1);
     expect(summaryB.results).toBe(1);
 
-    // No duplicate row from the race (pick_results_pickem_pick_unique), and
+    // No duplicate row from the race (pickem_pick_results_pick_unique), and
     // standings reflect exactly one member with a pick across a weekly + season row.
     expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);
     expect(await standingsFor(db, leagueSeasonId)).toHaveLength(4); // 2 members x (weekly + season)
@@ -941,7 +941,7 @@ describe("settlement grades on game status, not the clock", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -999,7 +999,7 @@ describe("HTTP: POST /api/admin/leagues/:leagueId/rebuild", () => {
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 

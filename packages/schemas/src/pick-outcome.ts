@@ -1,13 +1,16 @@
 import { z } from "@hono/zod-openapi";
 
 /**
- * How a settled pick resolved (spec §Pick'em Scoring). `PUSH` covers both the
- * ATS push and the SU tie, plus the spec's cancellation-as-push rule — the
- * point value they earn is the league's Push/Tie Resolution setting, so they
- * are one outcome, not three.
+ * How a settled pick resolved. Mode-agnostic on purpose: Pick'em grades against
+ * this set (spec §Pick'em Scoring) and so does March Madness (spec §Game Mode 3
+ * grades each bracket slot correct/incorrect, with vacated-team pushes).
+ *
+ * `PUSH` covers both the ATS push and the SU tie, plus the spec's
+ * cancellation-as-push rule — the point value they earn is the league's
+ * Push/Tie Resolution setting, so they are one outcome, not three.
  *
  * A pick whose game has not reached a terminal state has no outcome at all and
- * no `pick_results` row (arch D10 — results are a pure derivation).
+ * no result row (arch D10 — results are a pure derivation).
  */
 export const PICK_OUTCOME = {
   CORRECT: "correct",

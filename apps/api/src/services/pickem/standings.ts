@@ -1,12 +1,12 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, standings, users } from "@picksleagues/db";
+import { leagueMembers, pickemStandings, users } from "@picksleagues/db";
 import { rankStandings } from "@picksleagues/scoring";
-import type { LeagueStandingsResponse, StandingsRow } from "@picksleagues/schemas";
+import type { PickemStandingsResponse, PickemStandingsRow } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
 import { getMembership } from "../leagues/authz";
-import { PICKEM_REFUSAL, type PickemReadRefusal } from "./pickem";
-import { getWeek } from "./slate";
+import { getWeek } from "../slate";
+import { PICKEM_REFUSAL, type PickemReadRefusal } from "./picks";
 
 /**
  * Reads the standings for a league's current season instance (spec §Game Mode 1
@@ -18,16 +18,16 @@ import { getWeek } from "./slate";
  * claiming real-time freshness.
  */
 
-export type LeagueStandingsResult =
-  | { ok: true; value: LeagueStandingsResponse }
+export type PickemStandingsResult =
+  | { ok: true; value: PickemStandingsResponse }
   | { ok: false; reason: Extract<PickemReadRefusal, "league_not_found" | "week_out_of_range"> };
 
-export async function getLeagueStandings(
+export async function getPickemStandings(
   db: Db,
   leagueId: string,
   userId: string,
   weekId: string | undefined,
-): Promise<LeagueStandingsResult> {
+): Promise<PickemStandingsResult> {
   const current = await getLeagueWithCurrentSeason(db, leagueId);
   if (!current) return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_NOT_FOUND };
 
@@ -45,12 +45,12 @@ export async function getLeagueStandings(
     }
   }
 
-  // Driven from `league_members`, not from `standings`: a member who joined
-  // after the last settlement has no row yet, and starting from `standings`
-  // would drop them off the board entirely rather than showing the zero the
-  // spec promises (§Edge Cases — "a member who joins after Start Week simply
-  // has zero-point weeks for weeks already completed"). They appear at zero
-  // immediately and get real numbers at the next settlement.
+  // Driven from `league_members`, not from `pickem_standings`: a member who
+  // joined after the last settlement has no row yet, and starting from
+  // `pickem_standings` would drop them off the board entirely rather than
+  // showing the zero the spec promises (§Edge Cases — "a member who joins after
+  // Start Week simply has zero-point weeks for weeks already completed"). They
+  // appear at zero immediately and get real numbers at the next settlement.
   const rows = await db
     .select({
       leagueMemberId: leagueMembers.id,
@@ -58,18 +58,18 @@ export async function getLeagueStandings(
       username: users.username,
       displayName: users.display_name,
       image: users.image,
-      points: standings.points,
-      differential: standings.differential,
-      updatedAt: standings.updatedAt,
+      points: pickemStandings.points,
+      differential: pickemStandings.differential,
+      updatedAt: pickemStandings.updatedAt,
     })
     .from(leagueMembers)
     .innerJoin(users, eq(users.id, leagueMembers.userId))
     .leftJoin(
-      standings,
+      pickemStandings,
       and(
-        eq(standings.leagueMemberId, leagueMembers.id),
-        eq(standings.leagueSeasonId, current.season.id),
-        weekId === undefined ? isNull(standings.weekId) : eq(standings.weekId, weekId),
+        eq(pickemStandings.leagueMemberId, leagueMembers.id),
+        eq(pickemStandings.leagueSeasonId, current.season.id),
+        weekId === undefined ? isNull(pickemStandings.weekId) : eq(pickemStandings.weekId, weekId),
       ),
     )
     .where(eq(leagueMembers.leagueId, leagueId))
@@ -92,7 +92,7 @@ export async function getLeagueStandings(
     })),
   );
 
-  const serialized: StandingsRow[] = ranked.map((entry) => {
+  const serialized: PickemStandingsRow[] = ranked.map((entry) => {
     const row = byMemberId.get(entry.memberId);
     return {
       leagueMemberId: entry.memberId,

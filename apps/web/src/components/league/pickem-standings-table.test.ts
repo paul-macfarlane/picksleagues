@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankLabel } from "./standings-table";
+import { rankLabel } from "./pickem-standings-table";
 
 /**
  * Spec §Tiebreakers: members level on points *and* differential share a rank,

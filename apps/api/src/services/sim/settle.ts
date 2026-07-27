@@ -4,9 +4,9 @@ import {
   leagueMembers,
   leagues,
   leagueSeasons,
-  pickResults,
+  pickemPickResults,
+  pickemStandings,
   sportSeasons,
-  standings,
   users,
   weeks,
 } from "@picksleagues/db";
@@ -18,17 +18,17 @@ import {
   type SimSettleLeagueResult,
   type SimSettleRequest,
   type SimSettleResponse,
-  type SimSettleStandingsRow,
+  type SimSettlePickemStandingsRow,
   type WeekType,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
-import { rebuildLeagueSeason } from "../settlement/pickem";
+import { rebuildLeagueSeason } from "../pickem/settlement";
 
 /**
  * The simulator's step-through settlement (SIM-5; spec §Testing & Internal
  * Tooling; arch §Simulator & Time). A thin operator wrapper over PKM-4's
  * `rebuildLeagueSeason` — the point of this module is reading the resulting
- * `pick_results`/`standings` back out into an inspectable shape, never a
+ * `pickem_pick_results`/`pickem_standings` back out into an inspectable shape, never a
  * second settlement implementation.
  */
 
@@ -72,26 +72,26 @@ async function loadStandingsRows(
   db: Db,
   leagueSeasonId: string,
   weekId: string | null,
-): Promise<SimSettleStandingsRow[]> {
+): Promise<SimSettlePickemStandingsRow[]> {
   const rows = await db
     .select({
-      leagueMemberId: standings.leagueMemberId,
+      leagueMemberId: pickemStandings.leagueMemberId,
       username: users.username,
       displayName: users.display_name,
-      points: standings.points,
-      differential: standings.differential,
-      rank: standings.rank,
+      points: pickemStandings.points,
+      differential: pickemStandings.differential,
+      rank: pickemStandings.rank,
     })
-    .from(standings)
-    .innerJoin(leagueMembers, eq(leagueMembers.id, standings.leagueMemberId))
+    .from(pickemStandings)
+    .innerJoin(leagueMembers, eq(leagueMembers.id, pickemStandings.leagueMemberId))
     .innerJoin(users, eq(users.id, leagueMembers.userId))
     .where(
       and(
-        eq(standings.leagueSeasonId, leagueSeasonId),
-        weekId === null ? isNull(standings.weekId) : eq(standings.weekId, weekId),
+        eq(pickemStandings.leagueSeasonId, leagueSeasonId),
+        weekId === null ? isNull(pickemStandings.weekId) : eq(pickemStandings.weekId, weekId),
       ),
     )
-    .orderBy(asc(standings.rank), asc(users.display_name));
+    .orderBy(asc(pickemStandings.rank), asc(users.display_name));
   return rows;
 }
 
@@ -108,22 +108,22 @@ async function loadSettledWeeks(
       weekNumber: weeks.weekNumber,
     })
     .from(weeks)
-    .innerJoin(standings, eq(standings.weekId, weeks.id))
-    .where(eq(standings.leagueSeasonId, leagueSeasonId))
+    .innerJoin(pickemStandings, eq(pickemStandings.weekId, weeks.id))
+    .where(eq(pickemStandings.leagueSeasonId, leagueSeasonId))
     .groupBy(weeks.id)
     .orderBy(asc(weeks.startsAt));
 }
 
-/** `pick_results` row counts per week for this league season, for the weekly `results` count. */
+/** `pickem_pick_results` row counts per week, for the weekly `results` count. */
 async function loadResultCountsByWeek(
   db: Db,
   leagueSeasonId: string,
 ): Promise<Map<string, number>> {
   const rows = await db
-    .select({ weekId: pickResults.weekId, resultCount: count() })
-    .from(pickResults)
-    .where(eq(pickResults.leagueSeasonId, leagueSeasonId))
-    .groupBy(pickResults.weekId);
+    .select({ weekId: pickemPickResults.weekId, resultCount: count() })
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.leagueSeasonId, leagueSeasonId))
+    .groupBy(pickemPickResults.weekId);
   return new Map(rows.map((row) => [row.weekId, row.resultCount]));
 }
 

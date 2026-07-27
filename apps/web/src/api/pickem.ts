@@ -4,74 +4,52 @@ import {
   ERROR_CODE,
   type ErrorResponse,
   type PickemPickSubmission,
-  type RepickRequest,
+  type PickemRepickRequest,
 } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
-
-// A league's season weeks, clipped to its configured Start/End Week
-// (spec §Pick'em League Settings) and carrying the default landing week —
-// the week selector and its default source this, never deriving either
-// client-side (ADR: "Use it as the initial selection rather than deriving
-// one client-side").
-export function leagueWeeksQueryKey(leagueId: string) {
-  return ["league", leagueId, "weeks"];
-}
-
-export function useLeagueWeeks(leagueId: string) {
-  return useQuery({
-    queryKey: leagueWeeksQueryKey(leagueId),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/leagues/{leagueId}/weeks", {
-        params: { path: { leagueId } },
-      });
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-// Keyed by week alone (not league): the slate endpoint serves the week's
-// games with current spreads and derived lock state, independent of which
-// league is viewing it.
-export function weekSlateQueryKey(weekId: string | undefined) {
-  return ["week-slate", weekId];
-}
-
-// `skipToken` rather than `enabled` for the not-yet-selected week: it narrows
-// `weekId` to a string inside the queryFn, so the required path param needs no
-// non-null assertion (same idiom as api/admin.ts's useAdminGames).
-export function useWeekSlate(weekId: string | undefined) {
-  return useQuery({
-    queryKey: weekSlateQueryKey(weekId),
-    queryFn: weekId
-      ? async () => {
-          const { data, error } = await api.GET("/api/weeks/{weekId}/games", {
-            params: { path: { weekId } },
-          });
-          if (error) throw error;
-          return data;
-        }
-      : skipToken,
-  });
-}
+import { weekSlateQueryKey } from "@/api/weeks";
 
 export function pickemWeekPicksQueryKey(leagueId: string, weekId: string | undefined) {
-  return ["league", leagueId, "picks", weekId];
+  return ["league", leagueId, "pickem", "picks", weekId];
 }
 
 export function useWeekPicks(leagueId: string, weekId: string | undefined) {
   return useQuery({
     queryKey: pickemWeekPicksQueryKey(leagueId, weekId),
+    // `skipToken` rather than `enabled` for the not-yet-selected week: it
+    // narrows `weekId` to a string inside the queryFn, so the required path
+    // param needs no non-null assertion.
     queryFn: weekId
       ? async () => {
-          const { data, error } = await api.GET("/api/leagues/{leagueId}/picks/week/{weekId}", {
-            params: { path: { leagueId, weekId } },
-          });
+          const { data, error } = await api.GET(
+            "/api/leagues/{leagueId}/pickem/weeks/{weekId}/picks",
+            { params: { path: { leagueId, weekId } } },
+          );
           if (error) throw error;
           return data;
         }
       : skipToken,
+  });
+}
+
+// Season-cumulative board when `weekId` is omitted, a single week's board
+// otherwise — one endpoint at two scopes (spec §Standings), so one query key
+// shape covers both, keyed by the resolved scope rather than "undefined".
+export function pickemStandingsQueryKey(leagueId: string, weekId?: string) {
+  return ["league", leagueId, "pickem", "standings", weekId ?? "season"];
+}
+
+export function usePickemStandings(leagueId: string, weekId?: string) {
+  return useQuery({
+    queryKey: pickemStandingsQueryKey(leagueId, weekId),
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/leagues/{leagueId}/pickem/standings", {
+        params: { path: { leagueId }, query: { week: weekId } },
+      });
+      if (error) throw error;
+      return data;
+    },
   });
 }
 
@@ -108,7 +86,7 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
   return useMutation({
     mutationFn: async (picks: PickemPickSubmission[]) => {
       const { data, error, response } = await api.PUT(
-        "/api/leagues/{leagueId}/picks/week/{weekId}",
+        "/api/leagues/{leagueId}/pickem/weeks/{weekId}/picks",
         { params: { path: { leagueId, weekId } }, body: { picks } },
       );
       if (error) {
@@ -174,9 +152,9 @@ function repickErrorMessage(error: ErrorResponse): string {
 export function useRepick(leagueId: string, weekId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (request: RepickRequest) => {
+    mutationFn: async (request: PickemRepickRequest) => {
       const { data, error, response } = await api.POST(
-        "/api/leagues/{leagueId}/picks/week/{weekId}/repick",
+        "/api/leagues/{leagueId}/pickem/weeks/{weekId}/repick",
         { params: { path: { leagueId, weekId } }, body: request },
       );
       if (error) {

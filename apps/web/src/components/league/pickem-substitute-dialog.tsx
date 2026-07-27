@@ -1,12 +1,12 @@
 import { useState } from "react";
 import {
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
-  type PickSide,
+  type PickemPickSide,
   type PickType,
   type SlateGame,
 } from "@picksleagues/schemas";
-import { useRepick } from "@/api/picks";
+import { useRepick } from "@/api/pickem";
 import { formatDateTime } from "@/lib/format";
 import { spreadLabel } from "@/lib/game";
 import {
@@ -27,15 +27,15 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 // A radio value must be a single primitive; a game's side isn't addressable
 // on its own (either side of any eligible game is a valid replacement), so
 // the two are packed into one string. `:` is safe — gameId is a uuid.
-function radioValue(gameId: string, side: PickSide): string {
+function radioValue(gameId: string, side: PickemPickSide): string {
   return `${gameId}:${side}`;
 }
 
-function parseRadioValue(value: string): { gameId: string; side: PickSide } {
+function parseRadioValue(value: string): { gameId: string; side: PickemPickSide } {
   const separatorIndex = value.lastIndexOf(":");
   return {
     gameId: value.slice(0, separatorIndex),
-    side: value.slice(separatorIndex + 1) as PickSide,
+    side: value.slice(separatorIndex + 1) as PickemPickSide,
   };
 }
 
@@ -46,7 +46,7 @@ function parseRadioValue(value: string): { gameId: string; side: PickSide } {
  * pickable, and not already held) so this component stays pure UI; an empty
  * list means the push simply stands, per spec, so no control is rendered.
  */
-export function SubstitutePickDialog({
+export function PickemSubstituteDialog({
   leagueId,
   weekId,
   pickType,
@@ -63,7 +63,7 @@ export function SubstitutePickDialog({
   // editor's own selection map is local state seeded once at mount (so a
   // background slate refetch can't clobber an in-progress edit) and won't
   // otherwise learn that this game is now held until the next full remount.
-  onSubstituted: (gameId: string, side: PickSide) => void;
+  onSubstituted: (gameId: string, side: PickemPickSide) => void;
 }) {
   const repick = useRepick(leagueId, weekId);
   const [choice, setChoice] = useState<string | null>(null);
@@ -143,12 +143,12 @@ export function SubstitutePickDialog({
                   <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">
                     {game.awayTeam.abbreviation}
                     {awaySpread && ` ${awaySpread}`}
-                    <RadioGroupItem value={radioValue(game.id, PICK_SIDE.AWAY)} />
+                    <RadioGroupItem value={radioValue(game.id, PICKEM_PICK_SIDE.AWAY)} />
                   </Label>
                   <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">
                     {game.homeTeam.abbreviation}
                     {homeSpread && ` ${homeSpread}`}
-                    <RadioGroupItem value={radioValue(game.id, PICK_SIDE.HOME)} />
+                    <RadioGroupItem value={radioValue(game.id, PICKEM_PICK_SIDE.HOME)} />
                   </Label>
                 </div>
               </div>

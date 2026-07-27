@@ -7,13 +7,13 @@ import {
   GAME_STATUS,
   LEAGUE_STATUS,
   MEMBER_ROLE,
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
-  type LeagueStandingsResponse,
+  type PickemStandingsResponse,
   type PickemSettings,
   type PickemWeekPicksResponse,
 } from "@picksleagues/schemas";
-import { settleLeagueSeasonWeeks } from "../src/services/settlement/pickem";
+import { settleLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
@@ -41,7 +41,7 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("GET /api/leagues/:leagueId/standings", () => {
+describe("GET /api/leagues/:leagueId/pickem/standings", () => {
   /**
    * A league + season/members, seeded directly. Standings are written
    * exclusively by settlement (arch D10), so these tests insert picks
@@ -100,7 +100,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
   it("400s week_out_of_range for a well-formed week id that belongs to a different sport season", async () => {
     // Distinct from the malformed-uuid case above: this week id is real, just
     // not a week of *this* league's season instance — refused rather than
-    // answered with an empty board (services/picks/standings.ts).
+    // answered with an empty board (services/pickem/standings.ts).
     const { league, users } = await seedStandingsLeague();
     const otherSeason = await seedSeason(db, {
       year: 2027,
@@ -120,7 +120,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
     const { league, users } = await seedStandingsLeague();
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as LeagueStandingsResponse;
+    const body = (await res.json()) as PickemStandingsResponse;
     expect(body.rows).toHaveLength(users.length);
     expect(body.rows.every((row) => row.points === 0 && row.differential === 0)).toBe(true);
     expect(body.lastUpdatedAt).toBeNull();
@@ -140,7 +140,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
       leagueMemberId: alpha,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 });
     await settleLeagueSeasonWeeks(
@@ -161,7 +161,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
 
     const body = (await (
       await getStandings(users[0]!.cookie, league.id)
-    ).json()) as LeagueStandingsResponse;
+    ).json()) as PickemStandingsResponse;
 
     const joinerRow = body.rows.find((row) => row.userId === joiner.user.id);
     expect(joinerRow).toBeDefined();
@@ -192,21 +192,21 @@ describe("GET /api/leagues/:leagueId/standings", () => {
       leagueMemberId: alpha,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: bravo,
       weekId,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: charlie,
       weekId,
       gameId: g3!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
 
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // alpha: correct, +10
@@ -218,7 +218,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
 
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as LeagueStandingsResponse;
+    const body = (await res.json()) as PickemStandingsResponse;
 
     expect(body.rows.map((row) => row.displayName)).toEqual(["Alpha", "Bravo", "Charlie"]);
     expect(body.rows[0]).toMatchObject({ points: 1, differential: 10, rank: 1, isViewer: true });
@@ -247,14 +247,14 @@ describe("GET /api/leagues/:leagueId/standings", () => {
       leagueMemberId: alpha,
       weekId: week1Id,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: alpha,
       weekId: week2Id,
       gameId: g2!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct, +14
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
@@ -264,14 +264,14 @@ describe("GET /api/leagues/:leagueId/standings", () => {
 
     const weeklyRes = await getStandings(users[0]!.cookie, league.id, `?week=${week1Id}`);
     expect(weeklyRes.status).toBe(200);
-    const weeklyBody = (await weeklyRes.json()) as LeagueStandingsResponse;
+    const weeklyBody = (await weeklyRes.json()) as PickemStandingsResponse;
     const weeklyRow = weeklyBody.rows.find((row) => row.userId === users[0]!.user.id)!;
     expect(weeklyRow).toMatchObject({ points: 1, differential: 14 });
     expect(weeklyBody.weekId).toBe(week1Id);
 
     const seasonRes = await getStandings(users[0]!.cookie, league.id);
     expect(seasonRes.status).toBe(200);
-    const seasonBody = (await seasonRes.json()) as LeagueStandingsResponse;
+    const seasonBody = (await seasonRes.json()) as PickemStandingsResponse;
     const seasonRow = seasonBody.rows.find((row) => row.userId === users[0]!.user.id)!;
     expect(seasonRow).toMatchObject({ points: 1, differential: 10 }); // 14 - 4, summed across both weeks
     expect(seasonBody.weekId).toBeNull();
@@ -291,7 +291,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
       leagueMemberId: picker,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -300,7 +300,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
 
     const res = await getStandings(nonPicker.cookie, league.id);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as LeagueStandingsResponse;
+    const body = (await res.json()) as PickemStandingsResponse;
     const row = body.rows.find((r) => r.userId === nonPicker.user.id)!;
     expect(row).toMatchObject({ points: 0, differential: 0 });
   });
@@ -317,7 +317,7 @@ describe("GET /api/leagues/:leagueId/standings", () => {
       leagueMemberId: alpha,
       weekId,
       gameId: g1!,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -326,13 +326,13 @@ describe("GET /api/leagues/:leagueId/standings", () => {
 
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as LeagueStandingsResponse;
+    const body = (await res.json()) as PickemStandingsResponse;
     expect(body.lastUpdatedAt).not.toBeNull();
     expect(new Date(body.lastUpdatedAt!).toString()).not.toBe("Invalid Date");
   });
 });
 
-describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
+describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
   async function seedRepickLeague(opts: { settings?: PickemSettings; weeks?: SeededWeek[] } = {}) {
     const { settings, weeks = FOUR_GAME_WEEK } = opts;
     const base = await seedPickemLeagueBase(db, auth, {
@@ -370,7 +370,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(undefined, league.id, weekIds.get("regular:1")!, {
       replacePickId: randomUUID(),
       gameId: randomUUID(),
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(401);
@@ -383,7 +383,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(outsider.cookie, league.id, weekIds.get("regular:1")!, {
       replacePickId: randomUUID(),
       gameId: randomUUID(),
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(404);
@@ -405,7 +405,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, base.league.id, weekId, {
       replacePickId: randomUUID(),
       gameId: randomUUID(),
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(409);
@@ -419,8 +419,8 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -437,7 +437,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g3,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(200);
@@ -465,8 +465,8 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
 
     const initial = await putPicks(memberA.cookie, league.id, week1Id, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -482,7 +482,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, week1Id, {
       replacePickId: g1PickId,
       gameId: g3,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(200);
@@ -499,7 +499,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, , , g4] = gameIds.get("regular:1")!; // g4 kicks off 3h after g1 — still unstarted post-kickoff
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -515,7 +515,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       memberA.cookie,
       league.id,
       weekId,
-      { replacePickId: g1PickId, gameId: g4, side: PICK_SIDE.HOME, spread: null },
+      { replacePickId: g1PickId, gameId: g4, side: PICKEM_PICK_SIDE.HOME, spread: null },
       appAfterKickoff,
     );
     expect(res.status).toBe(200);
@@ -538,7 +538,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2] = gameIds.get("regular:1")!;
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -549,7 +549,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(409);
@@ -562,7 +562,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2] = gameIds.get("regular:1")!;
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -572,7 +572,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(409);
@@ -585,7 +585,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2, g3] = gameIds.get("regular:1")!;
 
     const bInitial = await putPicks(memberB.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(bInitial.status).toBe(200);
     const bPickId = ((await bInitial.json()) as PickemWeekPicksResponse).members.find(
@@ -595,7 +595,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const otherMembersPick = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: bPickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(otherMembersPick.status).toBe(404);
@@ -604,7 +604,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const unknownPick = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: randomUUID(),
       gameId: g3,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(unknownPick.status).toBe(404);
@@ -617,7 +617,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2] = gameIds.get("regular:1")!; // g1 kicks off first, g2 an hour later
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g2PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -629,7 +629,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       memberA.cookie,
       league.id,
       weekId,
-      { replacePickId: g2PickId, gameId: g1, side: PICK_SIDE.HOME, spread: null },
+      { replacePickId: g2PickId, gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
       appAfterKickoff,
     );
     expect(res.status).toBe(409);
@@ -642,7 +642,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2] = gameIds.get("regular:1")!; // g1 kicks off at exactly WEEK1_KICKOFF
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g2, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g2PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -654,7 +654,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       memberA.cookie,
       league.id,
       weekId,
-      { replacePickId: g2PickId, gameId: g1, side: PICK_SIDE.HOME, spread: null },
+      { replacePickId: g2PickId, gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
       appAtKickoff,
     );
     expect(res.status).toBe(409);
@@ -667,7 +667,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2] = gameIds.get("regular:1")!;
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -679,7 +679,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(409);
@@ -701,7 +701,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const week2GameId = gameIds.get("regular:2")![0]!;
 
     const initial = await putPicks(memberA.cookie, league.id, week1Id, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -712,7 +712,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, week1Id, {
       replacePickId: g1PickId,
       gameId: week2GameId,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(400);
@@ -726,8 +726,8 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -739,7 +739,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(400);
@@ -753,8 +753,8 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -775,7 +775,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g3,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(200);
@@ -788,7 +788,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const [g1, g2] = gameIds.get("regular:1")!;
 
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
-      picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
     });
     expect(initial.status).toBe(200);
     const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -799,7 +799,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(200);
@@ -826,10 +826,10 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     // left that isn't already theirs.
     const initial = await putPicks(memberA.cookie, league.id, weekId, {
       picks: [
-        { gameId: g1, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g3, side: PICK_SIDE.HOME, spread: null },
-        { gameId: g4, side: PICK_SIDE.HOME, spread: null },
+        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        { gameId: g4, side: PICKEM_PICK_SIDE.HOME, spread: null },
       ],
     });
     expect(initial.status).toBe(200);
@@ -846,7 +846,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
     const res = await postRepick(memberA.cookie, league.id, weekId, {
       replacePickId: g1PickId,
       gameId: g2,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       spread: null,
     });
     expect(res.status).toBe(400);
@@ -879,7 +879,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const week2GameId = gameIds.get("regular:2")![0]!;
 
       const week2Pick = await putPicks(memberA.cookie, league.id, week2Id, {
-        picks: [{ gameId: week2GameId, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: week2GameId, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(week2Pick.status).toBe(200);
 
@@ -890,7 +890,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       await setGame(db, week2GameId, { weekId: week1Id });
 
       const res = await putPicks(memberA.cookie, league.id, week1Id, {
-        picks: [{ gameId: week2GameId, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: week2GameId, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({
@@ -915,7 +915,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const week2GameId = gameIds.get("regular:2")![0]!;
 
       const week1Pick = await putPicks(memberA.cookie, league.id, week1Id, {
-        picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(week1Pick.status).toBe(200);
       const g1PickId = ((await week1Pick.json()) as PickemWeekPicksResponse).members.find(
@@ -923,7 +923,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       )!.picks[0]!.id;
 
       const week2Pick = await putPicks(memberA.cookie, league.id, week2Id, {
-        picks: [{ gameId: week2GameId, side: PICK_SIDE.HOME, spread: null }],
+        picks: [{ gameId: week2GameId, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
       expect(week2Pick.status).toBe(200);
 
@@ -937,7 +937,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const res = await postRepick(memberA.cookie, league.id, week1Id, {
         replacePickId: g1PickId,
         gameId: week2GameId,
-        side: PICK_SIDE.HOME,
+        side: PICKEM_PICK_SIDE.HOME,
         spread: null,
       });
       expect(res.status).toBe(400);
@@ -975,9 +975,9 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
 
       const initial = await putPicks(memberA.cookie, league.id, weekId, {
         picks: [
-          { gameId: g1, side: PICK_SIDE.HOME, spread: -3 },
-          { gameId: g2, side: PICK_SIDE.HOME, spread: -4 },
-          { gameId: g3, side: PICK_SIDE.HOME, spread: -5 },
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3 },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: -4 },
+          { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: -5 },
         ],
       });
       expect(initial.status).toBe(200);
@@ -1009,7 +1009,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const res = await postRepick(memberA.cookie, league.id, weekId, {
         replacePickId: g1PickId,
         gameId: g4,
-        side: PICK_SIDE.HOME,
+        side: PICKEM_PICK_SIDE.HOME,
         spread: -6,
       });
       expect(res.status).toBe(200);
@@ -1035,7 +1035,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const g4 = gameIdsForWeek[3]!;
 
       const initial = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -3 }],
+        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3 }],
       });
       expect(initial.status).toBe(200);
       const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -1046,7 +1046,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const res = await postRepick(memberA.cookie, league.id, weekId, {
         replacePickId: g1PickId,
         gameId: g4,
-        side: PICK_SIDE.HOME,
+        side: PICKEM_PICK_SIDE.HOME,
         spread: -999,
       });
       expect(res.status).toBe(409);
@@ -1070,7 +1070,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const [g1, g2] = gameIds.get("regular:1")!;
 
       const initial = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -3 }],
+        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3 }],
       });
       expect(initial.status).toBe(200);
       const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
@@ -1081,7 +1081,7 @@ describe("POST /api/leagues/:leagueId/picks/week/:weekId/repick", () => {
       const res = await postRepick(memberA.cookie, league.id, weekId, {
         replacePickId: g1PickId,
         gameId: g2,
-        side: PICK_SIDE.HOME,
+        side: PICKEM_PICK_SIDE.HOME,
         spread: -3,
       });
       expect(res.status).toBe(409);

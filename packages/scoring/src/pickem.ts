@@ -2,12 +2,12 @@ import {
   GAME_STATUS,
   isUnplayedStatus,
   PICK_OUTCOME,
-  PICK_SIDE,
   PICK_TYPE,
+  PICKEM_PICK_SIDE,
   PICKEM_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
-  type PickSide,
+  type PickemPickSide,
   type PickType,
   type PickemPushTieResolution,
 } from "@picksleagues/schemas";
@@ -27,7 +27,7 @@ export interface PickemPickInput {
   pickId: string;
   memberId: string;
   gameId: string;
-  side: PickSide;
+  side: PickemPickSide;
   /**
    * The home-relative spread this pick was locked in against (arch §Spread
    * strategy). Required in ATS leagues, meaningless (and ignored) in SU ones.
@@ -182,7 +182,7 @@ function marginForPick(
   const homeMargin = homeScore - awayScore;
 
   if (pickType === PICK_TYPE.STRAIGHT_UP) {
-    return pick.side === PICK_SIDE.HOME ? homeMargin : -homeMargin;
+    return pick.side === PICKEM_PICK_SIDE.HOME ? homeMargin : -homeMargin;
   }
 
   if (pick.spreadAtPick === null) {
@@ -195,7 +195,7 @@ function marginForPick(
   // result against the number is margin + spread, and the away side's is its
   // mirror image.
   const homeAgainstSpread = homeMargin + pick.spreadAtPick;
-  return pick.side === PICK_SIDE.HOME ? homeAgainstSpread : -homeAgainstSpread;
+  return pick.side === PICKEM_PICK_SIDE.HOME ? homeAgainstSpread : -homeAgainstSpread;
 }
 
 function gradedOutcome(

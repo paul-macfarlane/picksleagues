@@ -48,7 +48,7 @@ export function makeLeagueTestHarness() {
   }
 
   function getPicks(cookie: string | undefined, leagueId: string, weekId: string, on: App = app) {
-    return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
+    return on.request(`/api/leagues/${leagueId}/pickem/weeks/${weekId}/picks`, {
       headers: withCookie(cookie),
     });
   }
@@ -60,7 +60,7 @@ export function makeLeagueTestHarness() {
     body: unknown,
     on: App = app,
   ) {
-    return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
+    return on.request(`/api/leagues/${leagueId}/pickem/weeks/${weekId}/picks`, {
       method: "PUT",
       headers: { "content-type": "application/json", ...withCookie(cookie) },
       body: JSON.stringify(body),
@@ -74,7 +74,7 @@ export function makeLeagueTestHarness() {
     body: unknown,
     on: App = app,
   ) {
-    return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}/repick`, {
+    return on.request(`/api/leagues/${leagueId}/pickem/weeks/${weekId}/repick`, {
       method: "POST",
       headers: { "content-type": "application/json", ...withCookie(cookie) },
       body: JSON.stringify(body),
@@ -82,7 +82,7 @@ export function makeLeagueTestHarness() {
   }
 
   function getStandings(cookie: string | undefined, leagueId: string, query = "", on: App = app) {
-    return on.request(`/api/leagues/${leagueId}/standings${query}`, {
+    return on.request(`/api/leagues/${leagueId}/pickem/standings${query}`, {
       headers: withCookie(cookie),
     });
   }

@@ -11,7 +11,7 @@ import {
 import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { fetchSeasonGames } from "./fetch-season-games";
 import { ingestSeasonSnapshot } from "./ingest-season";
-import { settlePicksForGames } from "../settlement/pickem";
+import { settlePicksForGames } from "../pickem/settlement";
 
 const UPCOMING_STATUS = {
   REAL: "real",

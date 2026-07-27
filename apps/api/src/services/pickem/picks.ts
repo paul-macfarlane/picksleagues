@@ -10,7 +10,7 @@ import {
   nflSeasonOrdinal,
   type PickemMemberPicks,
   type PickemPickSubmission,
-  type RepickRequest,
+  type PickemRepickRequest,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -21,7 +21,12 @@ import { getMembership } from "../leagues/authz";
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
-import { getWeek, loadResolvedWeekGames, resolveLockStates, type ResolvedSlateGame } from "./slate";
+import {
+  getWeek,
+  loadResolvedWeekGames,
+  resolveLockStates,
+  type ResolvedSlateGame,
+} from "../slate";
 
 /**
  * Pick'em pick entry (spec §Game Mode 1 — Core Rules, Locking, ATS spread
@@ -376,7 +381,7 @@ export async function repickPickemPick(
   leagueId: string,
   weekId: string,
   userId: string,
-  request: RepickRequest,
+  request: PickemRepickRequest,
 ): Promise<PickemResult<PickemWeekPicksResponse>> {
   const preflight = await loadContext(db, leagueId, weekId, userId);
   if (!preflight.ok) return preflight;

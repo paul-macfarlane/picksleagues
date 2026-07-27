@@ -1,9 +1,9 @@
 import type { PickType } from "@picksleagues/schemas";
-import { useLeagueWeeks } from "@/api/picks";
+import { useLeagueWeeks } from "@/api/weeks";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { LabeledSelect } from "@/components/labeled-select";
-import { StandingsTable } from "@/components/league/standings-table";
-import { StandingsWeekDetail } from "@/components/league/standings-week-detail";
+import { PickemStandingsTable } from "@/components/league/pickem-standings-table";
+import { PickemWeekDetail } from "@/components/league/pickem-week-detail";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
 
@@ -16,7 +16,7 @@ const SEASON_SCOPE = "season";
 // plus the week/pick detail section once a specific week is selected — the
 // two are combined here rather than as separate routes/tabs so the "week
 // scope" state (owned by the caller, e.g. a URL search param) drives both.
-export function StandingsSection({
+export function PickemStandingsSection({
   leagueId,
   weekId,
   onSelectWeek,
@@ -64,14 +64,14 @@ export function StandingsSection({
                   onValueChange={(next) => onSelectWeek(next === SEASON_SCOPE ? undefined : next)}
                   options={scopeOptions}
                 />
-                <StandingsTable leagueId={leagueId} weekId={weekId} />
+                <PickemStandingsTable leagueId={leagueId} weekId={weekId} />
               </>
             )}
           </QueryState>
         </CardContent>
       </Card>
 
-      {weekId && <StandingsWeekDetail leagueId={leagueId} weekId={weekId} pickType={pickType} />}
+      {weekId && <PickemWeekDetail leagueId={leagueId} weekId={weekId} pickType={pickType} />}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   leagueSeasons,
   leagues,
   pickemPicks,
-  pickResults,
+  pickemPickResults,
   sportSeasons,
   teams,
   users,
@@ -30,7 +30,7 @@ import {
   LEAGUE_VISIBILITY,
   MEMBER_ROLE,
   PICK_OUTCOME,
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   SPORT,
   WEEK_TYPE,
   type WeekType,
@@ -206,7 +206,7 @@ async function seedPickemPickOnGame(seasonId: string, weekId: string, gameId: st
       leagueMemberId: member!.id,
       weekId,
       gameId,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       createdAt: FIXED_NOW,
       updatedAt: FIXED_NOW,
     })
@@ -215,7 +215,10 @@ async function seedPickemPickOnGame(seasonId: string, weekId: string, gameId: st
 }
 
 async function pickResultFor(pickId: string) {
-  const [row] = await db.select().from(pickResults).where(eq(pickResults.pickemPickId, pickId));
+  const [row] = await db
+    .select()
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.pickemPickId, pickId));
   return row;
 }
 
@@ -1301,7 +1304,7 @@ describe("convergence sweep: stale weeks with zero games are dropped (ADR-0009)"
       leagueMemberId: member!.id,
       weekId: week1Row.id,
       gameId: g1Before!.id,
-      side: PICK_SIDE.HOME,
+      side: PICKEM_PICK_SIDE.HOME,
       createdAt: FIXED_NOW,
       updatedAt: FIXED_NOW,
     });

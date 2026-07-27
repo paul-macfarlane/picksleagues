@@ -330,8 +330,8 @@ export const SimSettlementSummarySchema = z
 
 export type SimSettlementSummary = z.infer<typeof SimSettlementSummarySchema>;
 
-/** One standings row, as stored on `standings` joined to its member's identity. */
-export const SimSettleStandingsRowSchema = z
+/** One standings row, as stored on `pickem_standings` joined to its member's identity. */
+export const SimSettlePickemStandingsRowSchema = z
   .object({
     leagueMemberId: z.string(),
     // Null for deleted accounts and never-claimed edge states — same shape as
@@ -342,9 +342,9 @@ export const SimSettleStandingsRowSchema = z
     differential: z.number(),
     rank: z.number().int(),
   })
-  .openapi("SimSettleStandingsRow");
+  .openapi("SimSettlePickemStandingsRow");
 
-export type SimSettleStandingsRow = z.infer<typeof SimSettleStandingsRowSchema>;
+export type SimSettlePickemStandingsRow = z.infer<typeof SimSettlePickemStandingsRowSchema>;
 
 /** One league-week's board, restricted to weeks that actually settled results. */
 export const SimSettleWeekResultSchema = z
@@ -354,7 +354,7 @@ export const SimSettleWeekResultSchema = z
     weekType: WeekTypeSchema,
     weekNumber: z.number().int(),
     results: z.number().int(),
-    standings: z.array(SimSettleStandingsRowSchema),
+    standings: z.array(SimSettlePickemStandingsRowSchema),
   })
   .openapi("SimSettleWeekResult");
 
@@ -368,7 +368,7 @@ export const SimSettleLeagueResultSchema = z
     leagueSeasonId: z.string(),
     seasonYear: z.number().int(),
     summary: SimSettlementSummarySchema,
-    seasonStandings: z.array(SimSettleStandingsRowSchema),
+    seasonStandings: z.array(SimSettlePickemStandingsRowSchema),
     weeks: z.array(SimSettleWeekResultSchema),
   })
   .openapi("SimSettleLeagueResult");

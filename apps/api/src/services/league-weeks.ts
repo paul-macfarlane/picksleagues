@@ -10,14 +10,18 @@ import {
   type LeagueWeek,
   type LeagueWeeksResponse,
 } from "@picksleagues/schemas";
-import { getLeagueWithCurrentSeason } from "../leagues/current-season";
-import { getMembership } from "../leagues/authz";
+import { getLeagueWithCurrentSeason } from "./leagues/current-season";
+import { getMembership } from "./leagues/authz";
 
 /**
- * The weeks a Pick'em league actually plays — its season's weeks clipped to the
+ * The weeks a league actually plays — its season's weeks clipped to the
  * configured Start/End Week (spec §Pick'em League Settings). Members need this
  * to move between weeks; the admin season browser is not reachable to them, and
  * it wouldn't answer the "which weeks does MY league cover" question anyway.
+ *
+ * Mode-agnostic surface, Pick'em-only gate for now: Elimination configures the
+ * same start/end week range and will share this endpoint, so the
+ * `wrong_league_mode` refusal below widens to accept it when ELM lands.
  */
 
 export type LeagueWeeksResult =

@@ -1,13 +1,14 @@
 import {
   GAME_STATUS,
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickType,
   type PickemMemberPicks,
   type PickemPick,
   type SlateGame,
 } from "@picksleagues/schemas";
-import { useWeekPicks, useWeekSlate } from "@/api/picks";
+import { useWeekPicks } from "@/api/pickem";
+import { useWeekSlate } from "@/api/weeks";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText, spreadLabel } from "@/lib/game";
 import { initialsOf } from "@/lib/user";
@@ -21,7 +22,7 @@ import { QueryState } from "@/components/query-state";
 // real matchup rather than a bare game id. Visibility is already enforced by
 // the API (`picks` only contains kicked-off games for non-viewers); this
 // component never re-derives that rule, only renders what it was given.
-export function StandingsWeekDetail({
+export function PickemWeekDetail({
   leagueId,
   weekId,
   pickType,
@@ -160,10 +161,10 @@ function PickRow({
     );
   }
 
-  const pickedTeam = pick.side === PICK_SIDE.HOME ? game.homeTeam : game.awayTeam;
+  const pickedTeam = pick.side === PICKEM_PICK_SIDE.HOME ? game.homeTeam : game.awayTeam;
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
   const spread = showSpread
-    ? spreadLabel(pick.spread, pick.side === PICK_SIDE.HOME ? "home" : "away")
+    ? spreadLabel(pick.spread, pick.side === PICKEM_PICK_SIDE.HOME ? "home" : "away")
     : null;
 
   return (

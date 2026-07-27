@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { LEAGUE_MODE, type PickemSettings } from "@picksleagues/schemas";
-import { useLeagueWeeks } from "@/api/picks";
+import { useLeagueWeeks } from "@/api/weeks";
 import { useLeague } from "@/api/leagues";
 import { PickemPicks } from "@/components/league/pickem-picks";
 import { LabeledSelect } from "@/components/labeled-select";

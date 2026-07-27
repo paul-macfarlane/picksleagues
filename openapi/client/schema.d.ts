@@ -301,23 +301,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/leagues/{leagueId}/standings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The league's standings — season-cumulative by default, weekly with ?week= */
-        get: operations["getLeagueStandings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/leagues/{leagueId}/weeks": {
         parameters: {
             query?: never;
@@ -335,7 +318,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/leagues/{leagueId}/picks/week/{weekId}": {
+    "/api/leagues/{leagueId}/pickem/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The league's standings — season-cumulative by default, weekly with ?week= */
+        get: operations["getPickemStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}/pickem/weeks/{weekId}/picks": {
         parameters: {
             query?: never;
             header?: never;
@@ -353,7 +353,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/leagues/{leagueId}/picks/week/{weekId}/repick": {
+    "/api/leagues/{leagueId}/pickem/weeks/{weekId}/repick": {
         parameters: {
             query?: never;
             header?: never;
@@ -905,23 +905,6 @@ export interface components {
         };
         /** @enum {string} */
         GameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | "moved";
-        LeagueStandingsResponse: {
-            weekId: string | null;
-            rows: components["schemas"]["StandingsRow"][];
-            /** Format: date-time */
-            lastUpdatedAt: string | null;
-        };
-        StandingsRow: {
-            leagueMemberId: string;
-            userId: string;
-            username: string | null;
-            displayName: string;
-            image: string | null;
-            isViewer: boolean;
-            points: number;
-            differential: number;
-            rank: number;
-        };
         LeagueWeeksResponse: {
             weeks: components["schemas"]["LeagueWeek"][];
             currentWeekId: string | null;
@@ -936,6 +919,23 @@ export interface components {
             /** Format: date-time */
             endsAt: string;
             gameCount: number;
+        };
+        PickemStandingsResponse: {
+            weekId: string | null;
+            rows: components["schemas"]["PickemStandingsRow"][];
+            /** Format: date-time */
+            lastUpdatedAt: string | null;
+        };
+        PickemStandingsRow: {
+            leagueMemberId: string;
+            userId: string;
+            username: string | null;
+            displayName: string;
+            image: string | null;
+            isViewer: boolean;
+            points: number;
+            differential: number;
+            rank: number;
         };
         PickemWeekPicksResponse: {
             weekId: string;
@@ -955,19 +955,19 @@ export interface components {
         PickemPick: {
             id: string;
             gameId: string;
-            side: components["schemas"]["PickSide"];
+            side: components["schemas"]["PickemPickSide"];
             spread: number | null;
             /** Format: date-time */
             updatedAt: string;
         };
         /** @enum {string} */
-        PickSide: "home" | "away";
-        RepickRequest: {
+        PickemPickSide: "home" | "away";
+        PickemRepickRequest: {
             /** Format: uuid */
             replacePickId: string;
             /** Format: uuid */
             gameId: string;
-            side: components["schemas"]["PickSide"];
+            side: components["schemas"]["PickemPickSide"];
             /** @default null */
             spread: number | null;
         };
@@ -977,7 +977,7 @@ export interface components {
         PickemPickSubmission: {
             /** Format: uuid */
             gameId: string;
-            side: components["schemas"]["PickSide"];
+            side: components["schemas"]["PickemPickSide"];
             /** @default null */
             spread: number | null;
         };
@@ -1208,7 +1208,7 @@ export interface components {
             leagueSeasonId: string;
             seasonYear: number;
             summary: components["schemas"]["SimSettlementSummary"];
-            seasonStandings: components["schemas"]["SimSettleStandingsRow"][];
+            seasonStandings: components["schemas"]["SimSettlePickemStandingsRow"][];
             weeks: components["schemas"]["SimSettleWeekResult"][];
         };
         SimSettlementSummary: {
@@ -1217,7 +1217,7 @@ export interface components {
             results: number;
             unsettled: number;
         };
-        SimSettleStandingsRow: {
+        SimSettlePickemStandingsRow: {
             leagueMemberId: string;
             username: string | null;
             displayName: string;
@@ -1231,7 +1231,7 @@ export interface components {
             weekType: components["schemas"]["WeekType"];
             weekNumber: number;
             results: number;
-            standings: components["schemas"]["SimSettleStandingsRow"][];
+            standings: components["schemas"]["SimSettlePickemStandingsRow"][];
         };
         SimSettleRequest: {
             /** Format: uuid */
@@ -2600,11 +2600,9 @@ export interface operations {
             };
         };
     };
-    getLeagueStandings: {
+    listLeagueWeeks: {
         parameters: {
-            query?: {
-                week?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 leagueId: string;
@@ -2613,16 +2611,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board */
+            /** @description Weeks in season order, plus the week a member lands on by default */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LeagueStandingsResponse"];
+                    "application/json": components["schemas"]["LeagueWeeksResponse"];
                 };
             };
-            /** @description A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range) */
+            /** @description Not a Pick'em league (wrong_league_mode) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2660,9 +2658,11 @@ export interface operations {
             };
         };
     };
-    listLeagueWeeks: {
+    getPickemStandings: {
         parameters: {
-            query?: never;
+            query?: {
+                week?: string;
+            };
             header?: never;
             path: {
                 leagueId: string;
@@ -2671,16 +2671,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Weeks in season order, plus the week a member lands on by default */
+            /** @description Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LeagueWeeksResponse"];
+                    "application/json": components["schemas"]["PickemStandingsResponse"];
                 };
             };
-            /** @description Not a Pick'em league (wrong_league_mode) */
+            /** @description A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2861,7 +2861,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["RepickRequest"];
+                "application/json": components["schemas"]["PickemRepickRequest"];
             };
         };
         responses: {
@@ -3803,7 +3803,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The rebuilt pick_results/standings, read back from the tables — leagues ordered by name, weeks by start, standings by rank then display name */
+            /** @description The rebuilt pickem_pick_results/pickem_standings, read back from the tables — leagues ordered by name, weeks by start, standings by rank then display name */
             200: {
                 headers: {
                     [name: string]: unknown;

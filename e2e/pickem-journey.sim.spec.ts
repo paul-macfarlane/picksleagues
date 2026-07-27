@@ -4,7 +4,7 @@ import { latestInviteCode } from "./setup/league-seed";
 import {
   APP_ROLE,
   ERROR_CODE,
-  PICK_SIDE,
+  PICKEM_PICK_SIDE,
   SIM_CLOCK_ADJUSTMENT_KIND,
   SIM_RESET_SCOPE,
 } from "../packages/schemas/src/index";
@@ -263,9 +263,12 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // API: resubmitting the now-kicked-off game is refused directly, not a
     // silent no-op (spec §Locking; arch §Locking Model — every pick mutation
     // re-validates the kickoff inside its own transaction).
-    const refused = await pageA.request.put(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
-      data: { picks: [{ gameId: game1.id, side: PICK_SIDE.AWAY, spread: null }] },
-    });
+    const refused = await pageA.request.put(
+      `/api/leagues/${leagueId}/pickem/weeks/${weekId}/picks`,
+      {
+        data: { picks: [{ gameId: game1.id, side: PICKEM_PICK_SIDE.AWAY, spread: null }] },
+      },
+    );
     expect(refused.status()).toBe(409);
     expect(((await refused.json()) as { error: string }).error).toBe(ERROR_CODE.PICK_LOCKED);
 

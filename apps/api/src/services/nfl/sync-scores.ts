@@ -4,7 +4,7 @@ import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
 import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
-import { settlePicksForGames } from "../settlement/pickem";
+import { settlePicksForGames } from "../pickem/settlement";
 
 /** A refresh target: one provider week fetch mapped to our week row. */
 type ScoreTarget = {

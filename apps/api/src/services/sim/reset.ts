@@ -8,10 +8,10 @@ import {
   leagueSeasons,
   leagues,
   oddsSnapshots,
-  pickResults,
+  pickemPickResults,
   pickemPicks,
+  pickemStandings,
   setSimClockOffsetMs,
-  standings,
   setSimState,
   simScenarios,
   sportSeasons,
@@ -60,8 +60,8 @@ async function deleteAndCount(tx: Db, table: PgTable, where?: SQL): Promise<numb
  * scope); a value scopes to one league.
  *
  * Forward compatibility: every new league-owned table needs listing here for
- * reset to stay complete — `pickem_picks` (PKM-2), `pick_results` and
- * `standings` (PKM-4), each ahead of `league_members`/`leagues` since they
+ * reset to stay complete — `pickem_picks` (PKM-2), `pickem_pick_results` and
+ * `pickem_standings` (PKM-4), each ahead of `league_members`/`leagues` since they
  * reference both.
  *
  * Settlement output is deleted explicitly rather than left to cascade from
@@ -83,15 +83,15 @@ async function deleteLeagueOwnedData(
     : undefined;
 
   return {
-    pick_results: await deleteAndCount(
+    pickem_pick_results: await deleteAndCount(
       tx,
-      pickResults,
-      memberScope ? inArray(pickResults.leagueMemberId, memberScope) : undefined,
+      pickemPickResults,
+      memberScope ? inArray(pickemPickResults.leagueMemberId, memberScope) : undefined,
     ),
-    standings: await deleteAndCount(
+    pickem_standings: await deleteAndCount(
       tx,
-      standings,
-      memberScope ? inArray(standings.leagueMemberId, memberScope) : undefined,
+      pickemStandings,
+      memberScope ? inArray(pickemStandings.leagueMemberId, memberScope) : undefined,
     ),
     pickem_picks: await deleteAndCount(
       tx,

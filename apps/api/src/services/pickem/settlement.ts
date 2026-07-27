@@ -5,9 +5,9 @@ import {
   leagueMembers,
   leagueSeasons,
   leagues,
-  pickResults,
+  pickemPickResults,
   pickemPicks,
-  standings,
+  pickemStandings,
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
@@ -31,8 +31,8 @@ import { logError, logInfo } from "../../lib/logger";
 
 /**
  * Settlement orchestration (arch D10, §Settlement & Scoring): load inputs →
- * pure functions → persist `pick_results` and rebuild `standings`, all in one
- * transaction.
+ * pure functions → persist `pickem_pick_results` and rebuild `pickem_standings`,
+ * all in one transaction.
  *
  * Everything here is a **pure derivation** and is written delete-then-insert
  * rather than diffed, which is what makes it idempotent: settling the same week
@@ -95,8 +95,8 @@ async function loadSettleableSeason(
     .from(leagueSeasons)
     .innerJoin(leagues, eq(leagues.id, leagueSeasons.leagueId))
     .where(eq(leagueSeasons.id, leagueSeasonId));
-  // Other modes settle through their own module (ELM-4, MM-6) into these same
-  // tables; this one grades Pick'em picks only.
+  // Other modes settle through their own module into their own tables (ELM-4,
+  // MM-6 — ADR-0016); this one grades Pick'em picks only.
   if (!row || row.mode !== LEAGUE_MODE.PICKEM) return null;
 
   return {
@@ -169,7 +169,7 @@ async function loadWeekInputs(
   };
 }
 
-/** Replaces one league-week's `pick_results`. Standings are rebuilt separately. */
+/** Replaces one league-week's `pickem_pick_results`. Standings are rebuilt separately. */
 async function settleWeekResults(
   tx: Db,
   clock: Clock,
@@ -187,14 +187,17 @@ async function settleWeekResults(
   // game reverted to scheduled, or an override cleared a score) must lose its
   // row, which a diff-based write would leave stranded.
   await tx
-    .delete(pickResults)
+    .delete(pickemPickResults)
     .where(
-      and(eq(pickResults.leagueSeasonId, season.leagueSeasonId), eq(pickResults.weekId, weekId)),
+      and(
+        eq(pickemPickResults.leagueSeasonId, season.leagueSeasonId),
+        eq(pickemPickResults.weekId, weekId),
+      ),
     );
 
   if (settlement.outcomes.length > 0) {
     const settledAt = clock.now();
-    await tx.insert(pickResults).values(
+    await tx.insert(pickemPickResults).values(
       settlement.outcomes.map((outcome) => ({
         pickemPickId: outcome.pickId,
         leagueSeasonId: season.leagueSeasonId,
@@ -226,7 +229,7 @@ async function settleWeekResults(
 
 /**
  * Recomputes every standings row for a league season from its stored
- * `pick_results` — both the weekly boards and the cumulative season board
+ * `pickem_pick_results` — both the weekly boards and the cumulative season board
  * (spec §Standings). Rebuilt wholesale so the output can't drift from the
  * results it derives from.
  */
@@ -239,13 +242,13 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
 
   const results = await tx
     .select({
-      leagueMemberId: pickResults.leagueMemberId,
-      weekId: pickResults.weekId,
-      points: pickResults.points,
-      differential: pickResults.differential,
+      leagueMemberId: pickemPickResults.leagueMemberId,
+      weekId: pickemPickResults.weekId,
+      points: pickemPickResults.points,
+      differential: pickemPickResults.differential,
     })
-    .from(pickResults)
-    .where(eq(pickResults.leagueSeasonId, season.leagueSeasonId));
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.leagueSeasonId, season.leagueSeasonId));
 
   // Seeded from the weeks that have *picks*, not just the weeks that have
   // results: an in-progress week would otherwise get no board at all, and the
@@ -268,7 +271,7 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
   }
 
   const updatedAt = clock.now();
-  const rows: Array<typeof standings.$inferInsert> = [...byWeek.entries()].flatMap(
+  const rows: Array<typeof pickemStandings.$inferInsert> = [...byWeek.entries()].flatMap(
     ([weekId, outcomes]) =>
       rankStandings(aggregateStandings(outcomes, memberIds)).map((entry) => ({
         leagueSeasonId: season.leagueSeasonId,
@@ -296,8 +299,8 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
     })),
   );
 
-  await tx.delete(standings).where(eq(standings.leagueSeasonId, season.leagueSeasonId));
-  if (rows.length > 0) await tx.insert(standings).values(rows);
+  await tx.delete(pickemStandings).where(eq(pickemStandings.leagueSeasonId, season.leagueSeasonId));
+  if (rows.length > 0) await tx.insert(pickemStandings).values(rows);
 }
 
 /** Weeks this season has picks in — the only weeks a rebuild has work for. */

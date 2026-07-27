@@ -8,9 +8,9 @@ import {
   leagues,
   oddsSnapshots,
   pickemPicks,
-  pickResults,
+  pickemPickResults,
   sportSeasons,
-  standings,
+  pickemStandings,
   teams,
   weeks,
 } from "@picksleagues/db";
@@ -28,7 +28,7 @@ import {
   type LeagueVisibility,
   type MemberRole,
   type PickemSettings,
-  type PickSide,
+  type PickemPickSide,
   type Sport,
   type WeekType,
 } from "@picksleagues/schemas";
@@ -278,7 +278,7 @@ export async function insertPick(
     leagueMemberId: string;
     weekId: string;
     gameId: string;
-    side: PickSide;
+    side: PickemPickSide;
     spreadAtPick?: number | null;
   },
 ) {
@@ -314,9 +314,15 @@ export async function setGame(db: Db, gameId: string, values: GameUpdate) {
 }
 
 export async function pickResultsFor(db: Db, leagueSeasonId: string) {
-  return db.select().from(pickResults).where(eq(pickResults.leagueSeasonId, leagueSeasonId));
+  return db
+    .select()
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.leagueSeasonId, leagueSeasonId));
 }
 
 export async function standingsFor(db: Db, leagueSeasonId: string) {
-  return db.select().from(standings).where(eq(standings.leagueSeasonId, leagueSeasonId));
+  return db
+    .select()
+    .from(pickemStandings)
+    .where(eq(pickemStandings.leagueSeasonId, leagueSeasonId));
 }
