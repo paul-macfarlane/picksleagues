@@ -91,6 +91,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/settle-sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompute results and standings for every active league season */
+        post: operations["runSettleSweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues": {
         parameters: {
             query?: never;
@@ -284,6 +301,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/leagues/{leagueId}/weeks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The weeks this league plays, clipped to its configured start/end week */
+        get: operations["listLeagueWeeks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues/{leagueId}/picks/week/{weekId}": {
         parameters: {
             query?: never;
@@ -313,6 +347,40 @@ export interface paths {
         put?: never;
         /** Manually trigger an NFL data sync job */
         post: operations["runAdminNflJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/jobs/settle-sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Manually trigger the settlement reconciliation sweep */
+        post: operations["runAdminSettleSweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/leagues/{leagueId}/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompute one league's results and standings from stored picks and game results */
+        post: operations["rebuildLeagueStandings"];
         delete?: never;
         options?: never;
         head?: never;
@@ -500,6 +568,23 @@ export interface paths {
         put?: never;
         /** Wipe a test league, or the whole environment, back to a known state */
         post: operations["resetSim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sim/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild one league season (or every active one) at the simulated now, and inspect the result */
+        post: operations["settleSim"];
         delete?: never;
         options?: never;
         head?: never;
@@ -786,6 +871,21 @@ export interface components {
         };
         /** @enum {string} */
         GameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | "moved";
+        LeagueWeeksResponse: {
+            weeks: components["schemas"]["LeagueWeek"][];
+            currentWeekId: string | null;
+        };
+        LeagueWeek: {
+            id: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            label: string;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            gameCount: number;
+        };
         PickemWeekPicksResponse: {
             weekId: string;
             picksAllowed: number;
@@ -1036,6 +1136,46 @@ export interface components {
             scope: "environment";
             /** @default false */
             dropScenario: boolean;
+        };
+        SimSettleResponse: {
+            /** Format: date-time */
+            settledAt: string;
+            leagues: components["schemas"]["SimSettleLeagueResult"][];
+        };
+        SimSettleLeagueResult: {
+            leagueId: string;
+            leagueName: string;
+            leagueSeasonId: string;
+            seasonYear: number;
+            summary: components["schemas"]["SimSettlementSummary"];
+            seasonStandings: components["schemas"]["SimSettleStandingsRow"][];
+            weeks: components["schemas"]["SimSettleWeekResult"][];
+        };
+        SimSettlementSummary: {
+            leagueSeasons: number;
+            weeks: number;
+            results: number;
+            unsettled: number;
+        };
+        SimSettleStandingsRow: {
+            leagueMemberId: string;
+            username: string | null;
+            displayName: string;
+            points: number;
+            differential: number;
+            rank: number;
+        };
+        SimSettleWeekResult: {
+            weekId: string;
+            label: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            results: number;
+            standings: components["schemas"]["SimSettleStandingsRow"][];
+        };
+        SimSettleRequest: {
+            /** Format: uuid */
+            leagueId?: string;
         };
     };
     responses: never;
@@ -1340,6 +1480,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or wrong x-job-secret header */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    runSettleSweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
                 };
             };
             /** @description Missing or wrong x-job-secret header */
@@ -2362,6 +2540,64 @@ export interface operations {
             };
         };
     };
+    listLeagueWeeks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Weeks in season order, plus the week a member lands on by default */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueWeeksResponse"];
+                };
+            };
+            /** @description Not a Pick'em league (wrong_league_mode) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getPickemWeekPicks: {
         parameters: {
             query?: never;
@@ -2473,7 +2709,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), or the season has concluded (league_concluded) */
+            /** @description A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2537,6 +2773,120 @@ export interface operations {
             };
             /** @description The caller is signed in but does not hold the admin role */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    runAdminSettleSweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    rebuildLeagueStandings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description The league id failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league (league_not_found) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3229,6 +3579,75 @@ export interface operations {
                 };
             };
             /** @description League scope: no such league */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    settleSim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SimSettleRequest"];
+            };
+        };
+        responses: {
+            /** @description The rebuilt pick_results/standings, read back from the tables — leagues ordered by name, weeks by start, standings by rank then display name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimSettleResponse"];
+                };
+            };
+            /** @description A request param or body field fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `leagueId` supplied but no such league */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -72,6 +72,37 @@ export const WeekSlateResponseSchema = z
 
 export type WeekSlateResponse = z.infer<typeof WeekSlateResponseSchema>;
 
+export const LeagueWeekSchema = z
+  .object({
+    id: z.string(),
+    weekType: WeekTypeSchema,
+    weekNumber: z.number().int(),
+    label: z.string(),
+    startsAt: z.iso.datetime(),
+    endsAt: z.iso.datetime(),
+    // Zero means the schedule sync hasn't populated the week yet — the UI
+    // shows it but there is nothing to pick.
+    gameCount: z.number().int(),
+  })
+  .openapi("LeagueWeek");
+
+export type LeagueWeek = z.infer<typeof LeagueWeekSchema>;
+
+export const LeagueWeeksResponseSchema = z
+  .object({
+    // The league's season weeks clipped to its configured Start/End Week.
+    weeks: z.array(LeagueWeekSchema),
+    /**
+     * Where a member lands by default: the week in progress, else the next to
+     * start, else the last played. Derived from the Clock per request, never
+     * stored (arch D11). Null only when the league has no weeks yet.
+     */
+    currentWeekId: z.string().nullable(),
+  })
+  .openapi("LeagueWeeksResponse");
+
+export type LeagueWeeksResponse = z.infer<typeof LeagueWeeksResponseSchema>;
+
 export const PickemPickSubmissionSchema = z
   .object({
     gameId: z.uuid(),

@@ -52,6 +52,7 @@ export const ERROR_CODE = {
   PICK_LOCKED: "pick_locked",
   PICKS_LOCKED: "picks_locked",
   SPREAD_STALE: "spread_stale",
+  SPREAD_UNAVAILABLE: "spread_unavailable",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
