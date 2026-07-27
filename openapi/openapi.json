@@ -1177,6 +1177,21 @@
           "gameCount"
         ]
       },
+      "PickemPickSummary": {
+        "type": "object",
+        "properties": {
+          "pickCount": {
+            "type": "integer"
+          },
+          "memberCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pickCount",
+          "memberCount"
+        ]
+      },
       "PickemStandingsResponse": {
         "type": "object",
         "properties": {
@@ -4138,6 +4153,85 @@
           },
           "401": {
             "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/pickem/pick-summary": {
+      "get": {
+        "operationId": "getPickemPickSummary",
+        "summary": "How many picks — and distinct members holding one — sit on the league's current season (commissioner, settings editor only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pick and distinct-member counts on the league's current season instance — what a settings edit that invalidates picks would destroy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickemPickSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pick'em league (wrong_league_mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
             "content": {
               "application/json": {
                 "schema": {

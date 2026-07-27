@@ -53,6 +53,32 @@ export function usePickemStandings(leagueId: string, weekId?: string) {
   });
 }
 
+// The settings editor's pre-save warning input: how much a Pick'em-invalidating
+// settings edit would destroy. Its own query key (not folded into the league
+// query) since it's fetched conditionally and on a different cadence — every
+// keystroke in the settings form re-derives whether the change would
+// invalidate, but the count itself only needs to be fetched once per visit.
+export function pickemPickSummaryQueryKey(leagueId: string) {
+  return ["league", leagueId, "pickem", "pick-summary"];
+}
+
+export function usePickemPickSummary(leagueId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: pickemPickSummaryQueryKey(leagueId),
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/leagues/{leagueId}/pickem/pick-summary", {
+        params: { path: { leagueId } },
+      });
+      if (error) throw error;
+      return data;
+    },
+    // Only a commissioner editing settings needs this — an ordinary member
+    // viewing (read-only) settings must never fire it (403 otherwise, and no
+    // reason to leak another member's pick activity).
+    enabled,
+  });
+}
+
 // Wire-slug → toast copy for the batch submit's expected refusals (ADR-0015).
 // `spread_stale` gets its own message pointing at the fix (re-review and
 // resubmit); everything else not named here falls back to the server's own

@@ -4,6 +4,7 @@ import { games, pickemPicks, sportSeasons, teams, weeks } from "@picksleagues/db
 import type { ProviderGame, ProviderTeam, ProviderWeek } from "@picksleagues/core";
 import { GAME_STATUS, SPORT, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { warnOnTeamCorrectionWithPicks } from "./team-correction-warning";
 
 /** Composite key: regular and postseason week numbers overlap (both restart at 1). */
 function weekKey(weekType: WeekType, weekNumber: number): string {
@@ -428,15 +429,27 @@ export async function ingestSeasonSnapshot(
         logInfo("nfl-sync-schedule.kickoff-change", { providerGameId: game.providerGameId });
       }
 
+      const teamsChanged = existing.homeTeamId !== homeTeamId || existing.awayTeamId !== awayTeamId;
+
       const changed =
         existing.weekId !== weekId ||
         existing.kickoffAt.getTime() !== game.kickoffAt.getTime() ||
         existing.status !== game.status ||
-        existing.homeTeamId !== homeTeamId ||
-        existing.awayTeamId !== awayTeamId ||
+        teamsChanged ||
         existing.homeScore !== game.homeScore ||
         existing.awayScore !== game.awayScore;
       if (!changed) continue;
+
+      if (teamsChanged) {
+        await warnOnTeamCorrectionWithPicks(tx, {
+          gameId: existing.id,
+          providerGameId: game.providerGameId,
+          previousHomeTeamId: existing.homeTeamId,
+          previousAwayTeamId: existing.awayTeamId,
+          newHomeTeamId: homeTeamId,
+          newAwayTeamId: awayTeamId,
+        });
+      }
 
       await tx
         .update(games)

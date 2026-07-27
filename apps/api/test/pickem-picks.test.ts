@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { games, leagueSeasons, pickemPicks } from "@picksleagues/db";
+import { games, leagueMembers, leagueSeasons, pickemPicks } from "@picksleagues/db";
 import {
   ELIMINATION_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
@@ -22,6 +22,9 @@ import {
   DEFAULT_PICKEM_SETTINGS,
   FOUR_GAME_WEEK,
   insertLeague,
+  insertPick,
+  membersOf,
+  SEED_AT,
   seedSeason,
   type SeededWeek,
 } from "./setup/league-helpers";
@@ -29,8 +32,17 @@ import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league
 import { seedPickemLeague as seedPickemLeagueBase } from "./setup/pickem-league";
 import { resetDb } from "./setup/reset-db";
 
-const { db, auth, app, appAfterKickoff, appAtKickoff, getSlate, getPicks, putPicks } =
-  makeLeagueTestHarness();
+const {
+  db,
+  auth,
+  app,
+  appAfterKickoff,
+  appAtKickoff,
+  getSlate,
+  getPicks,
+  putPicks,
+  getPickSummary,
+} = makeLeagueTestHarness();
 
 type App = typeof app;
 
@@ -1212,5 +1224,112 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
       .from(leagueSeasons)
       .where(eq(leagueSeasons.leagueId, league.id));
     expect((seasonRow?.settings as PickemSettings).pickType).toBe(PICK_TYPE.STRAIGHT_UP);
+  });
+});
+
+describe("GET /api/leagues/:leagueId/pickem/pick-summary", () => {
+  it("401s without a session", async () => {
+    const { league } = await seedPickemLeague();
+    const res = await getPickSummary(undefined, league.id);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "unauthenticated" });
+  });
+
+  it("404s a non-member and an unknown league — private leagues stay hidden either way", async () => {
+    const { league, memberA } = await seedPickemLeague();
+    const outsider = await createAuthenticatedUser(auth, { username: "outsider" });
+
+    const nonMember = await getPickSummary(outsider.cookie, league.id);
+    expect(nonMember.status).toBe(404);
+    expect(await nonMember.json()).toMatchObject({ error: "league_not_found" });
+
+    const unknownLeague = await getPickSummary(memberA.cookie, randomUUID());
+    expect(unknownLeague.status).toBe(404);
+    expect(await unknownLeague.json()).toMatchObject({ error: "league_not_found" });
+  });
+
+  it("400s wrong_league_mode for an elimination league", async () => {
+    const { seasonId, memberA } = await seedPickemLeague();
+    const league = await insertLeague(db, {
+      seasonId,
+      mode: LEAGUE_MODE.ELIMINATION,
+      settings: {
+        startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+        endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
+        pickType: PICK_TYPE.STRAIGHT_UP,
+        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+      },
+      members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+    });
+
+    const res = await getPickSummary(memberA.cookie, league.id);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "wrong_league_mode" });
+  });
+
+  it("403s not_commissioner for a member who isn't a commissioner — same gate the settings PATCH uses", async () => {
+    const { league, memberB } = await seedPickemLeague();
+
+    const res = await getPickSummary(memberB.cookie, league.id);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "not_commissioner" });
+  });
+
+  it("counts picks and distinct members on the current season — a zero-pick member doesn't inflate memberCount", async () => {
+    const { league, weekIds, gameIds, memberA, memberB } = await seedPickemLeague({
+      weeks: FOUR_GAME_WEEK,
+    });
+    const seasonId = (
+      await db.select().from(leagueSeasons).where(eq(leagueSeasons.leagueId, league.id))
+    )[0]!.id;
+    const weekId = weekIds.get("regular:1")!;
+    const [g1, g2, g3] = gameIds.get("regular:1")! as [string, string, string];
+
+    // memberA picks two games, memberB picks one, and a third member never
+    // submits — memberCount must read 2 (distinct pickers), not 3 (roster
+    // size) or 3 (total pick rows).
+    const memberC = await createAuthenticatedUser(auth, { username: "member_c" });
+    await db.insert(leagueMembers).values({
+      leagueId: league.id,
+      userId: memberC.user.id,
+      role: MEMBER_ROLE.MEMBER,
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    });
+    const membersByUser = await membersOf(db, league.id);
+
+    await insertPick(db, {
+      leagueSeasonId: seasonId,
+      leagueMemberId: membersByUser.get(memberA.user.id)!,
+      weekId,
+      gameId: g1,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+    await insertPick(db, {
+      leagueSeasonId: seasonId,
+      leagueMemberId: membersByUser.get(memberA.user.id)!,
+      weekId,
+      gameId: g2,
+      side: PICKEM_PICK_SIDE.AWAY,
+    });
+    await insertPick(db, {
+      leagueSeasonId: seasonId,
+      leagueMemberId: membersByUser.get(memberB.user.id)!,
+      weekId,
+      gameId: g3,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+
+    const res = await getPickSummary(memberA.cookie, league.id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pickCount: 3, memberCount: 2 });
+  });
+
+  it("reads 0/0 for a league with no picks yet", async () => {
+    const { league, memberA } = await seedPickemLeague();
+
+    const res = await getPickSummary(memberA.cookie, league.id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pickCount: 0, memberCount: 0 });
   });
 });

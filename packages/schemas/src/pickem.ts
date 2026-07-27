@@ -144,6 +144,22 @@ export const PickemMemberPicksSchema = z
 
 export type PickemMemberPicks = z.infer<typeof PickemMemberPicksSchema>;
 
+/**
+ * How much a settings edit would destroy — the settings editor's pre-save
+ * warning input (spec §Commissioner Powers). `memberCount` is the number of
+ * distinct members holding at least one pick, not the league's roster size,
+ * so "N members lose picks" reads accurately even when some members haven't
+ * picked yet.
+ */
+export const PickemPickSummarySchema = z
+  .object({
+    pickCount: z.number().int(),
+    memberCount: z.number().int(),
+  })
+  .openapi("PickemPickSummary");
+
+export type PickemPickSummary = z.infer<typeof PickemPickSummarySchema>;
+
 export const PickemWeekPicksResponseSchema = z
   .object({
     weekId: z.string(),

@@ -85,6 +85,35 @@ export const PickemSettingsSchema = z
 export type PickemSettings = z.infer<typeof PickemSettingsSchema>;
 
 /**
+ * Whether a Pick'em settings edit invalidates already-submitted picks (spec
+ * §Commissioner Powers's pick-safety rule). Shared by the API's pre-start
+ * settings write (`resetPicksInvalidatedBySettings`, which clears invalidated
+ * picks) and the web settings editor (which warns before that happens) — one
+ * rule, so the two surfaces can never disagree about what a save destroys.
+ *
+ * Each clause names the exact way it could strand a pick made legally under
+ * the old settings:
+ * - switching Pick Type to ATS leaves picks with no spread, which settlement
+ *   cannot grade at all (it throws by design rather than guess);
+ * - lowering Picks Per Week leaves members over the cap;
+ * - narrowing the week range orphans picks in weeks no longer in the league.
+ *
+ * A change that cannot strand a pick (Push/Tie Resolution, which scoring
+ * reads at settlement time; Picks Per Week *raised*) invalidates nothing.
+ */
+export function pickemSettingsInvalidatePicks(
+  previous: PickemSettings,
+  next: PickemSettings,
+): boolean {
+  return (
+    previous.pickType !== next.pickType ||
+    next.picksPerWeek < previous.picksPerWeek ||
+    nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek) ||
+    nflSeasonOrdinal(next.endWeek) < nflSeasonOrdinal(previous.endWeek)
+  );
+}
+
+/**
  * On an ATS push / SU tie in Elimination (spec §Elimination League Settings):
  * advance with the team consumed (default), or eliminate.
  */

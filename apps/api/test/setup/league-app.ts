@@ -87,6 +87,12 @@ export function makeLeagueTestHarness() {
     });
   }
 
+  function getPickSummary(cookie: string | undefined, leagueId: string, on: App = app) {
+    return on.request(`/api/leagues/${leagueId}/pickem/pick-summary`, {
+      headers: withCookie(cookie),
+    });
+  }
+
   return {
     db,
     auth,
@@ -98,6 +104,7 @@ export function makeLeagueTestHarness() {
     putPicks,
     postRepick,
     getStandings,
+    getPickSummary,
   };
 }
 

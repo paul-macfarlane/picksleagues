@@ -28,7 +28,8 @@ const REFUSAL_STATUS = {
   spread_unavailable: 409,
   pick_not_found: 404,
   pick_not_replaceable: 409,
-} as const satisfies Record<PickemRefusal, 400 | 404 | 409>;
+  not_commissioner: 403,
+} as const satisfies Record<PickemRefusal, 400 | 403 | 404 | 409>;
 
 const REFUSAL_BODY = {
   league_not_found: { error: ERROR_CODE.LEAGUE_NOT_FOUND, message: "League not found." },
@@ -80,6 +81,10 @@ const REFUSAL_BODY = {
     error: ERROR_CODE.PICK_NOT_REPLACEABLE,
     message:
       "That game wasn't cancelled or moved, so it can't be substituted — edit your picks instead.",
+  },
+  not_commissioner: {
+    error: ERROR_CODE.NOT_COMMISSIONER,
+    message: "Only a commissioner can view this.",
   },
 } as const satisfies Record<PickemRefusal, ErrorResponse>;
 

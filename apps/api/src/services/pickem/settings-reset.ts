@@ -5,43 +5,27 @@ import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
-  nflSeasonOrdinal,
+  pickemSettingsInvalidatePicks,
   type LeagueMode,
   type LeagueSettings,
-  type PickemSettings,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql } from "../games";
 
 /**
  * Settings are editable pre-start (spec §Commissioner Powers), but picks are
  * *also* open pre-start — a member can pick week 1 before week 1 begins. That
- * overlap lets a rule change strand picks that were legal when made:
- *
- * - switching Pick Type to ATS leaves picks with no spread, which settlement
- *   cannot grade at all (it throws by design rather than guess);
- * - lowering Picks Per Week leaves members over the cap;
- * - narrowing the week range orphans picks in weeks no longer in the league.
+ * overlap lets a rule change strand picks that were legal when made — see
+ * `pickemSettingsInvalidatePicks` (packages/schemas) for exactly which
+ * changes qualify and why; it's shared with the web settings editor's
+ * pre-save warning so the two surfaces can't disagree about what a save
+ * destroys.
  *
  * Rather than let any of those reach settlement, an invalidating change clears
- * the instance's picks and members re-pick. A change that cannot strand a pick
- * (Push/Tie Resolution, which scoring reads at settlement time; Picks Per Week
- * *raised*) clears nothing.
+ * the instance's picks and members re-pick.
  */
 
 export type SettingsPickResetResult =
   { ok: true; cleared: number } | { ok: false; reason: "picks_locked" };
-
-export function pickemSettingsInvalidatePicks(
-  previous: PickemSettings,
-  next: PickemSettings,
-): boolean {
-  return (
-    previous.pickType !== next.pickType ||
-    next.picksPerWeek < previous.picksPerWeek ||
-    nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek) ||
-    nflSeasonOrdinal(next.endWeek) < nflSeasonOrdinal(previous.endWeek)
-  );
-}
 
 /**
  * Whether any pick on this instance has locked. Clearing picks is only safe

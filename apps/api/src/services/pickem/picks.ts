@@ -1,8 +1,9 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, countDistinct, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, pickemPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
@@ -10,13 +11,14 @@ import {
   nflSeasonOrdinal,
   type PickemMemberPicks,
   type PickemPickSubmission,
+  type PickemPickSummary,
   type PickemRepickRequest,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
-import { getMembership } from "../leagues/authz";
+import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
@@ -52,6 +54,10 @@ export const PICKEM_REFUSAL = {
   SPREAD_UNAVAILABLE: "spread_unavailable",
   PICK_NOT_FOUND: "pick_not_found",
   PICK_NOT_REPLACEABLE: "pick_not_replaceable",
+  // Only the pick-summary read (commissioner-gated, see below) can produce
+  // this — every other refusal in this file comes from the member-only
+  // `loadContext` gate, which has no role axis.
+  NOT_COMMISSIONER: "not_commissioner",
 } as const;
 
 export type PickemRefusal = (typeof PICKEM_REFUSAL)[keyof typeof PICKEM_REFUSAL];
@@ -69,6 +75,13 @@ export type PickemReadRefusal = Extract<
 
 export type PickemResult<T, R extends PickemRefusal = PickemRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
+
+// The role axis (`not_commissioner`) belongs to the pick-summary read alone —
+// every write path here authorizes through `loadContext`'s membership-only
+// gate and can never produce it. Naming the exclusion explicitly (rather than
+// leaving the writes on the full `PickemRefusal` default) keeps each write
+// route's declared OpenAPI response statuses accurate.
+export type PickemWriteRefusal = Exclude<PickemRefusal, "not_commissioner">;
 
 interface PickemContext {
   leagueSeasonId: string;
@@ -150,7 +163,7 @@ function checkSpreadAccepted(
   settings: PickemSettings,
   game: ResolvedSlateGame,
   submitted: number | null,
-): PickemRefusal | null {
+): PickemWriteRefusal | null {
   if (settings.pickType !== PICK_TYPE.AGAINST_THE_SPREAD) return null;
   if (game.spread === null) return PICKEM_REFUSAL.SPREAD_UNAVAILABLE;
   if (submitted !== game.spread) return PICKEM_REFUSAL.SPREAD_STALE;
@@ -222,6 +235,57 @@ export async function getPickemWeekPicks(
   return { ok: true, value: { weekId, picksAllowed, members: serialized } };
 }
 
+// The pick-summary read has a role axis the member-only `loadContext` gate
+// doesn't (it's only ever consumed by the settings editor, which is
+// commissioner-only), so its refusal set names `not_commissioner` alongside
+// the two `loadContext` produces — never `week_out_of_range`, since this
+// isn't scoped to a week.
+export type PickemPickSummaryRefusal = Extract<
+  PickemRefusal,
+  "league_not_found" | "wrong_league_mode" | "not_commissioner"
+>;
+
+/**
+ * How many picks — and how many distinct members holding at least one — sit
+ * on the league's current season instance. This is the settings editor's
+ * pre-save warning input (spec §Commissioner Powers), so its scope must
+ * match `resetPicksInvalidatedBySettings` exactly (same `leagueSeasonId`,
+ * same "every pick on the instance" predicate): a count that disagreed with
+ * what a save would actually delete would just be a more convincing lie.
+ *
+ * Gated on `LEAGUE_ACTION.EDIT_SETTINGS`, not plain membership — an ordinary
+ * member has no use for this number and showing it would leak how many
+ * picks other members have submitted before their games kick off (spec §Pick
+ * Visibility).
+ */
+export async function getPickemPickSummary(
+  db: Db,
+  leagueId: string,
+  userId: string,
+): Promise<PickemResult<PickemPickSummary, PickemPickSummaryRefusal>> {
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
+  if (!gate.ok) return gate;
+
+  const current = await getLeagueWithCurrentSeason(db, leagueId);
+  if (!current) return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_NOT_FOUND };
+  if (current.league.mode !== LEAGUE_MODE.PICKEM) {
+    return { ok: false, reason: PICKEM_REFUSAL.WRONG_LEAGUE_MODE };
+  }
+
+  const [row] = await db
+    .select({
+      pickCount: count(),
+      memberCount: countDistinct(pickemPicks.leagueMemberId),
+    })
+    .from(pickemPicks)
+    .where(eq(pickemPicks.leagueSeasonId, current.season.id));
+
+  return {
+    ok: true,
+    value: { pickCount: row?.pickCount ?? 0, memberCount: row?.memberCount ?? 0 },
+  };
+}
+
 export async function submitPickemPicks(
   db: Db,
   clock: Clock,
@@ -229,7 +293,7 @@ export async function submitPickemPicks(
   weekId: string,
   userId: string,
   submissions: readonly PickemPickSubmission[],
-): Promise<PickemResult<PickemWeekPicksResponse>> {
+): Promise<PickemResult<PickemWeekPicksResponse, PickemWriteRefusal>> {
   const preflight = await loadContext(db, leagueId, weekId, userId);
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, membershipId, settings, status } = preflight.value;
@@ -246,7 +310,7 @@ export async function submitPickemPicks(
     seen.add(submission.gameId);
   }
 
-  const refusal = await db.transaction(async (tx): Promise<PickemRefusal | null> => {
+  const refusal = await db.transaction(async (tx): Promise<PickemWriteRefusal | null> => {
     // Serializes this member's own concurrent submissions so the cap check
     // below can't be passed twice against the same pre-write state.
     await lockLeagueMemberRow(tx, membershipId);
@@ -382,7 +446,7 @@ export async function repickPickemPick(
   weekId: string,
   userId: string,
   request: PickemRepickRequest,
-): Promise<PickemResult<PickemWeekPicksResponse>> {
+): Promise<PickemResult<PickemWeekPicksResponse, PickemWriteRefusal>> {
   const preflight = await loadContext(db, leagueId, weekId, userId);
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, membershipId, settings, status } = preflight.value;
@@ -391,7 +455,7 @@ export async function repickPickemPick(
     return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_CONCLUDED };
   }
 
-  const refusal = await db.transaction(async (tx): Promise<PickemRefusal | null> => {
+  const refusal = await db.transaction(async (tx): Promise<PickemWriteRefusal | null> => {
     await lockLeagueMemberRow(tx, membershipId);
 
     const slate = await loadResolvedWeekGames(tx, clock, weekId);

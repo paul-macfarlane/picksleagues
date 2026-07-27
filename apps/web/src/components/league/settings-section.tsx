@@ -10,6 +10,7 @@ import {
   PICK_TYPE,
   PICKEM_PUSH_TIE_RESOLUTION,
   LeagueNameSchema,
+  pickemSettingsInvalidatePicks,
   type EliminationPushTieResolution,
   type EliminationSettings,
   type LeagueResponse,
@@ -33,11 +34,23 @@ import {
   encodeWeek,
 } from "@/components/league-settings-fields";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
+import { usePickemPickSummary } from "@/api/pickem";
 
 export function LeagueSettingsSection({
   league,
@@ -85,6 +98,11 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   const isPickem = league.mode === LEAGUE_MODE.PICKEM;
   const isElimination = league.mode === LEAGUE_MODE.ELIMINATION;
   const isMarchMadness = league.mode === LEAGUE_MODE.MARCH_MADNESS;
+
+  // Fetched only for a Pick'em editor — an ordinary member has no use for it
+  // (403 otherwise), and the two other modes have no pick-invalidation rule
+  // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
+  const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit);
 
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
@@ -153,21 +171,29 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // server stores + reads settings as one JSONB blob per mode).
   let settingsDirty: boolean;
   let assembledSettings: unknown;
+  // Whether the assembled draft would invalidate already-submitted picks
+  // (spec §Commissioner Powers), via the same predicate the server's
+  // settings write clears picks with — computed here so the warning/confirm
+  // below can never disagree with what a save would actually destroy.
+  // Elimination has no picks yet (ELM-2), so it's Pick'em-only.
+  let wouldInvalidatePicks = false;
   if (isPickem) {
     const existing = league.settings as PickemSettings;
-    assembledSettings = {
+    const draft: PickemSettings = {
       startWeek: decodeWeek(pickemStartWeek),
       endWeek: decodeWeek(pickemEndWeek),
       pickType: pickemPickType,
       picksPerWeek: pickemPicksPerWeek,
       pushTieResolution: pickemPushTie,
     };
+    assembledSettings = draft;
     settingsDirty =
       pickemStartWeek !== encodeWeek(existing.startWeek) ||
       pickemEndWeek !== encodeWeek(existing.endWeek) ||
       pickemPickType !== existing.pickType ||
       pickemPicksPerWeek !== existing.picksPerWeek ||
       pickemPushTie !== (existing.pushTieResolution ?? PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT);
+    wouldInvalidatePicks = pickemSettingsInvalidatePicks(existing, draft);
   } else if (isElimination) {
     const existing = league.settings as EliminationSettings;
     assembledSettings = {
@@ -209,8 +235,24 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
           mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
 
   const anyDirty = nameDirty || visibilityDirty || maxMembersDirty || settingsDirty;
+  const pickCount = pickSummary.data?.pickCount ?? 0;
+  const memberCount = pickSummary.data?.memberCount ?? 0;
+  // Real count only, never a fired-when-nothing's-at-stake dialog (a warning
+  // that fires with nothing to lose trains people to click through it) — so
+  // this stays false until the summary has actually loaded a nonzero count.
+  const pickWarningActive = wouldInvalidatePicks && pickCount > 0;
+  // While a change that WOULD invalidate is pending its real count, Save
+  // stays disabled rather than risk skipping the confirm because the count
+  // hasn't arrived yet — the summary query starts as soon as this editor is
+  // commissioner-visible, so this window is normally sub-second.
+  const pickSummaryPending = isPickem && wouldInvalidatePicks && pickSummary.isLoading;
   const canSave =
-    canEdit && anyDirty && nameParsed.success && !hasInvalidNumberField && !updateLeague.isPending;
+    canEdit &&
+    anyDirty &&
+    nameParsed.success &&
+    !hasInvalidNumberField &&
+    !updateLeague.isPending &&
+    !pickSummaryPending;
 
   const handleSave = () => {
     if (!nameParsed.success) {
@@ -325,9 +367,53 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
             Visibility, max members, and game settings lock once the league starts. League name can
             be changed anytime.
           </p>
-          <Button size="sm" className="self-start" disabled={!canSave} onClick={handleSave}>
-            Save changes
-          </Button>
+
+          {/* Only rendered with a real, nonzero count (engineering rules §UI:
+              no arbitrary color — destructive is a theme token) — a warning
+              that could fire with nothing at stake would train commissioners
+              to click through it. */}
+          {pickWarningActive && (
+            <p className="text-sm text-destructive">
+              Saving will permanently delete {pickCount} {pickCount === 1 ? "pick" : "picks"} from{" "}
+              {memberCount} {memberCount === 1 ? "member" : "members"} — this can&apos;t be undone.
+            </p>
+          )}
+
+          {pickWarningActive ? (
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={<Button size="sm" className="self-start" disabled={!canSave} />}
+              >
+                Save changes
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Delete {pickCount} {pickCount === 1 ? "pick" : "picks"}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This change clears {pickCount} {pickCount === 1 ? "pick" : "picks"} from{" "}
+                    {memberCount} {memberCount === 1 ? "member" : "members"}. This can&apos;t be
+                    undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={updateLeague.isPending}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={updateLeague.isPending}
+                    onClick={handleSave}
+                  >
+                    Save changes
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button size="sm" className="self-start" disabled={!canSave} onClick={handleSave}>
+              Save changes
+            </Button>
+          )}
         </>
       )}
     </>

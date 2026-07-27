@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDb,
   games,
@@ -409,6 +409,61 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(g1?.homeTeamId).not.toBe(
       (await db.select().from(teams).where(eq(teams.providerTeamId, "hom-id")))[0]?.id,
     );
+  });
+
+  it("warns when a home/away correction lands on a game that already has a pick", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+        providerGame({
+          providerGameId: "g1",
+          weekNumber: 1,
+          homeTeamProviderId: "new-hom-id",
+          homeTeamAbbr: "NEW",
+          homeTeamName: "New Home Team",
+        }),
+        providerGame({ providerGameId: "g2", weekNumber: 1 }),
+      ]);
+      await runOk();
+
+      const warned = warnSpy.mock.calls
+        .map((call) => JSON.parse(call[0] as string) as Record<string, unknown>)
+        .find((line) => line.event === "nfl-sync-schedule.team-correction-with-picks");
+      expect(warned).toMatchObject({ level: "warn", gameId: g1!.id, affectedPicks: 1 });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not warn on a home/away correction when the game has no picks", async () => {
+    seedBaselineProvider();
+    await runOk();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+        providerGame({
+          providerGameId: "g1",
+          weekNumber: 1,
+          homeTeamProviderId: "new-hom-id",
+          homeTeamAbbr: "NEW",
+          homeTeamName: "New Home Team",
+        }),
+        providerGame({ providerGameId: "g2", weekNumber: 1 }),
+      ]);
+      await runOk();
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("never clobbers admin override fields on re-sync (arch D15)", async () => {

@@ -6,7 +6,9 @@ import {
   MarchMadnessSettingsSchema,
   nflSeasonOrdinal,
   PICKEM_PUSH_TIE_RESOLUTION,
+  pickemSettingsInvalidatePicks,
   PickemSettingsSchema,
+  type PickemSettings,
 } from "./league-settings";
 import { LEAGUE_MODE } from "./league-mode";
 import { PICK_TYPE } from "./pick-type";
@@ -90,6 +92,59 @@ describe("PickemSettingsSchema", () => {
     { label: "unknown pick type", input: { ...base, pickType: "parlay" } },
   ])("rejects $label", ({ input }) => {
     expect(PickemSettingsSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe("pickemSettingsInvalidatePicks", () => {
+  const base: PickemSettings = {
+    startWeek: regular(1),
+    endWeek: regular(18),
+    pickType: "straight_up",
+    picksPerWeek: 5,
+    pushTieResolution: "half_point",
+  };
+
+  it.each([
+    {
+      label: "pickType switches straight_up → against_the_spread",
+      next: { ...base, pickType: "against_the_spread" as const },
+    },
+    {
+      label: "pickType switches against_the_spread → straight_up",
+      previous: { ...base, pickType: "against_the_spread" as const },
+      next: base,
+    },
+    { label: "picksPerWeek is lowered", next: { ...base, picksPerWeek: 4 } },
+    { label: "startWeek moves later in season order", next: { ...base, startWeek: regular(2) } },
+    {
+      label: "startWeek moves later across the regular/postseason boundary",
+      next: { ...base, startWeek: postseason(1) },
+    },
+    { label: "endWeek moves earlier in season order", next: { ...base, endWeek: regular(17) } },
+    {
+      label: "endWeek moves earlier across the regular/postseason boundary",
+      previous: { ...base, endWeek: postseason(1) },
+      next: base,
+    },
+  ])("invalidates when $label", ({ next, previous = base }) => {
+    expect(pickemSettingsInvalidatePicks(previous, next)).toBe(true);
+  });
+
+  it.each([
+    { label: "nothing changes", next: base },
+    { label: "picksPerWeek is raised", next: { ...base, picksPerWeek: 6 } },
+    {
+      label: "pushTieResolution changes alone",
+      next: { ...base, pushTieResolution: "zero_points" as const },
+    },
+    {
+      label: "startWeek moves earlier (widens the range)",
+      previous: { ...base, startWeek: regular(2) },
+      next: base,
+    },
+    { label: "endWeek moves later (widens the range)", next: { ...base, endWeek: postseason(4) } },
+  ])("does not invalidate when $label", ({ next, previous = base }) => {
+    expect(pickemSettingsInvalidatePicks(previous, next)).toBe(false);
   });
 });
 
