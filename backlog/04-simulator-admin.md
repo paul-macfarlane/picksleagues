@@ -27,6 +27,6 @@ The UI-driven testing and operations surface, merged from the former Simulator a
 
 ## Settlement-dependent tail (after PKM-4)
 
-- [ ] **SIM-5** — `POST /sim/settle`: step-through settlement for the simulated now, rendering resulting `pick_results`/`standings` inspectable per step. _(deps: SIM-2, PKM-4)_
+- [x] **SIM-5** — `POST /sim/settle`: step-through settlement for the simulated now, rendering resulting `pick_results`/`standings` inspectable per step. _(deps: SIM-2, PKM-4)_
 - [ ] **ADM-2** — Game data overrides (`PUT /admin/games/:id/override`): set/clear score, status, kickoff, spread as `override_*` parallel fields; `override_* ?? provider_*` precedence in serializers + settlement input loader; apply/clear triggers settlement recompute for affected leagues. _(deps: ADM-1, PKM-4)_
 - [ ] **ADM-3** — `admin_audit` table recording every override/rebuild (who, what, when, prior value) + audit view on the admin page. _(deps: ADM-2)_

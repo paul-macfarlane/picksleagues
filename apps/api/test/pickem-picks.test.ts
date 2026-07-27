@@ -1078,7 +1078,7 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
       expect(await res.json()).toMatchObject({ error: "spread_stale" });
     });
 
-    it("409s spread_stale when the game has no odds snapshot at all", async () => {
+    it("409s spread_unavailable when the game has no odds snapshot at all", async () => {
       const { seasonId, weekIds, gameIds } = await seedSeason(db, {
         year: 2026,
         weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
@@ -1096,7 +1096,9 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
         picks: [{ gameId: g1, side: PICK_SIDE.HOME, spread: -3.5 }],
       });
       expect(res.status).toBe(409);
-      expect(await res.json()).toMatchObject({ error: "spread_stale" });
+      // Distinct from spread_stale: nothing has been posted to accept, so the
+      // member waits for the odds sync rather than re-reviewing a new number.
+      expect(await res.json()).toMatchObject({ error: "spread_unavailable" });
     });
   });
 

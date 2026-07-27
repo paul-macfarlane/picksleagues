@@ -102,7 +102,14 @@ week has nothing to anchor to.
 4. Clock → jump to a week, anchor "before first kickoff"
 5. Create/join a league, make picks
 6. Clock → advance past kickoff → Admin → Jobs → Sync scores → observe
+7. POST /sim/settle                grade the week and inspect the standings
 ```
+
+Step 7 is the settlement step (SIM-5). `nfl-sync-scores` already settles a game's
+picks as it goes final, so step 6 usually leaves standings correct on its own —
+`/sim/settle` is how you *inspect* the result, and how you force a full recompute
+after hand-editing a fixture. It is a full rebuild, so it is safe to run
+repeatedly: same inputs, same output (arch D10).
 
 Step 1 is the one people skip. A load leaves old seasons/weeks/games in place and
 you end up reading a confusing mix of two seasons.
@@ -173,8 +180,9 @@ about (engineering rules §Quality).
   afterward or the app has no games.
 - **Editing a fixture changes nothing until the next sync** — same pipeline rule
   as everything else.
-- **`/sim/settle` (SIM-5) does not exist yet.** It is blocked on PKM-4, so today
-  the loop ends at "observe ingested games", not "observe standings".
+- **Settling does not need a sync first, but it does need one *before*.**
+  Settlement reads our own `games` rows, so a fixture edit only reaches it after
+  a score sync. Edit → sync scores → settle.
 
 ## Driving it without the UI
 
@@ -189,7 +197,12 @@ POST  /api/sim/scenarios/replay          {seasonYear}
 GET   /api/sim/fixtures/games            ?scenarioId=&weekType=&weekNumber=
 PATCH /api/sim/fixtures/games/{gameId}
 POST  /api/sim/reset                     {scope: league|environment}
+POST  /api/sim/settle                    {leagueId?} — omit for every active league
 ```
+
+`/sim/settle` returns the settled state rather than a bare counter: per league,
+its season standings and each settled week's standings and result count, ordered
+so two runs diff cleanly by eye.
 
 To mint an admin session for a local script, see `.claude/skills/verify` and
 `e2e/setup/session.ts` (`mintSession({ appRole: "admin" })`).

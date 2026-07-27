@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { MEMBER_ROLE } from "@picksleagues/schemas";
+import { LEAGUE_MODE, MEMBER_ROLE } from "@picksleagues/schemas";
 import { LeagueHeader } from "@/components/league/league-header";
 import { useLeague } from "@/api/leagues";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -76,6 +76,11 @@ function LeagueLayout() {
             >
               Overview
             </Link>
+            {league.data.mode === LEAGUE_MODE.PICKEM && (
+              <Link to="/leagues/$leagueId/picks" params={{ leagueId }} {...tabLinkProps}>
+                Picks
+              </Link>
+            )}
             <Link to="/leagues/$leagueId/members" params={{ leagueId }} {...tabLinkProps}>
               Members
             </Link>

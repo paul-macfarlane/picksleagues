@@ -8,6 +8,7 @@ import {
   leagueSeasons,
   leagues,
   pickemPicks,
+  pickResults,
   sportSeasons,
   teams,
   users,
@@ -28,6 +29,7 @@ import {
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
   MEMBER_ROLE,
+  PICK_OUTCOME,
   PICK_SIDE,
   SPORT,
   WEEK_TYPE,
@@ -146,6 +148,75 @@ function seedBaselineProvider() {
     ],
     [weekKey(WEEK_TYPE.REGULAR, 2), [providerGame({ providerGameId: "g3", weekNumber: 2 })]],
   ]);
+}
+
+/**
+ * Arranges a Pick'em league + one member + one pick on an already-ingested
+ * game, via raw inserts (mirrors the "never deletes a week..." fixture below)
+ * — this file has no `insertLeague`/`createAuthenticatedUser` harness of its
+ * own since it exercises ingestion, not the league API.
+ */
+async function seedPickemPickOnGame(seasonId: string, weekId: string, gameId: string) {
+  const [league] = await db
+    .insert(leagues)
+    .values({
+      name: "Sync Settle Test League",
+      mode: LEAGUE_MODE.PICKEM,
+      visibility: LEAGUE_VISIBILITY.PRIVATE,
+      maxMembers: 10,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [leagueSeason] = await db
+    .insert(leagueSeasons)
+    .values({
+      leagueId: league!.id,
+      seasonId,
+      settings: DEFAULT_PICKEM_SETTINGS,
+      status: LEAGUE_STATUS.ACTIVE,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [user] = await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      display_name: "Picker",
+      email: `picker-${randomUUID()}@example.com`,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [member] = await db
+    .insert(leagueMembers)
+    .values({
+      leagueId: league!.id,
+      userId: user!.id,
+      role: MEMBER_ROLE.COMMISSIONER,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [pick] = await db
+    .insert(pickemPicks)
+    .values({
+      leagueSeasonId: leagueSeason!.id,
+      leagueMemberId: member!.id,
+      weekId,
+      gameId,
+      side: PICK_SIDE.HOME,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  return { leagueSeasonId: leagueSeason!.id, pickId: pick!.id };
+}
+
+async function pickResultFor(pickId: string) {
+  const [row] = await db.select().from(pickResults).where(eq(pickResults.pickemPickId, pickId));
+  return row;
 }
 
 beforeEach(async () => {
@@ -677,6 +748,87 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(homeTeams).toHaveLength(1);
     expect(homeTeams[0]?.id).toBe(bootstrapTeam?.id);
     expect(homeTeams[0]?.providerTeamId).toBe("hom-id");
+  });
+});
+
+describe("sync-schedule settles cancellations and week moves immediately (no separate settle call)", () => {
+  it("a cancelled game's pick becomes a push immediately after the sync", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    const { pickId } = await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    // g1 goes final and is already settled before the cancellation lands.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g1",
+        weekNumber: 1,
+        status: GAME_STATUS.FINAL,
+        homeScore: 24,
+        awayScore: 10,
+      }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    const finalDetails = await runOk();
+    expect(finalDetails.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
+    expect(await pickResultFor(pickId)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
+
+    // The provider now reports the same game cancelled.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g1", weekNumber: 1, status: GAME_STATUS.CANCELLED }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    const details = await runOk();
+    expect(details.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
+
+    expect(await pickResultFor(pickId)).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
+  });
+
+  it("a week move settles the pick as a push in its original week, immediately after the sync", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    const { pickId } = await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    // g1 leaves week 1 and reappears in week 2's fetch; the pick keeps week 1.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 2), [
+      providerGame({ providerGameId: "g3", weekNumber: 2 }),
+      providerGame({ providerGameId: "g1", weekNumber: 2 }),
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ weekMoves: 1 });
+    expect(details.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
+
+    const result = await pickResultFor(pickId);
+    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, weekId: week1!.id });
+  });
+
+  it("a pure kickoff-time change does not resettle anything — settledLeagueSeasons stays 0", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    // Locking is derived at read time from kickoffAt, never stored, so a
+    // kickoff-only change has nothing for settlement to react to.
+    const moved = new Date("2026-09-14T20:00:00.000Z");
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g1", weekNumber: 1, kickoffAt: moved }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ kickoffChanges: 1, settledLeagueSeasons: 0 });
   });
 });
 
