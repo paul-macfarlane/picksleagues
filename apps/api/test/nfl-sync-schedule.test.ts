@@ -1,6 +1,18 @@
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import {
+  createDb,
+  games,
+  leagueMembers,
+  leagueSeasons,
+  leagues,
+  pickemPicks,
+  sportSeasons,
+  teams,
+  users,
+  weeks,
+} from "@picksleagues/db";
 import {
   FixedClock,
   estimatedNflWeeks,
@@ -12,6 +24,11 @@ import {
 } from "@picksleagues/core";
 import {
   GAME_STATUS,
+  LEAGUE_MODE,
+  LEAGUE_STATUS,
+  LEAGUE_VISIBILITY,
+  MEMBER_ROLE,
+  PICK_SIDE,
   SPORT,
   WEEK_TYPE,
   type WeekType,
@@ -20,6 +37,7 @@ import {
 import { createApp } from "../src/app";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
+import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
@@ -1068,5 +1086,92 @@ describe("convergence sweep: stale weeks with zero games are dropped (ADR-0009)"
     expect(sbWeek4).toBeDefined();
     const [game] = await db.select().from(games).where(eq(games.providerGameId, "sb"));
     expect(game?.weekId).toBe(sbWeek4?.id);
+  });
+
+  it("never deletes a week that holds zero games but still holds a pick — the sync still succeeds despite the RESTRICT FK", async () => {
+    const week1 = providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z");
+    const week2 = providerWeek(2, "2026-09-15T00:00:00.000Z", "2026-09-22T00:00:00.000Z");
+    await ingest([week1, week2], [providerGame({ providerGameId: "g1", weekNumber: 1 })]);
+
+    const season = await seasonRow();
+    const week1Row = (await seasonWeeks()).find(
+      (w) => w.weekType === WEEK_TYPE.REGULAR && w.weekNumber === 1,
+    )!;
+    const [g1Before] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+
+    // A member picks g1 while it still belongs to week 1 — pickem_picks
+    // denormalizes the week the pick was made in independently of the game's
+    // own week_id (PKM-2), which is exactly what lets the two diverge below.
+    const [league] = await db
+      .insert(leagues)
+      .values({
+        name: "Sweep Test League",
+        mode: LEAGUE_MODE.PICKEM,
+        visibility: LEAGUE_VISIBILITY.PRIVATE,
+        maxMembers: 10,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    const [leagueSeason] = await db
+      .insert(leagueSeasons)
+      .values({
+        leagueId: league!.id,
+        seasonId: season!.id,
+        settings: DEFAULT_PICKEM_SETTINGS,
+        status: LEAGUE_STATUS.ACTIVE,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    const [user] = await db
+      .insert(users)
+      .values({
+        id: randomUUID(),
+        display_name: "Picker",
+        email: "picker@example.com",
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    const [member] = await db
+      .insert(leagueMembers)
+      .values({
+        leagueId: league!.id,
+        userId: user!.id,
+        role: MEMBER_ROLE.COMMISSIONER,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    await db.insert(pickemPicks).values({
+      leagueSeasonId: leagueSeason!.id,
+      leagueMemberId: member!.id,
+      weekId: week1Row.id,
+      gameId: g1Before!.id,
+      side: PICK_SIDE.HOME,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    });
+
+    // g1 moves to week 2 and week 1 drops out of the published structure —
+    // week 1 is now both game-free and orphaned, but the pick above still
+    // addresses it. Before the fix, deleting it would hit pickem_picks' own
+    // RESTRICT FK and abort (and keep aborting on every future tick) the
+    // whole sync transaction.
+    const result = await ingest([week2], [providerGame({ providerGameId: "g1", weekNumber: 2 })]);
+    expect(result.weeksDeleted).toBe(0);
+
+    const after = await seasonWeeks();
+    expect(after.some((w) => w.id === week1Row.id)).toBe(true);
+
+    const [pick] = await db
+      .select()
+      .from(pickemPicks)
+      .where(eq(pickemPicks.leagueMemberId, member!.id));
+    expect(pick?.weekId).toBe(week1Row.id);
+
+    const [g1After] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    expect(g1After?.weekId).not.toBe(week1Row.id);
   });
 });

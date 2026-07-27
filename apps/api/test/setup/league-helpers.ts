@@ -6,6 +6,7 @@ import {
   leagueMembers,
   leagueSeasons,
   leagues,
+  oddsSnapshots,
   sportSeasons,
   teams,
   weeks,
@@ -36,7 +37,15 @@ export interface SeededWeek {
   startsAt?: Date;
   endsAt?: Date;
   /** Kickoffs of the games in this week; empty = week with no games. */
-  kickoffs?: Array<{ kickoffAt: Date; overrideKickoffAt?: Date }>;
+  kickoffs?: Array<{
+    kickoffAt: Date;
+    overrideKickoffAt?: Date;
+    /**
+     * Seeds one `odds_snapshots` row for the game — the current spread every
+     * ATS path resolves. Omit for straight-up fixtures, where no spread exists.
+     */
+    spread?: number;
+  }>;
 }
 
 /** Directly inserts a season + weeks + games — league tests don't exercise ingestion. */
@@ -96,8 +105,13 @@ export async function seedSeason(
   if (!homeTeam || !awayTeam) throw new Error("team insert returned no row");
 
   const weekIds = new Map<string, string>();
+  // Game ids per week key, in the order their kickoffs were declared — pick
+  // tests need to address a specific game, and re-querying for it in every test
+  // would just restate the ordering this already knows.
+  const gameIds = new Map<string, string[]>();
   for (const spec of weekSpecs) {
     const weekType = spec.weekType ?? WEEK_TYPE.REGULAR;
+    const key = `${weekType}:${spec.weekNumber}`;
     const [week] = await db
       .insert(weeks)
       .values({
@@ -112,24 +126,40 @@ export async function seedSeason(
       })
       .returning();
     if (!week) throw new Error("week insert returned no row");
-    weekIds.set(`${weekType}:${spec.weekNumber}`, week.id);
+    weekIds.set(key, week.id);
 
+    const weekGameIds: string[] = [];
     for (const game of spec.kickoffs ?? []) {
-      await db.insert(games).values({
-        weekId: week.id,
-        providerGameId: randomUUID(),
-        homeTeamId: homeTeam.id,
-        awayTeamId: awayTeam.id,
-        kickoffAt: game.kickoffAt,
-        overrideKickoffAt: game.overrideKickoffAt ?? null,
-        status: GAME_STATUS.SCHEDULED,
-        createdAt: SEED_AT,
-        updatedAt: SEED_AT,
-      });
+      const [inserted] = await db
+        .insert(games)
+        .values({
+          weekId: week.id,
+          providerGameId: randomUUID(),
+          homeTeamId: homeTeam.id,
+          awayTeamId: awayTeam.id,
+          kickoffAt: game.kickoffAt,
+          overrideKickoffAt: game.overrideKickoffAt ?? null,
+          status: GAME_STATUS.SCHEDULED,
+          createdAt: SEED_AT,
+          updatedAt: SEED_AT,
+        })
+        .returning();
+      if (!inserted) throw new Error("game insert returned no row");
+      weekGameIds.push(inserted.id);
+
+      if (game.spread !== undefined) {
+        await db.insert(oddsSnapshots).values({
+          gameId: inserted.id,
+          spread: game.spread,
+          capturedAt: SEED_AT,
+          createdAt: SEED_AT,
+        });
+      }
     }
+    gameIds.set(key, weekGameIds);
   }
 
-  return { seasonId: season.id, weekIds };
+  return { seasonId: season.id, weekIds, gameIds };
 }
 
 export const DEFAULT_PICKEM_SETTINGS: LeagueSettings = {
