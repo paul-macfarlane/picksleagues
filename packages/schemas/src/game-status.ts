@@ -18,3 +18,19 @@ export const GAME_STATUS = {
 export type GameStatus = (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
 
 export const GameStatusSchema = z.enum(GAME_STATUS).openapi("GameStatus");
+
+/**
+ * Statuses meaning the game will never be played in this week — the spec's
+ * cancellation rule and its "moved to a different week is treated as a
+ * cancellation" twin (spec §Cancellations, Postponements & Re-picks).
+ *
+ * One definition, because two rules key off it and they must agree: such a game
+ * is not *pickable* (offering it would mint free push points), and an existing
+ * pick on one *resolves as a push*. `postponed` is deliberately absent — a
+ * postponement inside the week is played later and resolves normally.
+ */
+const UNPLAYED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.CANCELLED, GAME_STATUS.MOVED];
+
+export function isUnplayedStatus(status: GameStatus): boolean {
+  return UNPLAYED_GAME_STATUSES.includes(status);
+}
