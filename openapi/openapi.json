@@ -971,6 +971,300 @@
           "startsAt"
         ]
       },
+      "WeekSlateResponse": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlateGame"
+            }
+          }
+        },
+        "required": [
+          "weekId",
+          "weekType",
+          "weekNumber",
+          "label",
+          "startsAt",
+          "endsAt",
+          "games"
+        ]
+      },
+      "SlateGame": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "homeTeam": {
+            "$ref": "#/components/schemas/SlateTeam"
+          },
+          "awayTeam": {
+            "$ref": "#/components/schemas/SlateTeam"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "pickable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "homeTeam",
+          "awayTeam",
+          "kickoffAt",
+          "status",
+          "homeScore",
+          "awayScore",
+          "spread",
+          "locked",
+          "pickable"
+        ]
+      },
+      "SlateTeam": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "abbreviation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logoLightUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logoDarkUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "abbreviation",
+          "name",
+          "location",
+          "logoLightUrl",
+          "logoDarkUrl"
+        ]
+      },
+      "GameStatus": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "in_progress",
+          "final",
+          "postponed",
+          "cancelled",
+          "moved"
+        ]
+      },
+      "PickemWeekPicksResponse": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "picksAllowed": {
+            "type": "integer"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PickemMemberPicks"
+            }
+          }
+        },
+        "required": [
+          "weekId",
+          "picksAllowed",
+          "members"
+        ]
+      },
+      "PickemMemberPicks": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isViewer": {
+            "type": "boolean"
+          },
+          "picks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PickemPick"
+            }
+          },
+          "hiddenPickCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "isViewer",
+          "picks",
+          "hiddenPickCount"
+        ]
+      },
+      "PickemPick": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "gameId": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PickSide"
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "gameId",
+          "side",
+          "spread",
+          "updatedAt"
+        ]
+      },
+      "PickSide": {
+        "type": "string",
+        "enum": [
+          "home",
+          "away"
+        ]
+      },
+      "SubmitPickemPicksRequest": {
+        "type": "object",
+        "properties": {
+          "picks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PickemPickSubmission"
+            },
+            "maxItems": 16
+          }
+        },
+        "required": [
+          "picks"
+        ]
+      },
+      "PickemPickSubmission": {
+        "type": "object",
+        "properties": {
+          "gameId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PickSide"
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "gameId",
+          "side"
+        ]
+      },
       "NflSyncJob": {
         "type": "string",
         "enum": [
@@ -1321,17 +1615,6 @@
           "id",
           "abbreviation",
           "name"
-        ]
-      },
-      "GameStatus": {
-        "type": "string",
-        "enum": [
-          "scheduled",
-          "in_progress",
-          "final",
-          "postponed",
-          "cancelled",
-          "moved"
         ]
       },
       "AdminGameOddsResponse": {
@@ -2514,7 +2797,7 @@
             }
           },
           "409": {
-            "description": "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count)",
+            "description": "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), a maxMembers below the league's current member count (max_members_below_member_count), or a settings change that would discard already-locked picks (picks_locked)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3375,6 +3658,238 @@
           },
           "401": {
             "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/weeks/{weekId}/games": {
+      "get": {
+        "operationId": "getWeekSlate",
+        "summary": "A week's game slate with current spreads and derived lock state",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The week and its games, override-resolved, ordered by kickoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeekSlateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such week",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/picks/week/{weekId}": {
+      "get": {
+        "operationId": "getPickemWeekPicks",
+        "summary": "Every member's picks for a week, filtered by kickoff visibility",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per member. The caller sees their own picks in full; another member's appear only once that game has kicked off, with `hiddenPickCount` reporting the rest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickemWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pick'em league (wrong_league_mode), or the week is outside this league's season or configured start/end range (week_out_of_range)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "submitPickemPicks",
+        "summary": "Replace the caller's unstarted picks for a week",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPickemPicksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Picks saved; the week's picks are returned as the read endpoint would serve them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickemWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), a game not in this week's slate (game_not_in_week), the same game picked twice (duplicate_pick), or more picks than the week allows (too_many_picks)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), or the season has concluded (league_concluded)",
             "content": {
               "application/json": {
                 "schema": {

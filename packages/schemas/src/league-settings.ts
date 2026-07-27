@@ -61,12 +61,19 @@ export const PickemPushTieResolutionSchema = z
   .enum(PICKEM_PUSH_TIE_RESOLUTION)
   .openapi("PickemPushTieResolution");
 
+/**
+ * Ceiling on Picks Per Week (spec §Pick'em League Settings) — also the most
+ * games any NFL week can offer, which is why the batch pick endpoint bounds its
+ * array by the same number.
+ */
+export const MAX_PICKS_PER_WEEK = 16;
+
 export const PickemSettingsSchema = z
   .object({
     startWeek: NflWeekRefSchema,
     endWeek: NflWeekRefSchema,
     pickType: PickTypeSchema,
-    picksPerWeek: z.number().int().min(1).max(16).default(5),
+    picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
     pushTieResolution: PickemPushTieResolutionSchema.default(PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT),
   })
   .refine((s) => nflSeasonOrdinal(s.endWeek) >= nflSeasonOrdinal(s.startWeek), {

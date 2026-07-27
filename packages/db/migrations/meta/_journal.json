@@ -99,6 +99,13 @@
       "when": 1784952423965,
       "tag": "0013_magenta_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785126550450,
+      "tag": "0014_next_tarantula",
+      "breakpoints": true
     }
   ]
 }

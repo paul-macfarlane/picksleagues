@@ -43,6 +43,15 @@ export const ERROR_CODE = {
   WEEK_NOT_FOUND: "week_not_found",
   WEEK_HAS_NO_GAMES: "week_has_no_games",
   SEASON_NOT_AVAILABLE: "season_not_available",
+  WRONG_LEAGUE_MODE: "wrong_league_mode",
+  WEEK_OUT_OF_RANGE: "week_out_of_range",
+  GAME_NOT_IN_WEEK: "game_not_in_week",
+  GAME_NOT_PICKABLE: "game_not_pickable",
+  DUPLICATE_PICK: "duplicate_pick",
+  TOO_MANY_PICKS: "too_many_picks",
+  PICK_LOCKED: "pick_locked",
+  PICKS_LOCKED: "picks_locked",
+  SPREAD_STALE: "spread_stale",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

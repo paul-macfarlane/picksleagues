@@ -245,6 +245,10 @@ importers:
         version: 6.0.3
 
   packages/scoring:
+    dependencies:
+      '@picksleagues/schemas':
+        specifier: workspace:*
+        version: link:../schemas
     devDependencies:
       typescript:
         specifier: ~6.0.3
