@@ -71,6 +71,7 @@ export function MembersSection({
                 <Button
                   variant="outline"
                   className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={leaveLeague.isPending}
                 />
               }
             >
@@ -152,7 +153,12 @@ function MemberRow({
           )}
           {!isOwnRow && (
             <AlertDialog>
-              <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
+              {/* Scoped to this row's kick (isKickPending already keys off
+                  `mutation.variables`): confirming closes the dialog, so the
+                  trigger is the only thing left to block a second submit. */}
+              <AlertDialogTrigger
+                render={<Button variant="destructive" size="sm" disabled={isKickPending} />}
+              >
                 Kick
               </AlertDialogTrigger>
               <AlertDialogContent>

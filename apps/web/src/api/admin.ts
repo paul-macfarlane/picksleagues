@@ -5,9 +5,8 @@ import { api } from "@/lib/api";
 
 // One home for the admin cache-key shape: every browser query below is
 // prefixed with this, so a single invalidation after a sync job covers all
-// four without the run-job hook restating the key literal. Exported because
-// the sim mutations (api/sim.ts) rewrite the same tables these browsers read.
-export const ADMIN_QUERY_KEY_PREFIX = ["admin"];
+// four without the run-job hook restating the key literal.
+const ADMIN_QUERY_KEY_PREFIX = ["admin"];
 
 // Each job row mounts its own instance and scopes pending state off
 // `mutation.variables` (async-button standard). SyncJobsCard, SeasonsBrowser,

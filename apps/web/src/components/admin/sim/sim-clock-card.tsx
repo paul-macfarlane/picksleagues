@@ -202,9 +202,12 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
                 genuinely empty database: both render empty selects and a
                 disabled Jump, with nothing to act on. */}
             {seasons.isError && (
-              <p className="text-sm text-muted-foreground">
-                Couldn&apos;t load seasons — run the schedule sync, then retry.
-              </p>
+              <div className="flex flex-col items-start gap-2">
+                <p className="text-sm text-muted-foreground">Couldn&apos;t load seasons.</p>
+                <Button variant="outline" size="sm" onClick={() => seasons.refetch()}>
+                  Retry
+                </Button>
+              </div>
             )}
             {!seasons.isError && !seasons.isPending && allSeasons.length === 0 && (
               <p className="text-sm text-muted-foreground">
