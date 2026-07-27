@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -11,6 +12,12 @@ export default defineConfig({
   test: {
     projects: [
       {
+        // Mirrors apps/web/vite.config.ts so a colocated web unit test can use
+        // the same `@/` imports as the module it covers — without it, a web
+        // module reachable only through the alias can't be unit-tested at all.
+        resolve: {
+          alias: { "@": path.resolve(import.meta.dirname, "./apps/web/src") },
+        },
         test: {
           name: "unit",
           environment: "node",

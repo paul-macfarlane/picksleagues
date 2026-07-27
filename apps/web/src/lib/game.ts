@@ -25,3 +25,9 @@ const WEEK_TYPE_LABELS: Record<WeekType, string> = {
 export function weekTypeLabel(weekType: WeekType): string {
   return WEEK_TYPE_LABELS[weekType];
 }
+
+// Empty (not a placeholder dash) when unscored: this renders after the status
+// word, and "Scheduled –" reads as a truncated line rather than "no score yet".
+export function scoreText(away: number | null, home: number | null): string {
+  return away === null || home === null ? "" : ` ${away}–${home}`;
+}

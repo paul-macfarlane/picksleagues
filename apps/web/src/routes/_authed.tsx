@@ -103,6 +103,16 @@ function AuthedLayout() {
                   Admin
                 </Link>
               )}
+              {me.data?.isAdmin && me.data?.simEnabled && (
+                <Link
+                  to="/sim"
+                  className={navLinkClassName}
+                  inactiveProps={navLinkInactiveProps}
+                  activeProps={navLinkActiveProps}
+                >
+                  Simulator
+                </Link>
+              )}
               <LeagueSwitcher />
             </nav>
           </div>
@@ -174,6 +184,17 @@ function MobileNav() {
               onClick={() => setOpen(false)}
             >
               Admin
+            </Link>
+          )}
+          {me.data?.isAdmin && me.data?.simEnabled && (
+            <Link
+              to="/sim"
+              className={drawerLinkClassName}
+              inactiveProps={navLinkInactiveProps}
+              activeProps={navLinkActiveProps}
+              onClick={() => setOpen(false)}
+            >
+              Simulator
             </Link>
           )}
         </nav>
