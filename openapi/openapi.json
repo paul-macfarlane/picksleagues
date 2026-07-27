@@ -1119,6 +1119,84 @@
           "moved"
         ]
       },
+      "LeagueStandingsResponse": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StandingsRow"
+            }
+          },
+          "lastUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "weekId",
+          "rows",
+          "lastUpdatedAt"
+        ]
+      },
+      "StandingsRow": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isViewer": {
+            "type": "boolean"
+          },
+          "points": {
+            "type": "number"
+          },
+          "differential": {
+            "type": "number"
+          },
+          "rank": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "isViewer",
+          "points",
+          "differential",
+          "rank"
+        ]
+      },
       "LeagueWeeksResponse": {
         "type": "object",
         "properties": {
@@ -1283,6 +1361,34 @@
         "enum": [
           "home",
           "away"
+        ]
+      },
+      "RepickRequest": {
+        "type": "object",
+        "properties": {
+          "replacePickId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gameId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PickSide"
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "replacePickId",
+          "gameId",
+          "side"
         ]
       },
       "SubmitPickemPicksRequest": {
@@ -3994,6 +4100,84 @@
         }
       }
     },
+    "/api/leagues/{leagueId}/standings": {
+      "get": {
+        "operationId": "getLeagueStandings",
+        "summary": "The league's standings — season-cumulative by default, weekly with ?week=",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "week",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueStandingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/leagues/{leagueId}/weeks": {
       "get": {
         "operationId": "listLeagueWeeks",
@@ -4215,6 +4399,103 @@
           },
           "409": {
             "description": "A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/picks/week/{weekId}/repick": {
+      "post": {
+        "operationId": "repickPickemPick",
+        "summary": "Substitute a pick whose game was cancelled or moved out of the week",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepickRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Substitution saved; the week's picks are returned as the read endpoint serves them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickemWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), the replacement isn't in this week's slate (game_not_in_week), or the caller already holds it (duplicate_pick)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league or the caller isn't a member (league_not_found), or the pick being replaced doesn't exist (pick_not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The replaced pick's game is still playable, so it earns no substitution (pick_not_replaceable), the replacement already kicked off (pick_locked) or is itself unplayable (game_not_pickable), its spread moved (spread_stale) or is not posted yet (spread_unavailable), or the season has concluded (league_concluded)",
             "content": {
               "application/json": {
                 "schema": {

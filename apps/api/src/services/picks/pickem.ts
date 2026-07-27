@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { pickemPicks } from "@picksleagues/db";
+import { isUniqueViolation, pickemPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
@@ -10,6 +10,7 @@ import {
   nflSeasonOrdinal,
   type PickemMemberPicks,
   type PickemPickSubmission,
+  type RepickRequest,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -44,6 +45,8 @@ export const PICKEM_REFUSAL = {
   PICK_LOCKED: "pick_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
+  PICK_NOT_FOUND: "pick_not_found",
+  PICK_NOT_REPLACEABLE: "pick_not_replaceable",
 } as const;
 
 export type PickemRefusal = (typeof PICKEM_REFUSAL)[keyof typeof PICKEM_REFUSAL];
@@ -126,6 +129,27 @@ async function loadContext(
  */
 function picksAllowedFor(picksPerWeek: number, slate: readonly ResolvedSlateGame[]): number {
   return Math.min(picksPerWeek, slate.filter((game) => game.pickable).length);
+}
+
+/**
+ * The ATS spread-acceptance rule (spec §ATS spread acceptance), in one place —
+ * both write paths enforce it and a change to the semantics must reach both.
+ *
+ * The two refusals are deliberately distinct because the member's next move
+ * differs: no line has been captured yet (wait for the odds sync — there is
+ * nothing to re-accept), versus the line moved under a submission in flight
+ * (refetch and accept the new number). Straight-up leagues have no spread
+ * dependency at all, so nothing is checked.
+ */
+function checkSpreadAccepted(
+  settings: PickemSettings,
+  game: ResolvedSlateGame,
+  submitted: number | null,
+): PickemRefusal | null {
+  if (settings.pickType !== PICK_TYPE.AGAINST_THE_SPREAD) return null;
+  if (game.spread === null) return PICKEM_REFUSAL.SPREAD_UNAVAILABLE;
+  if (submitted !== game.spread) return PICKEM_REFUSAL.SPREAD_STALE;
+  return null;
 }
 
 export async function getPickemWeekPicks(
@@ -239,14 +263,8 @@ export async function submitPickemPicks(
       // is left holding, never something they may newly choose).
       if (!game.pickable) return PICKEM_REFUSAL.GAME_NOT_PICKABLE;
 
-      if (settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD) {
-        // Two different situations that would otherwise share a code, and the
-        // member's next move differs: no line has been captured yet (wait for
-        // the odds sync — nothing to re-accept), versus the line moved under a
-        // submission in flight (refetch and accept the new numbers).
-        if (game.spread === null) return PICKEM_REFUSAL.SPREAD_UNAVAILABLE;
-        if (submission.spread !== game.spread) return PICKEM_REFUSAL.SPREAD_STALE;
-      }
+      const spreadRefusal = checkSpreadAccepted(settings, game, submission.spread);
+      if (spreadRefusal) return spreadRefusal;
     }
 
     const existing = await tx
@@ -301,21 +319,134 @@ export async function submitPickemPicks(
 
     if (submissions.length > 0) {
       const now = clock.now();
-      await tx.insert(pickemPicks).values(
-        submissions.map((submission) => ({
-          leagueSeasonId,
-          leagueMemberId: membershipId,
-          weekId,
-          gameId: submission.gameId,
-          side: submission.side,
-          // SU leagues have no spread dependency (spec §ATS spread acceptance)
-          // — never store a number scoring would then be tempted to use.
-          spreadAtPick:
-            settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD ? submission.spread : null,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      );
+      try {
+        await tx.insert(pickemPicks).values(
+          submissions.map((submission) => ({
+            leagueSeasonId,
+            leagueMemberId: membershipId,
+            weekId,
+            gameId: submission.gameId,
+            side: submission.side,
+            // SU leagues have no spread dependency (spec §ATS spread acceptance)
+            // — never store a number scoring would then be tempted to use.
+            spreadAtPick:
+              settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD ? submission.spread : null,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        );
+      } catch (error) {
+        // `pickem_picks_member_game_unique` spans every week, but the checks
+        // above only see this one — a game moved INTO this week that the member
+        // already picked in its old week collides here. A typed refusal, not
+        // the logged 500 the raw driver error would become.
+        if (isUniqueViolation(error, "pickem_picks_member_game_unique")) {
+          return PICKEM_REFUSAL.DUPLICATE_PICK;
+        }
+        throw error;
+      }
+    }
+
+    return null;
+  });
+
+  if (refusal) return { ok: false, reason: refusal };
+
+  return getPickemWeekPicks(db, clock, leagueId, weekId, userId);
+}
+
+/**
+ * Substitutes one pick for another after its game was cancelled or moved out of
+ * the week (spec §Cancellations, Postponements & Re-picks).
+ *
+ * This is the one operation where ATS acceptance applies to the **replacement
+ * pick only** — the member's other unstarted picks keep the spreads they were
+ * made against. That is the exact inverse of `submitPickemPicks`, whose
+ * invariant is that any change re-prices everything, which is why the two are
+ * separate endpoints rather than one with a flag (ADR-0015).
+ *
+ * It is also the only way to give up a retained pick: the batch endpoint
+ * deliberately can't, so without this the spec's "substitute any unstarted
+ * game" would be unreachable and a member holding a cancelled game would be
+ * capped for the week.
+ */
+export async function repickPickemPick(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  weekId: string,
+  userId: string,
+  request: RepickRequest,
+): Promise<PickemResult<PickemWeekPicksResponse>> {
+  const preflight = await loadContext(db, leagueId, weekId, userId);
+  if (!preflight.ok) return preflight;
+  const { leagueSeasonId, membershipId, settings, status } = preflight.value;
+
+  if (status === LEAGUE_STATUS.CONCLUDED) {
+    return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_CONCLUDED };
+  }
+
+  const refusal = await db.transaction(async (tx): Promise<PickemRefusal | null> => {
+    await lockLeagueMemberRow(tx, membershipId);
+
+    const slate = await loadResolvedWeekGames(tx, clock, weekId);
+    const byGameId = new Map(slate.map((game) => [game.id, game]));
+
+    const existing = await tx
+      .select()
+      .from(pickemPicks)
+      .where(and(eq(pickemPicks.leagueMemberId, membershipId), eq(pickemPicks.weekId, weekId)));
+
+    const replaced = existing.find((pick) => pick.id === request.replacePickId);
+    if (!replaced) return PICKEM_REFUSAL.PICK_NOT_FOUND;
+
+    // A re-pick is earned only by a game that will never be played in this
+    // week. A pick on a live game is changed through the batch endpoint, which
+    // re-prices every unstarted pick — routing that change through here would
+    // let a member freeze the rest of their spreads, which the spec forbids.
+    const replacedGame = byGameId.get(replaced.gameId);
+    const replacedIsUnplayable = replacedGame === undefined || !replacedGame.pickable;
+    if (!replacedIsUnplayable) return PICKEM_REFUSAL.PICK_NOT_REPLACEABLE;
+
+    const replacement = byGameId.get(request.gameId);
+    if (!replacement) return PICKEM_REFUSAL.GAME_NOT_IN_WEEK;
+    if (replacement.locked) return PICKEM_REFUSAL.PICK_LOCKED;
+    if (!replacement.pickable) return PICKEM_REFUSAL.GAME_NOT_PICKABLE;
+
+    // "Substituting any unstarted game from the same week" means one the member
+    // doesn't already hold — otherwise the substitution would collapse two
+    // picks into one and quietly cost them a slot.
+    const alreadyPicked = existing.some(
+      (pick) => pick.gameId === request.gameId && pick.id !== replaced.id,
+    );
+    if (alreadyPicked) return PICKEM_REFUSAL.DUPLICATE_PICK;
+
+    const spreadRefusal = checkSpreadAccepted(settings, replacement, request.spread);
+    if (spreadRefusal) return spreadRefusal;
+
+    const now = clock.now();
+    // Replace rather than add: the push is what the member holds if they don't
+    // re-pick, so stacking a substitute on top would give them more scoring
+    // chances than Picks Per Week allows.
+    await tx.delete(pickemPicks).where(eq(pickemPicks.id, replaced.id));
+    try {
+      await tx.insert(pickemPicks).values({
+        leagueSeasonId,
+        leagueMemberId: membershipId,
+        weekId,
+        gameId: request.gameId,
+        side: request.side,
+        spreadAtPick: settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD ? request.spread : null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (error) {
+      // Same cross-week collision as the batch path: the duplicate check above
+      // is scoped to this week, the constraint is not.
+      if (isUniqueViolation(error, "pickem_picks_member_game_unique")) {
+        return PICKEM_REFUSAL.DUPLICATE_PICK;
+      }
+      throw error;
     }
 
     return null;

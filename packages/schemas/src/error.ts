@@ -49,10 +49,15 @@ export const ERROR_CODE = {
   GAME_NOT_PICKABLE: "game_not_pickable",
   DUPLICATE_PICK: "duplicate_pick",
   TOO_MANY_PICKS: "too_many_picks",
+  // Adjacent and easy to confuse: PICK_LOCKED refuses a *pick mutation* whose
+  // game has kicked off; PICKS_LOCKED refuses a *settings change* that would
+  // discard picks which have already locked.
   PICK_LOCKED: "pick_locked",
   PICKS_LOCKED: "picks_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
+  PICK_NOT_FOUND: "pick_not_found",
+  PICK_NOT_REPLACEABLE: "pick_not_replaceable",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

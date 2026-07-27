@@ -2,8 +2,10 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ERROR_CODE,
   ErrorResponseSchema,
+  LeagueStandingsResponseSchema,
   LeagueWeeksResponseSchema,
   PickemWeekPicksResponseSchema,
+  RepickRequestSchema,
   SubmitPickemPicksRequestSchema,
   WeekSlateResponseSchema,
   type ErrorResponse,
@@ -20,8 +22,10 @@ import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/re
 import type { SessionVariables } from "../middleware/session";
 import { getWeekSlate } from "../services/picks/slate";
 import { listLeagueWeeks } from "../services/picks/weeks";
+import { getLeagueStandings } from "../services/picks/standings";
 import {
   getPickemWeekPicks,
+  repickPickemPick,
   submitPickemPicks,
   type PickemRefusal,
 } from "../services/picks/pickem";
@@ -51,6 +55,8 @@ const REFUSAL_STATUS = {
   pick_locked: 409,
   spread_stale: 409,
   spread_unavailable: 409,
+  pick_not_found: 404,
+  pick_not_replaceable: 409,
 } as const satisfies Record<PickemRefusal, 400 | 404 | 409>;
 
 const REFUSAL_BODY = {
@@ -95,6 +101,15 @@ const REFUSAL_BODY = {
     error: ERROR_CODE.SPREAD_UNAVAILABLE,
     message: "That game has no spread yet — it can't be picked until the line is posted.",
   },
+  pick_not_found: {
+    error: ERROR_CODE.PICK_NOT_FOUND,
+    message: "That pick no longer exists.",
+  },
+  pick_not_replaceable: {
+    error: ERROR_CODE.PICK_NOT_REPLACEABLE,
+    message:
+      "That game wasn't cancelled or moved, so it can't be substituted — edit your picks instead.",
+  },
 } as const satisfies Record<PickemRefusal, ErrorResponse>;
 
 function pickemRefusal<R extends PickemRefusal>(
@@ -116,6 +131,32 @@ const getWeekGames = createRoute({
     },
     401: UNAUTHENTICATED_401,
     404: errorResponse("No such week"),
+    500: MISCONFIGURED_500,
+  },
+});
+
+const getLeagueStandingsRoute = createRoute({
+  method: "get",
+  path: "/leagues/{leagueId}/standings",
+  operationId: "getLeagueStandings",
+  summary: "The league's standings — season-cumulative by default, weekly with ?week=",
+  request: {
+    params: z.object({ leagueId: z.uuid() }),
+    // Absent selects the season board. The two leaderboards are one table at
+    // different scopes (spec §Standings), so they are one endpoint.
+    query: z.object({ week: z.uuid().optional() }),
+  },
+  responses: {
+    200: {
+      description:
+        "Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board",
+      content: { "application/json": { schema: LeagueStandingsResponseSchema } },
+    },
+    400: errorResponse(
+      "A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range)",
+    ),
+    401: UNAUTHENTICATED_401,
+    404: LEAGUE_NOT_FOUND_404,
     500: MISCONFIGURED_500,
   },
 });
@@ -186,6 +227,35 @@ const putLeagueWeekPicks = createRoute({
   },
 });
 
+const postRepick = createRoute({
+  method: "post",
+  path: "/leagues/{leagueId}/picks/week/{weekId}/repick",
+  operationId: "repickPickemPick",
+  summary: "Substitute a pick whose game was cancelled or moved out of the week",
+  request: {
+    params: LeagueWeekParamsSchema,
+    body: { content: { "application/json": { schema: RepickRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        "Substitution saved; the week's picks are returned as the read endpoint serves them",
+      content: { "application/json": { schema: PickemWeekPicksResponseSchema } },
+    },
+    400: errorResponse(
+      "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), the replacement isn't in this week's slate (game_not_in_week), or the caller already holds it (duplicate_pick)",
+    ),
+    401: UNAUTHENTICATED_401,
+    404: errorResponse(
+      "No such league or the caller isn't a member (league_not_found), or the pick being replaced doesn't exist (pick_not_found)",
+    ),
+    409: errorResponse(
+      "The replaced pick's game is still playable, so it earns no substitution (pick_not_replaceable), the replacement already kicked off (pick_locked) or is itself unplayable (game_not_pickable), its spread moved (spread_stale) or is not posted yet (spread_unavailable), or the season has concluded (league_concluded)",
+    ),
+    500: MISCONFIGURED_500,
+  },
+});
+
 export function pickRoutes(deps: AppDeps) {
   const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
     defaultHook: zodValidationHook,
@@ -196,7 +266,11 @@ export function pickRoutes(deps: AppDeps) {
   // Scoped to this file's own routes rather than all of `/leagues/*`, matching
   // members.ts — a broader pattern would make the extra session lookup a
   // function of which route file mounts last.
-  for (const path of ["/leagues/:leagueId/picks/*", "/leagues/:leagueId/weeks"]) {
+  for (const path of [
+    "/leagues/:leagueId/picks/*",
+    "/leagues/:leagueId/weeks",
+    "/leagues/:leagueId/standings",
+  ]) {
     app.use(path, requireSession(deps));
     app.use(path, requireDbAndClock(deps));
   }
@@ -218,6 +292,21 @@ export function pickRoutes(deps: AppDeps) {
     }
 
     return c.json(slate, 200);
+  });
+
+  app.openapi(getLeagueStandingsRoute, async (c) => {
+    const db = c.get("db");
+    const sessionUser = c.get("sessionUser");
+    const { leagueId } = c.req.valid("param");
+    const { week } = c.req.valid("query");
+
+    const result = await getLeagueStandings(db, leagueId, sessionUser.id, week);
+    if (!result.ok) {
+      const { body, status } = pickemRefusal(result.reason);
+      return c.json(ErrorResponseSchema.parse(body), status);
+    }
+
+    return c.json(result.value, 200);
   });
 
   app.openapi(getLeagueWeeks, async (c) => {
@@ -242,6 +331,22 @@ export function pickRoutes(deps: AppDeps) {
     const { leagueId, weekId } = c.req.valid("param");
 
     const result = await getPickemWeekPicks(db, clock, leagueId, weekId, sessionUser.id);
+    if (!result.ok) {
+      const { body, status } = pickemRefusal(result.reason);
+      return c.json(ErrorResponseSchema.parse(body), status);
+    }
+
+    return c.json(result.value, 200);
+  });
+
+  app.openapi(postRepick, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
+    const { leagueId, weekId } = c.req.valid("param");
+    const request = c.req.valid("json");
+
+    const result = await repickPickemPick(db, clock, leagueId, weekId, sessionUser.id, request);
     if (!result.ok) {
       const { body, status } = pickemRefusal(result.reason);
       return c.json(ErrorResponseSchema.parse(body), status);

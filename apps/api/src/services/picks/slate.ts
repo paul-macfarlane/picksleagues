@@ -13,9 +13,15 @@ import { effectiveKickoffAtSql, resolveGameOverrides } from "../games";
 import { latestSpreadsForGames } from "../odds";
 
 /**
- * The weekly slate every Pick'em surface reads from — the pick page, the pick
- * write path's validation, and (later) settlement's input loader. One loader so
- * "what the member saw" and "what the server validated against" can't diverge.
+ * The weekly slate every Pick'em *request* surface reads from — the pick page
+ * and the pick write path's validation. One loader, so "what the member saw"
+ * and "what the server validated against" can't diverge.
+ *
+ * Settlement deliberately does NOT read through here (see
+ * `services/settlement/pickem.ts`): it grades against the spread stored on the
+ * pick, not the current one, and it has to synthesize `moved` from a pick's own
+ * week — neither of which this loader knows about. Sharing it would mean
+ * teaching the read path about settlement's concerns for no benefit.
  *
  * Lock state is derived here from the injected Clock against the *effective*
  * kickoff (arch D11, D15): an admin kickoff correction moves the lock with it.
@@ -34,7 +40,7 @@ export interface ResolvedSlateGame {
   locked: boolean;
   /**
    * Whether a new pick may be placed on this game. A cancelled or moved game is
-   * still shown (the member needs to see why a pick pushed, and PKM-7's re-pick
+   * still shown (the member needs to see why a pick pushed, and the re-pick
    * flow starts there) but must not be pickable — an unplayed game settles as a
    * push, so accepting a fresh pick on one would mint guaranteed points.
    */

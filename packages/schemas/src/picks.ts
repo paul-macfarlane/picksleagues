@@ -72,6 +72,44 @@ export const WeekSlateResponseSchema = z
 
 export type WeekSlateResponse = z.infer<typeof WeekSlateResponseSchema>;
 
+export const StandingsRowSchema = z
+  .object({
+    leagueMemberId: z.string(),
+    userId: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string(),
+    image: z.string().nullable(),
+    isViewer: z.boolean(),
+    points: z.number(),
+    /**
+     * Cumulative margin differential over the period — the spec's only
+     * tiebreaker (§Tiebreakers). Serialized so the UI can show *why* two
+     * members on equal points are ordered as they are.
+     */
+    differential: z.number(),
+    /** Members level on points and differential share a rank. */
+    rank: z.number().int(),
+  })
+  .openapi("StandingsRow");
+
+export type StandingsRow = z.infer<typeof StandingsRowSchema>;
+
+export const LeagueStandingsResponseSchema = z
+  .object({
+    /** Null on the season-cumulative board; set on a weekly one. */
+    weekId: z.string().nullable(),
+    rows: z.array(StandingsRowSchema),
+    /**
+     * When settlement last wrote this board. The spec requires standings show a
+     * "last updated" stamp and never claim real-time freshness — null means
+     * nothing has settled yet.
+     */
+    lastUpdatedAt: z.iso.datetime().nullable(),
+  })
+  .openapi("LeagueStandingsResponse");
+
+export type LeagueStandingsResponse = z.infer<typeof LeagueStandingsResponseSchema>;
+
 export const LeagueWeekSchema = z
   .object({
     id: z.string(),
@@ -102,6 +140,30 @@ export const LeagueWeeksResponseSchema = z
   .openapi("LeagueWeeksResponse");
 
 export type LeagueWeeksResponse = z.infer<typeof LeagueWeeksResponseSchema>;
+
+/**
+ * Substitutes one pick for another after its game was cancelled or moved out of
+ * the week (spec §Cancellations, Postponements & Re-picks).
+ *
+ * Deliberately not a flag on the batch upsert: that endpoint re-prices *every*
+ * unstarted pick on any change, and this rule is its exact inverse — only the
+ * replacement accepts a spread, and the member's other picks keep theirs
+ * (ADR-0015). One replaces the other rather than adding to it: the push is what
+ * the member holds if they do *not* re-pick, so a substitute that stacked on top
+ * would hand them more scoring chances than Picks Per Week allows.
+ */
+export const RepickRequestSchema = z
+  .object({
+    /** The pick being given up — its game must be cancelled or moved. */
+    replacePickId: z.uuid(),
+    gameId: z.uuid(),
+    side: PickSideSchema,
+    /** Required in ATS leagues, and matched against the replacement's current spread only. */
+    spread: z.number().nullable().default(null),
+  })
+  .openapi("RepickRequest");
+
+export type RepickRequest = z.infer<typeof RepickRequestSchema>;
 
 export const PickemPickSubmissionSchema = z
   .object({

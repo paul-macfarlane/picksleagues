@@ -301,6 +301,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/leagues/{leagueId}/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The league's standings — season-cumulative by default, weekly with ?week= */
+        get: operations["getLeagueStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues/{leagueId}/weeks": {
         parameters: {
             query?: never;
@@ -330,6 +347,23 @@ export interface paths {
         /** Replace the caller's unstarted picks for a week */
         put: operations["submitPickemPicks"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}/picks/week/{weekId}/repick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Substitute a pick whose game was cancelled or moved out of the week */
+        post: operations["repickPickemPick"];
         delete?: never;
         options?: never;
         head?: never;
@@ -871,6 +905,23 @@ export interface components {
         };
         /** @enum {string} */
         GameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | "moved";
+        LeagueStandingsResponse: {
+            weekId: string | null;
+            rows: components["schemas"]["StandingsRow"][];
+            /** Format: date-time */
+            lastUpdatedAt: string | null;
+        };
+        StandingsRow: {
+            leagueMemberId: string;
+            userId: string;
+            username: string | null;
+            displayName: string;
+            image: string | null;
+            isViewer: boolean;
+            points: number;
+            differential: number;
+            rank: number;
+        };
         LeagueWeeksResponse: {
             weeks: components["schemas"]["LeagueWeek"][];
             currentWeekId: string | null;
@@ -911,6 +962,15 @@ export interface components {
         };
         /** @enum {string} */
         PickSide: "home" | "away";
+        RepickRequest: {
+            /** Format: uuid */
+            replacePickId: string;
+            /** Format: uuid */
+            gameId: string;
+            side: components["schemas"]["PickSide"];
+            /** @default null */
+            spread: number | null;
+        };
         SubmitPickemPicksRequest: {
             picks: components["schemas"]["PickemPickSubmission"][];
         };
@@ -2540,6 +2600,66 @@ export interface operations {
             };
         };
     };
+    getLeagueStandings: {
+        parameters: {
+            query?: {
+                week?: string;
+            };
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingsResponse"];
+                };
+            };
+            /** @description A request param failed its format rule, or `week` is not a week of this league's season (week_out_of_range) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listLeagueWeeks: {
         parameters: {
             query?: never;
@@ -2710,6 +2830,78 @@ export interface operations {
                 };
             };
             /** @description A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    repickPickemPick: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                weekId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RepickRequest"];
+            };
+        };
+        responses: {
+            /** @description Substitution saved; the week's picks are returned as the read endpoint serves them */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PickemWeekPicksResponse"];
+                };
+            };
+            /** @description Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), the replacement isn't in this week's slate (game_not_in_week), or the caller already holds it (duplicate_pick) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league or the caller isn't a member (league_not_found), or the pick being replaced doesn't exist (pick_not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The replaced pick's game is still playable, so it earns no substitution (pick_not_replaceable), the replacement already kicked off (pick_locked) or is itself unplayable (game_not_pickable), its spread moved (spread_stale) or is not posted yet (spread_unavailable), or the season has concluded (league_concluded) */
             409: {
                 headers: {
                     [name: string]: unknown;
