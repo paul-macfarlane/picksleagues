@@ -29,7 +29,13 @@ export function DangerZoneSection({ league }: { league: LeagueResponse }) {
       <CardContent>
         <AlertDialog>
           <AlertDialogTrigger
-            render={<Button variant="destructive" className="w-full justify-center" />}
+            render={
+              <Button
+                variant="destructive"
+                className="w-full justify-center"
+                disabled={deleteLeague.isPending}
+              />
+            }
           >
             Delete league
           </AlertDialogTrigger>

@@ -227,7 +227,14 @@ function DangerZone() {
       <CardContent>
         <AlertDialog>
           <AlertDialogTrigger
-            render={<Button variant="destructive" size="lg" className="w-full justify-center" />}
+            render={
+              <Button
+                variant="destructive"
+                size="lg"
+                className="w-full justify-center"
+                disabled={deleteAccount.isPending}
+              />
+            }
           >
             Delete account
           </AlertDialogTrigger>
@@ -249,7 +256,7 @@ function DangerZone() {
                 disabled={deleteAccount.isPending}
                 onClick={() => deleteAccount.mutate()}
               >
-                {deleteAccount.isPending ? "Deleting…" : "Delete account"}
+                Delete account
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

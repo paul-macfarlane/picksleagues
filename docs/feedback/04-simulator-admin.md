@@ -43,3 +43,37 @@ longer a seed fighting it).
 
 - **Staging's Vercel `SIM_ENABLED` must be set to `true` manually** — default-false means it is off until someone sets it, and nothing infers it from the branch.
 - `mintSession({ appRole })` is unexercised by any spec until SIM-7 adds one; item 1's motivating scenario is unproven end-to-end until then.
+
+## Round 3 — simulator UI, after SIM-7/SIM-9 shipped (2026-07-26)
+
+Four items from driving the panel for real.
+
+| Item | Resolution |
+| --- | --- |
+| "2025 lookback does not show as available, why is that?" | A bug, fixed in `b6c041a`. `isReplayableSeasonYear` was `seasonYear < nflSeasonYearFor(now)`, but `nflSeasonYearFor` maps Jan–Jul to `year - 1`. That is right for its actual job — deciding which season an ingested game belongs to, since Jan/Feb games are the prior season's postseason — and wrong as a completeness test: "current league year" and "still being played" diverge every February through August, so the most recently finished season was hidden for five months a year. Added `latestCompletedNflSeasonYear` (March 1 as a conservative "the Super Bowl has been played"). The guard and the panel's `latestReplayableSeasonYear` now derive from the same function, so the picker's default is always one the import accepts — pinned by an integration test. |
+| Only need the last 5 seasons of lookback | `CANDIDATE_YEAR_COUNT` 10 → 5. |
+| Fixtures must show one week at a time — a replay season buries the reset controls under ~285 rows | Week type and week number are required filters (default regular / week 1); the "All" option is gone, so the list is always exactly one week. |
+| Admin and the simulator feel like they should be two sections | Agreed, and split (`b9901f1`): new top-level `/sim` with its own tab bar (Clock / Scenarios / Fixtures / Reset). The page-length complaint was the symptom; the real argument is that the two are not peers — the simulator carries a second gate (`simEnabled`) and its routes are *not registered* in production, so a surface that sometimes vanishes entirely was sharing a tab bar with ones that never do. Components moved out of `components/admin/` to match; the four pages share one `useSimState` through `SimStateGate` (react-query dedupes by key, so four pages is still one request). |
+
+Docs: `docs/simulator-guide.md` added (operator runbook — the two levers, the
+fixtures→provider→sync→tables pipeline, the projection rules, the canonical
+workflow, gotchas). `docs/architecture.md` and this epic's header both claimed one
+admin page hosts the simulator; corrected. No ADR — the auth model (ADR-0013), the
+epic merge (ADR-0011), and the prod gating (ADR-0014) are all unchanged; this is
+information architecture.
+
+Evaluator: eleven findings across two passes, all accepted, none rejected. The one
+worth recording is a review lesson, not a bug — the e2e card-title assertions
+collided with the tab links of the same name (the tab bar lives in the layout, so
+it is mounted on every child page), but they *passed*: the assertion fired while
+`useSimState` was still in flight, matched the tab, and never polled again. A
+locator collision behind an async boundary is a silent wrong-element assertion,
+not a failure, so a green suite is no evidence against one. Also caught: the week
+select offered 18 postseason options where only 4 exist, and two `architecture.md`
+claims survived the first correction pass.
+
+### Carried forward
+
+- Postseason weeks 5–18 are patchable over the wire (`UpdateSimFixtureGameRequestSchema.weekNumber` is `1..18`, not conditional on week type) but no longer browsable, since the select caps postseason at 4. Only reachable by editing against the raw API; noted in the constant's comment rather than fixed, because bounding the schema by week type is a conditional-validation change for a self-inflicted case.
+- `AdminQueryState` is still named for admin while the simulator now uses it too. Left alone this round — renaming touches four unrelated browsers for a naming nit.
+- The simulator's mutating paths remain covered by manual verification only, not e2e, for the reason recorded in round 2's carry-forward and restated atop `e2e/sim-panel.spec.ts`: they write the environment-wide `app_state` singleton and Playwright runs `fullyParallel` against one shared database.

@@ -1,13 +1,15 @@
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { simFixtureGames, simScenarios } from "@picksleagues/db";
-import { nflSeasonYearFor } from "@picksleagues/core";
+import { latestCompletedNflSeasonYear } from "@picksleagues/core";
+import { isReplayableSeasonYear } from "../src/services/sim/replay";
 import { GAME_STATUS, type JobRunResponse, type SimStateResponse } from "@picksleagues/schemas";
 import {
   adminCaller,
   closeSimDb,
   db,
   FakeProvider,
+  get,
   postJson,
   seedFakeEspnWeek,
 } from "./setup/sim-helpers";
@@ -74,7 +76,7 @@ describe("POST /api/sim/scenarios/replay", () => {
 
   it("imports a past NFL season as a replay scenario with synthesized spreads for every completed game", async () => {
     const fakeEspn = new FakeProvider();
-    const pastYear = nflSeasonYearFor(new Date()) - 1;
+    const pastYear = latestCompletedNflSeasonYear(new Date());
     seedPastSeason(fakeEspn, pastYear);
     const { app, cookie } = await adminCaller(fakeEspn);
 
@@ -108,7 +110,7 @@ describe("POST /api/sim/scenarios/replay", () => {
 
   it("re-importing the same season is idempotent and reproducible: fixture count unchanged, spreads byte-identical", async () => {
     const fakeEspn = new FakeProvider();
-    const pastYear = nflSeasonYearFor(new Date()) - 1;
+    const pastYear = latestCompletedNflSeasonYear(new Date());
     seedPastSeason(fakeEspn, pastYear);
     const { app, cookie } = await adminCaller(fakeEspn);
     const slug = `replay-nfl-${pastYear}`;
@@ -146,17 +148,32 @@ describe("POST /api/sim/scenarios/replay", () => {
     );
   });
 
+  // Regression (SIM-7): the control panel's season picker counts down from
+  // `latestReplayableSeasonYear`, so if that field is ever off by one the
+  // panel's *default* option is the one the guard below rejects. It was, when
+  // the SPA derived candidates from the calendar year instead — an NFL season
+  // runs Aug–Feb, so Jan–Jul the previous calendar year is still in progress.
+  it("state's latestReplayableSeasonYear is the newest year the import guard accepts", async () => {
+    const { app, cookie } = await adminCaller();
+
+    const state = (await (await get(app, "/api/sim/state", cookie)).json()) as SimStateResponse;
+    const realNow = new Date(state.clock.realNow);
+
+    expect(isReplayableSeasonYear(realNow, state.latestReplayableSeasonYear)).toBe(true);
+    expect(isReplayableSeasonYear(realNow, state.latestReplayableSeasonYear + 1)).toBe(false);
+  });
+
   // Asking for an unfinished season is a client mistake, so it refuses as a
   // typed 400 rather than a thrown job failure — the latter would log at error
   // level and read like an ESPN outage (engineering rules §Route plumbing).
   it("a season that is not in the past is a typed 400 refusal, not a job failure", async () => {
     const { app, cookie } = await adminCaller();
-    const currentYear = nflSeasonYearFor(new Date());
+    const notYetCompletedYear = latestCompletedNflSeasonYear(new Date()) + 1;
 
     const res = await postJson(
       app,
       "/api/sim/scenarios/replay",
-      { seasonYear: currentYear },
+      { seasonYear: notYetCompletedYear },
       cookie,
     );
 
@@ -171,7 +188,7 @@ describe("POST /api/sim/scenarios/replay", () => {
   // the season un-reimportable — exactly when an operator would refresh it.
   it("still allows re-import while the replayed season is loaded and the clock sits inside it", async () => {
     const fakeEspn = new FakeProvider();
-    const pastYear = nflSeasonYearFor(new Date()) - 1;
+    const pastYear = latestCompletedNflSeasonYear(new Date());
     seedPastSeason(fakeEspn, pastYear);
     const { app, cookie } = await adminCaller(fakeEspn);
 

@@ -8,6 +8,7 @@ Web app where friends create and compete in sports pick'em leagues. Solo project
 - **Architecture:** `docs/architecture.md` — locked stack, environments, simulator, data model, and decision log (D1–D15). Source of truth for _how_.
 - **Engineering rules:** `.claude/rules/engineering.md` — standards every change must follow (imported below).
 - **Backlog:** `backlog/` — work split by epic. Pick tasks from here.
+- **Simulator:** `docs/simulator-guide.md` — operator runbook for driving the season simulator (the repo's primary verification harness).
 - **Decisions:** `docs/adr/` — architecture decision records.
 
 ## Stack (see docs/architecture.md for rationale)

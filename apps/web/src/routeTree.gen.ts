@@ -16,6 +16,7 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
+import { Route as AuthedSimRouteRouteImport } from './routes/_authed/sim/route'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
@@ -23,6 +24,10 @@ import { Route as AuthedAdminSeasonsRouteImport } from './routes/_authed/admin/s
 import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
 import { Route as AuthedLeaguesLeagueIdRouteRouteImport } from './routes/_authed/leagues/$leagueId/route'
 import { Route as AuthedLeaguesNewRouteImport } from './routes/_authed/leagues/new'
+import { Route as AuthedSimIndexRouteImport } from './routes/_authed/sim/index'
+import { Route as AuthedSimFixturesRouteImport } from './routes/_authed/sim/fixtures'
+import { Route as AuthedSimResetRouteImport } from './routes/_authed/sim/reset'
+import { Route as AuthedSimScenariosRouteImport } from './routes/_authed/sim/scenarios'
 import { Route as AuthedLeaguesLeagueIdIndexRouteImport } from './routes/_authed/leagues/$leagueId/index'
 import { Route as AuthedLeaguesLeagueIdMembersRouteImport } from './routes/_authed/leagues/$leagueId/members'
 import { Route as AuthedLeaguesLeagueIdSettingsRouteImport } from './routes/_authed/leagues/$leagueId/settings'
@@ -61,6 +66,11 @@ const AuthedProfileRoute = AuthedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedSimRouteRoute = AuthedSimRouteRouteImport.update({
+  id: '/sim',
+  path: '/sim',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const JoinCodeRoute = JoinCodeRouteImport.update({
   id: '/join/$code',
   path: '/join/$code',
@@ -97,6 +107,26 @@ const AuthedLeaguesNewRoute = AuthedLeaguesNewRouteImport.update({
   path: '/leagues/new',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedSimIndexRoute = AuthedSimIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedSimRouteRoute,
+} as any)
+const AuthedSimFixturesRoute = AuthedSimFixturesRouteImport.update({
+  id: '/fixtures',
+  path: '/fixtures',
+  getParentRoute: () => AuthedSimRouteRoute,
+} as any)
+const AuthedSimResetRoute = AuthedSimResetRouteImport.update({
+  id: '/reset',
+  path: '/reset',
+  getParentRoute: () => AuthedSimRouteRoute,
+} as any)
+const AuthedSimScenariosRoute = AuthedSimScenariosRouteImport.update({
+  id: '/scenarios',
+  path: '/scenarios',
+  getParentRoute: () => AuthedSimRouteRoute,
+} as any)
 const AuthedLeaguesLeagueIdIndexRoute =
   AuthedLeaguesLeagueIdIndexRouteImport.update({
     id: '/',
@@ -121,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
   '/admin': typeof AuthedAdminRouteRouteWithChildren
+  '/sim': typeof AuthedSimRouteRouteWithChildren
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -129,7 +160,11 @@ export interface FileRoutesByFullPath {
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
+  '/sim/fixtures': typeof AuthedSimFixturesRoute
+  '/sim/reset': typeof AuthedSimResetRoute
+  '/sim/scenarios': typeof AuthedSimScenariosRoute
   '/admin/': typeof AuthedAdminIndexRoute
+  '/sim/': typeof AuthedSimIndexRoute
   '/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
   '/leagues/$leagueId/': typeof AuthedLeaguesLeagueIdIndexRoute
@@ -145,7 +180,11 @@ export interface FileRoutesByTo {
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
+  '/sim/fixtures': typeof AuthedSimFixturesRoute
+  '/sim/reset': typeof AuthedSimResetRoute
+  '/sim/scenarios': typeof AuthedSimScenariosRoute
   '/admin': typeof AuthedAdminIndexRoute
+  '/sim': typeof AuthedSimIndexRoute
   '/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdIndexRoute
@@ -156,6 +195,7 @@ export interface FileRoutesById {
   '/claim-username': typeof ClaimUsernameRoute
   '/sign-in': typeof SignInRoute
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
+  '/_authed/sim': typeof AuthedSimRouteRouteWithChildren
   '/_authed/discovery': typeof AuthedDiscoveryRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -165,7 +205,11 @@ export interface FileRoutesById {
   '/_authed/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
   '/_authed/leagues/new': typeof AuthedLeaguesNewRoute
+  '/_authed/sim/fixtures': typeof AuthedSimFixturesRoute
+  '/_authed/sim/reset': typeof AuthedSimResetRoute
+  '/_authed/sim/scenarios': typeof AuthedSimScenariosRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
+  '/_authed/sim/': typeof AuthedSimIndexRoute
   '/_authed/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/_authed/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
   '/_authed/leagues/$leagueId/': typeof AuthedLeaguesLeagueIdIndexRoute
@@ -177,6 +221,7 @@ export interface FileRouteTypes {
     | '/claim-username'
     | '/sign-in'
     | '/admin'
+    | '/sim'
     | '/discovery'
     | '/profile'
     | '/join/$code'
@@ -185,7 +230,11 @@ export interface FileRouteTypes {
     | '/admin/seasons'
     | '/admin/teams'
     | '/leagues/new'
+    | '/sim/fixtures'
+    | '/sim/reset'
+    | '/sim/scenarios'
     | '/admin/'
+    | '/sim/'
     | '/leagues/$leagueId/members'
     | '/leagues/$leagueId/settings'
     | '/leagues/$leagueId/'
@@ -201,7 +250,11 @@ export interface FileRouteTypes {
     | '/admin/seasons'
     | '/admin/teams'
     | '/leagues/new'
+    | '/sim/fixtures'
+    | '/sim/reset'
+    | '/sim/scenarios'
     | '/admin'
+    | '/sim'
     | '/leagues/$leagueId/members'
     | '/leagues/$leagueId/settings'
     | '/leagues/$leagueId'
@@ -211,6 +264,7 @@ export interface FileRouteTypes {
     | '/claim-username'
     | '/sign-in'
     | '/_authed/admin'
+    | '/_authed/sim'
     | '/_authed/discovery'
     | '/_authed/profile'
     | '/join/$code'
@@ -220,7 +274,11 @@ export interface FileRouteTypes {
     | '/_authed/admin/seasons'
     | '/_authed/admin/teams'
     | '/_authed/leagues/new'
+    | '/_authed/sim/fixtures'
+    | '/_authed/sim/reset'
+    | '/_authed/sim/scenarios'
     | '/_authed/admin/'
+    | '/_authed/sim/'
     | '/_authed/leagues/$leagueId/members'
     | '/_authed/leagues/$leagueId/settings'
     | '/_authed/leagues/$leagueId/'
@@ -284,6 +342,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedProfileRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/sim': {
+      id: '/_authed/sim'
+      path: '/sim'
+      fullPath: '/sim'
+      preLoaderRoute: typeof AuthedSimRouteRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/join/$code': {
       id: '/join/$code'
       path: '/join/$code'
@@ -333,6 +398,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedLeaguesNewRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/sim/': {
+      id: '/_authed/sim/'
+      path: '/'
+      fullPath: '/sim/'
+      preLoaderRoute: typeof AuthedSimIndexRouteImport
+      parentRoute: typeof AuthedSimRouteRoute
+    }
+    '/_authed/sim/fixtures': {
+      id: '/_authed/sim/fixtures'
+      path: '/fixtures'
+      fullPath: '/sim/fixtures'
+      preLoaderRoute: typeof AuthedSimFixturesRouteImport
+      parentRoute: typeof AuthedSimRouteRoute
+    }
+    '/_authed/sim/reset': {
+      id: '/_authed/sim/reset'
+      path: '/reset'
+      fullPath: '/sim/reset'
+      preLoaderRoute: typeof AuthedSimResetRouteImport
+      parentRoute: typeof AuthedSimRouteRoute
+    }
+    '/_authed/sim/scenarios': {
+      id: '/_authed/sim/scenarios'
+      path: '/scenarios'
+      fullPath: '/sim/scenarios'
+      preLoaderRoute: typeof AuthedSimScenariosRouteImport
+      parentRoute: typeof AuthedSimRouteRoute
+    }
     '/_authed/leagues/$leagueId/': {
       id: '/_authed/leagues/$leagueId/'
       path: '/'
@@ -374,6 +467,24 @@ const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
 const AuthedAdminRouteRouteWithChildren =
   AuthedAdminRouteRoute._addFileChildren(AuthedAdminRouteRouteChildren)
 
+interface AuthedSimRouteRouteChildren {
+  AuthedSimFixturesRoute: typeof AuthedSimFixturesRoute
+  AuthedSimResetRoute: typeof AuthedSimResetRoute
+  AuthedSimScenariosRoute: typeof AuthedSimScenariosRoute
+  AuthedSimIndexRoute: typeof AuthedSimIndexRoute
+}
+
+const AuthedSimRouteRouteChildren: AuthedSimRouteRouteChildren = {
+  AuthedSimFixturesRoute: AuthedSimFixturesRoute,
+  AuthedSimResetRoute: AuthedSimResetRoute,
+  AuthedSimScenariosRoute: AuthedSimScenariosRoute,
+  AuthedSimIndexRoute: AuthedSimIndexRoute,
+}
+
+const AuthedSimRouteRouteWithChildren = AuthedSimRouteRoute._addFileChildren(
+  AuthedSimRouteRouteChildren,
+)
+
 interface AuthedLeaguesLeagueIdRouteRouteChildren {
   AuthedLeaguesLeagueIdMembersRoute: typeof AuthedLeaguesLeagueIdMembersRoute
   AuthedLeaguesLeagueIdSettingsRoute: typeof AuthedLeaguesLeagueIdSettingsRoute
@@ -394,6 +505,7 @@ const AuthedLeaguesLeagueIdRouteRouteWithChildren =
 
 interface AuthedRouteChildren {
   AuthedAdminRouteRoute: typeof AuthedAdminRouteRouteWithChildren
+  AuthedSimRouteRoute: typeof AuthedSimRouteRouteWithChildren
   AuthedDiscoveryRoute: typeof AuthedDiscoveryRoute
   AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -403,6 +515,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRouteRoute: AuthedAdminRouteRouteWithChildren,
+  AuthedSimRouteRoute: AuthedSimRouteRouteWithChildren,
   AuthedDiscoveryRoute: AuthedDiscoveryRoute,
   AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,

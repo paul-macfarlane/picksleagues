@@ -2,7 +2,7 @@ import type { Db } from "@picksleagues/db";
 import {
   type Clock,
   type GameDataProvider,
-  nflSeasonYearFor,
+  latestCompletedNflSeasonYear,
   synthesizeSpread,
 } from "@picksleagues/core";
 import { fetchSeasonGames } from "../nfl/fetch-season-games";
@@ -63,7 +63,8 @@ export type ImportReplayResult =
   | { ok: false; reason: typeof ERROR_CODE.SEASON_NOT_AVAILABLE };
 
 /**
- * Whether a season is far enough in the past to have results worth replaying.
+ * Whether a season is far enough in the past to have results worth replaying:
+ * its Super Bowl must have already been played, per `latestCompletedNflSeasonYear`.
  *
  * Judged against **real** time, never the simulated clock: loading a replay
  * deliberately parks the simulated clock inside the replayed season, so a
@@ -71,7 +72,7 @@ export type ImportReplayResult =
  * refreshing a loaded replay impossible.
  */
 export function isReplayableSeasonYear(realNow: Date, seasonYear: number): boolean {
-  return seasonYear < nflSeasonYearFor(realNow);
+  return seasonYear <= latestCompletedNflSeasonYear(realNow);
 }
 
 /**

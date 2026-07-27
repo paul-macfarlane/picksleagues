@@ -123,8 +123,26 @@ function AlertDialogDescription({
   );
 }
 
-function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof Button>) {
-  return <Button data-slot="alert-dialog-action" className={cn(className)} {...props} />;
+// Mirrors AlertDialogCancel: a Base UI `Close` rendered as a Button, so
+// confirming dismisses the dialog. It was a bare Button, which never closed
+// anything — invisible until now because every call site either navigated away
+// (league delete, account delete) or unmounted on success. A confirm that
+// leaves the dialog sitting open reads as "nothing happened".
+function AlertDialogAction({
+  className,
+  variant = "default",
+  size = "default",
+  ...props
+}: AlertDialogPrimitive.Close.Props &
+  Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  return (
+    <AlertDialogPrimitive.Close
+      data-slot="alert-dialog-action"
+      className={cn(className)}
+      render={<Button variant={variant} size={size} />}
+      {...props}
+    />
+  );
 }
 
 function AlertDialogCancel({

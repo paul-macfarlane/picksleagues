@@ -1,7 +1,7 @@
 import { asc, count, desc, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { getSimState, setSimState, simFixtureGames, simScenarios } from "@picksleagues/db";
-import { nflSeasonYearFor, type Clock } from "@picksleagues/core";
+import { latestCompletedNflSeasonYear, nflSeasonYearFor, type Clock } from "@picksleagues/core";
 import {
   ERROR_CODE,
   SIM_SCENARIO_SOURCE,
@@ -66,11 +66,19 @@ export async function readSimState(
     listScenarios(db),
   ]);
 
+  const clockState = clockOverride ?? simClockStateFrom(clock.now().getTime() - offsetMs, offsetMs);
+
   return {
-    clock: clockOverride ?? simClockStateFrom(clock.now().getTime() - offsetMs, offsetMs),
+    clock: clockState,
     activeScenario: scenarios.find((scenario) => scenario.id === activeScenarioId) ?? null,
     scenarios,
     library: listLibraryEntries(),
+    // Against real time, matching `isReplayableSeasonYear`'s own basis (replay.ts):
+    // a loaded replay parks the simulated clock inside the season it imported, so
+    // deriving this from simulated now would hide that season from the panel. Must
+    // stay the same function `isReplayableSeasonYear` guards against, so the
+    // picker's default is always accepted by the import guard.
+    latestReplayableSeasonYear: latestCompletedNflSeasonYear(new Date(clockState.realNow)),
   };
 }
 

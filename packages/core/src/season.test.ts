@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WEEK_TYPE } from "@picksleagues/schemas";
 import { ESPN_POSTSEASON_NUMBER_BY_DOMAIN } from "./espn-provider";
-import { estimatedNflWeeks, nflSeasonYearFor } from "./season";
+import { estimatedNflWeeks, latestCompletedNflSeasonYear, nflSeasonYearFor } from "./season";
 
 describe("nflSeasonYearFor", () => {
   it.each([
@@ -14,6 +14,23 @@ describe("nflSeasonYearFor", () => {
     { label: "December 31", now: "2026-12-31T23:59:59Z", expected: 2026 },
   ])("$label -> $expected", ({ now, expected }) => {
     expect(nflSeasonYearFor(new Date(now))).toBe(expected);
+  });
+});
+
+describe("latestCompletedNflSeasonYear", () => {
+  it.each([
+    { label: "well past the Super Bowl", now: "2026-07-26T00:00:00Z", expected: 2025 },
+    { label: "March 1 UTC boundary, at the instant", now: "2026-03-01T00:00:00Z", expected: 2025 },
+    {
+      label: "one second before the March 1 boundary",
+      now: "2026-02-28T23:59:59Z",
+      expected: 2024,
+    },
+    { label: "mid-January, season still in progress", now: "2026-01-15T00:00:00Z", expected: 2024 },
+    { label: "mid-September, new season underway", now: "2026-09-15T00:00:00Z", expected: 2025 },
+    { label: "leap day", now: "2024-02-29T00:00:00Z", expected: 2022 },
+  ])("$label -> $expected", ({ now, expected }) => {
+    expect(latestCompletedNflSeasonYear(new Date(now))).toBe(expected);
   });
 });
 

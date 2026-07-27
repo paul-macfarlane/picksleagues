@@ -184,7 +184,12 @@ export async function updateFixtureGame(
     return {
       ok: false,
       reason: ERROR_CODE.VALIDATION,
-      message: "A final fixture needs both scores. Clear the status first, or supply both.",
+      // Names only the two escapes that exist: `finalStatus` is non-nullable
+      // and its other members are `cancelled`/`postponed`, so "clear the
+      // status" — what this used to advise — is not something any caller can
+      // express.
+      message:
+        "A final fixture needs both scores. Supply both, or set the status to cancelled or postponed.",
     };
   }
 
