@@ -3,14 +3,9 @@ import { WEEK_TYPE, type SimStateResponse, type WeekType } from "@picksleagues/s
 import { useSimFixtureGames } from "@/api/sim";
 import { AdminQueryState } from "@/components/admin/query-state";
 import { weekTypeLabel } from "@/lib/game";
-import { SimFixtureRow } from "@/components/admin/sim/sim-fixture-row";
+import { SimFixtureRow } from "@/components/sim/sim-fixture-row";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-// Sentinel for "no filter" — `LabeledSelect` is generic over `string` and
-// needs a real option value, so an empty string (easy to confuse with an
-// actual blank input elsewhere) isn't used.
-const FILTER_ALL = "all";
 
 // `UpdateSimFixtureGameRequestSchema.weekNumber`'s own bound (sim.ts) — every
 // week an NFL season can produce, regular or postseason.
@@ -19,10 +14,17 @@ const WEEK_NUMBER_OPTIONS = Array.from({ length: MAX_WEEK_NUMBER }, (_, index) =
   String(index + 1),
 );
 
+// Week type and week number are both required, never an "all" option: a
+// replay season is ~285 fixtures, so an unfiltered (or half-filtered) list
+// buries every control below it, which is the exact complaint this card
+// exists to fix.
+const DEFAULT_WEEK_TYPE: WeekType = WEEK_TYPE.REGULAR;
+const DEFAULT_WEEK_NUMBER = "1";
+
 export function SimFixturesCard({ state }: { state: SimStateResponse }) {
   const [scenarioChoice, setScenarioChoice] = useState<string>();
-  const [weekTypeFilter, setWeekTypeFilter] = useState<WeekType | typeof FILTER_ALL>(FILTER_ALL);
-  const [weekNumberFilter, setWeekNumberFilter] = useState(FILTER_ALL);
+  const [weekType, setWeekType] = useState<WeekType>(DEFAULT_WEEK_TYPE);
+  const [weekNumberFilter, setWeekNumberFilter] = useState(DEFAULT_WEEK_NUMBER);
 
   // Resolved against the scenarios actually loaded, never trusted from local
   // state (same idiom as sim-clock-card.tsx's season resolution): an
@@ -33,8 +35,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
     state.activeScenario?.id ??
     state.scenarios[0]?.id;
 
-  const weekType = weekTypeFilter === FILTER_ALL ? undefined : weekTypeFilter;
-  const weekNumber = weekNumberFilter === FILTER_ALL ? undefined : Number(weekNumberFilter);
+  const weekNumber = Number(weekNumberFilter);
   const fixtures = useSimFixtureGames(selectedScenarioId, weekType, weekNumber);
 
   return (
@@ -64,25 +65,19 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
             <LabeledSelect
               id="sim-fixtures-week-type"
               label="Week type"
-              value={weekTypeFilter}
-              onValueChange={setWeekTypeFilter}
-              options={[
-                { value: FILTER_ALL, label: "All" },
-                ...Object.values(WEEK_TYPE).map((value) => ({
-                  value,
-                  label: weekTypeLabel(value),
-                })),
-              ]}
+              value={weekType}
+              onValueChange={setWeekType}
+              options={Object.values(WEEK_TYPE).map((value) => ({
+                value,
+                label: weekTypeLabel(value),
+              }))}
             />
             <LabeledSelect
               id="sim-fixtures-week-number"
               label="Week"
               value={weekNumberFilter}
               onValueChange={setWeekNumberFilter}
-              options={[
-                { value: FILTER_ALL, label: "All" },
-                ...WEEK_NUMBER_OPTIONS.map((value) => ({ value, label: `Week ${value}` })),
-              ]}
+              options={WEEK_NUMBER_OPTIONS.map((value) => ({ value, label: `Week ${value}` }))}
             />
           </div>
 
@@ -98,7 +93,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
             isEmpty={!selectedScenarioId || fixtures.data?.games.length === 0}
             emptyMessage={
               selectedScenarioId
-                ? "No fixtures match this filter."
+                ? "No fixtures in this week — try another week or week type."
                 : "No scenarios loaded yet — load one above."
             }
           >

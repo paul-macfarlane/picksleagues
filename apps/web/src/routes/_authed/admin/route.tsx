@@ -54,11 +54,6 @@ function AdminLayout() {
         <Link to="/admin" activeOptions={{ exact: true }} {...tabLinkProps}>
           Jobs
         </Link>
-        {me.data.simEnabled && (
-          <Link to="/admin/sim" {...tabLinkProps}>
-            Simulator
-          </Link>
-        )}
         <Link to="/admin/seasons" {...tabLinkProps}>
           Seasons
         </Link>

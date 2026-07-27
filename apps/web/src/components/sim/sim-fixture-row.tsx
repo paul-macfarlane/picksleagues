@@ -8,7 +8,7 @@ import {
   buildFixturePatch,
   fixtureFormSeed,
   isFixtureFormDirty,
-} from "@/components/admin/sim/fixture-patch";
+} from "@/components/sim/fixture-patch";
 import { FormTextField } from "@/components/form-field";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";

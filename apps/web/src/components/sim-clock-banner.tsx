@@ -35,7 +35,7 @@ export function SimClockBanner() {
         <span aria-hidden="true">·</span>
         <span>{activeScenario ? activeScenario.name : "No scenario loaded"}</span>
         <Link
-          to="/admin/sim"
+          to="/sim"
           className="ml-auto underline outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           Simulator

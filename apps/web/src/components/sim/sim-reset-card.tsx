@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { SimControlRow } from "@/components/admin/sim/sim-control-row";
+import { SimControlRow } from "@/components/sim/sim-control-row";
 
 // Whether an environment reset also drops the active scenario — modeled as
 // its own choice rather than a raw boolean so the select's options read as a

@@ -5,10 +5,11 @@ import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Ten years of candidate seasons, newest first — matches the replay
-// scenario's realistic range; the schema's own bounds (2000–2100) are far
-// wider than any season an operator would actually want to replay.
-const CANDIDATE_YEAR_COUNT = 10;
+// Five years of candidate seasons, newest first — nobody replays a
+// decade-old season, and keeping the list short enough to scan beats
+// matching the schema's own bounds (2000–2100), which are far wider than any
+// season an operator would actually want to replay.
+const CANDIDATE_YEAR_COUNT = 5;
 
 export function SimReplayCard({ state }: { state: SimStateResponse }) {
   const importReplay = useImportReplaySeason();
