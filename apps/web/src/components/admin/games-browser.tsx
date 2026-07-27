@@ -5,7 +5,7 @@ import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 
 // `LabeledSelect` renders one label string for both the closed trigger and
 // the open list — a single source keeps a selected provisional season
@@ -66,7 +66,7 @@ export function GamesBrowser({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AdminQueryState
+        <QueryState
           isPending={seasons.isPending}
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
@@ -103,7 +103,7 @@ export function GamesBrowser({
             {/* A season with no weeks leaves the games query skipped, which
                 reports `isPending` forever — treat "nothing to ask for" as an
                 empty state rather than a load that never resolves. */}
-            <AdminQueryState
+            <QueryState
               isPending={Boolean(effectiveWeekId) && games.isPending}
               isError={games.isError}
               onRetry={() => games.refetch()}
@@ -120,9 +120,9 @@ export function GamesBrowser({
                   <GameRow key={game.id} game={game} />
                 ))}
               </ul>
-            </AdminQueryState>
+            </QueryState>
           </div>
-        </AdminQueryState>
+        </QueryState>
       </CardContent>
     </Card>
   );
@@ -208,7 +208,7 @@ function GameRow({ game }: { game: AdminGame }) {
         </summary>
         {oddsOpen && (
           <div className="mt-2">
-            <AdminQueryState
+            <QueryState
               isPending={odds.isPending}
               isError={odds.isError}
               onRetry={() => odds.refetch()}
@@ -232,7 +232,7 @@ function GameRow({ game }: { game: AdminGame }) {
                   Only the most recent {ADMIN_ODDS_SNAPSHOT_LIMIT} snapshots are shown.
                 </p>
               )}
-            </AdminQueryState>
+            </QueryState>
           </div>
         )}
       </details>

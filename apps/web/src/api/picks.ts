@@ -1,6 +1,11 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ERROR_CODE, type ErrorResponse, type PickemPickSubmission } from "@picksleagues/schemas";
+import {
+  ERROR_CODE,
+  type ErrorResponse,
+  type PickemPickSubmission,
+  type RepickRequest,
+} from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
@@ -130,5 +135,71 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
       await queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) });
     },
     onError: () => toast.error("Couldn't save your picks — please try again."),
+  });
+}
+
+// Wire-slug → toast copy for the repick's expected refusals. The refusal set
+// differs from the batch submit's (pick_not_replaceable, pick_not_found are
+// unique to this path) even though several slugs are shared — this is a
+// separate endpoint with its own rules (ADR-0015's PKM-7 paragraph), not a
+// variant of the batch one.
+function repickErrorMessage(error: ErrorResponse): string {
+  switch (error.error) {
+    case ERROR_CODE.PICK_NOT_REPLACEABLE:
+      return "That game is still playable, so the pick hasn't pushed — there's nothing to substitute.";
+    case ERROR_CODE.PICK_NOT_FOUND:
+      return "That pick couldn't be found — refresh and try again.";
+    case ERROR_CODE.PICK_LOCKED:
+      return "That replacement already kicked off — choose another game.";
+    case ERROR_CODE.GAME_NOT_PICKABLE:
+      return "That replacement was cancelled or moved and can't be picked.";
+    case ERROR_CODE.DUPLICATE_PICK:
+      return "You already have a pick on that game.";
+    case ERROR_CODE.SPREAD_STALE:
+      return "The spread moved since you loaded this week — review the new line and try again.";
+    // Distinct from a stale spread: there is no line to accept yet, so
+    // retrying won't help until the odds sync posts one.
+    case ERROR_CODE.SPREAD_UNAVAILABLE:
+      return "That game has no spread posted yet — it can't be picked until the line is up.";
+    default:
+      return error.message;
+  }
+}
+
+// Substitutes a pushed pick (its game cancelled or moved out of the week) for
+// a replacement (spec §Cancellations, ADR-0015's PKM-7 paragraph) — the exact
+// inverse of useSubmitPicks: only the replacement accepts a spread, every
+// other unstarted pick keeps the one it was made at, so this deliberately
+// never routes through the batch endpoint.
+export function useRepick(leagueId: string, weekId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: RepickRequest) => {
+      const { data, error, response } = await api.POST(
+        "/api/leagues/{leagueId}/picks/week/{weekId}/repick",
+        { params: { path: { leagueId, weekId } }, body: request },
+      );
+      if (error) {
+        toastOnExpectedError(
+          error,
+          response,
+          (status) => status === 400 || status === 404 || status === 409,
+          repickErrorMessage,
+        );
+        // Same recovery as the batch path: a stale spread means the slate the
+        // member reviewed has already moved, so refetch it before they retry.
+        if (response.status === 409 && error.error === ERROR_CODE.SPREAD_STALE) {
+          await queryClient.invalidateQueries({ queryKey: weekSlateQueryKey(weekId) });
+        }
+        return null;
+      }
+      return data;
+    },
+    onSuccess: async (data) => {
+      if (!data) return;
+      toast.success("Pick substituted");
+      await queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) });
+    },
+    onError: () => toast.error("Couldn't substitute that pick — please try again."),
   });
 }

@@ -3,7 +3,7 @@ import { useAdminTeams } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 
 // NCAAMB teams arrive with the March Madness epic; only NFL data exists
 // today (ADM-4 spec) — no sport picker until there's a second sport to pick.
@@ -19,7 +19,7 @@ export function TeamsBrowser() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AdminQueryState
+        <QueryState
           isPending={teams.isPending}
           isError={teams.isError}
           onRetry={() => teams.refetch()}
@@ -70,7 +70,7 @@ export function TeamsBrowser() {
               </li>
             ))}
           </ul>
-        </AdminQueryState>
+        </QueryState>
       </CardContent>
     </Card>
   );

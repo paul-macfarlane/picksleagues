@@ -5,6 +5,7 @@ import { useLeagueWeeks } from "@/api/picks";
 import { useLeague } from "@/api/leagues";
 import { PickemPicks } from "@/components/league/pickem-picks";
 import { LabeledSelect } from "@/components/labeled-select";
+import { QueryState } from "@/components/query-state";
 
 const searchSchema = z.object({
   // Selection lives in the URL so a chosen week survives a refresh and is
@@ -37,41 +38,31 @@ function LeaguePicks() {
 
   return (
     <div className="flex flex-col gap-4">
-      {weeks.isPending && (
-        <p className="py-8 text-center text-sm text-muted-foreground">Loading weeks…</p>
-      )}
+      <QueryState
+        isPending={weeks.isPending}
+        pendingMessage="Loading weeks…"
+        isError={weeks.isError}
+        onRetry={() => weeks.refetch()}
+        errorMessage="Couldn't load this league's weeks."
+        isEmpty={allWeeks.length === 0}
+        emptyMessage="No weeks in range for this league yet."
+      >
+        <LabeledSelect
+          id="pickem-week-select"
+          label="Week"
+          value={effectiveWeekId ?? null}
+          onValueChange={(next) => navigate({ search: { weekId: next }, replace: true })}
+          options={allWeeks.map((week) => ({ value: week.id, label: week.label }))}
+        />
 
-      {weeks.isError && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Couldn&apos;t load this league&apos;s weeks.
-        </p>
-      )}
-
-      {weeks.data && allWeeks.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          No weeks in range for this league yet.
-        </p>
-      )}
-
-      {weeks.data && allWeeks.length > 0 && (
-        <>
-          <LabeledSelect
-            id="pickem-week-select"
-            label="Week"
-            value={effectiveWeekId ?? null}
-            onValueChange={(next) => navigate({ search: { weekId: next }, replace: true })}
-            options={allWeeks.map((week) => ({ value: week.id, label: week.label }))}
+        {effectiveWeekId && (
+          <PickemPicks
+            leagueId={leagueId}
+            weekId={effectiveWeekId}
+            pickType={(league.data.settings as PickemSettings).pickType}
           />
-
-          {effectiveWeekId && (
-            <PickemPicks
-              leagueId={leagueId}
-              weekId={effectiveWeekId}
-              pickType={(league.data.settings as PickemSettings).pickType}
-            />
-          )}
-        </>
-      )}
+        )}
+      </QueryState>
     </div>
   );
 }

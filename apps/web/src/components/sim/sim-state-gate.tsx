@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { SimStateResponse } from "@picksleagues/schemas";
 import { useSimState } from "@/api/sim";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 
 // One `useSimState` query per simulator page. The pages are sibling routes, so
 // only one gate is ever mounted at a time — the observer this actually shares a
@@ -12,16 +12,15 @@ export function SimStateGate({ children }: { children: (state: SimStateResponse)
   const state = useSimState();
 
   return (
-    <AdminQueryState
+    <QueryState
       isPending={state.isPending}
       isError={state.isError}
       onRetry={() => state.refetch()}
       errorMessage="Couldn't load the simulator."
     >
-      {/* AdminQueryState's children are evaluated by the parent regardless
-          of its own pending/error guards, so `data` still needs its own
-          guard here. */}
+      {/* QueryState's children are evaluated by the parent regardless of its
+          own pending/error guards, so `data` still needs its own guard here. */}
       {state.data && children(state.data)}
-    </AdminQueryState>
+    </QueryState>
   );
 }

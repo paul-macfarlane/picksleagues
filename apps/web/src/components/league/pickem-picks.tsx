@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   PICK_SIDE,
   PICK_TYPE,
@@ -9,20 +9,14 @@ import {
   type SlateGame,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { toast } from "sonner";
 import { useSubmitPicks, useWeekPicks, useWeekSlate } from "@/api/picks";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel } from "@/lib/game";
+import { gameStatusLabel, spreadLabel } from "@/lib/game";
+import { useErrorToast } from "@/lib/use-error-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-// Home-relative spread, flipped for the away side (spec §ATS) — the sign a
-// member reads next to the team they'd be picking, not the raw stored number.
-function spreadLabel(spread: number | null, side: "home" | "away"): string | null {
-  if (spread === null) return null;
-  const value = side === "home" ? spread : -spread;
-  return value > 0 ? `+${value}` : `${value}`;
-}
+import { QueryState } from "@/components/query-state";
+import { SubstitutePickDialog } from "@/components/league/substitute-pick-dialog";
 
 // Only games that are still replaceable (spec/ADR-0015: unlocked and
 // pickable) seed the editable selection — a locked, cancelled/moved, or
@@ -60,56 +54,39 @@ export function PickemPicks({
   const slate = useWeekSlate(weekId);
   const picks = useWeekPicks(leagueId, weekId);
 
-  useEffect(() => {
-    if (slate.isError || picks.isError) {
-      toast.error("Couldn't load this week's picks — please try again.");
-    }
-  }, [slate.isError, picks.isError]);
-
-  if (slate.isPending || picks.isPending) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">Loading this week…</p>;
-  }
-
-  if (slate.isError || picks.isError) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-8">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load this week.</p>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void slate.refetch();
-            void picks.refetch();
-          }}
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  if (slate.data.games.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        No games synced for this week yet.
-      </p>
-    );
-  }
-
-  const viewer = picks.data.members.find((member) => member.isViewer);
+  useErrorToast(
+    slate.isError || picks.isError,
+    "Couldn't load this week's picks — please try again.",
+  );
 
   return (
-    <PickemWeekEditor
-      // Remounted per week (and dropped/re-seeded on any other week change)
-      // so a stale in-progress selection from a previously viewed week can
-      // never bleed into this one.
-      key={weekId}
-      leagueId={leagueId}
-      weekId={weekId}
-      pickType={pickType}
-      slate={slate.data}
-      picksAllowed={picks.data.picksAllowed}
-      viewerPicks={viewer?.picks ?? []}
-    />
+    <QueryState
+      isPending={slate.isPending || picks.isPending}
+      pendingMessage="Loading this week…"
+      isError={slate.isError || picks.isError}
+      onRetry={() => {
+        void slate.refetch();
+        void picks.refetch();
+      }}
+      errorMessage="Couldn't load this week."
+      isEmpty={slate.data?.games.length === 0}
+      emptyMessage="No games synced for this week yet."
+    >
+      {slate.data && picks.data && (
+        <PickemWeekEditor
+          // Remounted per week (and dropped/re-seeded on any other week
+          // change) so a stale in-progress selection from a previously
+          // viewed week can never bleed into this one.
+          key={weekId}
+          leagueId={leagueId}
+          weekId={weekId}
+          pickType={pickType}
+          slate={slate.data}
+          picksAllowed={picks.data.picksAllowed}
+          viewerPicks={picks.data.members.find((member) => member.isViewer)?.picks ?? []}
+        />
+      )}
+    </QueryState>
   );
 }
 
@@ -140,19 +117,43 @@ function PickemWeekEditor({
   // Retained picks (locked, or on a now-unpickable/moved-out game) count
   // against the member's cap but can never be edited from this endpoint
   // (ADR-0015) — shown read-only rather than omitted, so "5 picks in"
-  // matches what the member actually holds.
-  const lockedPickByGameId = new Map<string, PickemPick>();
+  // matches what the member actually holds. `pushed` marks the subset the
+  // repick endpoint can act on (the game left the week, or is cancelled/moved
+  // within it) — a plain locked pick (its game simply kicked off) is retained
+  // too but offers no substitution.
   const gameById = new Map(slate.games.map((game) => [game.id, game]));
+  const retainedPickByGameId = new Map<string, { pick: PickemPick; pushed: boolean }>();
   for (const pick of viewerPicks) {
     const game = gameById.get(pick.gameId);
+    const pushed = !game || !game.pickable;
     if (!game || game.locked || !game.pickable) {
-      lockedPickByGameId.set(pick.gameId, pick);
+      retainedPickByGameId.set(pick.gameId, { pick, pushed });
     }
   }
 
-  const heldCount = lockedPickByGameId.size + selections.size;
+  const heldCount = retainedPickByGameId.size + selections.size;
   const atCap = heldCount >= picksAllowed;
   const dirty = !selectionsEqual(seed, selections);
+
+  // A pushed pick may be substituted for any of the week's currently
+  // available games (spec §Cancellations) — unstarted, pickable, and not
+  // already held. "Held" includes both committed picks and anything the
+  // member has tentatively toggled in this editor but not yet saved, so the
+  // substitute flow can never offer a game the batch save would also submit.
+  const heldGameIds = new Set<string>([
+    ...viewerPicks.map((pick) => pick.gameId),
+    ...selections.keys(),
+  ]);
+  const eligibleReplacementGames = slate.games.filter(
+    (game) => !game.locked && game.pickable && !heldGameIds.has(game.id),
+  );
+
+  // Pushed picks whose game moved to a different week entirely aren't in this
+  // slate at all (ADR-0015), so they never render via the games list below —
+  // they get their own row here instead.
+  const pushedOutOfWeekPicks = [...retainedPickByGameId.entries()]
+    .filter(([gameId, retained]) => retained.pushed && !gameById.has(gameId))
+    .map(([, retained]) => retained.pick);
 
   function toggle(gameId: string, side: PickSide) {
     setSelections((prev) => {
@@ -164,6 +165,16 @@ function PickemWeekEditor({
       }
       return next;
     });
+  }
+
+  // A substitution writes a new pick server-side without going through this
+  // editor's own save — sync both maps so the replacement shows as held
+  // immediately (heldCount, the "N / M picked" count, and the game's row)
+  // rather than waiting on a remount. Written into `seed` too so the editor
+  // doesn't read as dirty for a pick the member didn't touch.
+  function handleSubstituted(gameId: string, side: PickSide) {
+    setSelections((prev) => new Map(prev).set(gameId, side));
+    setSeed((prev) => new Map(prev).set(gameId, side));
   }
 
   function handleSubmit() {
@@ -193,6 +204,32 @@ function PickemWeekEditor({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {pushedOutOfWeekPicks.length > 0 && (
+          <ul className="flex flex-col gap-3">
+            {pushedOutOfWeekPicks.map((pick) => (
+              <li key={pick.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">Pick moved out of this week</p>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    Push
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  That game moved to a different week, so this pick resolved as a push.
+                </p>
+                <SubstitutePickDialog
+                  leagueId={leagueId}
+                  weekId={weekId}
+                  pickType={pickType}
+                  replacePickId={pick.id}
+                  eligibleGames={eligibleReplacementGames}
+                  onSubstituted={handleSubstituted}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+
         <ul className="flex flex-col gap-3">
           {slate.games.map((game) => {
             const currentSelection = selections.get(game.id);
@@ -200,12 +237,16 @@ function PickemWeekEditor({
             return (
               <GameRow
                 key={game.id}
+                leagueId={leagueId}
+                weekId={weekId}
                 game={game}
                 pickType={pickType}
                 selectedSide={currentSelection}
-                lockedPick={lockedPickByGameId.get(game.id)}
+                retained={retainedPickByGameId.get(game.id)}
+                eligibleReplacementGames={eligibleReplacementGames}
                 buttonsDisabled={wouldAddNew && atCap}
                 onToggle={(side) => toggle(game.id, side)}
+                onSubstituted={handleSubstituted}
               />
             );
           })}
@@ -219,19 +260,27 @@ function PickemWeekEditor({
 }
 
 function GameRow({
+  leagueId,
+  weekId,
   game,
   pickType,
   selectedSide,
-  lockedPick,
+  retained,
+  eligibleReplacementGames,
   buttonsDisabled,
   onToggle,
+  onSubstituted,
 }: {
+  leagueId: string;
+  weekId: string;
   game: SlateGame;
   pickType: PickType;
   selectedSide: PickSide | undefined;
-  lockedPick: PickemPick | undefined;
+  retained: { pick: PickemPick; pushed: boolean } | undefined;
+  eligibleReplacementGames: SlateGame[];
   buttonsDisabled: boolean;
   onToggle: (side: PickSide) => void;
+  onSubstituted: (gameId: string, side: PickSide) => void;
 }) {
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
   // ATS leagues can't submit a pick with no number to accept — the write path
@@ -295,15 +344,37 @@ function GameRow({
       </div>
 
       {!editable && (
-        <p className="text-xs text-muted-foreground">
-          {lockedPick
-            ? `Your pick: ${
-                lockedPick.side === PICK_SIDE.HOME
-                  ? game.homeTeam.abbreviation
-                  : game.awayTeam.abbreviation
-              }`
-            : "No pick"}
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground">
+            {retained
+              ? `Your pick: ${
+                  retained.pick.side === PICK_SIDE.HOME
+                    ? game.homeTeam.abbreviation
+                    : game.awayTeam.abbreviation
+                }`
+              : "No pick"}
+          </p>
+          {/* Only a pushed pick (spec §Cancellations) gets a substitute offer
+              — a plain locked pick (the game simply kicked off) is retained
+              too but stays as-is, so `pushed` gates this rather than `retained`
+              alone. */}
+          {retained?.pushed && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                This game was cancelled or moved, so the pick resolved as a push — your other picks
+                are unaffected.
+              </p>
+              <SubstitutePickDialog
+                leagueId={leagueId}
+                weekId={weekId}
+                pickType={pickType}
+                replacePickId={retained.pick.id}
+                eligibleGames={eligibleReplacementGames}
+                onSubstituted={onSubstituted}
+              />
+            </>
+          )}
+        </div>
       )}
     </li>
   );

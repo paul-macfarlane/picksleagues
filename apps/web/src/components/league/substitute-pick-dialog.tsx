@@ -1,0 +1,168 @@
+import { useState } from "react";
+import {
+  PICK_SIDE,
+  PICK_TYPE,
+  type PickSide,
+  type PickType,
+  type SlateGame,
+} from "@picksleagues/schemas";
+import { useRepick } from "@/api/picks";
+import { formatDateTime } from "@/lib/format";
+import { spreadLabel } from "@/lib/game";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
+// A radio value must be a single primitive; a game's side isn't addressable
+// on its own (either side of any eligible game is a valid replacement), so
+// the two are packed into one string. `:` is safe — gameId is a uuid.
+function radioValue(gameId: string, side: PickSide): string {
+  return `${gameId}:${side}`;
+}
+
+function parseRadioValue(value: string): { gameId: string; side: PickSide } {
+  const separatorIndex = value.lastIndexOf(":");
+  return {
+    gameId: value.slice(0, separatorIndex),
+    side: value.slice(separatorIndex + 1) as PickSide,
+  };
+}
+
+/**
+ * The substitute half of §Cancellations: offered next to a pick whose game
+ * pushed (cancelled, moved within the week, or moved out of it entirely —
+ * ADR-0015). `eligibleGames` is precomputed by the caller (unstarted,
+ * pickable, and not already held) so this component stays pure UI; an empty
+ * list means the push simply stands, per spec, so no control is rendered.
+ */
+export function SubstitutePickDialog({
+  leagueId,
+  weekId,
+  pickType,
+  replacePickId,
+  eligibleGames,
+  onSubstituted,
+}: {
+  leagueId: string;
+  weekId: string;
+  pickType: PickType;
+  replacePickId: string;
+  eligibleGames: SlateGame[];
+  // The replacement's game/side, once the substitution actually lands — the
+  // editor's own selection map is local state seeded once at mount (so a
+  // background slate refetch can't clobber an in-progress edit) and won't
+  // otherwise learn that this game is now held until the next full remount.
+  onSubstituted: (gameId: string, side: PickSide) => void;
+}) {
+  const repick = useRepick(leagueId, weekId);
+  const [choice, setChoice] = useState<string | null>(null);
+  const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
+
+  if (eligibleGames.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No unstarted games left to substitute — this push stands.
+      </p>
+    );
+  }
+
+  const selection = choice ? parseRadioValue(choice) : null;
+  const selectedGame = selection
+    ? eligibleGames.find((game) => game.id === selection.gameId)
+    : undefined;
+
+  function confirm() {
+    if (!selection || !selectedGame) return;
+    repick.mutate(
+      {
+        replacePickId,
+        gameId: selection.gameId,
+        side: selection.side,
+        spread: showSpread ? selectedGame.spread : null,
+      },
+      {
+        onSuccess: (data) => {
+          if (data) onSubstituted(selection.gameId, selection.side);
+        },
+      },
+    );
+  }
+
+  return (
+    // Reset on close (both cancel and a successful confirm dismiss the
+    // dialog) so reopening never shows a stale selection from last time.
+    <AlertDialog onOpenChange={(open) => !open && setChoice(null)}>
+      <AlertDialogTrigger
+        render={<Button variant="outline" size="sm" disabled={repick.isPending} />}
+      >
+        Substitute
+      </AlertDialogTrigger>
+      <AlertDialogContent className="max-h-[85vh] overflow-y-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Choose a replacement pick</AlertDialogTitle>
+          <AlertDialogDescription>
+            {showSpread
+              ? "You'll accept the current spread on this pick only — your other unstarted picks keep the spreads they were made at."
+              : "Pick any of this week's remaining available games."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {/* `null`, never `undefined` — Base UI's RadioGroup treats a value
+            transitioning to `undefined` as switching from controlled to
+            uncontrolled (console warning); `null` is its "no selection" value. */}
+        <RadioGroup value={choice} onValueChange={(value) => setChoice(value as string)}>
+          {eligibleGames.map((game) => {
+            const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
+            const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
+            return (
+              <div
+                key={game.id}
+                className="flex flex-col gap-2 rounded-lg border border-border p-3"
+              >
+                <p
+                  className="text-sm font-medium text-foreground"
+                  title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
+                >
+                  {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Kickoff {formatDateTime(game.kickoffAt)}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">
+                    {game.awayTeam.abbreviation}
+                    {awaySpread && ` ${awaySpread}`}
+                    <RadioGroupItem value={radioValue(game.id, PICK_SIDE.AWAY)} />
+                  </Label>
+                  <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">
+                    {game.homeTeam.abbreviation}
+                    {homeSpread && ` ${homeSpread}`}
+                    <RadioGroupItem value={radioValue(game.id, PICK_SIDE.HOME)} />
+                  </Label>
+                </div>
+              </div>
+            );
+          })}
+        </RadioGroup>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={repick.isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={!choice || repick.isPending} onClick={confirm}>
+            Confirm substitution
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
