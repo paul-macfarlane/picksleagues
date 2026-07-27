@@ -9,16 +9,11 @@ import {
   type PickemSettings,
 } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
-import {
-  DEFAULT_PICKEM_SETTINGS as DEFAULT_PICKEM_SETTINGS_UNION,
-  insertLeague,
-  seedSeason,
-} from "./setup/league-helpers";
+import { DEFAULT_PICKEM_SETTINGS, insertLeague, seedSeason } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app, appAfterKickoff } = makeLeagueTestHarness();
-const DEFAULT_PICKEM_SETTINGS = DEFAULT_PICKEM_SETTINGS_UNION as PickemSettings;
 
 type App = typeof app;
 

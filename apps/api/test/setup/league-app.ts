@@ -20,6 +20,11 @@ export const POST_START_NOW = new Date(WEEK1_KICKOFF.getTime() + 1);
  * (discovery, invites/join, members, leagues). Caller owns lifecycle — in
  * particular, each test file must still call `await db.$client.end()` in its
  * own `afterAll`; this harness intentionally does not hide that.
+ *
+ * Also returns the picks/standings HTTP request helpers, each bound to the
+ * harness's own `app` as its default `on` target — this is what lets callers
+ * pass `appAtKickoff`/`appAfterKickoff` for the boundary cases while every
+ * other call site stays terse.
  */
 export function makeLeagueTestHarness() {
   const db = createDb(getTestDatabaseUrl());
@@ -36,7 +41,64 @@ export function makeLeagueTestHarness() {
     clock: async () => new FixedClock(WEEK1_KICKOFF),
   });
 
-  return { db, auth, app, appAfterKickoff, appAtKickoff };
+  type App = typeof app;
+
+  function getSlate(cookie: string | undefined, weekId: string, on: App = app) {
+    return on.request(`/api/weeks/${weekId}/games`, { headers: withCookie(cookie) });
+  }
+
+  function getPicks(cookie: string | undefined, leagueId: string, weekId: string, on: App = app) {
+    return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
+      headers: withCookie(cookie),
+    });
+  }
+
+  function putPicks(
+    cookie: string | undefined,
+    leagueId: string,
+    weekId: string,
+    body: unknown,
+    on: App = app,
+  ) {
+    return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", ...withCookie(cookie) },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function postRepick(
+    cookie: string | undefined,
+    leagueId: string,
+    weekId: string,
+    body: unknown,
+    on: App = app,
+  ) {
+    return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}/repick`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...withCookie(cookie) },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function getStandings(cookie: string | undefined, leagueId: string, query = "", on: App = app) {
+    return on.request(`/api/leagues/${leagueId}/standings${query}`, {
+      headers: withCookie(cookie),
+    });
+  }
+
+  return {
+    db,
+    auth,
+    app,
+    appAfterKickoff,
+    appAtKickoff,
+    getSlate,
+    getPicks,
+    putPicks,
+    postRepick,
+    getStandings,
+  };
 }
 
 export function withCookie(cookie: string | undefined): Record<string, string> {

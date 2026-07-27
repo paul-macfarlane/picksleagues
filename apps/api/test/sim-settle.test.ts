@@ -1,20 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import {
-  games,
-  leagueMembers,
-  leagueSeasons,
-  pickResults,
-  pickemPicks,
-  standings,
-} from "@picksleagues/db";
+import { games, pickResults, pickemPicks, standings } from "@picksleagues/db";
 import { GAME_STATUS, MEMBER_ROLE, PICK_SIDE, type SimSettleResponse } from "@picksleagues/schemas";
 import { adminCaller, auth, closeSimDb, db, postJson } from "./setup/sim-helpers";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
-import { insertLeague, seedSeason } from "./setup/league-helpers";
+import { insertLeague, SEED_AT, seedSeason } from "./setup/league-helpers";
+import { seedPickemLeague } from "./setup/pickem-league";
 import { resetDb } from "./setup/reset-db";
 
-const SEED_AT = new Date("2026-01-01T00:00:00.000Z");
 const PAST_KICKOFF = new Date("2026-09-14T17:00:00.000Z");
 
 beforeEach(async () => {
@@ -31,44 +24,23 @@ afterAll(async () => {
  * misses both (0 pts) — a clean rank split for idempotency/scoping assertions.
  */
 async function seedSettleableLeague(opts: { leagueName?: string; seasonYear?: number } = {}) {
-  const { seasonId, weekIds, gameIds } = await seedSeason(db, {
+  const base = await seedPickemLeague(db, auth, {
     year: opts.seasonYear ?? 2026,
+    leagueName: opts.leagueName ?? "Test League",
     weeks: [
       {
         weekNumber: 1,
         kickoffs: [{ kickoffAt: PAST_KICKOFF }, { kickoffAt: PAST_KICKOFF }],
       },
     ],
-  });
-  const memberA = await createAuthenticatedUser(auth);
-  const memberB = await createAuthenticatedUser(auth);
-  const league = await insertLeague(db, {
-    seasonId,
-    name: opts.leagueName ?? "Test League",
-    members: [
-      { userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER },
-      { userId: memberB.user.id, role: MEMBER_ROLE.MEMBER },
-    ],
+    members: [{}, {}],
   });
 
-  const [leagueSeason] = await db
-    .select()
-    .from(leagueSeasons)
-    .where(eq(leagueSeasons.leagueId, league.id));
-  if (!leagueSeason) throw new Error("league season not created");
+  const memberARow = { id: base.members.get(base.users[0]!.user.id)! };
+  const memberBRow = { id: base.members.get(base.users[1]!.user.id)! };
 
-  const [memberARow] = await db
-    .select()
-    .from(leagueMembers)
-    .where(and(eq(leagueMembers.leagueId, league.id), eq(leagueMembers.userId, memberA.user.id)));
-  const [memberBRow] = await db
-    .select()
-    .from(leagueMembers)
-    .where(and(eq(leagueMembers.leagueId, league.id), eq(leagueMembers.userId, memberB.user.id)));
-  if (!memberARow || !memberBRow) throw new Error("league members not created");
-
-  const weekId = weekIds.get("regular:1")!;
-  const [g1, g2] = gameIds.get("regular:1") as [string, string];
+  const weekId = base.weekIds.get("regular:1")!;
+  const [g1, g2] = base.gameIds.get("regular:1") as [string, string];
 
   // g1: home wins 24-17. g2: away wins 20-10.
   await db
@@ -83,7 +55,7 @@ async function seedSettleableLeague(opts: { leagueName?: string; seasonYear?: nu
   await db.insert(pickemPicks).values([
     // Member A picks the winner of both games.
     {
-      leagueSeasonId: leagueSeason.id,
+      leagueSeasonId: base.leagueSeasonId,
       leagueMemberId: memberARow.id,
       weekId,
       gameId: g1,
@@ -93,7 +65,7 @@ async function seedSettleableLeague(opts: { leagueName?: string; seasonYear?: nu
       updatedAt: SEED_AT,
     },
     {
-      leagueSeasonId: leagueSeason.id,
+      leagueSeasonId: base.leagueSeasonId,
       leagueMemberId: memberARow.id,
       weekId,
       gameId: g2,
@@ -104,7 +76,7 @@ async function seedSettleableLeague(opts: { leagueName?: string; seasonYear?: nu
     },
     // Member B picks the loser of both games.
     {
-      leagueSeasonId: leagueSeason.id,
+      leagueSeasonId: base.leagueSeasonId,
       leagueMemberId: memberBRow.id,
       weekId,
       gameId: g1,
@@ -114,7 +86,7 @@ async function seedSettleableLeague(opts: { leagueName?: string; seasonYear?: nu
       updatedAt: SEED_AT,
     },
     {
-      leagueSeasonId: leagueSeason.id,
+      leagueSeasonId: base.leagueSeasonId,
       leagueMemberId: memberBRow.id,
       weekId,
       gameId: g2,
@@ -126,8 +98,8 @@ async function seedSettleableLeague(opts: { leagueName?: string; seasonYear?: nu
   ]);
 
   return {
-    league,
-    leagueSeason,
+    league: base.league,
+    leagueSeasonId: base.leagueSeasonId,
     weekId,
     memberARow,
     memberBRow,
@@ -152,7 +124,7 @@ describe("POST /api/sim/settle", () => {
 
   it("settles one league: writes pick_results and ranks season standings by points", async () => {
     const { app, cookie } = await adminCaller();
-    const { league, leagueSeason, memberARow, memberBRow } = await seedSettleableLeague();
+    const { league, leagueSeasonId, memberARow, memberBRow } = await seedSettleableLeague();
 
     const res = await postJson(app, "/api/sim/settle", { leagueId: league.id }, cookie);
 
@@ -161,7 +133,7 @@ describe("POST /api/sim/settle", () => {
     expect(body.leagues).toHaveLength(1);
     const result = body.leagues[0]!;
     expect(result.leagueId).toBe(league.id);
-    expect(result.leagueSeasonId).toBe(leagueSeason.id);
+    expect(result.leagueSeasonId).toBe(leagueSeasonId);
     expect(result.summary.results).toBe(4);
     expect(result.summary.unsettled).toBe(0);
 
@@ -176,13 +148,13 @@ describe("POST /api/sim/settle", () => {
     const storedResults = await db
       .select()
       .from(pickResults)
-      .where(eq(pickResults.leagueSeasonId, leagueSeason.id));
+      .where(eq(pickResults.leagueSeasonId, leagueSeasonId));
     expect(storedResults).toHaveLength(4);
   });
 
   it("is idempotent: settling twice yields identical standings and unchanged row counts", async () => {
     const { app, cookie } = await adminCaller();
-    const { league, leagueSeason } = await seedSettleableLeague();
+    const { league, leagueSeasonId } = await seedSettleableLeague();
 
     const first = await postJson(app, "/api/sim/settle", { leagueId: league.id }, cookie);
     const firstBody = (await first.json()) as SimSettleResponse;
@@ -196,12 +168,12 @@ describe("POST /api/sim/settle", () => {
     const resultRows = await db
       .select()
       .from(pickResults)
-      .where(eq(pickResults.leagueSeasonId, leagueSeason.id));
+      .where(eq(pickResults.leagueSeasonId, leagueSeasonId));
     expect(resultRows).toHaveLength(4);
     const standingsRows = await db
       .select()
       .from(standings)
-      .where(eq(standings.leagueSeasonId, leagueSeason.id));
+      .where(eq(standings.leagueSeasonId, leagueSeasonId));
     // One season row + one weekly row per member (2 members).
     expect(standingsRows).toHaveLength(4);
   });
@@ -223,7 +195,7 @@ describe("POST /api/sim/settle", () => {
     const bStandingsBefore = await db
       .select()
       .from(standings)
-      .where(eq(standings.leagueSeasonId, b.leagueSeason.id));
+      .where(eq(standings.leagueSeasonId, b.leagueSeasonId));
 
     // Flip both leagues' g1 result — member B now sweeps instead of member A —
     // then settle only league A. Only its stored standings should move.
@@ -250,7 +222,7 @@ describe("POST /api/sim/settle", () => {
     const bStandingsAfter = await db
       .select()
       .from(standings)
-      .where(eq(standings.leagueSeasonId, b.leagueSeason.id));
+      .where(eq(standings.leagueSeasonId, b.leagueSeasonId));
     expect(bStandingsAfter).toEqual(bStandingsBefore);
   });
 

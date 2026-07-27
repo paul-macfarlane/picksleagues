@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   games,
@@ -7,7 +7,10 @@ import {
   leagueSeasons,
   leagues,
   oddsSnapshots,
+  pickemPicks,
+  pickResults,
   sportSeasons,
+  standings,
   teams,
   weeks,
 } from "@picksleagues/db";
@@ -24,11 +27,14 @@ import {
   type LeagueStatus,
   type LeagueVisibility,
   type MemberRole,
+  type PickemSettings,
+  type PickSide,
   type Sport,
   type WeekType,
 } from "@picksleagues/schemas";
+import { WEEK1_KICKOFF } from "./league-app";
 
-const SEED_AT = new Date("2026-01-01T00:00:00.000Z");
+export const SEED_AT = new Date("2026-01-01T00:00:00.000Z");
 
 export interface SeededWeek {
   weekType?: WeekType;
@@ -162,13 +168,26 @@ export async function seedSeason(
   return { seasonId: season.id, weekIds, gameIds };
 }
 
-export const DEFAULT_PICKEM_SETTINGS: LeagueSettings = {
+export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
   picksPerWeek: 5,
   pushTieResolution: "half_point",
 };
+
+/** Four unstarted games, spread an hour apart — enough room to hold several picks and still leave one unpicked as a repick target. */
+export const FOUR_GAME_WEEK: SeededWeek[] = [
+  {
+    weekNumber: 1,
+    kickoffs: [
+      { kickoffAt: WEEK1_KICKOFF },
+      { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000) },
+      { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
+      { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 3 * 60 * 60 * 1000) },
+    ],
+  },
+];
 
 /**
  * Directly inserts a league + one season instance + members, bypassing the API
@@ -230,4 +249,74 @@ export async function insertLeague(
   }
 
   return league;
+}
+
+/** userId -> leagueMemberId for a league just built by `insertLeague`. */
+export async function membersOf(db: Db, leagueId: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: leagueMembers.id, userId: leagueMembers.userId })
+    .from(leagueMembers)
+    .where(eq(leagueMembers.leagueId, leagueId));
+  return new Map(rows.map((row) => [row.userId, row.id]));
+}
+
+/** The single league-season instance's id for a league seeded with one season. */
+export async function seasonIdFor(db: Db, leagueId: string): Promise<string> {
+  const [row] = await db
+    .select({ id: leagueSeasons.id })
+    .from(leagueSeasons)
+    .where(eq(leagueSeasons.leagueId, leagueId));
+  if (!row) throw new Error(`no league_seasons row for league ${leagueId}`);
+  return row.id;
+}
+
+/** Inserts a pick row directly — used to arrange settlement/standings fixtures without N pick-submission requests. */
+export async function insertPick(
+  db: Db,
+  opts: {
+    leagueSeasonId: string;
+    leagueMemberId: string;
+    weekId: string;
+    gameId: string;
+    side: PickSide;
+    spreadAtPick?: number | null;
+  },
+) {
+  const [pick] = await db
+    .insert(pickemPicks)
+    .values({
+      leagueSeasonId: opts.leagueSeasonId,
+      leagueMemberId: opts.leagueMemberId,
+      weekId: opts.weekId,
+      gameId: opts.gameId,
+      side: opts.side,
+      spreadAtPick: opts.spreadAtPick ?? null,
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
+    .returning();
+  if (!pick) throw new Error("pick insert returned no row");
+  return pick;
+}
+
+export type GameUpdate = Partial<{
+  status: (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
+  homeScore: number | null;
+  awayScore: number | null;
+  overrideStatus: (typeof GAME_STATUS)[keyof typeof GAME_STATUS] | null;
+  overrideHomeScore: number | null;
+  overrideAwayScore: number | null;
+  weekId: string;
+}>;
+
+export async function setGame(db: Db, gameId: string, values: GameUpdate) {
+  await db.update(games).set(values).where(eq(games.id, gameId));
+}
+
+export async function pickResultsFor(db: Db, leagueSeasonId: string) {
+  return db.select().from(pickResults).where(eq(pickResults.leagueSeasonId, leagueSeasonId));
+}
+
+export async function standingsFor(db: Db, leagueSeasonId: string) {
+  return db.select().from(standings).where(eq(standings.leagueSeasonId, leagueSeasonId));
 }

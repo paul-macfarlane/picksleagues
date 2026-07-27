@@ -1,26 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import {
-  games,
-  leagueMembers,
-  leagueSeasons,
-  oddsSnapshots,
-  pickemPicks,
-  pickResults,
-  standings,
-} from "@picksleagues/db";
+import { leagueSeasons, oddsSnapshots, pickemPicks } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   GAME_STATUS,
   LEAGUE_STATUS,
-  MEMBER_ROLE,
   PICK_OUTCOME,
   PICK_SIDE,
   PICK_TYPE,
   type JobRunResponse,
   type PickemSettings,
-  type PickSide,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import {
@@ -31,25 +21,19 @@ import {
 } from "../src/services/settlement/pickem";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import {
-  DEFAULT_PICKEM_SETTINGS as DEFAULT_PICKEM_SETTINGS_UNION,
-  insertLeague,
-  seedSeason,
+  DEFAULT_PICKEM_SETTINGS,
+  insertPick,
+  pickResultsFor,
+  setGame,
+  standingsFor,
   type SeededWeek,
 } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league-app";
+import { seedPickemLeague as seedPickemLeagueBase } from "./setup/pickem-league";
 import { resetDb } from "./setup/reset-db";
 import { makeTestEnv } from "./setup/test-env";
 
-// Narrowed from the shared helper's `LeagueSettings` union — every league in
-// this file is Pick'em (mirrors pickem-picks.test.ts's idiom).
-const DEFAULT_PICKEM_SETTINGS = DEFAULT_PICKEM_SETTINGS_UNION as PickemSettings;
-
 const { db, auth, app } = makeLeagueTestHarness();
-
-// Arbitrary write-time stamp for rows this file inserts directly — settlement
-// grades on game *status*, never on the clock (see the dedicated boundary
-// test below), so its exact value is inert to every assertion here.
-const SEED_AT = new Date("2026-01-01T00:00:00.000Z");
 
 /** One league season + one 1-game week — the minimal slate most cases need. */
 const ONE_GAME_WEEK: SeededWeek[] = [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }];
@@ -61,72 +45,6 @@ beforeEach(async () => {
 afterAll(async () => {
   await db.$client.end();
 });
-
-/** userId -> leagueMemberId for a league just built by `insertLeague`. */
-async function membersOf(leagueId: string): Promise<Map<string, string>> {
-  const rows = await db
-    .select({ id: leagueMembers.id, userId: leagueMembers.userId })
-    .from(leagueMembers)
-    .where(eq(leagueMembers.leagueId, leagueId));
-  return new Map(rows.map((row) => [row.userId, row.id]));
-}
-
-/** The single league-season instance's id for a league seeded with one season. */
-async function seasonIdFor(leagueId: string): Promise<string> {
-  const [row] = await db
-    .select({ id: leagueSeasons.id })
-    .from(leagueSeasons)
-    .where(eq(leagueSeasons.leagueId, leagueId));
-  if (!row) throw new Error(`no league_seasons row for league ${leagueId}`);
-  return row.id;
-}
-
-async function insertPick(opts: {
-  leagueSeasonId: string;
-  leagueMemberId: string;
-  weekId: string;
-  gameId: string;
-  side: PickSide;
-  spreadAtPick?: number | null;
-}) {
-  const [pick] = await db
-    .insert(pickemPicks)
-    .values({
-      leagueSeasonId: opts.leagueSeasonId,
-      leagueMemberId: opts.leagueMemberId,
-      weekId: opts.weekId,
-      gameId: opts.gameId,
-      side: opts.side,
-      spreadAtPick: opts.spreadAtPick ?? null,
-      createdAt: SEED_AT,
-      updatedAt: SEED_AT,
-    })
-    .returning();
-  if (!pick) throw new Error("pick insert returned no row");
-  return pick;
-}
-
-type GameUpdate = Partial<{
-  status: (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
-  homeScore: number | null;
-  awayScore: number | null;
-  overrideStatus: (typeof GAME_STATUS)[keyof typeof GAME_STATUS] | null;
-  overrideHomeScore: number | null;
-  overrideAwayScore: number | null;
-  weekId: string;
-}>;
-
-async function setGame(gameId: string, values: GameUpdate) {
-  await db.update(games).set(values).where(eq(games.id, gameId));
-}
-
-async function pickResultsFor(leagueSeasonId: string) {
-  return db.select().from(pickResults).where(eq(pickResults.leagueSeasonId, leagueSeasonId));
-}
-
-async function standingsFor(leagueSeasonId: string) {
-  return db.select().from(standings).where(eq(standings.leagueSeasonId, leagueSeasonId));
-}
 
 /**
  * Comparable snapshots of `pick_results`/`standings` rows, `id` (and the
@@ -166,8 +84,8 @@ function snapshotStandings(rows: Awaited<ReturnType<typeof standingsFor>>) {
 }
 
 /**
- * One league season + members, seeded via `seedSeason`/`insertLeague`
- * directly. `year` only needs overriding when a single test seeds more than
+ * One league season + members, seeded via the shared `seedPickemLeague`
+ * builder. `year` only needs overriding when a single test seeds more than
  * one independent league — `seedSeason`'s (sport, year) unique constraint
  * (ADR-0010) means two calls at the same default year collide.
  */
@@ -180,31 +98,16 @@ async function seedLeagueForSettlement(
     year?: number;
   } = {},
 ) {
-  const {
-    settings = DEFAULT_PICKEM_SETTINGS,
-    weeks = ONE_GAME_WEEK,
-    memberCount = 2,
-    status = LEAGUE_STATUS.ACTIVE,
-    year = 2026,
-  } = opts;
-  const { seasonId, weekIds, gameIds } = await seedSeason(db, { year, weeks });
-  const users = await Promise.all(
-    Array.from({ length: memberCount }, (_, i) =>
-      createAuthenticatedUser(auth, { username: `member_${i}_${randomUUID().slice(0, 8)}` }),
-    ),
-  );
-  const league = await insertLeague(db, {
-    seasonId,
-    status,
+  const { settings, weeks = ONE_GAME_WEEK, memberCount = 2, status, year } = opts;
+  return seedPickemLeagueBase(db, auth, {
+    weeks,
     settings,
-    members: users.map((user, i) => ({
-      userId: user.user.id,
-      role: i === 0 ? MEMBER_ROLE.COMMISSIONER : MEMBER_ROLE.MEMBER,
+    status,
+    year,
+    members: Array.from({ length: memberCount }, (_, i) => ({
+      username: `member_${i}_${randomUUID().slice(0, 8)}`,
     })),
   });
-  const members = await membersOf(league.id);
-  const leagueSeasonId = await seasonIdFor(league.id);
-  return { league, leagueSeasonId, weekIds, gameIds, users, members };
 }
 
 describe("settleLeagueSeasonWeeks — results correctness", () => {
@@ -225,21 +128,21 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1, g2, g3] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g2!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
@@ -247,14 +150,14 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       side: PICK_SIDE.HOME,
     });
 
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // home wins by 14
-    await setGame(g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 }); // home loses by 14
-    await setGame(g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // tie
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // home wins by 14
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 }); // home loses by 14
+    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // tie
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const results = await pickResultsFor(leagueSeasonId);
+    const results = await pickResultsFor(db, leagueSeasonId);
     const byGame = new Map(results.map((row) => [row.pickemPickId, row]));
     const byGameId = new Map(
       (
@@ -289,7 +192,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const memberId = members.get(users[0]!.user.id)!;
 
     // Pick locked in at the -3.5 spread.
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
@@ -309,12 +212,12 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       capturedAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 1000),
       createdAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 1000),
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 20 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 20 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const [result] = await pickResultsFor(leagueSeasonId);
+    const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, differential: 0.5 });
   });
 
@@ -324,19 +227,19 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.CANCELLED });
+    await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const [result] = await pickResultsFor(leagueSeasonId);
+    const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5, differential: 0 });
   });
 
@@ -356,14 +259,14 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const memberId = members.get(users[0]!.user.id)!;
 
     // The pick keeps week 1 (the week it was made in); the game itself moves.
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, {
+    await setGame(db, g1!, {
       status: GAME_STATUS.FINAL,
       homeScore: 30,
       awayScore: 10,
@@ -373,7 +276,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id]);
 
-    const [result] = await pickResultsFor(leagueSeasonId);
+    const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, differential: 0 });
   });
 
@@ -398,28 +301,28 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     // Both picks were made in week 1; both games have since been repointed to
     // week 2 — g1 carries an admin override that must outrank the synthesized
     // `moved` status (arch D15: override_* ?? provider_*), g2 doesn't.
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g2!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, {
+    await setGame(db, g1!, {
       status: GAME_STATUS.SCHEDULED,
       weekId: week2Id,
       overrideStatus: GAME_STATUS.FINAL,
       overrideHomeScore: 30,
       overrideAwayScore: 10,
     });
-    await setGame(g2!, {
+    await setGame(db, g2!, {
       status: GAME_STATUS.FINAL,
       homeScore: 30,
       awayScore: 10,
@@ -429,7 +332,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id]);
 
-    const results = await pickResultsFor(leagueSeasonId);
+    const results = await pickResultsFor(db, leagueSeasonId);
     const picks = await db
       .select()
       .from(pickemPicks)
@@ -448,7 +351,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
@@ -456,7 +359,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       side: PICK_SIDE.HOME,
     });
     // Provider score says home lost by 10; the override flips it to a home win.
-    await setGame(g1!, {
+    await setGame(db, g1!, {
       status: GAME_STATUS.FINAL,
       homeScore: 10,
       awayScore: 20,
@@ -467,7 +370,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const [result] = await pickResultsFor(leagueSeasonId);
+    const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, differential: 10 });
   });
 
@@ -477,14 +380,14 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, {
+    await setGame(db, g1!, {
       status: GAME_STATUS.FINAL,
       homeScore: 30,
       awayScore: 10,
@@ -494,7 +397,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const [result] = await pickResultsFor(leagueSeasonId);
+    const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, differential: 0 });
   });
 
@@ -504,7 +407,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
@@ -517,7 +420,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
 
     expect(summary.results).toBe(0);
     expect(summary.unsettled).toBe(1);
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(0);
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(0);
   });
 
   it("produces no row (and doesn't throw) for a final game with null scores", async () => {
@@ -526,21 +429,21 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL }); // no scores
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL }); // no scores
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     const summary = await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     expect(summary.results).toBe(0);
     expect(summary.unsettled).toBe(1);
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(0);
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(0);
   });
 });
 
@@ -551,19 +454,19 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const rows = await standingsFor(leagueSeasonId);
+    const rows = await standingsFor(db, leagueSeasonId);
     const weekly = rows.filter((row) => row.weekId === weekId);
     const season = rows.filter((row) => row.weekId === null);
     expect(weekly).toHaveLength(2); // both members, including the non-picker
@@ -590,27 +493,27 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const [g2] = gameIds.get("regular:2")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week1Id,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId: week2Id,
       gameId: g2!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct, +14
-    await setGame(g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct, +14
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
 
-    const rows = await standingsFor(leagueSeasonId);
+    const rows = await standingsFor(db, leagueSeasonId);
     const season = rows.find((row) => row.weekId === null && row.leagueMemberId === memberId)!;
     expect(season).toMatchObject({ points: 1, differential: 10 });
   });
@@ -635,21 +538,21 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const memberE = members.get(users[1]!.user.id)!;
     const memberF = members.get(users[2]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberD,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberE,
       weekId,
       gameId: g2!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberF,
       weekId,
@@ -657,14 +560,14 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       side: PICK_SIDE.HOME,
     });
 
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // D: correct, +10
-    await setGame(g2!, { status: GAME_STATUS.FINAL, homeScore: 25, awayScore: 15 }); // E: correct, +10 (ties D)
-    await setGame(g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 15 }); // F: correct, +5
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // D: correct, +10
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 25, awayScore: 15 }); // E: correct, +10 (ties D)
+    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 15 }); // F: correct, +5
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const season = (await standingsFor(leagueSeasonId)).filter((row) => row.weekId === null);
+    const season = (await standingsFor(db, leagueSeasonId)).filter((row) => row.weekId === null);
     const byMember = new Map(season.map((row) => [row.leagueMemberId, row]));
     expect(byMember.get(memberD)).toMatchObject({ points: 1, differential: 10, rank: 1 });
     expect(byMember.get(memberE)).toMatchObject({ points: 1, differential: 10, rank: 1 });
@@ -678,19 +581,19 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const picker = members.get(users[0]!.user.id)!;
     const nonPicker = members.get(users[1]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: picker,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const rows = await standingsFor(leagueSeasonId);
+    const rows = await standingsFor(db, leagueSeasonId);
     const weeklyNonPicker = rows.find(
       (row) => row.weekId === weekId && row.leagueMemberId === nonPicker,
     )!;
@@ -717,17 +620,17 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const [g2] = gameIds.get("regular:2")!;
     const picker = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: picker,
       weekId: week1Id,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     // Week 2's pick is on a game still scheduled — no result for it yet.
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: picker,
       weekId: week2Id,
@@ -738,7 +641,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await rebuildLeagueSeason(db, clock, leagueSeasonId);
 
-    const rows = await standingsFor(leagueSeasonId);
+    const rows = await standingsFor(db, leagueSeasonId);
     const week1Rows = rows.filter((row) => row.weekId === week1Id);
     const week2Rows = rows.filter((row) => row.weekId === week2Id);
     const seasonRows = rows.filter((row) => row.weekId === null);
@@ -757,7 +660,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await rebuildLeagueSeason(db, clock, leagueSeasonId);
 
-    const rows = await standingsFor(leagueSeasonId);
+    const rows = await standingsFor(db, leagueSeasonId);
     expect(rows.every((row) => row.weekId === null)).toBe(true); // no weekly rows: no week has picks
     expect(rows).toHaveLength(members.size);
     for (const row of rows) {
@@ -772,14 +675,14 @@ describe("settlement idempotency (arch D10)", () => {
     const weekId = weekIds.get("regular:1")!;
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     return { leagueSeasonId, weekId, gameId: g1!, memberId };
   }
 
@@ -788,12 +691,12 @@ describe("settlement idempotency (arch D10)", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-    const resultsOnce = snapshotResults(await pickResultsFor(leagueSeasonId));
-    const standingsOnce = snapshotStandings(await standingsFor(leagueSeasonId));
+    const resultsOnce = snapshotResults(await pickResultsFor(db, leagueSeasonId));
+    const standingsOnce = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-    const resultsTwice = snapshotResults(await pickResultsFor(leagueSeasonId));
-    const standingsTwice = snapshotStandings(await standingsFor(leagueSeasonId));
+    const resultsTwice = snapshotResults(await pickResultsFor(db, leagueSeasonId));
+    const standingsTwice = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
     expect(resultsTwice).toHaveLength(resultsOnce.length);
     expect(resultsTwice).toEqual(resultsOnce);
@@ -806,12 +709,12 @@ describe("settlement idempotency (arch D10)", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-    const resultsIncremental = snapshotResults(await pickResultsFor(leagueSeasonId));
-    const standingsIncremental = snapshotStandings(await standingsFor(leagueSeasonId));
+    const resultsIncremental = snapshotResults(await pickResultsFor(db, leagueSeasonId));
+    const standingsIncremental = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
     await rebuildLeagueSeason(db, clock, leagueSeasonId);
-    const resultsRebuilt = snapshotResults(await pickResultsFor(leagueSeasonId));
-    const standingsRebuilt = snapshotStandings(await standingsFor(leagueSeasonId));
+    const resultsRebuilt = snapshotResults(await pickResultsFor(db, leagueSeasonId));
+    const standingsRebuilt = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
     expect(resultsRebuilt).toEqual(resultsIncremental);
     expect(standingsRebuilt).toEqual(standingsIncremental);
@@ -822,15 +725,15 @@ describe("settlement idempotency (arch D10)", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-    const before = await pickResultsFor(leagueSeasonId);
+    const before = await pickResultsFor(db, leagueSeasonId);
     expect(before).toHaveLength(1);
     expect(before[0]).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, points: 1 });
 
     // An admin corrects the final score, flipping the outcome.
-    await setGame(gameId, { overrideHomeScore: 5, overrideAwayScore: 20 });
+    await setGame(db, gameId, { overrideHomeScore: 5, overrideAwayScore: 20 });
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const after = await pickResultsFor(leagueSeasonId);
+    const after = await pickResultsFor(db, leagueSeasonId);
     expect(after).toHaveLength(1); // updated in place, not appended
     expect(after[0]).toMatchObject({
       outcome: PICK_OUTCOME.INCORRECT,
@@ -838,7 +741,7 @@ describe("settlement idempotency (arch D10)", () => {
       differential: -15,
     });
 
-    const seasonRow = (await standingsFor(leagueSeasonId)).find(
+    const seasonRow = (await standingsFor(db, leagueSeasonId)).find(
       (row) => row.weekId === null && row.leagueMemberId === memberId,
     )!;
     expect(seasonRow).toMatchObject({ points: 0, differential: -15 });
@@ -849,12 +752,12 @@ describe("settlement idempotency (arch D10)", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(1);
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);
 
-    await setGame(gameId, { status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null });
+    await setGame(db, gameId, { status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null });
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(0);
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(0);
   });
 });
 
@@ -869,39 +772,39 @@ describe("settlePicksForGames", () => {
     const member1 = league1.members.get(league1.users[0]!.user.id)!;
     const member2 = league2.members.get(league2.users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId: league1.leagueSeasonId,
       leagueMemberId: member1,
       weekId: week1Id,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId: league2.leagueSeasonId,
       leagueMemberId: member2,
       weekId: week2Id,
       gameId: g2!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
-    await setGame(g2!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     // League 2 is already settled once with its original (correct) score...
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, league2.leagueSeasonId, [week2Id]);
-    const league2Before = (await pickResultsFor(league2.leagueSeasonId))[0]!;
+    const league2Before = (await pickResultsFor(db, league2.leagueSeasonId))[0]!;
     expect(league2Before).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
 
     // ...then its score is mutated (simulating a later provider write) without
     // re-settling. Only game 1 "went final" — league 2 must not be touched.
-    await setGame(g2!, { homeScore: 5, awayScore: 20 });
+    await setGame(db, g2!, { homeScore: 5, awayScore: 20 });
 
     await settlePicksForGames(db, clock, [g1!]);
 
-    const league1Result = (await pickResultsFor(league1.leagueSeasonId))[0]!;
+    const league1Result = (await pickResultsFor(db, league1.leagueSeasonId))[0]!;
     expect(league1Result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
 
-    const league2After = (await pickResultsFor(league2.leagueSeasonId))[0]!;
+    const league2After = (await pickResultsFor(db, league2.leagueSeasonId))[0]!;
     expect(league2After).toMatchObject({ outcome: PICK_OUTCOME.CORRECT }); // unchanged from before, despite the new score
     expect(league2After.id).toBe(league2Before.id);
   });
@@ -928,24 +831,24 @@ describe("settleSweep", () => {
       const weekId = league.weekIds.get("regular:1")!;
       const [gameId] = league.gameIds.get("regular:1")!;
       const memberId = league.members.get(league.users[0]!.user.id)!;
-      await insertPick({
+      await insertPick(db, {
         leagueSeasonId: league.leagueSeasonId,
         leagueMemberId: memberId,
         weekId,
         gameId: gameId!,
         side: PICK_SIDE.HOME,
       });
-      await setGame(gameId!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+      await setGame(db, gameId!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     }
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleSweep(db, clock);
 
-    expect(await pickResultsFor(activeLeague.leagueSeasonId)).toHaveLength(1);
-    expect(await standingsFor(activeLeague.leagueSeasonId)).not.toHaveLength(0);
+    expect(await pickResultsFor(db, activeLeague.leagueSeasonId)).toHaveLength(1);
+    expect(await standingsFor(db, activeLeague.leagueSeasonId)).not.toHaveLength(0);
 
-    expect(await pickResultsFor(concludedLeague.leagueSeasonId)).toHaveLength(0);
-    expect(await standingsFor(concludedLeague.leagueSeasonId)).toHaveLength(0);
+    expect(await pickResultsFor(db, concludedLeague.leagueSeasonId)).toHaveLength(0);
+    expect(await standingsFor(db, concludedLeague.leagueSeasonId)).toHaveLength(0);
   });
 
   it("does not abandon the rest of the sweep when one league season throws — the healthy league still settles, and the thrown message names the failing one", async () => {
@@ -956,14 +859,14 @@ describe("settleSweep", () => {
       const weekId = league.weekIds.get("regular:1")!;
       const [gameId] = league.gameIds.get("regular:1")!;
       const memberId = league.members.get(league.users[0]!.user.id)!;
-      await insertPick({
+      await insertPick(db, {
         leagueSeasonId: league.leagueSeasonId,
         leagueMemberId: memberId,
         weekId,
         gameId: gameId!,
         side: PICK_SIDE.HOME,
       });
-      await setGame(gameId!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+      await setGame(db, gameId!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     }
 
     // Corrupt the bad league's stored settings so LEAGUE_SETTINGS_SCHEMAS[...].parse()
@@ -985,8 +888,8 @@ describe("settleSweep", () => {
     // The healthy league settled regardless — before the fix, the first throw
     // aborted the loop and every season after it (in unspecified order) got
     // nothing.
-    expect(await pickResultsFor(goodLeague.leagueSeasonId)).toHaveLength(1);
-    expect(await standingsFor(goodLeague.leagueSeasonId)).not.toHaveLength(0);
+    expect(await pickResultsFor(db, goodLeague.leagueSeasonId)).toHaveLength(1);
+    expect(await standingsFor(db, goodLeague.leagueSeasonId)).not.toHaveLength(0);
   });
 });
 
@@ -997,14 +900,14 @@ describe("concurrent settlement of one league season (FOR UPDATE row lock)", () 
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
@@ -1021,8 +924,8 @@ describe("concurrent settlement of one league season (FOR UPDATE row lock)", () 
 
     // No duplicate row from the race (pick_results_pickem_pick_unique), and
     // standings reflect exactly one member with a pick across a weekly + season row.
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(1);
-    expect(await standingsFor(leagueSeasonId)).toHaveLength(4); // 2 members x (weekly + season)
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);
+    expect(await standingsFor(db, leagueSeasonId)).toHaveLength(4); // 2 members x (weekly + season)
   });
 });
 
@@ -1033,21 +936,21 @@ describe("settlement grades on game status, not the clock", () => {
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     // A clock instant well before the game's own (seeded) kickoff.
     const earlyClock = new FixedClock(new Date(WEEK1_KICKOFF.getTime() - 30 * 24 * 60 * 60 * 1000));
     const summary = await settleLeagueSeasonWeeks(db, earlyClock, leagueSeasonId, [weekId]);
 
     expect(summary.results).toBe(1);
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(1);
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);
   });
 });
 
@@ -1091,14 +994,14 @@ describe("HTTP: POST /api/admin/leagues/:leagueId/rebuild", () => {
     const weekId = weekIds.get("regular:1")!;
     const [g1] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
-    await insertPick({
+    await insertPick(db, {
       leagueSeasonId,
       leagueMemberId: memberId,
       weekId,
       gameId: g1!,
       side: PICK_SIDE.HOME,
     });
-    await setGame(g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const res = await postRebuild(league.id, cookie);
     expect(res.status).toBe(200);
@@ -1108,7 +1011,7 @@ describe("HTTP: POST /api/admin/leagues/:leagueId/rebuild", () => {
     expect(typeof body.durationMs).toBe("number");
     expect(body.details).toMatchObject({ results: 1 });
 
-    expect(await pickResultsFor(leagueSeasonId)).toHaveLength(1);
+    expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);
   });
 });
 

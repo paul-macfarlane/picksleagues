@@ -19,47 +19,20 @@ import {
 } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
-  DEFAULT_PICKEM_SETTINGS as DEFAULT_PICKEM_SETTINGS_UNION,
+  DEFAULT_PICKEM_SETTINGS,
+  FOUR_GAME_WEEK,
   insertLeague,
   seedSeason,
   type SeededWeek,
 } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league-app";
+import { seedPickemLeague as seedPickemLeagueBase } from "./setup/pickem-league";
 import { resetDb } from "./setup/reset-db";
 
-const { db, auth, app, appAfterKickoff, appAtKickoff } = makeLeagueTestHarness();
-
-// Narrowed from the shared helper's `LeagueSettings` union — every league in
-// this file is Pick'em, so tests spread/override concrete Pickem fields
-// (`picksPerWeek`, etc.) without TS's excess-property check tripping on the
-// union's other branches.
-const DEFAULT_PICKEM_SETTINGS = DEFAULT_PICKEM_SETTINGS_UNION as PickemSettings;
+const { db, auth, app, appAfterKickoff, appAtKickoff, getSlate, getPicks, putPicks } =
+  makeLeagueTestHarness();
 
 type App = typeof app;
-
-function getSlate(cookie: string | undefined, weekId: string, on: App = app) {
-  return on.request(`/api/weeks/${weekId}/games`, { headers: withCookie(cookie) });
-}
-
-function getPicks(cookie: string | undefined, leagueId: string, weekId: string, on: App = app) {
-  return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
-    headers: withCookie(cookie),
-  });
-}
-
-function putPicks(
-  cookie: string | undefined,
-  leagueId: string,
-  weekId: string,
-  body: unknown,
-  on: App = app,
-) {
-  return on.request(`/api/leagues/${leagueId}/picks/week/${weekId}`, {
-    method: "PUT",
-    headers: { "content-type": "application/json", ...withCookie(cookie) },
-    body: JSON.stringify(body),
-  });
-}
 
 function patchLeague(
   cookie: string | undefined,
@@ -109,24 +82,22 @@ async function seedPickemLeague(
     status?: (typeof LEAGUE_STATUS)[keyof typeof LEAGUE_STATUS];
   } = {},
 ) {
-  const {
-    settings = DEFAULT_PICKEM_SETTINGS,
-    weeks = THREE_GAME_WEEK,
-    status = LEAGUE_STATUS.ACTIVE,
-  } = opts;
-  const { seasonId, weekIds, gameIds } = await seedSeason(db, { year: 2026, weeks });
-  const memberA = await createAuthenticatedUser(auth, { username: "member_a" });
-  const memberB = await createAuthenticatedUser(auth, { username: "member_b" });
-  const league = await insertLeague(db, {
-    seasonId,
-    status,
+  const { settings, weeks = THREE_GAME_WEEK, status } = opts;
+  const base = await seedPickemLeagueBase(db, auth, {
+    weeks,
     settings,
-    members: [
-      { userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER },
-      { userId: memberB.user.id, role: MEMBER_ROLE.MEMBER },
-    ],
+    status,
+    members: [{ username: "member_a" }, { username: "member_b" }],
   });
-  return { seasonId, weekIds, gameIds, league, memberA, memberB };
+  const [memberA, memberB] = base.users;
+  return {
+    seasonId: base.seasonId,
+    weekIds: base.weekIds,
+    gameIds: base.gameIds,
+    league: base.league,
+    memberA: memberA!,
+    memberB: memberB!,
+  };
 }
 
 beforeEach(async () => {
@@ -634,24 +605,11 @@ describe("PUT /api/leagues/:leagueId/picks/week/:weekId", () => {
   });
 
   describe("retention keys on pickable, not locked alone", () => {
-    /**
-     * A 4-game week where only 3 games get picked. The 4th, never-picked game
-     * exists purely so cancelling one of the three picked games doesn't itself
-     * shrink `picksAllowed` (min(picksPerWeek, pickable count) would otherwise
-     * drop in lockstep with `retainedCount`, tripping the cap — that
-     * interaction is covered on its own further down).
-     */
-    const FOUR_GAME_WEEK: SeededWeek[] = [
-      {
-        weekNumber: 1,
-        kickoffs: [
-          { kickoffAt: WEEK1_KICKOFF },
-          { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000) },
-          { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
-          { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 3 * 60 * 60 * 1000) },
-        ],
-      },
-    ];
+    // The shared FOUR_GAME_WEEK's 4th, never-picked game exists purely so
+    // cancelling one of the three picked games doesn't itself shrink
+    // `picksAllowed` (min(picksPerWeek, pickable count) would otherwise drop
+    // in lockstep with `retainedCount`, tripping the cap — that interaction
+    // is covered on its own further down).
 
     it.each([
       {
