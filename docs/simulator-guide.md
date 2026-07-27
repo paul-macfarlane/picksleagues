@@ -3,8 +3,9 @@
 How to drive the season simulator. `docs/architecture.md` §Simulator & Time covers
 *why* it is built this way; this is the operator runbook.
 
-Non-prod only. Production ignores `SIM_ENABLED` entirely and never registers a
-`/sim/*` route (ADR-0014).
+Non-prod only. Production ignores `SIM_ENABLED` entirely and never registers an
+`/api/sim/*` route (ADR-0014). The SPA route `/sim` exists in the bundle either
+way; without the API behind it, it renders as an unknown page.
 
 ## The two levers
 
@@ -163,7 +164,7 @@ about (engineering rules §Quality).
 
 ## Gotchas
 
-- **A 404 on any `/sim/*` route** means `SIM_ENABLED` is unset/false or
+- **A 404 on any `/api/sim/*` route** means `SIM_ENABLED` is unset/false or
   `APP_ENV=production`. The routes are not *registered* — that non-registration is
   the actual production gate, not a broken route.
 - **"Back to real time" leaves the scenario loaded.** To get fully back to real

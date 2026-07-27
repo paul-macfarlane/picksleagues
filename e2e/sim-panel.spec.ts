@@ -57,16 +57,24 @@ test.describe("simulator", () => {
       // hidden (arch D14).
       await expect(page.getByText("Simulated now")).toBeVisible();
       await expect(page.getByText("Offset")).toBeVisible();
+      // The clock's own controls, not just its readout — this is the
+      // simulator's primary surface and its buttons could otherwise stop
+      // rendering with the suite still green.
+      await expect(page.getByRole("button", { name: "+1 week" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Jump" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Back to real time" })).toBeVisible();
 
       // /sim/scenarios: the edge-case library plus the replay importer, both
       // on one page (importing a season is how you get a scenario to load).
       await simTabs.getByRole("link", { name: "Scenarios" }).click();
       await expect(page).toHaveURL(/\/sim\/scenarios$/);
-      // `CardTitle` is styled text, not an `<h*>` (components/ui/card.tsx), so
-      // these match by text — only the `<h3>` section headings inside the
-      // scenarios card carry a heading role.
-      await expect(page.getByText("Scenarios", { exact: true })).toBeVisible();
+      // Asserted via the card's own `<h3>`s and controls, never
+      // `getByText("Scenarios")`: the tab bar lives in the layout route, so a
+      // link with that exact text is mounted on every child page and a bare
+      // text locator resolves to two elements. It only *passed* before because
+      // it raced the card's mount and matched the tab.
       await expect(page.getByRole("heading", { name: "Edge-case scenarios" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Imported seasons" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Load" }).first()).toBeVisible();
       await expect(page.getByText("Import a replay season", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Import" })).toBeVisible();
@@ -76,13 +84,14 @@ test.describe("simulator", () => {
       // is loaded here, so this doesn't drive the "load one" path itself.
       await simTabs.getByRole("link", { name: "Fixtures" }).click();
       await expect(page).toHaveURL(/\/sim\/fixtures$/);
-      await expect(page.getByText("Fixtures", { exact: true })).toBeVisible();
+      // Same collision rule: assert the card's controls, not its title.
+      await expect(page.getByLabel("Week type")).toBeVisible();
+      await expect(page.locator("#sim-fixtures-week-number")).toBeVisible();
 
       // /sim/reset: both destructive controls, asserted by role so this fails
       // if either stops rendering, without pinning the confirmation copy.
       await simTabs.getByRole("link", { name: "Reset" }).click();
       await expect(page).toHaveURL(/\/sim\/reset$/);
-      await expect(page.getByText("Reset", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Reset league" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Reset environment" })).toBeVisible();
     } finally {

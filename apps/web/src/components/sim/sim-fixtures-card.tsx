@@ -7,12 +7,18 @@ import { SimFixtureRow } from "@/components/sim/sim-fixture-row";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// `UpdateSimFixtureGameRequestSchema.weekNumber`'s own bound (sim.ts) — every
-// week an NFL season can produce, regular or postseason.
-const MAX_WEEK_NUMBER = 18;
-const WEEK_NUMBER_OPTIONS = Array.from({ length: MAX_WEEK_NUMBER }, (_, index) =>
-  String(index + 1),
-);
+// Regular season runs to 18; our postseason numbering is contiguous 1-4
+// (ESPN's gapped numbers are normalized in the provider adapter). Offering 18
+// postseason options would be 14 guaranteed-empty views, in the one control
+// that is now the only way to navigate a scenario.
+const MAX_WEEK_NUMBER_BY_TYPE: Record<WeekType, number> = {
+  [WEEK_TYPE.REGULAR]: 18,
+  [WEEK_TYPE.POSTSEASON]: 4,
+};
+
+function weekNumberOptions(weekType: WeekType): string[] {
+  return Array.from({ length: MAX_WEEK_NUMBER_BY_TYPE[weekType] }, (_, index) => String(index + 1));
+}
 
 // Week type and week number are both required, never an "all" option: a
 // replay season is ~285 fixtures, so an unfiltered (or half-filtered) list
@@ -35,7 +41,14 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
     state.activeScenario?.id ??
     state.scenarios[0]?.id;
 
-  const weekNumber = Number(weekNumberFilter);
+  // Clamped to the selected type's range rather than trusted from state:
+  // switching regular week 12 -> postseason would otherwise select a week that
+  // does not exist, and render a value absent from the select's own options.
+  const weekOptions = weekNumberOptions(weekType);
+  const effectiveWeekNumber = weekOptions.includes(weekNumberFilter)
+    ? weekNumberFilter
+    : DEFAULT_WEEK_NUMBER;
+  const weekNumber = Number(effectiveWeekNumber);
   const fixtures = useSimFixtureGames(selectedScenarioId, weekType, weekNumber);
 
   return (
@@ -75,9 +88,9 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
             <LabeledSelect
               id="sim-fixtures-week-number"
               label="Week"
-              value={weekNumberFilter}
+              value={effectiveWeekNumber}
               onValueChange={setWeekNumberFilter}
-              options={WEEK_NUMBER_OPTIONS.map((value) => ({ value, label: `Week ${value}` }))}
+              options={weekOptions.map((value) => ({ value, label: `Week ${value}` }))}
             />
           </div>
 
@@ -94,7 +107,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
             emptyMessage={
               selectedScenarioId
                 ? "No fixtures in this week — try another week or week type."
-                : "No scenarios loaded yet — load one above."
+                : "No scenarios loaded yet — load one on the Scenarios tab."
             }
           >
             <ul className="flex flex-col gap-2">

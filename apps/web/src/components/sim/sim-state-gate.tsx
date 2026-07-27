@@ -3,11 +3,11 @@ import type { SimStateResponse } from "@picksleagues/schemas";
 import { useSimState } from "@/api/sim";
 import { AdminQueryState } from "@/components/admin/query-state";
 
-// One `useSimState` query shared by every simulator page (SIM-9 split the
-// panel into its own top-level section, one route per card) — react-query
-// dedupes by query key, so four pages each mounting this gate still issues a
-// single request; that dedup is exactly why the state isn't threaded through
-// router context instead.
+// One `useSimState` query per simulator page. The pages are sibling routes, so
+// only one gate is ever mounted at a time — the observer this actually shares a
+// cache entry with is `SimClockBanner`, which the authed shell mounts on every
+// page for a sim-enabled admin. react-query dedupes them by query key, which is
+// why the state isn't threaded through router context instead.
 export function SimStateGate({ children }: { children: (state: SimStateResponse) => ReactNode }) {
   const state = useSimState();
 

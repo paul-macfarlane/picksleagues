@@ -109,10 +109,12 @@ export const SimStateResponseSchema = z
     // Canned definitions available to load, whether or not fixtures exist yet.
     library: z.array(SimLibraryEntrySchema),
     // The newest season `isReplayableSeasonYear` will accept (replay.ts). Served
-    // rather than derived client-side: which season is "current" is a calendar
-    // rule owned by `nflSeasonYearFor` in packages/core, which the browser
-    // bundle can't import — a restated copy would drift and offer the control
-    // panel a year the import then rejects.
+    // rather than derived client-side: whether a season has *finished* is a
+    // calendar rule owned by `latestCompletedNflSeasonYear` in packages/core,
+    // which the browser bundle can't import — a restated copy would drift and
+    // offer the control panel a year the import then rejects. (Deriving it from
+    // `nflSeasonYearFor` instead is the exact bug this field was corrected for:
+    // that answers "which season are we in", not "which have ended".)
     latestReplayableSeasonYear: z.number().int(),
   })
   .openapi("SimStateResponse");
