@@ -104,12 +104,6 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // (403 otherwise), and the two other modes have no pick-invalidation rule
   // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit);
-  // Every other failed query in this codebase surfaces via the shared toast
-  // — this one silently disabled the whole pre-save warning until this fix.
-  useErrorToast(
-    pickSummary.isError,
-    "Couldn't check how many picks this change would delete — please try again.",
-  );
 
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
@@ -253,6 +247,17 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
         existing.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
         JSON.stringify(mmRoundValues) !== JSON.stringify(existing.roundValues));
   }
+
+  // Every other failed query in this codebase surfaces via the shared toast —
+  // this one silently disabled the whole pre-save warning before it was
+  // handled. Gated on `wouldInvalidatePicks` rather than the bare error: the
+  // summary is only consulted for a change that would destroy picks, so a
+  // commissioner editing the league name while this endpoint is down has
+  // nothing to be told about.
+  useErrorToast(
+    wouldInvalidatePicks && pickSummary.isError,
+    "Couldn't check how many picks this change would delete — please try again.",
+  );
 
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
