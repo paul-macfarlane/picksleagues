@@ -11,6 +11,7 @@ import {
   type Sport,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
+import { latestSpreadsForGames } from "./odds";
 
 /**
  * Queries behind the admin page's read-only reference-data browsers (arch
@@ -115,27 +116,12 @@ export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]
     .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId));
   if (rows.length === 0) return [];
 
-  // One row per game: the latest snapshot is what a browser means by "current
-  // spread" (settlement's choice of snapshot is a lock-time question, not this).
-  const latestSnapshots = await db
-    .selectDistinctOn([oddsSnapshots.gameId], {
-      gameId: oddsSnapshots.gameId,
-      spread: oddsSnapshots.spread,
-      capturedAt: oddsSnapshots.capturedAt,
-    })
-    .from(oddsSnapshots)
-    .where(
-      inArray(
-        oddsSnapshots.gameId,
-        rows.map((row) => row.game.id),
-      ),
-    )
-    // `id` breaks the tie: a sync run stamps every row it inserts with one
-    // `clock.now()`, so two snapshots for a game CAN share `captured_at`
-    // exactly (trivially so under the simulator's fixed clock) and DISTINCT ON
-    // would otherwise pick between them arbitrarily.
-    .orderBy(oddsSnapshots.gameId, desc(oddsSnapshots.capturedAt), desc(oddsSnapshots.id));
-  const latestByGame = new Map(latestSnapshots.map((snapshot) => [snapshot.gameId, snapshot]));
+  // The latest snapshot is what a browser means by "current spread" —
+  // the same resolution the pick slate and pick-time validation use.
+  const latestByGame = await latestSpreadsForGames(
+    db,
+    rows.map((row) => row.game.id),
+  );
 
   return rows.map(({ game, homeTeam, awayTeam }) => {
     const latest = latestByGame.get(game.id) ?? null;

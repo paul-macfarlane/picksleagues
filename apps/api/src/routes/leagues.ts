@@ -105,7 +105,7 @@ const patchLeague = createRoute({
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
     409: errorResponse(
-      "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count)",
+      "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), a maxMembers below the league's current member count (max_members_below_member_count), or a settings change that would discard already-locked picks (picks_locked)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -277,6 +277,15 @@ export function leagueRoutes(deps: AppDeps) {
             ErrorResponseSchema.parse({
               error: ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT,
               message: "maxMembers can't be lower than the league's current member count.",
+            }),
+            409,
+          );
+        case "picks_locked":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.PICKS_LOCKED,
+              message:
+                "This change would discard picks that have already locked — settings are frozen once picking has started.",
             }),
             409,
           );

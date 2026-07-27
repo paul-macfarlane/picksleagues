@@ -1,4 +1,4 @@
-import { eq, type SQL } from "drizzle-orm";
+import { eq, inArray, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import {
@@ -8,6 +8,7 @@ import {
   leagueSeasons,
   leagues,
   oddsSnapshots,
+  pickemPicks,
   setSimClockOffsetMs,
   setSimState,
   simScenarios,
@@ -56,16 +57,32 @@ async function deleteAndCount(tx: Db, table: PgTable, where?: SQL): Promise<numb
  * itself goes last. `leagueId` undefined means "every league" (environment
  * scope); a value scopes to one league.
  *
- * Forward compatibility: when the Pick'em epic (PKM-*) adds the per-mode pick
- * tables plus `pick_results`/`standings`, add their deletes here, ahead of
- * `league_members`/`leagues` if they reference either — this is the one place
- * a new league-owned table needs listed for reset to stay complete.
+ * Forward compatibility: every new league-owned table needs listing here for
+ * reset to stay complete — `pickem_picks` (PKM-2) is the first; `pick_results`
+ * and `standings` (PKM-4) join it, ahead of `league_members`/`leagues` since
+ * they reference both.
  */
 async function deleteLeagueOwnedData(
   tx: Db,
   leagueId: string | undefined,
 ): Promise<Record<string, number>> {
   return {
+    // Picks reference `league_members` and `league_seasons`, so they go first.
+    // Scoping by league means matching through the member rows, since the pick
+    // itself carries no league id.
+    pickem_picks: await deleteAndCount(
+      tx,
+      pickemPicks,
+      leagueId
+        ? inArray(
+            pickemPicks.leagueMemberId,
+            tx
+              .select({ id: leagueMembers.id })
+              .from(leagueMembers)
+              .where(eq(leagueMembers.leagueId, leagueId)),
+          )
+        : undefined,
+    ),
     league_invites: await deleteAndCount(
       tx,
       leagueInvites,

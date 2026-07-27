@@ -12,6 +12,7 @@ import { jobRoutes } from "./routes/jobs";
 import { inviteRoutes } from "./routes/invites";
 import { leagueRoutes } from "./routes/leagues";
 import { memberRoutes } from "./routes/members";
+import { pickRoutes } from "./routes/picks";
 import { meRoutes } from "./routes/me";
 import { simRoutes } from "./routes/sim";
 
@@ -54,6 +55,7 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/", inviteRoutes(deps));
   app.route("/", memberRoutes(deps));
   app.route("/", discoveryRoutes(deps));
+  app.route("/", pickRoutes(deps));
 
   // Admin surface (`users.app_role`, ADR-0013) — mounted unconditionally in
   // every env, unlike the sim routes; server-side auth gates it, not

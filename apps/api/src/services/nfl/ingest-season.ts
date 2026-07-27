@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import { games, pickemPicks, sportSeasons, teams, weeks } from "@picksleagues/db";
 import type { ProviderGame, ProviderTeam, ProviderWeek } from "@picksleagues/core";
 import { GAME_STATUS, SPORT, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
@@ -464,7 +464,21 @@ export async function ingestSeasonSnapshot(
         .from(games)
         .where(inArray(games.weekId, orphanWeekIds));
       const weekIdsWithGames = new Set(weeksStillHoldingGames.map((row) => row.weekId));
-      const deletableWeekIds = orphanWeekIds.filter((id) => !weekIdsWithGames.has(id));
+
+      // A pick outlives its game's departure from the week — that divergence is
+      // how settlement detects a week move (PKM-2) — so a week can be
+      // game-free yet still pick-referenced. `pickem_picks.week_id` is RESTRICT,
+      // so deleting one would abort this whole transaction and keep aborting
+      // every tick, taking schedule sync down permanently.
+      const weeksStillHoldingPicks = await tx
+        .selectDistinct({ weekId: pickemPicks.weekId })
+        .from(pickemPicks)
+        .where(inArray(pickemPicks.weekId, orphanWeekIds));
+      const weekIdsWithPicks = new Set(weeksStillHoldingPicks.map((row) => row.weekId));
+
+      const deletableWeekIds = orphanWeekIds.filter(
+        (id) => !weekIdsWithGames.has(id) && !weekIdsWithPicks.has(id),
+      );
       if (deletableWeekIds.length > 0) {
         const deleted = await tx
           .delete(weeks)
