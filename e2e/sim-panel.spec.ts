@@ -85,7 +85,10 @@ test.describe("simulator", () => {
       await simTabs.getByRole("link", { name: "Fixtures" }).click();
       await expect(page).toHaveURL(/\/sim\/fixtures$/);
       // Same collision rule: assert the card's controls, not its title.
-      await expect(page.getByLabel("Week type")).toBeVisible();
+      // By id, not label: `SimFixtureRow`'s edit form has a "Week type" select
+      // too, so a label locator is 1 match only while every row's <details> is
+      // collapsed — the same latent collision this file just fixed elsewhere.
+      await expect(page.locator("#sim-fixtures-week-type")).toBeVisible();
       await expect(page.locator("#sim-fixtures-week-number")).toBeVisible();
 
       // /sim/reset: both destructive controls, asserted by role so this fails

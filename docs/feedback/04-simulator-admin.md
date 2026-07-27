@@ -62,7 +62,18 @@ admin page hosts the simulator; corrected. No ADR — the auth model (ADR-0013),
 epic merge (ADR-0011), and the prod gating (ADR-0014) are all unchanged; this is
 information architecture.
 
+Evaluator: eleven findings across two passes, all accepted, none rejected. The one
+worth recording is a review lesson, not a bug — the e2e card-title assertions
+collided with the tab links of the same name (the tab bar lives in the layout, so
+it is mounted on every child page), but they *passed*: the assertion fired while
+`useSimState` was still in flight, matched the tab, and never polled again. A
+locator collision behind an async boundary is a silent wrong-element assertion,
+not a failure, so a green suite is no evidence against one. Also caught: the week
+select offered 18 postseason options where only 4 exist, and two `architecture.md`
+claims survived the first correction pass.
+
 ### Carried forward
 
+- Postseason weeks 5–18 are patchable over the wire (`UpdateSimFixtureGameRequestSchema.weekNumber` is `1..18`, not conditional on week type) but no longer browsable, since the select caps postseason at 4. Only reachable by editing against the raw API; noted in the constant's comment rather than fixed, because bounding the schema by week type is a conditional-validation change for a self-inflicted case.
 - `AdminQueryState` is still named for admin while the simulator now uses it too. Left alone this round — renaming touches four unrelated browsers for a naming nit.
 - The simulator's mutating paths remain covered by manual verification only, not e2e, for the reason recorded in round 2's carry-forward and restated atop `e2e/sim-panel.spec.ts`: they write the environment-wide `app_state` singleton and Playwright runs `fullyParallel` against one shared database.

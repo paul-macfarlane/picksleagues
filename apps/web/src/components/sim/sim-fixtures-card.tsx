@@ -11,6 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 // (ESPN's gapped numbers are normalized in the provider adapter). Offering 18
 // postseason options would be 14 guaranteed-empty views, in the one control
 // that is now the only way to navigate a scenario.
+//
+// Both bounds must stay inside `UpdateSimFixtureGameRequestSchema.weekNumber`'s
+// 1..18, which is deliberately *not* conditional on week type — so a hand-edit
+// can still PATCH a fixture to postseason week 7, and this browser would then
+// have no way to list it again. Ingestion and replay import can't produce that
+// state; only an operator editing against the raw API can.
 const MAX_WEEK_NUMBER_BY_TYPE: Record<WeekType, number> = {
   [WEEK_TYPE.REGULAR]: 18,
   [WEEK_TYPE.POSTSEASON]: 4,
