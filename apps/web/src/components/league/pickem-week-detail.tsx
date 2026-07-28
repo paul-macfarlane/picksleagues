@@ -14,6 +14,7 @@ import { gameStatusLabel, scoreText, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
+import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
 
 // The week/pick detail screen (spec Screens inventory): every member's picks
@@ -165,11 +166,15 @@ function PickRow({
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 text-xs">
-      <span className="text-foreground">
+      <span className="flex items-center gap-1.5 text-foreground">
+        <TeamLogo
+          logoLightUrl={pickedTeam.logoLightUrl}
+          logoDarkUrl={pickedTeam.logoDarkUrl}
+          size="sm"
+        />
         {pickedTeam.abbreviation}
         {spread && ` ${spread}`}
         <span className="text-muted-foreground">
-          {" "}
           ({game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation})
         </span>
       </span>

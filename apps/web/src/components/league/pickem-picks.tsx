@@ -12,12 +12,14 @@ import {
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, spreadLabel } from "@/lib/game";
+import { gameStatusLabel, pickRowState, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
 import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
+import { TeamLogo } from "@/components/team-logo";
 
 // Only games that are still replaceable (spec/ADR-0015: unlocked and
 // pickable) seed the editable selection — a locked, cancelled/moved, or
@@ -41,6 +43,14 @@ function selectionsEqual(a: Map<string, PickemPickSide>, b: Map<string, PickemPi
     if (b.get(gameId) !== side) return false;
   }
   return true;
+}
+
+// The sticky action bar's progress copy (feedback: submitting a 16-game
+// slate shouldn't require scrolling to find the count) — a pure formatter so
+// the exact phrasing is pinned by a test rather than re-typed at the call
+// site.
+export function pickProgressLabel(heldCount: number, picksAllowed: number): string {
+  return `${heldCount} of ${picksAllowed} picks`;
 }
 
 export function PickemPicks({
@@ -197,66 +207,100 @@ function PickemWeekEditor({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{slate.label}</CardTitle>
-        <CardDescription>
-          {heldCount} / {picksAllowed} picked
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {pushedOutOfWeekPicks.length > 0 && (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>{slate.label}</CardTitle>
+          {/* Progress lives in the action bar, which is always on screen —
+              repeating the same count here in a second phrasing would only
+              give it somewhere to drift, and this copy scrolls away anyway. */}
+          <CardDescription>Each pick locks at its own kickoff.</CardDescription>
+        </CardHeader>
+        {/* Bottom padding clears the fixed action bar below so it never
+            covers the last game row's controls when scrolled to the bottom
+            (verified at 375px). */}
+        <CardContent className="flex flex-col gap-4 pb-24">
+          {pushedOutOfWeekPicks.length > 0 && (
+            <ul className="flex flex-col gap-3">
+              {pushedOutOfWeekPicks.map((pick) => (
+                <li
+                  key={pick.id}
+                  className="flex flex-col gap-2 rounded-lg border border-border p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-foreground">
+                      Pick moved out of this week
+                    </p>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      Push
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    That game moved to a different week, so this pick resolved as a push.
+                  </p>
+                  <PickemSubstituteDialog
+                    leagueId={leagueId}
+                    weekId={weekId}
+                    pickType={pickType}
+                    replacePickId={pick.id}
+                    eligibleGames={eligibleReplacementGames}
+                    onSubstituted={handleSubstituted}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+
           <ul className="flex flex-col gap-3">
-            {pushedOutOfWeekPicks.map((pick) => (
-              <li key={pick.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-foreground">Pick moved out of this week</p>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    Push
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  That game moved to a different week, so this pick resolved as a push.
-                </p>
-                <PickemSubstituteDialog
+            {slate.games.map((game) => {
+              const currentSelection = selections.get(game.id);
+              const wouldAddNew = currentSelection === undefined;
+              return (
+                <GameRow
+                  key={game.id}
                   leagueId={leagueId}
                   weekId={weekId}
+                  game={game}
                   pickType={pickType}
-                  replacePickId={pick.id}
-                  eligibleGames={eligibleReplacementGames}
+                  selectedSide={currentSelection}
+                  retained={retainedPickByGameId.get(game.id)}
+                  eligibleReplacementGames={eligibleReplacementGames}
+                  buttonsDisabled={wouldAddNew && atCap}
+                  onToggle={(side) => toggle(game.id, side)}
                   onSubstituted={handleSubstituted}
                 />
-              </li>
-            ))}
+              );
+            })}
           </ul>
-        )}
+        </CardContent>
+      </Card>
 
-        <ul className="flex flex-col gap-3">
-          {slate.games.map((game) => {
-            const currentSelection = selections.get(game.id);
-            const wouldAddNew = currentSelection === undefined;
-            return (
-              <GameRow
-                key={game.id}
-                leagueId={leagueId}
-                weekId={weekId}
-                game={game}
-                pickType={pickType}
-                selectedSide={currentSelection}
-                retained={retainedPickByGameId.get(game.id)}
-                eligibleReplacementGames={eligibleReplacementGames}
-                buttonsDisabled={wouldAddNew && atCap}
-                onToggle={(side) => toggle(game.id, side)}
-                onSubstituted={handleSubstituted}
-              />
-            );
-          })}
-        </ul>
-        <Button className="self-start" disabled={submit.isPending || !dirty} onClick={handleSubmit}>
-          Save picks
-        </Button>
-      </CardContent>
-    </Card>
+      {/* Sticky action bar (feedback: submitting a 16-game slate shouldn't
+          require scrolling to the bottom to find the button). `fixed`, not
+          CSS `sticky` — Card sets `overflow-hidden` for its rounded corners,
+          and any ancestor with overflow other than visible clips/breaks a
+          sticky descendant, whereas `fixed` escapes ancestor layout
+          entirely and anchors straight to the viewport, which is exactly
+          what we want since the document is the app's only scroll container
+          (no ancestor here sets a transform/filter that would trap it).
+          z-20 stays under the tab bar (z-30) and header (z-40) per
+          routes/_authed.tsx's layering comment, and well under overlay
+          portals (z-50). */}
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <p className="text-sm text-muted-foreground">
+            {pickProgressLabel(heldCount, picksAllowed)}
+            {dirty && <span className="text-foreground"> · unsaved</span>}
+          </p>
+          {/* Async-button rule: disabled in place while pending, label never
+              changes — outcome feedback is the toast the mutation already
+              raises on success/error. */}
+          <Button disabled={submit.isPending || !dirty} onClick={handleSubmit}>
+            Save picks
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -292,16 +336,40 @@ function GameRow({
   const editable = !game.locked && game.pickable && !noLineYet;
   const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
   const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
+  // Locked/unplayable already read distinctly via the badges below (and, for
+  // a retained pick, the "Your pick" copy) — `picked` only fires for a fresh,
+  // still-editable selection, which is what the row highlight below is for.
+  const rowState = pickRowState(game, editable && selectedSide !== undefined);
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <li
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border border-border p-3",
+        rowState === "picked" && "border-primary/50 bg-primary/5",
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p
-          className="text-sm font-medium text-foreground"
+          className="flex items-center gap-1.5 text-sm font-medium text-foreground"
           title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
         >
+          <TeamLogo
+            logoLightUrl={game.awayTeam.logoLightUrl}
+            logoDarkUrl={game.awayTeam.logoDarkUrl}
+            size="sm"
+          />
           {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+          <TeamLogo
+            logoLightUrl={game.homeTeam.logoLightUrl}
+            logoDarkUrl={game.homeTeam.logoDarkUrl}
+            size="sm"
+          />
         </p>
+        {rowState === "picked" && (
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            Picked
+          </span>
+        )}
         {!game.pickable && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {gameStatusLabel(game.status)}
@@ -329,6 +397,11 @@ function GameRow({
           disabled={!editable || buttonsDisabled}
           onClick={() => onToggle(PICKEM_PICK_SIDE.AWAY)}
         >
+          <TeamLogo
+            logoLightUrl={game.awayTeam.logoLightUrl}
+            logoDarkUrl={game.awayTeam.logoDarkUrl}
+            size="sm"
+          />
           {game.awayTeam.abbreviation}
           {awaySpread && ` ${awaySpread}`}
         </Button>
@@ -339,6 +412,11 @@ function GameRow({
           disabled={!editable || buttonsDisabled}
           onClick={() => onToggle(PICKEM_PICK_SIDE.HOME)}
         >
+          <TeamLogo
+            logoLightUrl={game.homeTeam.logoLightUrl}
+            logoDarkUrl={game.homeTeam.logoDarkUrl}
+            size="sm"
+          />
           {game.homeTeam.abbreviation}
           {homeSpread && ` ${homeSpread}`}
         </Button>

@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { TeamLogo } from "@/components/team-logo";
 
 // A radio value must be a single primitive; a game's side isn't addressable
 // on its own (either side of any eligible game is a valid replacement), so
@@ -131,23 +132,47 @@ export function PickemSubstituteDialog({
                 className="flex flex-col gap-2 rounded-lg border border-border p-3"
               >
                 <p
-                  className="text-sm font-medium text-foreground"
+                  className="flex items-center gap-1.5 text-sm font-medium text-foreground"
                   title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
                 >
+                  <TeamLogo
+                    logoLightUrl={game.awayTeam.logoLightUrl}
+                    logoDarkUrl={game.awayTeam.logoDarkUrl}
+                    size="sm"
+                  />
                   {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+                  <TeamLogo
+                    logoLightUrl={game.homeTeam.logoLightUrl}
+                    logoDarkUrl={game.homeTeam.logoDarkUrl}
+                    size="sm"
+                  />
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Kickoff {formatDateTime(game.kickoffAt)}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">
-                    {game.awayTeam.abbreviation}
-                    {awaySpread && ` ${awaySpread}`}
+                    <span className="flex items-center gap-1.5">
+                      <TeamLogo
+                        logoLightUrl={game.awayTeam.logoLightUrl}
+                        logoDarkUrl={game.awayTeam.logoDarkUrl}
+                        size="sm"
+                      />
+                      {game.awayTeam.abbreviation}
+                      {awaySpread && ` ${awaySpread}`}
+                    </span>
                     <RadioGroupItem value={radioValue(game.id, PICKEM_PICK_SIDE.AWAY)} />
                   </Label>
                   <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">
-                    {game.homeTeam.abbreviation}
-                    {homeSpread && ` ${homeSpread}`}
+                    <span className="flex items-center gap-1.5">
+                      <TeamLogo
+                        logoLightUrl={game.homeTeam.logoLightUrl}
+                        logoDarkUrl={game.homeTeam.logoDarkUrl}
+                        size="sm"
+                      />
+                      {game.homeTeam.abbreviation}
+                      {homeSpread && ` ${homeSpread}`}
+                    </span>
                     <RadioGroupItem value={radioValue(game.id, PICKEM_PICK_SIDE.HOME)} />
                   </Label>
                 </div>

@@ -41,3 +41,22 @@ export function spreadLabel(spread: number | null, side: "home" | "away"): strin
   const value = side === "home" ? spread : -spread;
   return value > 0 ? `+${value}` : `${value}`;
 }
+
+// A pick row's visual state (PKM UX feedback: "make submitted state obvious
+// inline"). One function drives the row's border/badge styling so the new
+// "picked" highlight and the pre-existing locked/unplayable badges — which
+// must stay visually distinct from it — can never drift out of sync with
+// each other. `locked`/`unplayable` take priority over `hasSelection`: a
+// retained pick on a locked or pushed game is still rendered via its own
+// "Your pick" copy, not the freshly-picked highlight.
+export type PickRowState = "unplayable" | "locked" | "picked" | "open";
+
+export function pickRowState(
+  game: { pickable: boolean; locked: boolean },
+  hasSelection: boolean,
+): PickRowState {
+  if (!game.pickable) return "unplayable";
+  if (game.locked) return "locked";
+  if (hasSelection) return "picked";
+  return "open";
+}
