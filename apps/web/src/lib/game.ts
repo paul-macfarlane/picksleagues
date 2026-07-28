@@ -1,4 +1,5 @@
 import { GAME_STATUS, WEEK_TYPE, type GameStatus, type WeekType } from "@picksleagues/schemas";
+import { formatDateTime } from "@/lib/format";
 
 // One home for the sports-data display labels (engineering rule on derived
 // display values), alongside lib/league.ts's mode/role maps. The admin
@@ -30,6 +31,25 @@ export function weekTypeLabel(weekType: WeekType): string {
 // word, and "Scheduled –" reads as a truncated line rather than "no score yet".
 export function scoreText(away: number | null, home: number | null): string {
   return away === null || home === null ? "" : ` ${away}–${home}`;
+}
+
+/**
+ * The one-line summary of where a game actually is, shared by the pick entry
+ * grid and the week/pick detail so the two can't drift.
+ *
+ * A kickoff time only answers the member's question *before* the game starts;
+ * once it has, they want the status and the score — including while it is in
+ * progress, and including a score an admin has corrected by hand (ADM-2), which
+ * arrives here already override-resolved.
+ */
+export function gameStateLabel(game: {
+  status: GameStatus;
+  kickoffAt: string;
+  awayScore: number | null;
+  homeScore: number | null;
+}): string {
+  if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatDateTime(game.kickoffAt)}`;
+  return `${gameStatusLabel(game.status)}${scoreText(game.awayScore, game.homeScore)}`;
 }
 
 // Home-relative spread, flipped for the away side (spec §ATS) — the sign a

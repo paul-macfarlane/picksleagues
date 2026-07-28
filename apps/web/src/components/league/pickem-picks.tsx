@@ -11,8 +11,7 @@ import {
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, pickRowState, spreadLabel } from "@/lib/game";
+import { gameStateLabel, pickRowState, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -370,12 +369,12 @@ function GameRow({
             Picked
           </span>
         )}
-        {!game.pickable && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            {gameStatusLabel(game.status)}
-          </span>
-        )}
-        {game.pickable && game.locked && (
+        {/* No status badge for unplayable games: the state line below now
+            carries the status for every non-scheduled game, and repeating
+            "Cancelled" twelve pixels apart reads as a rendering bug. The badges
+            that remain are about the *pick* (can I still change it), not the
+            game. */}
+        {game.locked && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             Locked
           </span>
@@ -387,7 +386,9 @@ function GameRow({
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">Kickoff {formatDateTime(game.kickoffAt)}</p>
+      {/* Kickoff before the game starts, status + score after — a member whose
+          pick has locked wants to know how it is doing, not when it began. */}
+      <p className="text-xs text-muted-foreground">{gameStateLabel(game)}</p>
 
       <div className="grid grid-cols-2 gap-2">
         <Button

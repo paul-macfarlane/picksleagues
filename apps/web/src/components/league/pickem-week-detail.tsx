@@ -1,5 +1,4 @@
 import {
-  GAME_STATUS,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickType,
@@ -9,8 +8,7 @@ import {
 } from "@picksleagues/schemas";
 import { useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, scoreText, spreadLabel } from "@/lib/game";
+import { gameStateLabel, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
@@ -178,11 +176,7 @@ function PickRow({
           ({game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation})
         </span>
       </span>
-      <span className="text-muted-foreground">
-        {game.status === GAME_STATUS.SCHEDULED
-          ? `Kickoff ${formatDateTime(game.kickoffAt)}`
-          : `${gameStatusLabel(game.status)}${scoreText(game.awayScore, game.homeScore)}`}
-      </span>
+      <span className="text-muted-foreground">{gameStateLabel(game)}</span>
     </li>
   );
 }
