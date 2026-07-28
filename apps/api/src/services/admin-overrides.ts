@@ -12,7 +12,7 @@ import {
 } from "@picksleagues/schemas";
 import { logError } from "../lib/logger";
 import { loadAdminGame } from "./admin-data";
-import { resolveGameOverrides } from "./games";
+import { resolveGameOverrides, type ResolvedGame } from "./games";
 import { settlePicksForGames } from "./pickem/settlement";
 import { isLocked } from "./slate";
 
@@ -66,54 +66,56 @@ export async function setGameOverride(
     };
 
     // Precedence resolved through its one home (arch D15) rather than restated,
-    // so the guard below reasons about exactly the kickoff and status the rest
-    // of the app will.
+    // both before and after, so the guard below reasons about exactly the
+    // kickoff, status and scores the rest of the app will.
+    const before = resolveGameOverrides(game, null);
     const after = resolveGameOverrides({ ...game, ...next }, null);
 
     /**
-     * The invariant, stated on the state this write would *leave behind*: a
-     * game is never left unlocked while its outcome is already knowable. Lock
-     * state is derived, never stored (arch D11), so such a game is one every
-     * member can pick against an outcome the app is already serving them — the
-     * pick mutation's `kickoff_at > now` check passes and settlement grades it a
-     * guaranteed win. The spec is explicit that even a genuine postponement does
-     * not re-open picks (§Cancellations, Postponements & Re-picks: "resolves
-     * normally when played. No re-pick.").
+     * The invariant: a game is never left unlocked while its outcome is already
+     * knowable. Lock state is derived, never stored (arch D11), so such a game
+     * is one every member can still pick against an outcome the app is already
+     * serving them — the pick mutation's `kickoff_at > now` check passes and
+     * settlement grades it a guaranteed win. The spec is explicit that even a
+     * genuine postponement does not re-open picks (§Cancellations,
+     * Postponements & Re-picks: "resolves normally when played. No re-pick.").
      *
-     * "Knowable" is a started status OR a resolved score, and the second
-     * disjunct is not redundant: `postponed` is legitimately not a started
-     * status, yet a postponed game carrying the provider's score renders that
-     * score everywhere a non-`scheduled` game's status is shown (the week
-     * detail's status+score line), and the resolved score is serialized on the
-     * slate regardless. A score is exactly as knowable as a status.
+     * "Knowable" is a started status OR a resolved score, and the score disjunct
+     * is not redundant with the status one. `postponed` is legitimately not a
+     * started status, yet a postponed game carrying a score renders it wherever
+     * a non-`scheduled` status is shown, and `serializeSlateGame` puts the
+     * resolved scores on the wire for every status. A score is exactly as
+     * knowable as a status, and a score-only write can create the violation
+     * without touching kickoff or status at all.
      *
-     * Deliberately NOT a before/after transition test: every conjunct of one
-     * would read a single request's own pair, so the same end state is reachable
-     * by splitting the edit across requests (set `scheduled`, move the kickoff,
-     * then clear the status) or by never touching the kickoff at all (correct a
-     * final score on a game whose provider kickoff is wrongly in the future).
-     * Only the result is checkable once.
+     * The whole predicate is evaluated on *each* resolved state and the write is
+     * refused only where the violation is new. That is emphatically not the
+     * escapable transition test this guard started as, and the difference is the
+     * thing to preserve: the original compared *different conjuncts* across the
+     * pair (before's lock state against after's status), so a sequence could
+     * walk to a forbidden state one individually-legal step at a time. Here each
+     * state is judged whole, so no single request can take a non-violating row
+     * to a violating one — and therefore, by induction over the sequence, no
+     * series of requests can either. Do not "simplify" this back into a
+     * per-request diff of individual fields.
+     *
+     * Comparing against `before` at all is what keeps a row that a provider bug
+     * already left violating (kickoff in the future on a game it reports final,
+     * no override in sight) fully editable: the violation pre-exists, so score
+     * and spread corrections on it still land, while nothing may deepen it into
+     * a *new* violation.
      *
      * The legitimate cases survive: moving a kickoff earlier only ever locks, a
      * genuinely postponed game with no score anywhere is still reschedulable,
      * and the audited escape hatch for a provider that wrongly marked a game
      * played is to assert the true state in one request — `scheduled` plus, when
      * an override put the scores there, nulling them back out.
-     *
-     * Evaluated only when the request supplies one of the two inputs to the
-     * resolved lock state's counterpart. A provider bug can leave a game already
-     * violating this (kickoff in the future, status `final`) with no override in
-     * sight; an unrelated score or spread correction on that game neither
-     * creates nor deepens the violation, and refusing it would make the rest of
-     * the row unfixable. A no-op status/kickoff write on such a row is refused
-     * rather than special-cased — narrowing further would mean comparing against
-     * the prior state again, which is the escapability this guard exists to
-     * avoid.
      */
-    const touchesLockState = request.kickoffAt !== undefined || request.status !== undefined;
-    const outcomeKnowable =
-      isStartedStatus(after.status) || after.homeScore !== null || after.awayScore !== null;
-    if (touchesLockState && !isLocked(after.kickoffAt, now) && outcomeKnowable) {
+    const leavesOutcomeKnowableButUnlocked = (state: ResolvedGame) =>
+      !isLocked(state.kickoffAt, now) &&
+      (isStartedStatus(state.status) || state.homeScore !== null || state.awayScore !== null);
+
+    if (leavesOutcomeKnowableButUnlocked(after) && !leavesOutcomeKnowableButUnlocked(before)) {
       return { ok: false as const, reason: ERROR_CODE.OVERRIDE_UNLOCKS_GAME };
     }
 

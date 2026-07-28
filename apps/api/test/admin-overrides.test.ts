@@ -614,6 +614,66 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
     expect(await auditRows()).toHaveLength(0);
   });
 
+  it("refuses a score-only write that would leave an unlocked game showing an outcome", async () => {
+    const { app, cookie } = await adminCaller();
+    const { futureWeekId, futureGameId } = await seedGames();
+
+    // The likeliest real action on the override form: its status select
+    // defaults to "No override — use provider", so correcting a score on a game
+    // whose provider kickoff is wrongly in the future sends exactly this. The
+    // slate serializes scores for every status, and only cancelled/moved are
+    // unpickable — so without the guard the week's slate would serve an
+    // unlocked, pickable game with its final score on it.
+    const res = await putOverride(app, cookie, futureGameId, { homeScore: 24, awayScore: 10 });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
+    const read = await readGame(app, cookie, futureWeekId, futureGameId);
+    expect(read).toMatchObject({ overrideHomeScore: null, effectiveHomeScore: null });
+    expect(await auditRows()).toHaveLength(0);
+  });
+
+  it("refuses the kickoff half of the same attack split across two requests", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastGameId } = await seedGames();
+
+    // Scoring a locked game is legitimate on its own...
+    const scored = await putOverride(app, cookie, pastGameId, { homeScore: 24, awayScore: 10 });
+    expect(scored.status).toBe(200);
+
+    // ...so the attack has to unlock it afterwards, which is where the same
+    // whole-state check catches it. No sequence reaches what no single step may.
+    const res = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
+  });
+
+  it("still allows score and spread corrections on a row the provider already left violating", async () => {
+    const { app, cookie } = await adminCaller();
+    const { futureWeekId, futureGameId } = await seedGames();
+    // Provider bug, no override in sight: kickoff in the future on a game it
+    // reports final. The row already violates the invariant, so this write
+    // neither creates nor deepens it — refusing would make the rest of the row
+    // unfixable while fixing nothing.
+    await setGame(db, futureGameId, {
+      status: GAME_STATUS.FINAL,
+      homeScore: 24,
+      awayScore: 10,
+    });
+
+    const scores = await putOverride(app, cookie, futureGameId, { homeScore: 31 });
+    expect(scores.status).toBe(200);
+
+    const spread = await putOverride(app, cookie, futureGameId, { spread: 3.5 });
+    expect(spread.status).toBe(200);
+
+    const read = await readGame(app, cookie, futureWeekId, futureGameId);
+    expect(read).toMatchObject({ effectiveHomeScore: 31, effectiveSpread: 3.5 });
+  });
+
   it("refuses the last of three requests that would otherwise land on the same unlocked-final state", async () => {
     const { app, cookie } = await adminCaller();
     const { pastWeekId, pastGameId } = await seedGames();

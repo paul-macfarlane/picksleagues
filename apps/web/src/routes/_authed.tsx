@@ -77,7 +77,13 @@ function AuthedLayout() {
 
     const observer = new ResizeObserver(publishHeight);
     observer.observe(header);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      // Published on the document element, so it outlives this subtree: after
+      // sign-out the unauthed pages have no header, and a stale height would
+      // push their toasts (Toaster reads the same property) down by one.
+      document.documentElement.style.removeProperty("--app-header-height");
+    };
   }, []);
 
   return (

@@ -158,8 +158,9 @@ export function useSetGameOverride() {
         body: override,
       });
       if (error) {
-        // The 409 carries the recovery instruction verbatim (set the status
-        // back to scheduled in the same edit), so it is shown, not replaced.
+        // The 409 carries the recovery instruction verbatim (move the kickoff
+        // into the past, or assert `scheduled` with both scores nulled in the
+        // same edit), so it is shown, not replaced.
         toastOnExpectedError(
           error,
           response,

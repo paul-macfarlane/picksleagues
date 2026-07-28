@@ -51,9 +51,31 @@ every override to write it, which an override endpoint can't satisfy against a t
 that doesn't exist. ADM-3 keeps the audit view. Rebuild auditing stays owed, and the
 rule now says so instead of overclaiming.
 
-**The review's most valuable catch** was an ADM-2 guard written against a *transition*
-rather than a resulting state — orchestrator error in the spec, faithfully implemented.
-Two paths (a status-only edit on a wrongly-scheduled game; a three-step edit ending by
-clearing the status override) left a played game unlocked and pickable, letting members
-pick a game whose final score the UI was already showing. Fixed to assert the invariant
-on the post-write state.
+**The round's most instructive defect** was ADM-2's unlock guard, which took three
+attempts and is worth recording as a pattern rather than a bug.
+
+Each attempt fixed the predicate and left the *scope condition* alone, so the invariant
+kept widening while the set of requests that check it didn't:
+
+1. **Transition test** (`was locked && would unlock && not scheduled`) — escapable,
+   because the conjuncts read different halves of one request's own before/after pair.
+   A status-only edit never touched the kickoff and so never tripped it; a three-step
+   edit reached the same state one legal step at a time.
+2. **Result test on status** (`!locked(after) && isStarted(after.status)`) — missed that
+   only `SCHEDULED` hides scores in the UI, so `postponed` over a scored game rendered
+   the outcome beside a pickable row.
+3. **Result test on status *or* score**, still gated by `touchesLockState` — re-opened
+   the hole through a score-only request, which is the likeliest real action on that
+   screen (the form defaults the status select to "no override", so correcting a score
+   sends scores alone and skips the guard).
+
+The formulation that holds evaluates the **whole** invariant on both resolved states and
+refuses only when it newly holds. No single request can move the row from non-violating
+to violating, so no sequence can either — induction over requests, not a per-request
+diff — while a row already violating from a provider bug stays editable.
+
+Each attempt was caught by a different mechanism (evaluator, then the implementer
+flagging its own work, then a re-read of a comment that no longer matched the code), and
+each time what got verified was the line that changed rather than the condition guarding
+it. Worth remembering the next time a guard is tightened: re-derive the scope, not just
+the predicate.

@@ -32,6 +32,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // (which changes when SimClockBanner mounts/unmounts) instead of a
       // hardcoded number that would drift.
       offset={{ top: "calc(var(--app-header-height, 0px) + 1rem)" }}
+      // Under 600px sonner's own media query positions from `--mobile-offset-*`
+      // instead, so `offset` alone lands the toast 16px from the top — over the
+      // header (z-40), at exactly the width this whole arrangement exists to
+      // fix. Each side falls back to that 16px independently, so all four are
+      // restated here rather than just `top`.
+      mobileOffset={{
+        top: "calc(var(--app-header-height, 0px) + 1rem)",
+        right: "1rem",
+        bottom: "1rem",
+        left: "1rem",
+      }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
