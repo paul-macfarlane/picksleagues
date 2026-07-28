@@ -1,6 +1,6 @@
 ---
 name: evaluator
-description: Adversarially evaluates completed implementation work against its plan/spec — verifies every requirement is addressed, hunts behavior regressions, and reports findings with verdicts. Read-and-run only; it never edits code. Use after implementer agents finish, before committing a wave or closing a task. For scoring/locking/settlement diffs, dispatch with a session-model override per /task.
+description: Adversarially evaluates completed implementation work against its plan/spec — verifies every requirement is addressed, hunts behavior regressions, and reports findings with verdicts. Read-and-run only; it never edits code. Mandatory for diffs touching scoring, lock/visibility semantics, settlement, override precedence, or migrations (per /task step 3); available on demand anywhere a fresh, implementation-uncontaminated context would genuinely help.
 model: opus
 tools: Read, Bash, Grep, Glob
 ---

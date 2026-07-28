@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only fact-gathering for planning — maps call sites, duplication, coverage, and current-state facts across the repo and returns structured raw findings. Use before writing a plan (/feedback step 2, /task step 1) so plans are built from verified facts, not memory. Never edits; never recommends. For purely mechanical sweeps (file inventories, listing test titles), a Haiku override per dispatch is fine.
+description: Read-only fact-gathering for planning — maps call sites, duplication, coverage, and current-state facts across the repo and returns structured raw findings. Dispatch (in parallel) when a plan needs a genuinely broad survey — many call sites, cross-workspace sweeps; a question one or two known files can answer should be read directly instead. Never edits; never recommends. For purely mechanical sweeps (file inventories, listing test titles), a Haiku override per dispatch is fine.
 model: sonnet
 tools: Read, Bash, Grep, Glob
 ---

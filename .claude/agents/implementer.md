@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Implements a single well-scoped, self-contained coding sub-task from an exact spec, following an existing pattern. Use for mechanical work (route handlers, schema tables, boilerplate components, wiring) where the design is already decided — NOT for tasks requiring architectural judgment or unresolved decisions. Scoring/locking/settlement slices require an Opus model override per /task.
+description: Implements a single well-scoped, self-contained coding sub-task from an exact spec, following an existing pattern. Dispatch for parallel mechanical fan-out on disjoint files, or to keep a large mechanical wave off the premium-usage budget — NOT for tasks requiring architectural judgment, and never for scoring/locking/settlement/override-precedence code (the orchestrator implements those directly per /task).
 model: sonnet
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
