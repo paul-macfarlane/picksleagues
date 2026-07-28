@@ -121,12 +121,26 @@ function runSyncSchedule(query = "", secret: string | null = testEnv.JOB_SECRET)
   });
 }
 
-async function runOk(query = ""): Promise<Record<string, string | number | boolean>> {
+async function runExpecting(
+  expectedStatus: string,
+  query: string,
+): Promise<Record<string, string | number | boolean>> {
   const res = await runSyncSchedule(query);
+  // A skipped run is a 200 too — only real failures may trip the cron
+  // scheduler's failure notifications (ADR-0007).
   expect(res.status).toBe(200);
   const body = (await res.json()) as JobRunResponse;
-  expect(body.status).toBe("ok");
+  expect(body.status).toBe(expectedStatus);
   return body.details ?? {};
+}
+
+function runOk(query = ""): Promise<Record<string, string | number | boolean>> {
+  return runExpecting("ok", query);
+}
+
+/** A run that completed with nothing to do — the envelope says so. */
+function runSkipped(query = ""): Promise<Record<string, string | number | boolean>> {
+  return runExpecting("skipped", query);
 }
 
 /** Baseline: two regular weeks, two games in week 1, one in week 2. */
@@ -524,7 +538,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
   it("skips an explicit week the structure doesn't expose (e.g. the excluded Pro Bowl week)", async () => {
     seedBaselineProvider();
 
-    const details = await runOk("?weekType=postseason&week=4");
+    const details = await runSkipped("?weekType=postseason&week=4");
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
     // Nothing was written — the skip happens before any fetch or transaction.
     expect(await db.select().from(games)).toHaveLength(0);
@@ -656,7 +670,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
       ],
     ]);
 
-    const details = await runOk("?weekType=postseason&week=4");
+    const details = await runSkipped("?weekType=postseason&week=4");
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
     expect(await db.select().from(games)).toEqual([]);
   });

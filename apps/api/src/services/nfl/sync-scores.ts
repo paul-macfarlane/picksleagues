@@ -2,8 +2,15 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
-import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  JOB_SKIP_REASON,
+  SPORT,
+  WEEK_TYPE,
+  type WeekType,
+} from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
 import { settlePicksForGames } from "../pickem/settlement";
 
 /** A refresh target: one provider week fetch mapped to our week row. */
@@ -39,7 +46,6 @@ export async function syncNflScores(
 ): Promise<Record<string, string | number | boolean>> {
   // One `now` per run, bound into SQL as a parameter (arch D13) — never SQL now().
   const now = clock.now();
-  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
   // A week takes the explicit "refresh this week now" path (season is derived
   // when omitted, matching sync-schedule/sync-odds). Season alone stays on the
   // active-games gate — it only re-labels the season the gate's own join already
@@ -53,6 +59,11 @@ export async function syncNflScores(
     // An explicit admin/simulator trigger means "refresh this week now" — skip
     // the active-games gate and resolve the requested week from our tables. A
     // bare week number defaults to REGULAR; postseason must name `weekType`.
+    // Season resolution lives inside this branch: the gate path below derives
+    // every target's season from its own join, and the offseason roll-forward
+    // query would otherwise cost the 5-minute no-op path an extra round trip.
+    const seasonYear =
+      opts?.seasonYear ?? (await resolveRecurringSyncSeasonYear(db, nflSeasonYearFor(now), now));
     const weekNumber = opts!.weekNumber!;
     const weekType = opts?.weekType ?? WEEK_TYPE.REGULAR;
     const [week] = await db
@@ -70,7 +81,7 @@ export async function syncNflScores(
     if (!week) {
       // Sync jobs never create reference data — schedule-sync owns season/week
       // creation (feedback: recurring syncs query reference data, don't upsert).
-      return { skipped: true, reason: "week_not_synced" };
+      return { skipped: true, reason: JOB_SKIP_REASON.WEEK_NOT_SYNCED };
     }
     targets = [{ weekId: week.weekId, seasonYear, weekType: week.weekType, weekNumber }];
   } else {
@@ -82,7 +93,7 @@ export async function syncNflScores(
       .where(and(inArray(games.status, ACTIVE_STATUSES), lte(games.kickoffAt, now)));
     activeGames = activeRows.length;
     if (activeGames === 0) {
-      return { skipped: true, reason: "no_active_games", activeGames: 0 };
+      return { skipped: true, reason: JOB_SKIP_REASON.NO_ACTIVE_GAMES, activeGames: 0 };
     }
 
     // Distinct weeks of the active games → the (season, type, week) triples to

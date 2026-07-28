@@ -1,6 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { sportSeasons, weeks } from "@picksleagues/db";
 import {
   type Clock,
   type GameDataProvider,
@@ -8,9 +6,10 @@ import {
   estimatedNflWeeks,
   nflSeasonYearFor,
 } from "@picksleagues/core";
-import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import { JOB_SKIP_REASON, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { fetchSeasonGames } from "./fetch-season-games";
 import { ingestSeasonSnapshot } from "./ingest-season";
+import { SEASON_CONCLUSION, nflSeasonConclusion } from "./season-lifecycle";
 import { settlePicksForGames } from "../pickem/settlement";
 
 const UPCOMING_STATUS = {
@@ -42,25 +41,13 @@ async function ensureUpcomingNflSeason(
   const now = clock.now();
   const upcomingSeasonYear = defaultSeasonYear + 1;
 
-  // One query, from our own tables (arch §External Data never reads the
-  // provider on a request/decision path): the default season's furthest week
-  // boundary. Raw SQL `max()` skips drizzle's decoder, so map it back to Date.
-  const maxWeekEndsAt = sql<string | null>`max(${weeks.endsAt})`.mapWith((value): Date | null =>
-    value === null ? null : new Date(value as string),
-  );
-  const [row] = await db
-    .select({ maxEndsAt: maxWeekEndsAt })
-    .from(weeks)
-    .innerJoin(sportSeasons, eq(sportSeasons.id, weeks.seasonId))
-    .where(and(eq(sportSeasons.sport, SPORT.NFL), eq(sportSeasons.year, defaultSeasonYear)));
-
+  const conclusion = await nflSeasonConclusion(db, defaultSeasonYear, now);
   // No weeks at all (fresh env, nothing synced yet) — skip rather than assume
   // "concluded" off an empty aggregate.
-  if (!row?.maxEndsAt) {
+  if (conclusion === SEASON_CONCLUSION.NO_WEEKS) {
     return { upcoming: UPCOMING_STATUS.SKIPPED_NO_WEEKS, upcomingSeasonYear };
   }
-  // Boundary: the last week ending exactly at `now` counts as concluded.
-  if (row.maxEndsAt.getTime() > now.getTime()) {
+  if (conclusion === SEASON_CONCLUSION.UNCONCLUDED) {
     return { upcoming: UPCOMING_STATUS.SKIPPED_NOT_CONCLUDED, upcomingSeasonYear };
   }
 
@@ -142,7 +129,7 @@ export async function syncNflSchedule(
       (week) => week.weekType === weeksToFetch[0]?.weekType && week.weekNumber === opts.weekNumber,
     )
   ) {
-    return { seasonYear, skipped: true, reason: "week_not_synced" };
+    return { seasonYear, skipped: true, reason: JOB_SKIP_REASON.WEEK_NOT_SYNCED };
   }
   // Teams listing is season-independent — fetched once per run (alongside the
   // per-week game fetches) and forwarded to every `ingestSeasonSnapshot` call

@@ -1,12 +1,31 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { NflSyncJob, Sport } from "@picksleagues/schemas";
+import { JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
+import type { JobSkipReason, NflSyncJob, Sport } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 
 // One home for the admin cache-key shape: every browser query below is
 // prefixed with this, so a single invalidation after a sync job covers all
 // four without the run-job hook restating the key literal.
 const ADMIN_QUERY_KEY_PREFIX = ["admin"];
+
+// Wire slug → operator copy for a run that had nothing to do. A skip is a 200,
+// so without this the operator can't tell "nothing happened" from "work
+// happened" — which is how a season-resolution gap stayed invisible.
+const JOB_SKIP_COPY: Record<JobSkipReason, string> = {
+  [JOB_SKIP_REASON.SEASON_NOT_SYNCED]: "that season isn't synced yet",
+  [JOB_SKIP_REASON.WEEK_NOT_SYNCED]: "that week isn't synced yet",
+  [JOB_SKIP_REASON.NO_CURRENT_WEEK]: "no current or upcoming week to sync",
+  [JOB_SKIP_REASON.NO_ACTIVE_GAMES]: "no games are in flight",
+};
+
+function skipMessage(job: string, reason: unknown): string {
+  const copy =
+    typeof reason === "string" && reason in JOB_SKIP_COPY
+      ? JOB_SKIP_COPY[reason as JobSkipReason]
+      : "nothing to do";
+  return `Skipped ${job} — ${copy}.`;
+}
 
 // Each job row mounts its own instance and scopes pending state off
 // `mutation.variables` (async-button standard). SyncJobsCard, SeasonsBrowser,
@@ -31,6 +50,12 @@ export function useRunNflSyncJob() {
     },
     onSuccess: async (data) => {
       if (!data) return;
+      if (data.status === JOB_RUN_STATUS.SKIPPED) {
+        // Informational, not success: the job completed but wrote nothing, so
+        // there is also nothing for the sibling browsers to refetch.
+        toast.info(skipMessage(data.job, data.details?.reason));
+        return;
+      }
       toast.success(`Ran ${data.job} in ${data.durationMs}ms`);
       await queryClient.invalidateQueries({ queryKey: ADMIN_QUERY_KEY_PREFIX });
     },

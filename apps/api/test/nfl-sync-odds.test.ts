@@ -307,6 +307,115 @@ describe("syncNflOdds", () => {
   });
 });
 
+/**
+ * `nflSeasonYearFor` maps Jan–Jul back to the prior season label, so all
+ * offseason a bare run would derive a season whose weeks are already over while
+ * next season's games sit unsynced — and an ATS league can take no picks until
+ * their odds exist (locking is `kickoff > now`, so members can pick that early).
+ */
+describe("syncNflOdds: offseason season roll-forward", () => {
+  const NEXT_SEASON_YEAR = SEASON_YEAR + 1;
+  // July 2027 → nflSeasonYearFor derives 2026, the concluded season.
+  const offseasonClock = new FixedClock(new Date("2027-07-27T00:00:00.000Z"));
+
+  /** Seeds one season's week + games via the real schedule sync (explicit season). */
+  async function seedSeason(seasonYear: number, week: ProviderWeek, weekGames: ProviderGame[]) {
+    provider.structure = { seasonYear, weeks: [week] };
+    provider.gamesByWeek = new Map([[weekKey(week.weekType, week.weekNumber), weekGames]]);
+    await syncNflSchedule(db, seedClock, provider, { seasonYear });
+  }
+
+  /** The derived default season, every week of it behind the offseason clock. */
+  function seedConcludedDefaultSeason() {
+    return seedSeason(
+      SEASON_YEAR,
+      providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+      [
+        providerGame({
+          providerGameId: "g2",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+          spread: 2.5,
+        }),
+      ],
+    );
+  }
+
+  /** Next season, already ingested by schedule-sync's ensure step (ADR-0009). */
+  function seedUpcomingSeason() {
+    return seedSeason(
+      NEXT_SEASON_YEAR,
+      providerWeek(1, "2027-09-09T00:00:00.000Z", "2027-09-16T00:00:00.000Z"),
+      [
+        providerGame({
+          providerGameId: "n1",
+          weekNumber: 1,
+          kickoffAt: new Date("2027-09-12T17:00:00.000Z"),
+          spread: -6.5,
+        }),
+      ],
+    );
+  }
+
+  it("default season concluded + next season synced: a bare run snapshots the NEXT season's first week", async () => {
+    await seedConcludedDefaultSeason();
+    await seedUpcomingSeason();
+
+    const details = await syncNflOdds(db, offseasonClock, provider, {});
+    expect(details).toMatchObject({
+      seasonYear: NEXT_SEASON_YEAR,
+      weekNumber: 1,
+      unstartedGames: 1,
+      snapshotsInserted: 1,
+    });
+
+    const snapshots = await db.select().from(oddsSnapshots);
+    expect(snapshots).toHaveLength(1);
+    const [n1] = await db.select().from(games).where(eq(games.providerGameId, "n1"));
+    expect(snapshots[0]).toMatchObject({ gameId: n1?.id, spread: -6.5 });
+  });
+
+  it("default season concluded + NO next season row: no-ops and never creates one", async () => {
+    await seedConcludedDefaultSeason();
+    const seasonsBefore = await db.select().from(sportSeasons);
+
+    const details = await syncNflOdds(db, offseasonClock, provider, {});
+    expect(details).toMatchObject({ skipped: true, reason: "no_current_week" });
+
+    // Creating next year's season is schedule-sync's job — recurring syncs only
+    // ever query reference data.
+    expect(await db.select().from(sportSeasons)).toEqual(seasonsBefore);
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+  });
+
+  it("an explicit season/week still wins over the roll-forward", async () => {
+    await seedConcludedDefaultSeason();
+    await seedUpcomingSeason();
+
+    const details = await syncNflOdds(db, offseasonClock, provider, {
+      seasonYear: SEASON_YEAR,
+      weekNumber: 1,
+    });
+    // The concluded season's games are all past kickoff, so targeting it writes
+    // nothing — the roll-forward would have reported 2027 and one snapshot.
+    expect(details).toMatchObject({
+      seasonYear: SEASON_YEAR,
+      weekNumber: 1,
+      unstartedGames: 0,
+      snapshotsInserted: 0,
+    });
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+  });
+
+  it("an explicit week with a derived season rolls forward with it", async () => {
+    await seedConcludedDefaultSeason();
+    await seedUpcomingSeason();
+
+    const details = await syncNflOdds(db, offseasonClock, provider, { weekNumber: 1 });
+    expect(details).toMatchObject({ seasonYear: NEXT_SEASON_YEAR, snapshotsInserted: 1 });
+  });
+});
+
 describe("POST /api/jobs/nfl/sync-odds", () => {
   it("401s without the x-job-secret header", async () => {
     const res = await app.request("/api/jobs/nfl/sync-odds", { method: "POST" });

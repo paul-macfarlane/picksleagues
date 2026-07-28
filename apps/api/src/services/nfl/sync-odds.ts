@@ -2,7 +2,14 @@ import { and, asc, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
-import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  JOB_SKIP_REASON,
+  SPORT,
+  WEEK_TYPE,
+  type WeekType,
+} from "@picksleagues/schemas";
+import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
 
 /**
  * Captures a point-in-time odds snapshot for each unstarted game in the
@@ -23,7 +30,12 @@ export async function syncNflOdds(
   // One `now` per run: season derivation, every comparison, and capturedAt all
   // share one instant, reaching SQL as a bound parameter (arch D13).
   const now = clock.now();
-  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
+  // An explicit `?season=` always wins; otherwise the derived label rolls
+  // forward to next season once this one's weeks are all behind us, so
+  // offseason runs snapshot the games members can already pick against
+  // (an ATS league refuses picks with no snapshot).
+  const seasonYear =
+    opts?.seasonYear ?? (await resolveRecurringSyncSeasonYear(db, nflSeasonYearFor(now), now));
 
   const [season] = await db
     .select({ id: sportSeasons.id })
@@ -32,7 +44,7 @@ export async function syncNflOdds(
   if (!season) {
     // Sync jobs never create reference data — schedule-sync owns season/week
     // creation (feedback: recurring syncs query reference data, don't upsert it).
-    return { skipped: true, reason: "season_not_synced" };
+    return { skipped: true, reason: JOB_SKIP_REASON.SEASON_NOT_SYNCED };
   }
 
   // An explicit week defaults its type to REGULAR — a bare week number is the
@@ -50,7 +62,10 @@ export async function syncNflOdds(
     // term (sync-scores/sync-schedule) so the two never blur together.
     return {
       skipped: true,
-      reason: opts?.weekNumber !== undefined ? "week_not_synced" : "no_current_week",
+      reason:
+        opts?.weekNumber !== undefined
+          ? JOB_SKIP_REASON.WEEK_NOT_SYNCED
+          : JOB_SKIP_REASON.NO_CURRENT_WEEK,
     };
   }
 
