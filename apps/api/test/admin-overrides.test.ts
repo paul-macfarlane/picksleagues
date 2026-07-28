@@ -41,14 +41,13 @@ import { makeTestEnv } from "./setup/test-env";
  * D15). The properties under test are the ones the architecture makes promises
  * about: precedence through the read serializer, a re-sync that can't clobber a
  * correction, an audit row written with the write it describes, settlement
- * recompute for affected leagues, and the one refusal — a kickoff edit that
- * would re-open picks on a game that already started (arch D11).
+ * recompute for affected leagues, and the one refusal — an override that would
+ * leave a game members can still pick after it was played (arch D11).
  */
 
 const NOW = new Date("2026-09-20T00:00:00.000Z");
 const PAST_KICKOFF = new Date("2026-09-13T17:00:00.000Z");
 const FUTURE_KICKOFF = new Date("2026-09-27T17:00:00.000Z");
-const LATER_FUTURE_KICKOFF = new Date("2026-09-28T17:00:00.000Z");
 
 const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: makeTestEnv(), db });
@@ -216,12 +215,17 @@ describe("PUT /api/admin/games/{gameId}/override — access", () => {
 });
 
 describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
+  // Every field at once, on the shape a real correction takes: the provider had
+  // a game scheduled for later that has in fact already been played. The
+  // kickoff moves into the past *with* the final status, because a status
+  // saying the game was played may never be left on an unlocked game (the lock
+  // boundary block below).
   it("sets every field and resolves override ?? provider on the read path", async () => {
     const { app, cookie, userId } = await adminCaller();
     const { futureWeekId, futureGameId } = await seedGames();
 
     const res = await putOverride(app, cookie, futureGameId, {
-      kickoffAt: LATER_FUTURE_KICKOFF.toISOString(),
+      kickoffAt: PAST_KICKOFF.toISOString(),
       status: GAME_STATUS.FINAL,
       homeScore: 24,
       awayScore: 17,
@@ -230,7 +234,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
 
     expect(res.status).toBe(200);
     const read = await readGame(app, cookie, futureWeekId, futureGameId);
-    expect(await res.json()).toEqual(read);
+    expect(await res.json()).toEqual({ game: read, resettled: true });
     expect(read).toMatchObject({
       // Provider block survives the correction verbatim (arch D15).
       kickoffAt: FUTURE_KICKOFF.toISOString(),
@@ -239,7 +243,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
       awayScore: null,
       latestSpread: null,
       // Override block as written, attributed to the caller.
-      overrideKickoffAt: LATER_FUTURE_KICKOFF.toISOString(),
+      overrideKickoffAt: PAST_KICKOFF.toISOString(),
       overrideStatus: GAME_STATUS.FINAL,
       overrideHomeScore: 24,
       overrideAwayScore: 17,
@@ -247,7 +251,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
       overriddenBy: userId,
       overriddenAt: NOW.toISOString(),
       // Resolved = override ?? provider.
-      effectiveKickoffAt: LATER_FUTURE_KICKOFF.toISOString(),
+      effectiveKickoffAt: PAST_KICKOFF.toISOString(),
       effectiveStatus: GAME_STATUS.FINAL,
       effectiveHomeScore: 24,
       effectiveAwayScore: 17,
@@ -578,8 +582,74 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
  * picks, which on a started game hands every member an edit against a known
  * outcome; the spec is explicit that even a real postponement doesn't re-open
  * picks (§Cancellations, Postponements & Re-picks).
+ *
+ * The guard is stated on the *resulting* state, never on the before/after pair
+ * of one request — a transition test is escapable by splitting the edit across
+ * requests, or by never editing the kickoff at all (the two cases below).
  */
 describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary", () => {
+  it("refuses a status correction that leaves an unlocked game final, with no kickoff edit at all", async () => {
+    const { app, cookie } = await adminCaller();
+    const { futureWeekId, futureGameId } = await seedGames();
+
+    // The provider had the kickoff wrong (says Sunday, the game played
+    // Thursday) and the admin corrects only the outcome. Nothing about this
+    // request is a *transition* into unlocked — the game was already unlocked —
+    // but the state it would leave behind is a final game every member can
+    // still pick.
+    const res = await putOverride(app, cookie, futureGameId, {
+      status: GAME_STATUS.FINAL,
+      homeScore: 24,
+      awayScore: 10,
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
+    const read = await readGame(app, cookie, futureWeekId, futureGameId);
+    expect(read).toMatchObject({
+      overrideStatus: null,
+      overrideHomeScore: null,
+      effectiveStatus: GAME_STATUS.SCHEDULED,
+    });
+    expect(await auditRows()).toHaveLength(0);
+  });
+
+  it("refuses the last of three requests that would otherwise land on the same unlocked-final state", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastWeekId, pastGameId } = await seedGames();
+    // Unscored on purpose: a provider score would refuse step (b) on its own,
+    // and the point of this case is the *status* clear at step (c).
+    await setGame(db, pastGameId, { status: GAME_STATUS.FINAL });
+
+    // (a) Still locked, so allowed — the override status is the only thing that
+    // moved.
+    const scheduled = await putOverride(app, cookie, pastGameId, {
+      status: GAME_STATUS.SCHEDULED,
+    });
+    expect(scheduled.status).toBe(200);
+
+    // (b) The sanctioned escape hatch, arrived at in two steps: the resolved
+    // status is `scheduled`, so unlocking is legitimate.
+    const moved = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+    });
+    expect(moved.status).toBe(200);
+
+    // (c) Clearing the status override restores the provider's `final` under a
+    // kickoff that is now in the future — the same end state as the one-request
+    // attack above, so it is refused on its result exactly like a set.
+    const res = await putOverride(app, cookie, pastGameId, { status: null });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
+    const read = await readGame(app, cookie, pastWeekId, pastGameId);
+    expect(read).toMatchObject({
+      overrideStatus: GAME_STATUS.SCHEDULED,
+      effectiveStatus: GAME_STATUS.SCHEDULED,
+      effectiveKickoffAt: FUTURE_KICKOFF.toISOString(),
+    });
+  });
+
   it("refuses a kickoff that would re-open picks on a started game", async () => {
     const { app, cookie } = await adminCaller();
     const { pastGameId } = await seedGames();
@@ -607,6 +677,47 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
     expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
   });
 
+  it("refuses `postponed` over a scored game — a status that isn't 'started' still renders the outcome", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastWeekId, pastGameId } = await seedGames();
+    await setGame(db, pastGameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+
+    // `postponed` is not a started status, so a status-only invariant lets this
+    // through — and the week detail renders `gameStatusLabel + score` for every
+    // status except `scheduled`, so the outcome is on screen beside a game the
+    // same request just made pickable.
+    const res = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+      status: GAME_STATUS.POSTPONED,
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
+    const read = await readGame(app, cookie, pastWeekId, pastGameId);
+    expect(read).toMatchObject({ overrideKickoffAt: null, overrideStatus: null });
+  });
+
+  it("allows a genuine postponement — no score anywhere, so nothing is knowable", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastWeekId, pastGameId } = await seedGames();
+    // The real-world shape: the provider marked it postponed and has no score,
+    // and the game is genuinely rescheduled into the future.
+    await setGame(db, pastGameId, { status: GAME_STATUS.POSTPONED });
+
+    const res = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+    });
+
+    expect(res.status).toBe(200);
+    const read = await readGame(app, cookie, pastWeekId, pastGameId);
+    expect(read).toMatchObject({
+      effectiveKickoffAt: FUTURE_KICKOFF.toISOString(),
+      effectiveStatus: GAME_STATUS.POSTPONED,
+      effectiveHomeScore: null,
+      effectiveAwayScore: null,
+    });
+  });
+
   it("allows re-opening a game the provider still reports as scheduled", async () => {
     const { app, cookie } = await adminCaller();
     const { pastWeekId, pastGameId } = await seedGames();
@@ -623,7 +734,10 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   it("allows the escape hatch: correcting the status back to scheduled in the same edit", async () => {
     const { app, cookie } = await adminCaller();
     const { pastWeekId, pastGameId } = await seedGames();
-    await setGame(db, pastGameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 });
+    // The provider fault the hatch exists for: a `final` it never scored (the
+    // same fault sync-scores counts as `settledUnsettled`). Nothing about the
+    // outcome is knowable, so asserting the true status re-opens the game.
+    await setGame(db, pastGameId, { status: GAME_STATUS.FINAL });
 
     const res = await putOverride(app, cookie, pastGameId, {
       kickoffAt: FUTURE_KICKOFF.toISOString(),
@@ -636,6 +750,66 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
       effectiveKickoffAt: FUTURE_KICKOFF.toISOString(),
       effectiveStatus: GAME_STATUS.SCHEDULED,
     });
+  });
+
+  it("allows the escape hatch when the scores were an override, nulled out in the same edit", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastWeekId, pastGameId } = await seedGames();
+    // An earlier correction wrote the outcome; this one retracts the whole
+    // thing — status back to scheduled AND both scores nulled, or the score
+    // alone would keep the outcome knowable.
+    await putOverride(app, cookie, pastGameId, {
+      status: GAME_STATUS.FINAL,
+      homeScore: 24,
+      awayScore: 10,
+    });
+
+    const refused = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+      status: GAME_STATUS.SCHEDULED,
+    });
+    expect(refused.status).toBe(409);
+
+    const res = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+      status: GAME_STATUS.SCHEDULED,
+      homeScore: null,
+      awayScore: null,
+    });
+
+    expect(res.status).toBe(200);
+    const read = await readGame(app, cookie, pastWeekId, pastGameId);
+    expect(read).toMatchObject({
+      effectiveKickoffAt: FUTURE_KICKOFF.toISOString(),
+      effectiveStatus: GAME_STATUS.SCHEDULED,
+      effectiveHomeScore: null,
+      effectiveAwayScore: null,
+    });
+  });
+
+  /**
+   * The hatch's boundary, pinned deliberately: `null` on the wire clears an
+   * *override*, and precedence then falls back to the provider column
+   * (`resolveGameOverrides`). So a game the provider itself scored cannot be
+   * re-opened by any request — there is no way to express "no score" over a
+   * provider score. Refusing is the safe side of that gap (the outcome really
+   * is knowable), but it is a gap: correcting such a game means fixing the
+   * kickoff, not re-opening it.
+   */
+  it("cannot re-open a game the PROVIDER scored — nulling the override falls back to that score", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastGameId } = await seedGames();
+    await setGame(db, pastGameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+
+    const res = await putOverride(app, cookie, pastGameId, {
+      kickoffAt: FUTURE_KICKOFF.toISOString(),
+      status: GAME_STATUS.SCHEDULED,
+      homeScore: null,
+      awayScore: null,
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
   });
 
   it("allows moving a kickoff earlier, which only ever locks", async () => {

@@ -1,9 +1,9 @@
 import { SPORT } from "@picksleagues/schemas";
 import { useAdminTeams } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
+import { TeamLogo } from "@/components/team-logo";
 
 // NCAAMB teams arrive with the March Madness epic; only NFL data exists
 // today (ADM-4 spec) — no sport picker until there's a second sport to pick.
@@ -33,28 +33,12 @@ export function TeamsBrowser() {
                 key={team.id}
                 className="flex items-center gap-3 rounded-lg border border-border p-3"
               >
-                {/* Root's `.dark` class (index.css `@custom-variant dark`) drives
-                    which logo is visible. Only theme-toggle a URL when the other
-                    theme's variant also exists — a team with just one logo shows
-                    it in both themes rather than going blank; a TBD/bootstrap
-                    team with neither falls back to the placeholder. */}
-                {team.logoLightUrl && (
-                  <img
-                    src={team.logoLightUrl}
-                    alt=""
-                    className={cn("size-8 shrink-0", team.logoDarkUrl && "dark:hidden")}
-                  />
-                )}
-                {team.logoDarkUrl && (
-                  <img
-                    src={team.logoDarkUrl}
-                    alt=""
-                    className={cn("size-8 shrink-0", team.logoLightUrl && "hidden dark:block")}
-                  />
-                )}
-                {!team.logoLightUrl && !team.logoDarkUrl && (
-                  <div className="size-8 shrink-0 rounded-full bg-muted" />
-                )}
+                <TeamLogo
+                  logoLightUrl={team.logoLightUrl}
+                  logoDarkUrl={team.logoDarkUrl}
+                  size="lg"
+                  placeholder
+                />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <p className="text-sm font-medium text-foreground">
                     {team.abbreviation} — {team.name}

@@ -48,12 +48,28 @@ function ProviderHint({ children, provider }: { children: ReactNode; provider: s
   );
 }
 
+// Remounts (and re-seeds) whenever the override values this form diffs
+// against actually change server-side — same idiom as league settings'
+// `settingsFingerprint` (settings-section.tsx). A save here invalidates the
+// whole query cache (api/admin.ts), which refetches `game` with the just-saved
+// values; without this key the inner form's `seed` state and TanStack Form's
+// `defaultValues` would stay pinned to what the operator saw at first mount,
+// so a second save in the same still-open editor would diff against a stale
+// baseline and could silently omit a field the operator just cleared (that
+// field's prior override would then never be un-set). Fingerprinting on the
+// seed shape (not the whole `game`) means an unrelated refetch — one that
+// doesn't change any override field — never resets the operator's in-progress
+// edits.
 export function GameOverrideForm({ game }: { game: AdminGame }) {
+  return <GameOverrideEditor key={JSON.stringify(gameOverrideFormSeed(game))} game={game} />;
+}
+
+function GameOverrideEditor({ game }: { game: AdminGame }) {
   const setOverride = useSetGameOverride();
-  // Captured once, deliberately not re-derived from `game`: the seed is both
-  // what the operator was shown and the baseline every save diffs against, so a
-  // refetch mid-edit must not silently move it (same non-re-seeding rationale
-  // as the sim fixture editor).
+  // Seeded once per mount, which — thanks to the fingerprint key above — is
+  // exactly once per distinct server-side override value. Still deliberately
+  // not re-derived on every render: within one mount, this is both what the
+  // operator was shown and the baseline every save diffs against.
   const [seed] = useState(() => gameOverrideFormSeed(game));
 
   const form = useForm({

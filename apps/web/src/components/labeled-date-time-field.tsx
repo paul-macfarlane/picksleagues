@@ -18,10 +18,14 @@ export function LabeledDateTimeField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const labelId = `${id}-label`;
+
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <DateTimePicker id={id} value={value} onChange={onChange} />
+      <Label id={labelId} htmlFor={id}>
+        {label}
+      </Label>
+      <DateTimePicker id={id} value={value} onChange={onChange} aria-labelledby={labelId} />
     </div>
   );
 }

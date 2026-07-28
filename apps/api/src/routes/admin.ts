@@ -1,13 +1,13 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   AdminGameOddsResponseSchema,
-  AdminGameSchema,
   AdminGamesResponseSchema,
   AdminSeasonsResponseSchema,
   AdminTeamsResponseSchema,
   ERROR_CODE,
   ErrorResponseSchema,
   GameOverrideRequestSchema,
+  GameOverrideResponseSchema,
   NflSyncJobSchema,
   SportSchema,
 } from "@picksleagues/schemas";
@@ -174,8 +174,8 @@ const setAdminGameOverrideRoute = createRoute({
   responses: {
     200: {
       description:
-        "The corrected game with provider, override, and resolved values — affected leagues have already been re-settled",
-      content: { "application/json": { schema: AdminGameSchema } },
+        "The corrected game with provider, override, and resolved values, plus whether the affected leagues were re-settled (a false `resettled` still means the override itself committed)",
+      content: { "application/json": { schema: GameOverrideResponseSchema } },
     },
     ...browserResponses,
     400: errorResponse(
@@ -183,7 +183,7 @@ const setAdminGameOverrideRoute = createRoute({
     ),
     404: errorResponse("No such game"),
     409: errorResponse(
-      "The new kickoff would re-open picks on a game that has already started or finished (override_unlocks_game)",
+      "The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game)",
     ),
   },
 });
@@ -308,13 +308,13 @@ export function adminRoutes(deps: AppDeps) {
             ErrorResponseSchema.parse({
               error: result.reason,
               message:
-                "That kickoff would re-open picks on a game that has already started. Set the status back to scheduled in the same edit if the game genuinely hasn't been played.",
+                "That would leave a game members can still pick on while its outcome is already knowable. Move the kickoff into the past, or — if the game genuinely hasn't been played — set the status back to scheduled and null both scores in the same edit. A score the provider itself reported can't be nulled away, so a game it has scored can't be re-opened.",
             }),
             409,
           );
       }
     }
-    return c.json(result.game, 200);
+    return c.json({ game: result.game, resettled: result.resettled }, 200);
   });
 
   return app;

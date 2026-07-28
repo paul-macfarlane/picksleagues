@@ -57,8 +57,17 @@ export async function nflSeasonConclusion(
  * at all until odds snapshots exist for its upcoming games, and locking is
  * `kickoff > now`, so members can be picking months before the label flips.
  *
- * Resolution: the derived default, unless that season is CONCLUDED *and* a
- * `default + 1` season row already exists — then `default + 1`.
+ * Resolution: the derived default, unless it has nothing left to sync — every
+ * week behind us (CONCLUDED) *or* no weeks at all (NO_WEEKS) — and `default + 1`
+ * has week rows; then `default + 1`. NO_WEEKS belongs here because a
+ * wipe-and-reseed that seeds only the upcoming season leaves the derived label
+ * pointing at a season that doesn't exist, which is the same silent months-long
+ * no-op by a different route. Only UNCONCLUDED — a season still in flight — pins
+ * the default.
+ *
+ * The `default + 1` side is a weeks check rather than a season-row check for the
+ * same reason: an empty row is nothing to sync, and rolling onto it would only
+ * trade one no-op for another while hiding which season we meant.
  *
  * Query-only by construction: it never creates a season row. Creating next
  * year's season is schedule-sync's `ensureUpcomingNflSeason` job — recurring
@@ -71,14 +80,14 @@ export async function resolveRecurringSyncSeasonYear(
   now: Date,
 ): Promise<number> {
   const conclusion = await nflSeasonConclusion(db, defaultSeasonYear, now);
-  if (conclusion !== SEASON_CONCLUSION.CONCLUDED) {
+  if (conclusion === SEASON_CONCLUSION.UNCONCLUDED) {
     return defaultSeasonYear;
   }
 
+  // NO_WEEKS covers both "no season row" and "a row nothing has ingested" — one
+  // query answers the only question that matters, whether there is anything
+  // there to sync.
   const upcomingSeasonYear = defaultSeasonYear + 1;
-  const [upcoming] = await db
-    .select({ id: sportSeasons.id })
-    .from(sportSeasons)
-    .where(and(eq(sportSeasons.sport, SPORT.NFL), eq(sportSeasons.year, upcomingSeasonYear)));
-  return upcoming ? upcomingSeasonYear : defaultSeasonYear;
+  const upcoming = await nflSeasonConclusion(db, upcomingSeasonYear, now);
+  return upcoming === SEASON_CONCLUSION.NO_WEEKS ? defaultSeasonYear : upcomingSeasonYear;
 }

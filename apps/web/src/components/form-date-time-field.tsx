@@ -26,16 +26,20 @@ export function FormDateTimeField({
   const error = field.state.meta.errors[0] as unknown;
   const fieldId = id ?? field.name;
   const errorId = `${fieldId}-error`;
+  const labelId = `${fieldId}-label`;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={fieldId}>{label}</Label>
+      <Label id={labelId} htmlFor={fieldId}>
+        {label}
+      </Label>
       <DateTimePicker
         id={fieldId}
         value={field.state.value}
         onChange={field.handleChange}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
+        aria-labelledby={labelId}
       />
       {error !== undefined && (
         <p id={errorId} className="text-sm text-destructive">

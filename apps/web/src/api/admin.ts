@@ -173,9 +173,18 @@ export function useSetGameOverride() {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toast.success(
-        `Saved override for ${data.awayTeam.abbreviation} @ ${data.homeTeam.abbreviation}`,
-      );
+      const label = `${data.game.awayTeam.abbreviation} @ ${data.game.homeTeam.abbreviation}`;
+      if (data.resettled) {
+        toast.success(`Saved override for ${label}`);
+      } else {
+        // The correction committed — only the recompute that follows it failed.
+        // Saying "couldn't save" here would be false, and the retry it invites
+        // writes a second audit row; the nightly settle sweep re-derives
+        // results and standings (arch D10).
+        toast.warning(
+          `Saved override for ${label}, but results and standings couldn't be recomputed — they'll catch up on the next settlement sweep.`,
+        );
+      }
       // Deliberately the whole cache, for the same reason the simulator's clock
       // mutations take it (api/sim.ts): an override moves this game's effective
       // kickoff, status and scores, which are the inputs to lock state, pick

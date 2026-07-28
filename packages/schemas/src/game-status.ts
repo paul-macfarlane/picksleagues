@@ -42,3 +42,22 @@ const UNPLAYED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.CANCELLED, GA
 export function isUnplayedStatus(status: GameStatus): boolean {
   return UNPLAYED_GAME_STATUSES.includes(status);
 }
+
+/**
+ * Statuses meaning the game has already been played, in whole or in part —
+ * a different question from `isUnplayedStatus` (which is "will never be played
+ * in this week"), and not its inverse: `scheduled` and `postponed` are neither,
+ * because such a game is still ahead of us and picks on it are legitimate.
+ *
+ * The admin override guard is the caller: a game in one of these must never be
+ * left unlocked (arch D11, D15), or every member could pick against an outcome
+ * the same page is already showing them. That guard pairs this with a resolved-
+ * score check rather than folding "has a score" in here — `postponed` carrying
+ * a score is knowable without ever having started, and this constant means what
+ * it says.
+ */
+const STARTED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.IN_PROGRESS, GAME_STATUS.FINAL];
+
+export function isStartedStatus(status: GameStatus): boolean {
+  return STARTED_GAME_STATUSES.includes(status);
+}

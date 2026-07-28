@@ -177,3 +177,17 @@ export const GameOverrideRequestSchema = z
   .openapi("GameOverrideRequest");
 
 export type GameOverrideRequest = z.infer<typeof GameOverrideRequestSchema>;
+
+/**
+ * The override write's reply. `resettled` is false when the correction
+ * committed but the settlement recompute that follows it (outside the write's
+ * transaction, arch D10) threw: results and standings still show the
+ * pre-correction grading until the nightly sweep re-derives them. Reporting the
+ * whole request as failed instead would be a lie — the write is durable, the
+ * operator would be shown stale values, and a retry writes a second audit row.
+ */
+export const GameOverrideResponseSchema = z
+  .object({ game: AdminGameSchema, resettled: z.boolean() })
+  .openapi("GameOverrideResponse");
+
+export type GameOverrideResponse = z.infer<typeof GameOverrideResponseSchema>;

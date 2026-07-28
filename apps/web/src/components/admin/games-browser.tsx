@@ -239,9 +239,12 @@ function GameRow({ game }: { game: AdminGame }) {
         )}
       </details>
 
-      {/* Remounted on open (never rendered hidden) so the form re-seeds from
-          the freshly-refetched override values every time it is opened — a
-          stale seed is what turns a diff-based save into a stale write. */}
+      {/* Never rendered hidden, so opening always mounts against the current
+          `game` prop. `GameOverrideForm` itself now re-seeds on every
+          server-side change to the override values (fingerprint-keyed
+          remount, game-override-form.tsx), including while this stays open
+          across a save — a stale seed is what turns a diff-based save into a
+          stale write. */}
       <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer text-xs text-muted-foreground select-none">
           Edit override

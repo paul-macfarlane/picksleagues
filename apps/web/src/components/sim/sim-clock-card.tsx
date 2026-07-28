@@ -220,7 +220,7 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
 
         <SimControlRow
           title="Set an exact instant"
-          description="Type or pick any instant to position the clock at."
+          description="Pick any date (jump straight to a year via the dropdowns) and time to position the clock at."
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="flex-1">

@@ -5,20 +5,36 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react";
 
+// Decorative navigation bounds only — how far the year dropdown reaches, not
+// a domain "now" read (arch D13 governs domain time; nothing here feeds
+// scoring, settlement, or lock state). react-day-picker's dropdown caption
+// needs an explicit start/end month to generate year options at all (an
+// unbounded dropdown renders no years), so this widget-local range uses the
+// real system clock the same way its own "today" highlighting already does
+// internally. Wide enough for the simulator's past-season replays and for
+// invite expiries/kickoff overrides a few years out.
+function defaultNavigationBounds(): { startMonth: Date; endMonth: Date } {
+  const year = new Date().getFullYear();
+  return { startMonth: new Date(year - 30, 0, 1), endMonth: new Date(year + 2, 11, 31) };
+}
+
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = "label",
+  captionLayout = "dropdown",
   buttonVariant = "ghost",
   locale,
   formatters,
   components,
+  startMonth,
+  endMonth,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const navigationBounds = defaultNavigationBounds();
 
   return (
     <DayPicker
@@ -30,6 +46,8 @@ function Calendar({
         className,
       )}
       captionLayout={captionLayout}
+      startMonth={startMonth ?? navigationBounds.startMonth}
+      endMonth={endMonth ?? navigationBounds.endMonth}
       locale={locale}
       formatters={{
         formatMonthDropdown: (date) => date.toLocaleString(locale?.code, { month: "short" }),

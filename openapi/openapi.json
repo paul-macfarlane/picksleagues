@@ -1848,6 +1848,21 @@
           "capturedAt"
         ]
       },
+      "GameOverrideResponse": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "$ref": "#/components/schemas/AdminGame"
+          },
+          "resettled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "game",
+          "resettled"
+        ]
+      },
       "GameOverrideRequest": {
         "type": "object",
         "properties": {
@@ -5201,11 +5216,11 @@
         },
         "responses": {
           "200": {
-            "description": "The corrected game with provider, override, and resolved values — affected leagues have already been re-settled",
+            "description": "The corrected game with provider, override, and resolved values, plus whether the affected leagues were re-settled (a false `resettled` still means the override itself committed)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminGame"
+                  "$ref": "#/components/schemas/GameOverrideResponse"
                 }
               }
             }
@@ -5251,7 +5266,7 @@
             }
           },
           "409": {
-            "description": "The new kickoff would re-open picks on a game that has already started or finished (override_unlocks_game)",
+            "description": "The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game)",
             "content": {
               "application/json": {
                 "schema": {

@@ -27,6 +27,7 @@ export function DateTimePicker({
   className,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedby,
+  "aria-labelledby": ariaLabelledby,
 }: {
   id?: string;
   value: string;
@@ -35,6 +36,14 @@ export function DateTimePicker({
   className?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
+  // A visible `<Label htmlFor>` targeting this trigger sets focus on click
+  // (button is a labelable element) but is NOT in a `<button>`'s
+  // accessible-name computation per HTML-AAM — unlike `<input>`/`<select>`,
+  // a button's name comes from its own subtree. Pass the label element's id
+  // here; it's combined below with the trigger's own id so the computed name
+  // is "<field label> <current value or placeholder>" instead of just the
+  // value.
+  "aria-labelledby"?: string;
 }) {
   const [open, setOpen] = useState(false);
   const timeInputId = useId();
@@ -66,6 +75,10 @@ export function DateTimePicker({
             disabled={disabled}
             aria-invalid={ariaInvalid}
             aria-describedby={ariaDescribedby}
+            // Self-reference (`id`) folds the trigger's own visible text back
+            // into the computed name alongside the field label — omitting it
+            // would replace the value/placeholder text with the label alone.
+            aria-labelledby={ariaLabelledby && id ? `${ariaLabelledby} ${id}` : ariaLabelledby}
             className={cn(
               "w-full min-w-0 justify-start gap-1.5 px-2.5 font-normal",
               !value && "text-muted-foreground",

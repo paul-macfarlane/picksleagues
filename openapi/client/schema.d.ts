@@ -1111,6 +1111,10 @@ export interface components {
             /** Format: date-time */
             capturedAt: string;
         };
+        GameOverrideResponse: {
+            game: components["schemas"]["AdminGame"];
+            resettled: boolean;
+        };
         GameOverrideRequest: {
             /** Format: date-time */
             kickoffAt?: string | null;
@@ -3471,13 +3475,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The corrected game with provider, override, and resolved values — affected leagues have already been re-settled */
+            /** @description The corrected game with provider, override, and resolved values, plus whether the affected leagues were re-settled (a false `resettled` still means the override itself committed) */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminGame"];
+                    "application/json": components["schemas"]["GameOverrideResponse"];
                 };
             };
             /** @description No fields supplied, or a field fails its format rule (score range, status, spread range) */
@@ -3516,7 +3520,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The new kickoff would re-open picks on a game that has already started or finished (override_unlocks_game) */
+            /** @description The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game) */
             409: {
                 headers: {
                     [name: string]: unknown;

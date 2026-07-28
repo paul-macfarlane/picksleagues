@@ -9,7 +9,7 @@ import {
   type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
-import { WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
+import { SPORT, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
@@ -384,6 +384,42 @@ describe("syncNflOdds: offseason season roll-forward", () => {
 
     // Creating next year's season is schedule-sync's job — recurring syncs only
     // ever query reference data.
+    expect(await db.select().from(sportSeasons)).toEqual(seasonsBefore);
+    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+  });
+
+  it("derived season never synced + next season synced: a bare run snapshots the NEXT season", async () => {
+    // The routine pre-launch shape: a wipe-and-reseed during the offseason
+    // seeds only the season about to start, so the derived label points at a
+    // season with no rows at all. Rolling forward only on CONCLUDED read that
+    // as "stay put" and skipped `season_not_synced` for months.
+    await seedUpcomingSeason();
+
+    const details = await syncNflOdds(db, offseasonClock, provider, {});
+    expect(details).toMatchObject({
+      seasonYear: NEXT_SEASON_YEAR,
+      weekNumber: 1,
+      unstartedGames: 1,
+      snapshotsInserted: 1,
+    });
+  });
+
+  it("derived season never synced + next season row with no weeks: stays put and creates nothing", async () => {
+    // A season row with nothing ingested is nothing to sync either — rolling
+    // onto it would trade one no-op for another while hiding which season the
+    // run meant.
+    const seededAt = seedClock.now();
+    await db.insert(sportSeasons).values({
+      sport: SPORT.NFL,
+      year: NEXT_SEASON_YEAR,
+      createdAt: seededAt,
+      updatedAt: seededAt,
+    });
+    const seasonsBefore = await db.select().from(sportSeasons);
+
+    const details = await syncNflOdds(db, offseasonClock, provider, {});
+    expect(details).toMatchObject({ skipped: true, reason: "season_not_synced" });
+
     expect(await db.select().from(sportSeasons)).toEqual(seasonsBefore);
     expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
   });

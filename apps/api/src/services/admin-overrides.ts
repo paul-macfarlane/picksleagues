@@ -6,10 +6,11 @@ import {
   ADMIN_AUDIT_ACTION,
   ADMIN_AUDIT_TARGET_TABLE,
   ERROR_CODE,
-  GAME_STATUS,
-  type AdminGame,
+  isStartedStatus,
   type GameOverrideRequest,
+  type GameOverrideResponse,
 } from "@picksleagues/schemas";
+import { logError } from "../lib/logger";
 import { loadAdminGame } from "./admin-data";
 import { resolveGameOverrides } from "./games";
 import { settlePicksForGames } from "./pickem/settlement";
@@ -24,7 +25,7 @@ import { isLocked } from "./slate";
  */
 
 export type SetGameOverrideResult =
-  | { ok: true; game: AdminGame }
+  | ({ ok: true } & GameOverrideResponse)
   | { ok: false; reason: typeof ERROR_CODE.GAME_NOT_FOUND }
   | { ok: false; reason: typeof ERROR_CODE.OVERRIDE_UNLOCKS_GAME };
 
@@ -65,33 +66,54 @@ export async function setGameOverride(
     };
 
     // Precedence resolved through its one home (arch D15) rather than restated,
-    // both before and after, so the lock guard below reasons about exactly the
-    // kickoff the rest of the app will.
-    const before = resolveGameOverrides(game, null);
+    // so the guard below reasons about exactly the kickoff and status the rest
+    // of the app will.
     const after = resolveGameOverrides({ ...game, ...next }, null);
 
     /**
-     * Lock state is derived, never stored (arch D11), so moving a kickoff moves
-     * the lock retroactively. Moving it *earlier* is the correction this feature
-     * exists for — it closes a window that should already have been closed.
-     * Moving it *later* re-opens picks, and on a game that has started or
-     * finished that hands every member a free edit against a known outcome,
-     * after their opponents' picks were already revealed at the old kickoff.
-     * The spec is explicit that even a genuine postponement does not re-open
-     * picks (§Cancellations, Postponements & Re-picks: "resolves normally when
-     * played. No re-pick.").
+     * The invariant, stated on the state this write would *leave behind*: a
+     * game is never left unlocked while its outcome is already knowable. Lock
+     * state is derived, never stored (arch D11), so such a game is one every
+     * member can pick against an outcome the app is already serving them — the
+     * pick mutation's `kickoff_at > now` check passes and settlement grades it a
+     * guaranteed win. The spec is explicit that even a genuine postponement does
+     * not re-open picks (§Cancellations, Postponements & Re-picks: "resolves
+     * normally when played. No re-pick.").
      *
-     * So: refuse the unlock unless the resolved status says the game hasn't
-     * started. That leaves the legitimate case working — a provider kickoff
-     * that was simply wrong, on a game still `scheduled` — and gives the
-     * genuinely-mistaken-status case an explicit, audited escape hatch: send
-     * `status: "scheduled"` in the same request as the new kickoff.
+     * "Knowable" is a started status OR a resolved score, and the second
+     * disjunct is not redundant: `postponed` is legitimately not a started
+     * status, yet a postponed game carrying the provider's score renders that
+     * score everywhere a non-`scheduled` game's status is shown (the week
+     * detail's status+score line), and the resolved score is serialized on the
+     * slate regardless. A score is exactly as knowable as a status.
+     *
+     * Deliberately NOT a before/after transition test: every conjunct of one
+     * would read a single request's own pair, so the same end state is reachable
+     * by splitting the edit across requests (set `scheduled`, move the kickoff,
+     * then clear the status) or by never touching the kickoff at all (correct a
+     * final score on a game whose provider kickoff is wrongly in the future).
+     * Only the result is checkable once.
+     *
+     * The legitimate cases survive: moving a kickoff earlier only ever locks, a
+     * genuinely postponed game with no score anywhere is still reschedulable,
+     * and the audited escape hatch for a provider that wrongly marked a game
+     * played is to assert the true state in one request — `scheduled` plus, when
+     * an override put the scores there, nulling them back out.
+     *
+     * Evaluated only when the request supplies one of the two inputs to the
+     * resolved lock state's counterpart. A provider bug can leave a game already
+     * violating this (kickoff in the future, status `final`) with no override in
+     * sight; an unrelated score or spread correction on that game neither
+     * creates nor deepens the violation, and refusing it would make the rest of
+     * the row unfixable. A no-op status/kickoff write on such a row is refused
+     * rather than special-cased — narrowing further would mean comparing against
+     * the prior state again, which is the escapability this guard exists to
+     * avoid.
      */
-    if (
-      isLocked(before.kickoffAt, now) &&
-      !isLocked(after.kickoffAt, now) &&
-      after.status !== GAME_STATUS.SCHEDULED
-    ) {
+    const touchesLockState = request.kickoffAt !== undefined || request.status !== undefined;
+    const outcomeKnowable =
+      isStartedStatus(after.status) || after.homeScore !== null || after.awayScore !== null;
+    if (touchesLockState && !isLocked(after.kickoffAt, now) && outcomeKnowable) {
       return { ok: false as const, reason: ERROR_CODE.OVERRIDE_UNLOCKS_GAME };
     }
 
@@ -151,8 +173,20 @@ export async function setGameOverride(
    * Run unconditionally rather than only for score/status edits — it is
    * idempotent, and deciding which fields settlement reads here would be a
    * second copy of that knowledge.
+   *
+   * By the same token its failure is reported, not thrown: the override is
+   * already committed and audited, so a 500 here would tell the admin the
+   * correction failed, show them pre-override values, and invite a retry that
+   * writes a second audit row. The caller says "saved, not yet re-settled"
+   * instead and the sweep repairs the derivation.
    */
-  await settlePicksForGames(db, clock, [gameId]);
+  let resettled = true;
+  try {
+    await settlePicksForGames(db, clock, [gameId]);
+  } catch (error) {
+    resettled = false;
+    logError("admin-override.settlement-failed", { gameId, adminUserId, error });
+  }
 
   const game = await loadAdminGame(db, gameId);
   if (!game) {
@@ -160,5 +194,5 @@ export async function setGameOverride(
     // deleted out from under us, which nothing in the app can do.
     throw new Error(`setGameOverride: game ${gameId} vanished after a successful write`);
   }
-  return { ok: true, game };
+  return { ok: true, game, resettled };
 }
