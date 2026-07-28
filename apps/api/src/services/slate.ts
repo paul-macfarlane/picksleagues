@@ -121,7 +121,7 @@ export async function loadResolvedWeekGames(
  * locked from the kickoff instant itself. Takes the *effective* kickoff —
  * callers resolve override precedence through `resolveGameOverrides` first.
  */
-function isLocked(effectiveKickoffAt: Date, now: Date): boolean {
+export function isLocked(effectiveKickoffAt: Date, now: Date): boolean {
   return effectiveKickoffAt.getTime() <= now.getTime();
 }
 

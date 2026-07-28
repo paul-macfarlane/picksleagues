@@ -1,11 +1,13 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   AdminGameOddsResponseSchema,
+  AdminGameSchema,
   AdminGamesResponseSchema,
   AdminSeasonsResponseSchema,
   AdminTeamsResponseSchema,
   ERROR_CODE,
   ErrorResponseSchema,
+  GameOverrideRequestSchema,
   NflSyncJobSchema,
   SportSchema,
 } from "@picksleagues/schemas";
@@ -33,6 +35,7 @@ import {
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
 import { listGameOdds, listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import { setGameOverride } from "../services/admin-overrides";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
 import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
@@ -159,6 +162,32 @@ const listAdminGameOddsRoute = createRoute({
   },
 });
 
+const setAdminGameOverrideRoute = createRoute({
+  method: "put",
+  path: "/admin/games/{gameId}/override",
+  operationId: "setAdminGameOverride",
+  summary: "Set or clear a game's manual overrides",
+  request: {
+    params: z.object({ gameId: z.uuid() }),
+    body: { content: { "application/json": { schema: GameOverrideRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        "The corrected game with provider, override, and resolved values — affected leagues have already been re-settled",
+      content: { "application/json": { schema: AdminGameSchema } },
+    },
+    ...browserResponses,
+    400: errorResponse(
+      "No fields supplied, or a field fails its format rule (score range, status, spread range)",
+    ),
+    404: errorResponse("No such game"),
+    409: errorResponse(
+      "The new kickoff would re-open picks on a game that has already started or finished (override_unlocks_game)",
+    ),
+  },
+});
+
 /**
  * The role-gated admin surface (ADR-0011): manual sync-job triggers plus
  * the read-only reference-data browsers those triggers are verified with (arch
@@ -254,6 +283,38 @@ export function adminRoutes(deps: AppDeps) {
       );
     }
     return c.json({ snapshots }, 200);
+  });
+
+  app.openapi(setAdminGameOverrideRoute, async (c) => {
+    const { gameId } = c.req.valid("param");
+    const result = await setGameOverride(
+      c.get("db"),
+      c.get("clock"),
+      c.get("sessionUser").id,
+      gameId,
+      c.req.valid("json"),
+    );
+    if (!result.ok) {
+      // Exhaustive: a missing game and a refused unlock are different problems
+      // and must not inherit each other's status or copy.
+      switch (result.reason) {
+        case ERROR_CODE.GAME_NOT_FOUND:
+          return c.json(
+            ErrorResponseSchema.parse({ error: result.reason, message: "Game not found." }),
+            404,
+          );
+        case ERROR_CODE.OVERRIDE_UNLOCKS_GAME:
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: result.reason,
+              message:
+                "That kickoff would re-open picks on a game that has already started. Set the status back to scheduled in the same edit if the game genuinely hasn't been played.",
+            }),
+            409,
+          );
+      }
+    }
+    return c.json(result.game, 200);
   });
 
   return app;

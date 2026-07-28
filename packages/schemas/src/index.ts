@@ -1,3 +1,4 @@
+export * from "./admin-audit";
 export * from "./admin-data";
 export * from "./app-role";
 export * from "./discovery";

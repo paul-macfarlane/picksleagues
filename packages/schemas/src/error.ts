@@ -58,6 +58,7 @@ export const ERROR_CODE = {
   SPREAD_UNAVAILABLE: "spread_unavailable",
   PICK_NOT_FOUND: "pick_not_found",
   PICK_NOT_REPLACEABLE: "pick_not_replaceable",
+  OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

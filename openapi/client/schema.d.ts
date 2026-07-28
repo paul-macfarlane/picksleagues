@@ -506,6 +506,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/games/{gameId}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear a game's manual overrides */
+        put: operations["setAdminGameOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sim/state": {
         parameters: {
             query?: never;
@@ -1064,7 +1081,7 @@ export interface components {
             latestSpreadCapturedAt: string | null;
             /** Format: date-time */
             overrideKickoffAt: string | null;
-            overrideStatus: components["schemas"]["GameStatus"] & (string | null);
+            overrideStatus: components["schemas"]["NullableGameStatus"];
             overrideHomeScore: number | null;
             overrideAwayScore: number | null;
             overrideSpread: number | null;
@@ -1083,6 +1100,8 @@ export interface components {
             abbreviation: string;
             name: string;
         };
+        /** @enum {string|null} */
+        NullableGameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | "moved" | null;
         AdminGameOddsResponse: {
             snapshots: components["schemas"]["AdminOddsSnapshot"][];
         };
@@ -1091,6 +1110,14 @@ export interface components {
             spread: number;
             /** Format: date-time */
             capturedAt: string;
+        };
+        GameOverrideRequest: {
+            /** Format: date-time */
+            kickoffAt?: string | null;
+            status?: components["schemas"]["NullableGameStatus"];
+            homeScore?: number | null;
+            awayScore?: number | null;
+            spread?: number | null;
         };
         SimStateResponse: {
             clock: components["schemas"]["SimClockState"];
@@ -3411,6 +3438,86 @@ export interface operations {
             };
             /** @description No such game */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setAdminGameOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GameOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description The corrected game with provider, override, and resolved values — affected leagues have already been re-settled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGame"];
+                };
+            };
+            /** @description No fields supplied, or a field fails its format rule (score range, status, spread range) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The new kickoff would re-open picks on a game that has already started or finished (override_unlocks_game) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,6 +1,7 @@
 import type { Db } from "@picksleagues/db";
 import {
   accounts,
+  adminAudit,
   appState,
   games,
   leagueInvites,
@@ -41,6 +42,9 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(weeks);
   await db.delete(sportSeasons);
   await db.delete(teams);
+  // Before users: the actor FK is RESTRICT, so a leaked audit row blocks every
+  // later file's user cleanup.
+  await db.delete(adminAudit);
   await db.delete(sessions);
   await db.delete(accounts);
   await db.delete(users);

@@ -1695,17 +1695,7 @@
             "format": "date-time"
           },
           "overrideStatus": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GameStatus"
-              },
-              {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            ]
+            "$ref": "#/components/schemas/NullableGameStatus"
           },
           "overrideHomeScore": {
             "type": [
@@ -1809,6 +1799,21 @@
           "name"
         ]
       },
+      "NullableGameStatus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "scheduled",
+          "in_progress",
+          "final",
+          "postponed",
+          "cancelled",
+          "moved",
+          null
+        ]
+      },
       "AdminGameOddsResponse": {
         "type": "object",
         "properties": {
@@ -1842,6 +1847,45 @@
           "spread",
           "capturedAt"
         ]
+      },
+      "GameOverrideRequest": {
+        "type": "object",
+        "properties": {
+          "kickoffAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NullableGameStatus"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": -100,
+            "maximum": 100
+          }
+        }
       },
       "SimStateResponse": {
         "type": "object",
@@ -5110,6 +5154,104 @@
           },
           "404": {
             "description": "No such game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/games/{gameId}/override": {
+      "put": {
+        "operationId": "setAdminGameOverride",
+        "summary": "Set or clear a game's manual overrides",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameOverrideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The corrected game with provider, override, and resolved values — affected leagues have already been re-settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGame"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields supplied, or a field fails its format rule (score range, status, spread range)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The new kickoff would re-open picks on a game that has already started or finished (override_unlocks_game)",
             "content": {
               "application/json": {
                 "schema": {

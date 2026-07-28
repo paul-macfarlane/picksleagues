@@ -3,6 +3,7 @@ import { ADMIN_ODDS_SNAPSHOT_LIMIT, SPORT, type AdminGame } from "@picksleagues/
 import { useAdminGameOdds, useAdminGames, useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
+import { GameOverrideForm } from "@/components/admin/game-override-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
 import { QueryState } from "@/components/query-state";
@@ -150,6 +151,7 @@ function ResolvedField({
 function GameRow({ game }: { game: AdminGame }) {
   const overridden = isOverridden(game);
   const [oddsOpen, setOddsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const odds = useAdminGameOdds(game.id, oddsOpen);
 
   return (
@@ -235,6 +237,16 @@ function GameRow({ game }: { game: AdminGame }) {
             </QueryState>
           </div>
         )}
+      </details>
+
+      {/* Remounted on open (never rendered hidden) so the form re-seeds from
+          the freshly-refetched override values every time it is opened — a
+          stale seed is what turns a diff-based save into a stale write. */}
+      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
+        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
+          Edit override
+        </summary>
+        {editOpen && <GameOverrideForm game={game} />}
       </details>
     </li>
   );

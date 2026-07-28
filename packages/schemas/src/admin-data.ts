@@ -1,5 +1,5 @@
 import { z } from "@hono/zod-openapi";
-import { GameStatusSchema } from "./game-status";
+import { GameStatusSchema, NullableGameStatusSchema } from "./game-status";
 import { SportSchema } from "./sport";
 import { WeekTypeSchema } from "./week-type";
 
@@ -95,9 +95,9 @@ export const AdminGameSchema = z
     // Latest odds snapshot for this game; null until the odds sync captures one.
     latestSpread: z.number().nullable(),
     latestSpreadCapturedAt: z.iso.datetime().nullable(),
-    // Override block — admin corrections only (ADM-2 writes these).
+    // Override block — admin corrections only (written by PUT /admin/games/{id}/override).
     overrideKickoffAt: z.iso.datetime().nullable(),
-    overrideStatus: GameStatusSchema.nullable(),
+    overrideStatus: NullableGameStatusSchema,
     overrideHomeScore: z.number().int().nullable(),
     overrideAwayScore: z.number().int().nullable(),
     overrideSpread: z.number().nullable(),
@@ -142,3 +142,38 @@ export const AdminGameOddsResponseSchema = z
   .openapi("AdminGameOddsResponse");
 
 export type AdminGameOddsResponse = z.infer<typeof AdminGameOddsResponseSchema>;
+
+// Same bound as the simulator's fixture editor: high enough that no real
+// football score is rejected, low enough that a fat-fingered digit is.
+const MAX_GAME_SCORE = 200;
+// Home-relative points, matching `odds_snapshots.spread`. No real line comes
+// near this; the bound exists so a mis-typed or mis-scaled number is refused
+// rather than silently regrading every pick on the game.
+const MAX_SPREAD = 100;
+
+/**
+ * The admin override write (arch §Manual Sports Data Overrides, D15). Fields
+ * are unprefixed because the resource *is* the game's override layer — the path
+ * says `/override`, and these map 1:1 onto the `override_*` columns, never the
+ * provider ones.
+ *
+ * Three-state per field, which is the whole point of the shape:
+ * **omitted** leaves the stored override alone, **null** clears it back to
+ * provider truth ("clear override is a null-out", D15), and a value sets it.
+ * `.nullable().optional()` is what makes those two distinguishable over JSON —
+ * a partial-update body with an explicit null, not a full replacement.
+ */
+export const GameOverrideRequestSchema = z
+  .object({
+    kickoffAt: z.iso.datetime().nullable().optional(),
+    status: NullableGameStatusSchema.optional(),
+    homeScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
+    awayScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
+    spread: z.number().min(-MAX_SPREAD).max(MAX_SPREAD).nullable().optional(),
+  })
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: "At least one field is required",
+  })
+  .openapi("GameOverrideRequest");
+
+export type GameOverrideRequest = z.infer<typeof GameOverrideRequestSchema>;
