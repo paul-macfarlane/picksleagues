@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { MenuIcon } from "lucide-react";
@@ -58,13 +58,36 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const me = useMe();
+  const headerRef = useRef<HTMLElement>(null);
+
+  // TabNav (rendered by league/admin/sim route layouts) sticks flush beneath
+  // this header, offset by its measured height — hardcoding an offset isn't
+  // possible because SimClockBanner mounts/unmounts inside the header,
+  // changing its height. ResizeObserver keeps the published height in sync
+  // with that, and with resize/wrapping, without a layout-shift flash
+  // (useLayoutEffect runs before paint).
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+
+    const publishHeight = () => {
+      document.documentElement.style.setProperty("--app-header-height", `${header.offsetHeight}px`);
+    };
+    publishHeight();
+
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex min-h-svh flex-col">
       {/* Overlays (Sheet/AlertDialog/DropdownMenu/Select, see components/ui) all
           portal to document.body at z-50, so z-40 here keeps the header above
-          page content while staying under every overlay regardless of DOM order. */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background">
+          page content while staying under every overlay regardless of DOM order.
+          Layering below this: TabNav sticks at z-30, and any page-level sticky
+          element (e.g. the picks screen's action bar) must stay under that. */}
+      <header ref={headerRef} className="sticky top-0 z-40 border-b border-border bg-background">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-4">
             <Link

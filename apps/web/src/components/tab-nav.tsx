@@ -21,9 +21,15 @@ export function TabNav({ label, children }: { label: string; children: ReactNode
   return (
     <nav
       aria-label={label}
+      // Sticky beneath the app header, offset by --app-header-height (published
+      // by _authed.tsx via ResizeObserver — the header's height varies with
+      // SimClockBanner mounting, so it can't be a hardcoded offset). bg-background
+      // keeps content from showing through while scrolled under it.
+      // Layering: app header z-40 > this tab bar z-30 > page-level sticky
+      // elements (e.g. the picks screen's action bar) — keep those under z-30.
       // Scrolls rather than wraps: the admin bar is five tabs wide at phone
       // width, and a wrapped second row reads as a separate control.
-      className="flex gap-4 overflow-x-auto border-b border-border text-sm"
+      className="sticky top-[var(--app-header-height,0px)] z-30 flex gap-4 overflow-x-auto border-b border-border bg-background text-sm"
     >
       {children}
     </nav>
