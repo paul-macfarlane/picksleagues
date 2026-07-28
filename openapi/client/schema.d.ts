@@ -926,6 +926,10 @@ export interface components {
             homeScore: number | null;
             awayScore: number | null;
             spread: number | null;
+            period: number | null;
+            clockSeconds: number | null;
+            /** Format: date-time */
+            stateAsOf: string;
             locked: boolean;
             pickable: boolean;
         };
@@ -1076,6 +1080,8 @@ export interface components {
             status: components["schemas"]["GameStatus"];
             homeScore: number | null;
             awayScore: number | null;
+            period: number | null;
+            clockSeconds: number | null;
             latestSpread: number | null;
             /** Format: date-time */
             latestSpreadCapturedAt: string | null;
@@ -1085,6 +1091,8 @@ export interface components {
             overrideHomeScore: number | null;
             overrideAwayScore: number | null;
             overrideSpread: number | null;
+            overridePeriod: number | null;
+            overrideClockSeconds: number | null;
             overriddenBy: string | null;
             /** Format: date-time */
             overriddenAt: string | null;
@@ -1094,6 +1102,8 @@ export interface components {
             effectiveHomeScore: number | null;
             effectiveAwayScore: number | null;
             effectiveSpread: number | null;
+            effectivePeriod: number | null;
+            effectiveClockSeconds: number | null;
         };
         AdminGameTeam: {
             id: string;
@@ -1122,6 +1132,8 @@ export interface components {
             homeScore?: number | null;
             awayScore?: number | null;
             spread?: number | null;
+            period?: number | null;
+            clockSeconds?: number | null;
         };
         SimStateResponse: {
             clock: components["schemas"]["SimClockState"];

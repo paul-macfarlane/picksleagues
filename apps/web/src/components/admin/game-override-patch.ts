@@ -5,6 +5,7 @@ import {
   type GameStatus,
 } from "@picksleagues/schemas";
 import { toLocalDateTimeInputValue } from "@/lib/format";
+import { clockLabel } from "@/lib/game";
 
 /**
  * The override editor's string↔wire conversion, kept pure and out of the
@@ -24,6 +25,9 @@ export type GameOverrideFormValues = {
   homeScore: string;
   awayScore: string;
   spread: string;
+  period: string;
+  /** `m:ss`, matching `clockLabel` — "" means "no clock override". */
+  clock: string;
 };
 
 /**
@@ -50,11 +54,38 @@ export function gameOverrideFormSeed(game: AdminGame): GameOverrideFormValues {
     homeScore: nullableToInput(game.overrideHomeScore),
     awayScore: nullableToInput(game.overrideAwayScore),
     spread: nullableToInput(game.overrideSpread),
+    period: nullableToInput(game.overridePeriod),
+    clock: clockToInput(game.overrideClockSeconds),
   };
 }
 
 function nullableToInput(value: number | null): string {
   return value === null ? "" : String(value);
+}
+
+// Reuses the same `m:ss` formatting the state line renders live clocks with
+// (lib/game.ts), so an operator reading a box score never has to convert
+// seconds by hand, and the round trip through `parseClockInput` below is
+// exact by construction (both sides agree on the same format).
+function clockToInput(clockSeconds: number | null): string {
+  return clockSeconds === null ? "" : clockLabel(clockSeconds);
+}
+
+// Inverse of `clockToInput`. Accepts one or two digit seconds ("2:5" as well
+// as "2:05") since it's a human typing, not the round trip itself — that
+// exactness only has to hold for `clockToInput(parseClockInput(x))` on values
+// `clockToInput` itself produced. NaN (not null) signals an unparsable value,
+// same sentinel `toNullableNumber` uses below, so the two share one
+// invalid-value check downstream.
+function parseClockInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const match = /^(\d+):(\d{1,2})$/.exec(trimmed);
+  if (!match) return NaN;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  if (seconds > 59) return NaN;
+  return minutes * 60 + seconds;
 }
 
 // An empty field is an explicit clear — the wire schema makes every field
@@ -109,7 +140,7 @@ export function buildGameOverridePatch(
     patch.status = value.status === NO_STATUS_OVERRIDE ? null : value.status;
   }
 
-  for (const key of ["homeScore", "awayScore", "spread"] as const) {
+  for (const key of ["homeScore", "awayScore", "spread", "period"] as const) {
     if (value[key] === seed[key]) continue;
     const parsed = toNullableNumber(value[key]);
     if (parsed !== null && Number.isNaN(parsed)) {
@@ -119,19 +150,32 @@ export function buildGameOverridePatch(
     }
   }
 
+  if (value.clock !== seed.clock) {
+    const parsed = parseClockInput(value.clock);
+    if (parsed !== null && Number.isNaN(parsed)) {
+      fieldErrors.clock = "Enter time as m:ss, or leave blank to use the provider's value.";
+    } else {
+      patch.clockSeconds = parsed;
+    }
+  }
+
   if (Object.keys(fieldErrors).length > 0) return { status: "invalid", fieldErrors };
   // The wire schema's `.refine` rejects an empty body, but "nothing changed" is
   // a no-op rather than an error the operator should have to read.
   if (Object.keys(patch).length === 0) return { status: "unchanged" };
 
-  // Range rules (scores 0-200, spread ±100) stay the schema's to enforce —
-  // this never restates them.
+  // Range rules (scores 0-200, spread ±100, period 1-10, clock 0-3600s) stay
+  // the schema's to enforce — this never restates them.
   const parsed = GameOverrideRequestSchema.safeParse(patch);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const key = issue.path[0];
-      if (typeof key === "string") {
-        fieldErrors[key as keyof GameOverrideFormValues] = issue.message;
+      // `clockSeconds` is the wire field; `clock` is this field's own key
+      // (its form value is m:ss, not raw seconds) — every other key matches
+      // 1:1 between the patch and the form.
+      const formKey = key === "clockSeconds" ? "clock" : key;
+      if (typeof formKey === "string") {
+        fieldErrors[formKey as keyof GameOverrideFormValues] = issue.message;
       }
     }
     return { status: "invalid", fieldErrors };

@@ -246,7 +246,8 @@ sport_seasons               # NFL 2026, NCAAMB 2027, ...; upcoming season exists
 teams                       # normalized reference data: sport, provider id, name, abbr (ADR-0010)
 weeks                       # week type (regular/postseason) + number, label, start/end, season FK
 games                       # provider id, week FK, home/away team FKs, kickoff_at, status,
-                            #   final scores + override_* parallels, overridden_by/at
+                            #   final scores, live period + clock_seconds (DATA-8),
+                            #   override_* parallels for all of it, overridden_by/at
 odds_snapshots              # game FK, spread, captured_at
 
 pickem_picks                # league_member FK, game FK, side, spread_at_pick

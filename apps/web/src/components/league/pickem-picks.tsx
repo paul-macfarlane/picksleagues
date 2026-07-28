@@ -11,7 +11,7 @@ import {
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { gameStateLabel, pickRowState, spreadLabel } from "@/lib/game";
+import { gameStateAsOfLabel, gameStateLabel, pickRowState, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -339,6 +339,7 @@ function GameRow({
   // a retained pick, the "Your pick" copy) — `picked` only fires for a fresh,
   // still-editable selection, which is what the row highlight below is for.
   const rowState = pickRowState(game, editable && selectedSide !== undefined);
+  const stateAsOf = gameStateAsOfLabel(game);
 
   return (
     <li
@@ -389,6 +390,11 @@ function GameRow({
       {/* Kickoff before the game starts, status + score after — a member whose
           pick has locked wants to know how it is doing, not when it began. */}
       <p className="text-xs text-muted-foreground">{gameStateLabel(game)}</p>
+      {/* Own line, not appended to the state line above: this row has the
+          room, and the qualifier reads more clearly set apart from the score
+          it's dating than crowded onto the same line (DATA-8; spec §UI
+          conventions — a stored clock reading can be minutes stale). */}
+      {stateAsOf && <p className="text-xs text-muted-foreground/70">{stateAsOf}</p>}
 
       <div className="grid grid-cols-2 gap-2">
         <Button

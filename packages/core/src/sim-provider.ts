@@ -21,6 +21,16 @@ import type {
  */
 export const SIM_GAME_DURATION_MS = 3 * 60 * 60 * 1000 + 15 * 60 * 1000;
 
+/**
+ * The regulation shape a simulated game's clock walks through: four periods,
+ * each counting a 15:00 game clock down to 0:00 over an equal share of
+ * `SIM_GAME_DURATION_MS`. Simulated games never go to overtime — a fixture
+ * stores only its terminal score, so there is nothing to derive a fifth period
+ * from.
+ */
+const SIM_PERIODS = 4;
+const SIM_PERIOD_SECONDS = 15 * 60;
+
 /** A fixture row as the provider sees it — the simulator's stand-in for an ESPN event. */
 export type SimFixtureGameRow = {
   providerGameId: string;
@@ -54,7 +64,35 @@ export type ProjectedGameState = {
   status: GameStatus;
   homeScore: number | null;
   awayScore: number | null;
+  // Live in-game state, matching `ProviderGame`: null unless the game is in
+  // progress at `now`.
+  period: number | null;
+  clockSeconds: number | null;
 };
+
+/**
+ * Where the game clock stands `elapsedMs` into a simulated game (DATA-8).
+ * Derived purely from elapsed time — the same instant always produces the same
+ * reading, so a replay is reproducible (arch D14) and no wall clock is read.
+ *
+ * Real elapsed time maps linearly onto the regulation clock: each quarter of
+ * the window is one period whose 15:00 counts down across it. `ceil` puts the
+ * clock at a full 15:00 at the top of a period and lets it reach 0:00 only at
+ * the instant the period ends — which is the next period's top, or full time.
+ *
+ * Unlike the deliberately frozen 0-0 score, this *is* meant to move with the
+ * clock: an operator advancing the simulated clock through a slate is exactly
+ * how the live-state ingestion path gets exercised end to end.
+ */
+function projectGameClock(elapsedMs: number): { period: number; clockSeconds: number } {
+  const periodMs = SIM_GAME_DURATION_MS / SIM_PERIODS;
+  const periodIndex = Math.min(SIM_PERIODS - 1, Math.floor(elapsedMs / periodMs));
+  const elapsedInPeriodMs = elapsedMs - periodIndex * periodMs;
+  return {
+    period: periodIndex + 1,
+    clockSeconds: Math.ceil(SIM_PERIOD_SECONDS * (1 - elapsedInPeriodMs / periodMs)),
+  };
+}
 
 /**
  * What the provider would report for a fixture at instant `now` (ADR-0012).
@@ -74,14 +112,26 @@ export function projectFixtureGame(fixture: SimFixtureGameRow, now: Date): Proje
   // at kickoff — a provider reports them for a game that never starts, so the
   // clock never moves these off their terminal status.
   if (fixture.finalStatus !== SIM_FINAL_STATUS.FINAL) {
-    return { status: fixture.finalStatus, homeScore: null, awayScore: null };
+    return {
+      status: fixture.finalStatus,
+      homeScore: null,
+      awayScore: null,
+      period: null,
+      clockSeconds: null,
+    };
   }
 
   const kickoffMs = fixture.kickoffAt.getTime();
   const nowMs = now.getTime();
 
   if (nowMs < kickoffMs) {
-    return { status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null };
+    return {
+      status: GAME_STATUS.SCHEDULED,
+      homeScore: null,
+      awayScore: null,
+      period: null,
+      clockSeconds: null,
+    };
   }
 
   if (nowMs < kickoffMs + SIM_GAME_DURATION_MS) {
@@ -91,13 +141,20 @@ export function projectFixtureGame(fixture: SimFixtureGameRow, now: Date): Proje
     // revealing the final score early would let code that wrongly settles a
     // non-final game produce accidentally-correct output. Grading against 0-0 is
     // visibly wrong, which is the bug report we want.
-    return { status: GAME_STATUS.IN_PROGRESS, homeScore: 0, awayScore: 0 };
+    return {
+      status: GAME_STATUS.IN_PROGRESS,
+      homeScore: 0,
+      awayScore: 0,
+      ...projectGameClock(nowMs - kickoffMs),
+    };
   }
 
   return {
     status: GAME_STATUS.FINAL,
     homeScore: fixture.finalHomeScore,
     awayScore: fixture.finalAwayScore,
+    period: null,
+    clockSeconds: null,
   };
 }
 
@@ -117,6 +174,8 @@ function toProviderGame(fixture: SimFixtureGameRow, now: Date): ProviderGame {
     status: projected.status,
     homeScore: projected.homeScore,
     awayScore: projected.awayScore,
+    period: projected.period,
+    clockSeconds: projected.clockSeconds,
     spread: fixture.spread,
   };
 }

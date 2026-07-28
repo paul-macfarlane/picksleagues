@@ -397,6 +397,8 @@ describe("EspnProvider.fetchNflWeekGames", () => {
         status: GAME_STATUS.SCHEDULED,
         homeScore: null,
         awayScore: null,
+        period: null,
+        clockSeconds: null,
         spread: -3.5,
       },
     ]);
@@ -520,6 +522,99 @@ describe("EspnProvider.fetchNflWeekGames", () => {
     await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1)).rejects.toThrow(
       /invalid score "abc"/,
     );
+  });
+
+  /**
+   * Live in-game state (DATA-8). ESPN carries `period`/`clock` as siblings of
+   * `status.type`, alongside a preformatted `displayClock` this adapter must
+   * never read — every case below ships that string to prove it doesn't.
+   */
+  describe("live period and clock", () => {
+    function liveScoreboard(status: Record<string, unknown>) {
+      return stubFetch({
+        [scoreboardUrl]: jsonResponse({
+          events: [
+            {
+              id: "410",
+              competitions: [
+                {
+                  id: "410",
+                  date: "2026-09-14T17:00Z",
+                  status,
+                  competitors: [
+                    competitor({ homeAway: "home", abbreviation: "BUF", displayName: "Bills" }),
+                    competitor({ homeAway: "away", abbreviation: "NYJ", displayName: "Jets" }),
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      });
+    }
+
+    const IN_PROGRESS = { name: "STATUS_IN_PROGRESS", state: "in" };
+
+    it.each([
+      {
+        name: "an in-progress game carries its period and seconds remaining",
+        status: { type: IN_PROGRESS, period: 3, clock: 421, displayClock: "7:01" },
+        expected: { period: 3, clockSeconds: 421 },
+      },
+      {
+        name: "a fractional clock rounds to whole seconds",
+        status: { type: IN_PROGRESS, period: 2, clock: 60.6, displayClock: "1:00" },
+        expected: { period: 2, clockSeconds: 61 },
+      },
+      {
+        name: "overtime periods pass through — nothing caps at 4",
+        status: { type: IN_PROGRESS, period: 5, clock: 0, displayClock: "0:00" },
+        expected: { period: 5, clockSeconds: 0 },
+      },
+      {
+        name: "an in-progress game whose status carries neither key",
+        status: { type: IN_PROGRESS },
+        expected: { period: null, clockSeconds: null },
+      },
+      {
+        name: "ESPN's pre-game period 0 is not a period",
+        status: { type: IN_PROGRESS, period: 0, clock: 900, displayClock: "15:00" },
+        expected: { period: null, clockSeconds: 900 },
+      },
+      {
+        name: "a scheduled game has no live state, even when ESPN sends one",
+        status: {
+          type: { name: "STATUS_SCHEDULED", state: "pre" },
+          period: 0,
+          clock: 900,
+          displayClock: "15:00",
+        },
+        expected: { period: null, clockSeconds: null },
+      },
+      {
+        name: "a scheduled game whose status carries neither key",
+        status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+        expected: { period: null, clockSeconds: null },
+      },
+      {
+        // A finished game's frozen 0:00 is not live state: the app would render
+        // it as a running clock beside "Final".
+        name: "a final game reports no live state",
+        status: {
+          type: { name: "STATUS_FINAL", state: "post" },
+          period: 4,
+          clock: 0,
+          displayClock: "0:00",
+        },
+        expected: { period: null, clockSeconds: null },
+      },
+    ])("$name", async ({ status, expected }) => {
+      const provider = makeProvider(liveScoreboard(status));
+
+      const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
+
+      expect(game).toMatchObject(expected);
+    });
   });
 
   it("maps STATUS_POSTPONED to postponed regardless of state", async () => {

@@ -48,6 +48,16 @@ export type ProviderGame = {
   // which we deliberately do not surface as a score.
   homeScore: number | null;
   awayScore: number | null;
+  /**
+   * Live in-game state, normalized (DATA-8): `period` is the 1-based period a
+   * game in progress is in (>4 in overtime), `clockSeconds` the whole seconds
+   * remaining in that period. Both null whenever the game is not in progress —
+   * a scheduled game has no clock, and a finished one's frozen 0:00 is not live
+   * state. Providers normalize their own display forms away (ESPN's
+   * `displayClock` never leaves its adapter); formatting is the client's job.
+   */
+  period: number | null;
+  clockSeconds: number | null;
   // Home-relative spread (negative = home favored); null when the provider
   // has no line yet.
   spread: number | null;

@@ -8,7 +8,7 @@ import {
 } from "@picksleagues/schemas";
 import { useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { gameStateLabel, spreadLabel } from "@/lib/game";
+import { gameStateAsOfLabel, gameStateLabel, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
@@ -161,6 +161,7 @@ function PickRow({
   const spread = showSpread
     ? spreadLabel(pick.spread, pick.side === PICKEM_PICK_SIDE.HOME ? "home" : "away")
     : null;
+  const stateAsOf = gameStateAsOfLabel(game);
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -176,7 +177,15 @@ function PickRow({
           ({game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation})
         </span>
       </span>
-      <span className="text-muted-foreground">{gameStateLabel(game)}</span>
+      {/* Folded into the same span rather than a second block: this row is a
+          single tight line per pick (unlike the pick-entry row, which has
+          the room for its own line), so the qualifier trails the state text
+          it's dating, dimmer still so it can't be mistaken for a live badge
+          (DATA-8; spec §UI conventions). */}
+      <span className="text-muted-foreground">
+        {gameStateLabel(game)}
+        {stateAsOf && <span className="text-muted-foreground/70"> · {stateAsOf}</span>}
+      </span>
     </li>
   );
 }

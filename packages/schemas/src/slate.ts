@@ -39,6 +39,23 @@ export const SlateGameSchema = z
     // Home-relative; negative = home favored. Null until the odds sync captures
     // a snapshot, and in straight-up leagues it is simply unused.
     spread: z.number().nullable(),
+    /**
+     * Live in-game state (DATA-8): the 1-based period a game in progress is in
+     * (5+ in overtime) and the whole seconds left in it. Both null unless the
+     * game is in progress. Normalized, never a provider display string — the
+     * client formats them ("Q3 12:34").
+     *
+     * `stateAsOf` is when that reading was last observed to be true, from the
+     * game row's last change. Score sync polls every 5 minutes and writes only
+     * when something moved, so a clock served without this stamp would read as
+     * live when it can be minutes old — the UI must show the two together
+     * (spec §UI conventions: never claim real-time freshness). Present for
+     * every game, so a client can also date a score; on a game nothing has ever
+     * happened to it is simply the row's ingestion time.
+     */
+    period: z.number().int().nullable(),
+    clockSeconds: z.number().int().nullable(),
+    stateAsOf: z.iso.datetime(),
     // Derived per request from the injected Clock — not stored (arch D11).
     locked: z.boolean(),
     /**

@@ -38,6 +38,11 @@ export interface ResolvedSlateGame {
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
+  // Live in-game state and the instant it was observed (DATA-8) — see
+  // `SlateGameSchema` for what `stateAsOf` means.
+  period: number | null;
+  clockSeconds: number | null;
+  stateAsOf: Date;
   locked: boolean;
   /**
    * Whether a new pick may be placed on this game. A cancelled or moved game is
@@ -110,6 +115,11 @@ export async function loadResolvedWeekGames(
       homeScore: effective.homeScore,
       awayScore: effective.awayScore,
       spread: effective.spread,
+      period: effective.period,
+      clockSeconds: effective.clockSeconds,
+      // The row's last observed change *is* the instant its live state was
+      // true: score sync writes only when something it reads moved.
+      stateAsOf: game.updatedAt,
       locked: isLocked(effective.kickoffAt, now),
       pickable: !isUnplayedStatus(effective.status),
     };
@@ -161,6 +171,9 @@ function serializeSlateGame(game: ResolvedSlateGame) {
     homeScore: game.homeScore,
     awayScore: game.awayScore,
     spread: game.spread,
+    period: game.period,
+    clockSeconds: game.clockSeconds,
+    stateAsOf: game.stateAsOf.toISOString(),
     locked: game.locked,
     pickable: game.pickable,
   };

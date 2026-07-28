@@ -120,6 +120,8 @@ describe("syncNflScores", () => {
         status: GAME_STATUS.IN_PROGRESS,
         homeScore: 7,
         awayScore: 3,
+        period: 2,
+        clockSeconds: 421,
       }),
     ]);
 
@@ -137,6 +139,121 @@ describe("syncNflScores", () => {
     expect(g2?.status).toBe(GAME_STATUS.IN_PROGRESS);
     expect(g2?.homeScore).toBe(7);
     expect(g2?.awayScore).toBe(3);
+    // Live state lands with the scores it was observed alongside (DATA-8), and
+    // `updated_at` is the as-of instant reads serve for it.
+    expect(g2?.period).toBe(2);
+    expect(g2?.clockSeconds).toBe(421);
+    expect(g2?.updatedAt).toEqual(AFTER_KICKOFFS);
+  });
+
+  /**
+   * The whole reason the game clock is part of change detection: between two
+   * polls of a game whose score hasn't moved, the clock still has, and the
+   * as-of stamp the UI shows is `updated_at` — a tick the job declined to
+   * persist would be served under a minutes-old timestamp.
+   */
+  it("persists a clock-only change, moving the as-of stamp with it", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
+    ]);
+
+    const inProgress = (period: number, clockSeconds: number) =>
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 7,
+        awayScore: 3,
+        period,
+        clockSeconds,
+      });
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [inProgress(2, 421)]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    // Same score, same status, five minutes of game clock later.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [inProgress(2, 121)]);
+    const laterClock = new FixedClock(new Date(AFTER_KICKOFFS.getTime() + 5 * 60 * 1000));
+    const details = await syncNflScores(db, laterClock, provider, {});
+    expect(details).toMatchObject({ gamesUpdated: 1, wentFinal: 0 });
+
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+    expect(g2?.clockSeconds).toBe(121);
+    expect(g2?.updatedAt).toEqual(laterClock.now());
+  });
+
+  it("clears the live state when a game goes final", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
+    ]);
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 21,
+        awayScore: 17,
+        period: 4,
+        clockSeconds: 12,
+      }),
+    ]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.FINAL,
+        homeScore: 21,
+        awayScore: 17,
+      }),
+    ]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+    expect(g2?.status).toBe(GAME_STATUS.FINAL);
+    expect(g2?.period).toBeNull();
+    expect(g2?.clockSeconds).toBeNull();
+  });
+
+  it("no-ops when the provider repeats identical live state", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
+    ]);
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 7,
+        awayScore: 3,
+        period: 2,
+        clockSeconds: 421,
+      }),
+    ]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    const laterClock = new FixedClock(new Date(AFTER_KICKOFFS.getTime() + 5 * 60 * 1000));
+    const details = await syncNflScores(db, laterClock, provider, {});
+    expect(details).toMatchObject({ gamesUpdated: 0, wentFinal: 0 });
+
+    // Nothing moved, so the as-of stamp stays honest about when this reading
+    // was actually observed.
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
     expect(g2?.updatedAt).toEqual(AFTER_KICKOFFS);
   });
 

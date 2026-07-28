@@ -198,6 +198,72 @@ describe("GET /api/weeks/:weekId/games", () => {
     );
   });
 
+  /**
+   * Live in-game state on the slate (DATA-8). Precedence is asserted through
+   * the serializer, not the row: `override_* ?? provider_*` (arch D15) has to
+   * hold where a client actually reads it.
+   */
+  it("serializes override-resolved live state with the as-of stamp of the row's last change", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    const { weekIds, gameIds } = await seedPickemLeague();
+    const weekId = weekIds.get("regular:1")!;
+    const [corrected, provided] = gameIds.get("regular:1")! as [string, string, string];
+
+    const observedAt = new Date(WEEK1_KICKOFF.getTime() + 40 * 60 * 1000);
+    // Both games are mid-game per the provider; only the first is corrected.
+    await db
+      .update(games)
+      .set({
+        status: GAME_STATUS.IN_PROGRESS,
+        period: 1,
+        clockSeconds: 900,
+        overridePeriod: 3,
+        overrideClockSeconds: 421,
+        updatedAt: observedAt,
+      })
+      .where(eq(games.id, corrected));
+    await db
+      .update(games)
+      .set({
+        status: GAME_STATUS.IN_PROGRESS,
+        period: 2,
+        clockSeconds: 12,
+        updatedAt: observedAt,
+      })
+      .where(eq(games.id, provided));
+
+    const res = await getSlate(cookie, weekId, appAfterKickoff);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as WeekSlateResponse;
+    const byId = new Map(body.games.map((g) => [g.id, g]));
+
+    expect(byId.get(corrected)).toMatchObject({
+      period: 3,
+      clockSeconds: 421,
+      stateAsOf: observedAt.toISOString(),
+    });
+    expect(byId.get(provided)).toMatchObject({
+      period: 2,
+      clockSeconds: 12,
+      stateAsOf: observedAt.toISOString(),
+    });
+  });
+
+  it("serializes null live state for a game that has never been in progress", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    const { weekIds, gameIds } = await seedPickemLeague();
+    const weekId = weekIds.get("regular:1")!;
+    const [g1] = gameIds.get("regular:1")! as [string, string, string];
+
+    const res = await getSlate(cookie, weekId);
+    const body = (await res.json()) as WeekSlateResponse;
+    const game = body.games.find((g) => g.id === g1);
+
+    expect(game).toMatchObject({ period: null, clockSeconds: null });
+    // Still stamped — a client can date the row it is showing either way.
+    expect(game?.stateAsOf).toBe(SEED_AT.toISOString());
+  });
+
   it("reflects the seeded odds snapshot's spread, and null when none was seeded", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedSeason(db, {

@@ -63,6 +63,8 @@ export async function setGameOverride(
       overrideHomeScore: merge(request.homeScore, game.overrideHomeScore),
       overrideAwayScore: merge(request.awayScore, game.overrideAwayScore),
       overrideSpread: merge(request.spread, game.overrideSpread),
+      overridePeriod: merge(request.period, game.overridePeriod),
+      overrideClockSeconds: merge(request.clockSeconds, game.overrideClockSeconds),
     };
 
     // Precedence resolved through its one home (arch D15) rather than restated,
@@ -164,6 +166,8 @@ export async function setGameOverride(
         overrideHomeScore: game.overrideHomeScore,
         overrideAwayScore: game.overrideAwayScore,
         overrideSpread: game.overrideSpread,
+        overridePeriod: game.overridePeriod,
+        overrideClockSeconds: game.overrideClockSeconds,
         overriddenBy: game.overriddenBy,
         overriddenAt: game.overriddenAt?.toISOString() ?? null,
       },

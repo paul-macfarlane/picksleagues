@@ -17,11 +17,15 @@ export type GameOverrideFields = {
   status: GameStatus;
   homeScore: number | null;
   awayScore: number | null;
+  period: number | null;
+  clockSeconds: number | null;
   overrideKickoffAt: Date | null;
   overrideStatus: GameStatus | null;
   overrideHomeScore: number | null;
   overrideAwayScore: number | null;
   overrideSpread: number | null;
+  overridePeriod: number | null;
+  overrideClockSeconds: number | null;
 };
 
 export type ResolvedGame = {
@@ -30,6 +34,11 @@ export type ResolvedGame = {
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
+  // Live in-game state (DATA-8). Display-only: a period and a clock say where a
+  // game is, never what its outcome was, so nothing that grades a pick reads
+  // them.
+  period: number | null;
+  clockSeconds: number | null;
 };
 
 /**
@@ -48,6 +57,8 @@ export function resolveGameOverrides(
     homeScore: game.overrideHomeScore ?? game.homeScore,
     awayScore: game.overrideAwayScore ?? game.awayScore,
     spread: game.overrideSpread ?? providerSpread,
+    period: game.overridePeriod ?? game.period,
+    clockSeconds: game.overrideClockSeconds ?? game.clockSeconds,
   };
 }
 

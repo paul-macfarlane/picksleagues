@@ -33,6 +33,25 @@ export function scoreText(away: number | null, home: number | null): string {
   return away === null || home === null ? "" : ` ${away}–${home}`;
 }
 
+// Period 1-4 are regulation quarters; 5+ is overtime (DATA-8's bound allows up
+// to 10, the longest NFL game on record having reached the 6th). The first
+// overtime reads bare ("OT"), matching how a broadcast reads it — only the
+// second and later gets a number, so this can't be a flat `period - 4`.
+export function periodLabel(period: number): string {
+  if (period <= 4) return `Q${period}`;
+  if (period === 5) return "OT";
+  return `OT${period - 4}`;
+}
+
+// `m:ss`: no leading zero on minutes (a period never reaches double-digit
+// minutes in practice, and the admin override form's m:ss input round-trips
+// through this same function), always two digits on seconds.
+export function clockLabel(clockSeconds: number): string {
+  const minutes = Math.floor(clockSeconds / 60);
+  const seconds = clockSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 /**
  * The one-line summary of where a game actually is, shared by the pick entry
  * grid and the week/pick detail so the two can't drift.
@@ -41,15 +60,40 @@ export function scoreText(away: number | null, home: number | null): string {
  * once it has, they want the status and the score — including while it is in
  * progress, and including a score an admin has corrected by hand (ADM-2), which
  * arrives here already override-resolved.
+ *
+ * `period`/`clockSeconds` (DATA-8) are independently nullable, and only ever
+ * both present together (the provider populates them as a pair) — but this
+ * degrades defensively rather than trusting that: either alone ("Q3" with no
+ * time, or a bare clock with no period) is less legible than the plain status
+ * line it would replace, so anything short of both present falls back to it.
  */
 export function gameStateLabel(game: {
   status: GameStatus;
   kickoffAt: string;
   awayScore: number | null;
   homeScore: number | null;
+  period?: number | null;
+  clockSeconds?: number | null;
 }): string {
   if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatDateTime(game.kickoffAt)}`;
+  if (game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null) {
+    const score = scoreText(game.awayScore, game.homeScore).trim();
+    return `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}${score ? ` · ${score}` : ""}`;
+  }
   return `${gameStatusLabel(game.status)}${scoreText(game.awayScore, game.homeScore)}`;
+}
+
+/**
+ * The "as of" qualifier next to a live clock (DATA-8): scores sync every ~5
+ * minutes, so a game clock read from a stored snapshot can be minutes stale —
+ * unlike a final score, which is settled, or a kickoff time, which hasn't
+ * happened yet, so it's shown only while the game is in progress (spec §UI
+ * conventions: never claim real-time freshness). Phrased as a qualifier
+ * ("as of …"), never "Live", so it can't be misread as a live feed.
+ */
+export function gameStateAsOfLabel(game: { status: GameStatus; stateAsOf: string }): string | null {
+  if (game.status !== GAME_STATUS.IN_PROGRESS) return null;
+  return `as of ${formatDateTime(game.stateAsOf)}`;
 }
 
 // Home-relative spread, flipped for the away side (spec §ATS) — the sign a

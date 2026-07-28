@@ -303,6 +303,8 @@ export type GameUpdate = Partial<{
   status: (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
   homeScore: number | null;
   awayScore: number | null;
+  period: number | null;
+  clockSeconds: number | null;
   overrideStatus: (typeof GAME_STATUS)[keyof typeof GAME_STATUS] | null;
   overrideHomeScore: number | null;
   overrideAwayScore: number | null;

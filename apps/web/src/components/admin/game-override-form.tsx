@@ -4,7 +4,7 @@ import { useForm } from "@tanstack/react-form";
 import { GAME_STATUS, type AdminGame } from "@picksleagues/schemas";
 import { useSetGameOverride } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel } from "@/lib/game";
+import { clockLabel, gameStatusLabel, periodLabel } from "@/lib/game";
 import {
   buildGameOverridePatch,
   gameOverrideFormSeed,
@@ -31,6 +31,14 @@ const STATUS_OPTIONS: { value: GameOverrideStatusValue; label: string }[] = [
 
 function scoreHint(score: number | null): string {
   return score === null ? "no score" : String(score);
+}
+
+function periodHint(period: number | null): string {
+  return period === null ? "no period" : periodLabel(period);
+}
+
+function clockHint(clockSeconds: number | null): string {
+  return clockSeconds === null ? "no clock" : clockLabel(clockSeconds);
 }
 
 /**
@@ -171,6 +179,32 @@ function GameOverrideEditor({ game }: { game: AdminGame }) {
                 id={`game-${game.id}-overrideSpread`}
                 label="Spread override"
                 inputMode="decimal"
+              />
+            )}
+          </form.Field>
+        </ProviderHint>
+
+        <ProviderHint provider={periodHint(game.period)}>
+          <form.Field name="period">
+            {(field) => (
+              <FormTextField
+                field={field}
+                id={`game-${game.id}-overridePeriod`}
+                label="Period override"
+                inputMode="numeric"
+              />
+            )}
+          </form.Field>
+        </ProviderHint>
+
+        <ProviderHint provider={clockHint(game.clockSeconds)}>
+          <form.Field name="clock">
+            {(field) => (
+              <FormTextField
+                field={field}
+                id={`game-${game.id}-overrideClock`}
+                label="Clock override (m:ss)"
+                placeholder="12:34"
               />
             )}
           </form.Field>

@@ -300,6 +300,56 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
     });
   });
 
+  /**
+   * Live in-game state (DATA-8) joins the same three-state override layer as
+   * the scores: set, cleared, and resolved through the read serializer.
+   */
+  it("sets and clears the period and clock overrides, resolving override ?? provider", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastWeekId, pastGameId } = await seedGames();
+    await setGame(db, pastGameId, {
+      status: GAME_STATUS.IN_PROGRESS,
+      period: 1,
+      clockSeconds: 900,
+    });
+
+    const set = await putOverride(app, cookie, pastGameId, { period: 3, clockSeconds: 421 });
+    expect(set.status).toBe(200);
+    expect(await readGame(app, cookie, pastWeekId, pastGameId)).toMatchObject({
+      // Provider block untouched by the correction (arch D15).
+      period: 1,
+      clockSeconds: 900,
+      overridePeriod: 3,
+      overrideClockSeconds: 421,
+      effectivePeriod: 3,
+      effectiveClockSeconds: 421,
+    });
+
+    // Cleared one at a time: the clock reverts to provider truth while the
+    // period correction stays.
+    const cleared = await putOverride(app, cookie, pastGameId, { clockSeconds: null });
+    expect(cleared.status).toBe(200);
+    expect(await readGame(app, cookie, pastWeekId, pastGameId)).toMatchObject({
+      overrideClockSeconds: null,
+      effectiveClockSeconds: 900,
+      overridePeriod: 3,
+      effectivePeriod: 3,
+    });
+  });
+
+  it("accepts an overtime period and rejects one past the bound", async () => {
+    const { app, cookie } = await adminCaller();
+    const { pastGameId } = await seedGames();
+
+    expect((await putOverride(app, cookie, pastGameId, { period: 5 })).status).toBe(200);
+    expect((await putOverride(app, cookie, pastGameId, { period: 0 })).status).toBe(400);
+    expect((await putOverride(app, cookie, pastGameId, { period: 99 })).status).toBe(400);
+    expect((await putOverride(app, cookie, pastGameId, { clockSeconds: -1 })).status).toBe(400);
+    expect((await putOverride(app, cookie, pastGameId, { clockSeconds: 900_000 })).status).toBe(
+      400,
+    );
+  });
+
   it("clearing the last override leaves a row indistinguishable from an uncorrected one", async () => {
     const { app, cookie } = await adminCaller();
     const { pastWeekId, pastGameId } = await seedGames();
@@ -314,6 +364,8 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
       homeScore: 24,
       awayScore: 17,
       spread: 7.5,
+      period: 3,
+      clockSeconds: 421,
     });
     const cleared = await putOverride(app, cookie, pastGameId, {
       kickoffAt: null,
@@ -321,6 +373,8 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
       homeScore: null,
       awayScore: null,
       spread: null,
+      period: null,
+      clockSeconds: null,
     });
 
     expect(cleared.status).toBe(200);
@@ -331,6 +385,8 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
       overrideHomeScore: null,
       overrideAwayScore: null,
       overrideSpread: null,
+      overridePeriod: null,
+      overrideClockSeconds: null,
       // Attribution goes with the last override — the history lives in admin_audit.
       overriddenBy: null,
       overriddenAt: null,
@@ -432,6 +488,34 @@ describe("PUT /api/admin/games/{gameId}/override — audit trail", () => {
     expect(second!.priorValue).toMatchObject({
       overrideHomeScore: 24,
       overrideStatus: GAME_STATUS.FINAL,
+      overriddenBy: userId,
+    });
+  });
+
+  /**
+   * The prior-value object is hand-built per column, so a newly added override
+   * column silently under-records unless it is listed there — pinned here for
+   * the live-state pair (DATA-8).
+   */
+  it("records the prior period and clock overrides too", async () => {
+    const { app, cookie, userId } = await adminCaller();
+    const { pastGameId } = await seedGames();
+
+    await putOverride(app, cookie, pastGameId, { period: 3, clockSeconds: 421 });
+    await putOverride(app, cookie, pastGameId, { period: 4, clockSeconds: 60 });
+
+    const rows = await auditRows();
+    expect(rows).toHaveLength(2);
+    const first = rows.find((row) => row.priorValue.overridePeriod === null);
+    const second = rows.find((row) => row.priorValue.overridePeriod !== null);
+    expect(first!.priorValue).toMatchObject({
+      overridePeriod: null,
+      overrideClockSeconds: null,
+      overriddenBy: null,
+    });
+    expect(second!.priorValue).toMatchObject({
+      overridePeriod: 3,
+      overrideClockSeconds: 421,
       overriddenBy: userId,
     });
   });
@@ -870,6 +954,23 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
 
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "override_unlocks_game" });
+  });
+
+  /**
+   * The guard reads kickoff, status and scores only. A period and a clock say
+   * where a game is, never how it ended, so they can't make an outcome knowable
+   * — an unlocked game stays fully editable for them (DATA-8 must not widen
+   * this predicate).
+   */
+  it("allows live-state corrections on an unlocked game — a clock is not an outcome", async () => {
+    const { app, cookie } = await adminCaller();
+    const { futureWeekId, futureGameId } = await seedGames();
+
+    const res = await putOverride(app, cookie, futureGameId, { period: 2, clockSeconds: 300 });
+
+    expect(res.status).toBe(200);
+    const read = await readGame(app, cookie, futureWeekId, futureGameId);
+    expect(read).toMatchObject({ effectivePeriod: 2, effectiveClockSeconds: 300 });
   });
 
   it("allows moving a kickoff earlier, which only ever locks", async () => {

@@ -92,6 +92,10 @@ export const AdminGameSchema = z
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
     awayScore: z.number().int().nullable(),
+    // Live in-game state as ingestion last saw it (DATA-8): period, and seconds
+    // left in it. Null unless the game is in progress.
+    period: z.number().int().nullable(),
+    clockSeconds: z.number().int().nullable(),
     // Latest odds snapshot for this game; null until the odds sync captures one.
     latestSpread: z.number().nullable(),
     latestSpreadCapturedAt: z.iso.datetime().nullable(),
@@ -101,6 +105,8 @@ export const AdminGameSchema = z
     overrideHomeScore: z.number().int().nullable(),
     overrideAwayScore: z.number().int().nullable(),
     overrideSpread: z.number().nullable(),
+    overridePeriod: z.number().int().nullable(),
+    overrideClockSeconds: z.number().int().nullable(),
     overriddenBy: z.string().nullable(),
     overriddenAt: z.iso.datetime().nullable(),
     // Resolved block — `override_* ?? provider_*` (arch D15). Serialized rather
@@ -110,6 +116,8 @@ export const AdminGameSchema = z
     effectiveHomeScore: z.number().int().nullable(),
     effectiveAwayScore: z.number().int().nullable(),
     effectiveSpread: z.number().nullable(),
+    effectivePeriod: z.number().int().nullable(),
+    effectiveClockSeconds: z.number().int().nullable(),
   })
   .openapi("AdminGame");
 
@@ -150,6 +158,15 @@ const MAX_GAME_SCORE = 200;
 // near this; the bound exists so a mis-typed or mis-scaled number is refused
 // rather than silently regrading every pick on the game.
 const MAX_SPREAD = 100;
+// A period past regulation is legitimate — overtime keeps counting — so this
+// can't be 4; it is high enough that no real game reaches it (the longest NFL
+// game ever played ended in the 6th) and low enough to reject a fat-fingered
+// digit. Period 0 isn't a period at all: "no period" is expressed by null.
+const MAX_PERIOD = 10;
+// One hour, against a regulation NFL period of 15 minutes. Generous headroom
+// for any other period format, tight enough that a value in milliseconds — or
+// minutes mistaken for seconds the other way — is refused rather than stored.
+const MAX_CLOCK_SECONDS = 60 * 60;
 
 /**
  * The admin override write (arch §Manual Sports Data Overrides, D15). Fields
@@ -170,6 +187,8 @@ export const GameOverrideRequestSchema = z
     homeScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
     awayScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
     spread: z.number().min(-MAX_SPREAD).max(MAX_SPREAD).nullable().optional(),
+    period: z.number().int().min(1).max(MAX_PERIOD).nullable().optional(),
+    clockSeconds: z.number().int().min(0).max(MAX_CLOCK_SECONDS).nullable().optional(),
   })
   .refine((data) => Object.values(data).some((value) => value !== undefined), {
     message: "At least one field is required",

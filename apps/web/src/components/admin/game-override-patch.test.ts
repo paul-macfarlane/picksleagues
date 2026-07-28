@@ -22,6 +22,8 @@ const GAME: AdminGame = {
   status: GAME_STATUS.IN_PROGRESS,
   homeScore: 21,
   awayScore: 21,
+  period: 3,
+  clockSeconds: 421,
   latestSpread: -2.5,
   latestSpreadCapturedAt: "2026-09-12T12:00:00.000Z",
   overrideKickoffAt: null,
@@ -29,6 +31,8 @@ const GAME: AdminGame = {
   overrideHomeScore: 24,
   overrideAwayScore: 17,
   overrideSpread: null,
+  overridePeriod: 4,
+  overrideClockSeconds: null,
   overriddenBy: "admin-1",
   overriddenAt: "2026-09-14T00:00:00.000Z",
   effectiveKickoffAt: "2026-09-13T17:00:00.000Z",
@@ -36,6 +40,8 @@ const GAME: AdminGame = {
   effectiveHomeScore: 24,
   effectiveAwayScore: 17,
   effectiveSpread: -2.5,
+  effectivePeriod: 4,
+  effectiveClockSeconds: 421,
 };
 
 const SEED = gameOverrideFormSeed(GAME);
@@ -54,7 +60,14 @@ describe("gameOverrideFormSeed", () => {
       awayScore: "17",
       // No spread override, even though the game resolves to the provider's -2.5.
       spread: "",
+      period: "4",
+      // No clock override, even though the game resolves to the provider's 421s.
+      clock: "",
     });
+  });
+
+  it("renders a clock override in m:ss, not raw seconds", () => {
+    expect(gameOverrideFormSeed({ ...GAME, overrideClockSeconds: 754 }).clock).toBe("12:34");
   });
 
   it("renders an absent status override as the clear sentinel", () => {
@@ -151,6 +164,64 @@ describe("buildGameOverridePatch", () => {
       patch: { status: null, homeScore: null, spread: -7.5 },
     });
   });
+
+  it("sends an edited period as a plain integer", () => {
+    const result = buildGameOverridePatch(SEED, edit({ period: "6" }));
+    expect(result).toEqual({ status: "ok", patch: { period: 6 } });
+  });
+
+  it("sends an emptied period as an explicit null clear", () => {
+    const result = buildGameOverridePatch(SEED, edit({ period: "" }));
+    expect(result).toEqual({ status: "ok", patch: { period: null } });
+  });
+
+  it("sends an edited clock as whole seconds, converted from m:ss", () => {
+    const result = buildGameOverridePatch(SEED, edit({ clock: "12:34" }));
+    expect(result).toEqual({ status: "ok", patch: { clockSeconds: 754 } });
+  });
+
+  it("sends an emptied clock as an explicit null clear", () => {
+    const seeded = gameOverrideFormSeed({ ...GAME, overrideClockSeconds: 421 });
+    expect(buildGameOverridePatch(seeded, { ...seeded, clock: "" })).toEqual({
+      status: "ok",
+      patch: { clockSeconds: null },
+    });
+  });
+
+  it("round-trips a clock override through the seed exactly", () => {
+    const result = buildGameOverridePatch(SEED, edit({ clock: "1:05" }));
+    expect(result).toEqual({ status: "ok", patch: { clockSeconds: 65 } });
+    const seeded = gameOverrideFormSeed({ ...GAME, overrideClockSeconds: 65 });
+    expect(seeded.clock).toBe("1:05");
+  });
+
+  it.each(["abc", "12", "12:"])("rejects an unparseable clock %s on its own field", (raw) => {
+    const result = buildGameOverridePatch(SEED, edit({ clock: raw }));
+    expect(result.status).toBe("invalid");
+    if (result.status !== "invalid") return;
+    expect(result.fieldErrors.clock).toBeTruthy();
+  });
+
+  it("rejects an out-of-range clock second component on its own field", () => {
+    const result = buildGameOverridePatch(SEED, edit({ clock: "1:75" }));
+    expect(result.status).toBe("invalid");
+    if (result.status !== "invalid") return;
+    expect(result.fieldErrors.clock).toBeTruthy();
+  });
+
+  it("surfaces an out-of-range clock (over the schema's bound) on the clock field, not clockSeconds", () => {
+    const result = buildGameOverridePatch(SEED, edit({ clock: "70:00" }));
+    expect(result.status).toBe("invalid");
+    if (result.status !== "invalid") return;
+    expect(result.fieldErrors.clock).toBeTruthy();
+  });
+
+  it("surfaces an out-of-range period on its own field, deferring the bound to the schema", () => {
+    const result = buildGameOverridePatch(SEED, edit({ period: "11" }));
+    expect(result.status).toBe("invalid");
+    if (result.status !== "invalid") return;
+    expect(result.fieldErrors.period).toBeTruthy();
+  });
 });
 
 describe("isGameOverrideFormDirty", () => {
@@ -158,5 +229,7 @@ describe("isGameOverrideFormDirty", () => {
     expect(isGameOverrideFormDirty(SEED, SEED)).toBe(false);
     expect(isGameOverrideFormDirty(SEED, edit({ spread: "-7" }))).toBe(true);
     expect(isGameOverrideFormDirty(SEED, edit({ status: NO_STATUS_OVERRIDE }))).toBe(true);
+    expect(isGameOverrideFormDirty(SEED, edit({ period: "6" }))).toBe(true);
+    expect(isGameOverrideFormDirty(SEED, edit({ clock: "1:05" }))).toBe(true);
   });
 });

@@ -147,10 +147,15 @@ export async function syncNflScores(
       }
       matchedProviderIds.add(ours.providerGameId);
 
+      // The game clock counts as a change on its own: `updated_at` is what
+      // reads serve as the live state's as-of instant (DATA-8), so a tick that
+      // didn't rewrite the row would be shown under a stale timestamp.
       const changed =
         ours.status !== providerGame.status ||
         ours.homeScore !== providerGame.homeScore ||
-        ours.awayScore !== providerGame.awayScore;
+        ours.awayScore !== providerGame.awayScore ||
+        ours.period !== providerGame.period ||
+        ours.clockSeconds !== providerGame.clockSeconds;
       if (!changed) continue;
 
       const becameFinal =
@@ -164,6 +169,8 @@ export async function syncNflScores(
           status: providerGame.status,
           homeScore: providerGame.homeScore,
           awayScore: providerGame.awayScore,
+          period: providerGame.period,
+          clockSeconds: providerGame.clockSeconds,
           updatedAt: now,
         })
         .where(eq(games.id, ours.id));

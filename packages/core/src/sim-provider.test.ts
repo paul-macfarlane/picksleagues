@@ -36,41 +36,100 @@ const at = (offsetMs: number) => new Date(KICKOFF.getTime() + offsetMs);
 describe("projectFixtureGame", () => {
   // The boundary instants are the whole point of the projection: they are what
   // the derived-lock rule (arch D11) and settlement eligibility read.
+  const PERIOD_MS = SIM_GAME_DURATION_MS / 4;
+
   it.each([
     {
       name: "long before kickoff",
       now: at(-7 * 24 * 60 * 60 * 1000),
-      expected: { status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null },
+      expected: {
+        status: GAME_STATUS.SCHEDULED,
+        homeScore: null,
+        awayScore: null,
+        period: null,
+        clockSeconds: null,
+      },
     },
     {
       name: "one millisecond before kickoff",
       now: at(-1),
-      expected: { status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null },
+      expected: {
+        status: GAME_STATUS.SCHEDULED,
+        homeScore: null,
+        awayScore: null,
+        period: null,
+        clockSeconds: null,
+      },
     },
     {
       name: "exactly at kickoff — half-open, so the game has started",
       now: at(0),
-      expected: { status: GAME_STATUS.IN_PROGRESS, homeScore: 0, awayScore: 0 },
+      expected: {
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 0,
+        awayScore: 0,
+        // Top of the first quarter, clock untouched.
+        period: 1,
+        clockSeconds: 900,
+      },
     },
     {
       name: "mid-game",
       now: at(SIM_GAME_DURATION_MS / 2),
-      expected: { status: GAME_STATUS.IN_PROGRESS, homeScore: 0, awayScore: 0 },
+      expected: {
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 0,
+        awayScore: 0,
+        // Halfway through the window is the top of the third quarter.
+        period: 3,
+        clockSeconds: 900,
+      },
+    },
+    {
+      name: "halfway through the second quarter",
+      now: at(PERIOD_MS * 1.5),
+      expected: {
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 0,
+        awayScore: 0,
+        period: 2,
+        clockSeconds: 450,
+      },
     },
     {
       name: "one millisecond before the game ends",
       now: at(SIM_GAME_DURATION_MS - 1),
-      expected: { status: GAME_STATUS.IN_PROGRESS, homeScore: 0, awayScore: 0 },
+      expected: {
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 0,
+        awayScore: 0,
+        // Still the fourth quarter, with the clock all but expired — `ceil`
+        // keeps it off 0:00 until the instant the period actually ends.
+        period: 4,
+        clockSeconds: 1,
+      },
     },
     {
       name: "exactly at the end of the game window",
       now: at(SIM_GAME_DURATION_MS),
-      expected: { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 },
+      expected: {
+        status: GAME_STATUS.FINAL,
+        homeScore: 24,
+        awayScore: 17,
+        period: null,
+        clockSeconds: null,
+      },
     },
     {
       name: "long after the game",
       now: at(30 * 24 * 60 * 60 * 1000),
-      expected: { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 },
+      expected: {
+        status: GAME_STATUS.FINAL,
+        homeScore: 24,
+        awayScore: 17,
+        period: null,
+        clockSeconds: null,
+      },
     },
   ])("$name", ({ now, expected }) => {
     expect(projectFixtureGame(fixture(), now)).toEqual(expected);
@@ -79,7 +138,24 @@ describe("projectFixtureGame", () => {
   it("holds the in-progress score stable across the whole window", () => {
     const early = projectFixtureGame(fixture(), at(1));
     const late = projectFixtureGame(fixture(), at(SIM_GAME_DURATION_MS - 1));
-    expect(early).toEqual(late);
+    // Scores only: the game clock deliberately *does* move with the simulated
+    // clock (DATA-8), which is what makes an advancing simulator exercise the
+    // live-state ingestion path.
+    expect(early.homeScore).toEqual(late.homeScore);
+    expect(early.awayScore).toEqual(late.awayScore);
+    expect(early.status).toEqual(late.status);
+  });
+
+  it("is deterministic — the same instant always projects the same clock", () => {
+    const now = at(PERIOD_MS * 2.25);
+    expect(projectFixtureGame(fixture(), now)).toEqual(projectFixtureGame(fixture(), now));
+  });
+
+  it("counts the clock down monotonically within a period", () => {
+    const readings = [0, 0.25, 0.5, 0.75].map(
+      (share) => projectFixtureGame(fixture(), at(PERIOD_MS * (2 + share))).clockSeconds,
+    );
+    expect(readings).toEqual([900, 675, 450, 225]);
   });
 
   // A cancelled or postponed game is announced, never played — the clock must
@@ -98,6 +174,8 @@ describe("projectFixtureGame", () => {
           status: finalStatus,
           homeScore: null,
           awayScore: null,
+          period: null,
+          clockSeconds: null,
         });
       }
     },
@@ -109,6 +187,8 @@ describe("projectFixtureGame", () => {
       status: GAME_STATUS.FINAL,
       homeScore: null,
       awayScore: null,
+      period: null,
+      clockSeconds: null,
     });
   });
 });

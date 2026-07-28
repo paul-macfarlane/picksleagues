@@ -1049,6 +1049,22 @@
               "null"
             ]
           },
+          "period": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "clockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stateAsOf": {
+            "type": "string",
+            "format": "date-time"
+          },
           "locked": {
             "type": "boolean"
           },
@@ -1065,6 +1081,9 @@
           "homeScore",
           "awayScore",
           "spread",
+          "period",
+          "clockSeconds",
+          "stateAsOf",
           "locked",
           "pickable"
         ]
@@ -1674,6 +1693,18 @@
               "null"
             ]
           },
+          "period": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "clockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "latestSpread": {
             "type": [
               "number",
@@ -1715,6 +1746,18 @@
               "null"
             ]
           },
+          "overridePeriod": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideClockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "overriddenBy": {
             "type": [
               "string",
@@ -1752,6 +1795,18 @@
               "number",
               "null"
             ]
+          },
+          "effectivePeriod": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effectiveClockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1764,6 +1819,8 @@
           "status",
           "homeScore",
           "awayScore",
+          "period",
+          "clockSeconds",
           "latestSpread",
           "latestSpreadCapturedAt",
           "overrideKickoffAt",
@@ -1771,13 +1828,17 @@
           "overrideHomeScore",
           "overrideAwayScore",
           "overrideSpread",
+          "overridePeriod",
+          "overrideClockSeconds",
           "overriddenBy",
           "overriddenAt",
           "effectiveKickoffAt",
           "effectiveStatus",
           "effectiveHomeScore",
           "effectiveAwayScore",
-          "effectiveSpread"
+          "effectiveSpread",
+          "effectivePeriod",
+          "effectiveClockSeconds"
         ]
       },
       "AdminGameTeam": {
@@ -1899,6 +1960,22 @@
             ],
             "minimum": -100,
             "maximum": 100
+          },
+          "period": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10
+          },
+          "clockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 3600
           }
         }
       },

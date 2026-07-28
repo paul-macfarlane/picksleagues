@@ -140,6 +140,8 @@ function serializeAdminGame(
     status: game.status,
     homeScore: game.homeScore,
     awayScore: game.awayScore,
+    period: game.period,
+    clockSeconds: game.clockSeconds,
     latestSpread: latest?.spread ?? null,
     latestSpreadCapturedAt: latest?.capturedAt.toISOString() ?? null,
     overrideKickoffAt: game.overrideKickoffAt?.toISOString() ?? null,
@@ -147,6 +149,8 @@ function serializeAdminGame(
     overrideHomeScore: game.overrideHomeScore,
     overrideAwayScore: game.overrideAwayScore,
     overrideSpread: game.overrideSpread,
+    overridePeriod: game.overridePeriod,
+    overrideClockSeconds: game.overrideClockSeconds,
     overriddenBy: game.overriddenBy,
     overriddenAt: game.overriddenAt?.toISOString() ?? null,
     effectiveKickoffAt: effective.kickoffAt.toISOString(),
@@ -154,6 +158,8 @@ function serializeAdminGame(
     effectiveHomeScore: effective.homeScore,
     effectiveAwayScore: effective.awayScore,
     effectiveSpread: effective.spread,
+    effectivePeriod: effective.period,
+    effectiveClockSeconds: effective.clockSeconds,
   };
 }
 

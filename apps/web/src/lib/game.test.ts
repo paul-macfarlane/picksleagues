@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GAME_STATUS } from "@picksleagues/schemas";
-import { gameStateLabel, pickRowState } from "./game";
+import { clockLabel, gameStateAsOfLabel, gameStateLabel, periodLabel, pickRowState } from "./game";
 
 describe("pickRowState", () => {
   it.each([
@@ -95,4 +95,100 @@ describe("gameStateLabel", () => {
   ])("$name", ({ status, awayScore, homeScore, expected }) => {
     expect(gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore })).toBe(expected);
   });
+
+  it.each([
+    { period: 1, expected: "Q1" },
+    { period: 4, expected: "Q4" },
+    { period: 5, expected: "OT" },
+    { period: 6, expected: "OT2" },
+    { period: 7, expected: "OT3" },
+  ])("periodLabel renders period $period as $expected", ({ period, expected }) => {
+    expect(periodLabel(period)).toBe(expected);
+  });
+
+  it.each([
+    { seconds: 754, expected: "12:34" },
+    { seconds: 65, expected: "1:05" },
+    { seconds: 0, expected: "0:00" },
+    { seconds: 59, expected: "0:59" },
+  ])("clockLabel renders $seconds seconds as $expected", ({ seconds, expected }) => {
+    expect(clockLabel(seconds)).toBe(expected);
+  });
+
+  it.each([
+    {
+      name: "period and clock both present renders the live clock ahead of the score",
+      status: GAME_STATUS.IN_PROGRESS,
+      period: 3,
+      clockSeconds: 754,
+      awayScore: 10,
+      homeScore: 24,
+      expected: "Q3 12:34 · 10–24",
+    },
+    {
+      name: "an overtime game renders OT rather than a fifth quarter",
+      status: GAME_STATUS.IN_PROGRESS,
+      period: 5,
+      clockSeconds: 65,
+      awayScore: 20,
+      homeScore: 20,
+      expected: "OT 1:05 · 20–20",
+    },
+    {
+      name: "period with no clock falls back to the plain status line",
+      status: GAME_STATUS.IN_PROGRESS,
+      period: 3,
+      clockSeconds: null,
+      awayScore: 10,
+      homeScore: 24,
+      expected: "In progress 10–24",
+    },
+    {
+      name: "clock with no period falls back to the plain status line",
+      status: GAME_STATUS.IN_PROGRESS,
+      period: null,
+      clockSeconds: 754,
+      awayScore: 10,
+      homeScore: 24,
+      expected: "In progress 10–24",
+    },
+    {
+      name: "neither period nor clock falls back to the plain status line",
+      status: GAME_STATUS.IN_PROGRESS,
+      period: null,
+      clockSeconds: null,
+      awayScore: 10,
+      homeScore: 24,
+      expected: "In progress 10–24",
+    },
+    {
+      name: "a live game with no score yet omits the score after the clock",
+      status: GAME_STATUS.IN_PROGRESS,
+      period: 1,
+      clockSeconds: 900,
+      awayScore: null,
+      homeScore: null,
+      expected: "Q1 15:00",
+    },
+  ])("$name", ({ status, period, clockSeconds, awayScore, homeScore, expected }) => {
+    expect(
+      gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore, period, clockSeconds }),
+    ).toBe(expected);
+  });
+});
+
+describe("gameStateAsOfLabel", () => {
+  const STATE_AS_OF = "2026-09-13T18:21:00.000Z";
+
+  it("shows the qualified stamp while the game is in progress", () => {
+    const label = gameStateAsOfLabel({ status: GAME_STATUS.IN_PROGRESS, stateAsOf: STATE_AS_OF });
+    expect(label?.startsWith("as of ")).toBe(true);
+  });
+
+  it.each([GAME_STATUS.SCHEDULED, GAME_STATUS.FINAL, GAME_STATUS.CANCELLED])(
+    "is null while the game is %s",
+    (status) => {
+      expect(gameStateAsOfLabel({ status, stateAsOf: STATE_AS_OF })).toBeNull();
+    },
+  );
 });
