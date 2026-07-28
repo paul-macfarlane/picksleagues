@@ -71,6 +71,9 @@ export async function getPickemStandings(
       image: users.image,
       points: pickemStandings.points,
       differential: pickemStandings.differential,
+      wins: pickemStandings.wins,
+      losses: pickemStandings.losses,
+      pushes: pickemStandings.pushes,
       updatedAt: pickemStandings.updatedAt,
     })
     .from(leagueMembers)
@@ -100,6 +103,11 @@ export async function getPickemStandings(
       memberId: row.leagueMemberId,
       points: row.points ?? 0,
       differential: row.differential ?? 0,
+      // Same zero-fill as points: the left join misses for a member with no
+      // settled row, and their record is genuinely 0-0-0 rather than unknown.
+      wins: row.wins ?? 0,
+      losses: row.losses ?? 0,
+      pushes: row.pushes ?? 0,
     })),
   );
 
@@ -114,6 +122,9 @@ export async function getPickemStandings(
       isViewer: row?.userId === userId,
       points: entry.points,
       differential: entry.differential,
+      wins: entry.wins,
+      losses: entry.losses,
+      pushes: entry.pushes,
       rank: entry.rank,
     };
   });

@@ -79,6 +79,9 @@ function snapshotStandings(rows: Awaited<ReturnType<typeof standingsFor>>) {
       weekId: row.weekId,
       points: row.points,
       differential: row.differential,
+      wins: row.wins,
+      losses: row.losses,
+      pushes: row.pushes,
       rank: row.rank,
     }));
 }
@@ -108,6 +111,46 @@ async function seedLeagueForSettlement(
       username: `member_${i}_${randomUUID().slice(0, 8)}`,
     })),
   });
+}
+
+/**
+ * One member holding a win, a loss, and a push in a single week, plus a second
+ * member who picked nothing — the smallest slate that exercises all three
+ * standings counts and their zero-fill.
+ */
+async function seedThreeOutcomeWeek() {
+  const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
+    weeks: [
+      {
+        weekNumber: 1,
+        kickoffs: [
+          { kickoffAt: WEEK1_KICKOFF },
+          { kickoffAt: WEEK1_KICKOFF },
+          { kickoffAt: WEEK1_KICKOFF },
+        ],
+      },
+    ],
+  });
+  const weekId = weekIds.get("regular:1")!;
+  const [g1, g2, g3] = gameIds.get("regular:1")!;
+  const picker = members.get(users[0]!.user.id)!;
+  const nonPicker = members.get(users[1]!.user.id)!;
+
+  for (const gameId of [g1!, g2!, g3!]) {
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: picker,
+      weekId,
+      gameId,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+  }
+
+  await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct, +14
+  await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 }); // incorrect, -14
+  await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // push
+
+  return { leagueSeasonId, weekId, picker, nonPicker };
 }
 
 describe("settleLeagueSeasonWeeks — results correctness", () => {
@@ -574,6 +617,69 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     expect(byMember.get(memberF)).toMatchObject({ points: 1, differential: 5, rank: 3 }); // skips rank 2
   });
 
+  it("counts each member's wins, losses and pushes, zero-filling a member with no picks", async () => {
+    const { leagueSeasonId, weekId, picker, nonPicker } = await seedThreeOutcomeWeek();
+
+    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+
+    const rows = await standingsFor(db, leagueSeasonId);
+    const weekly = (memberId: string) =>
+      rows.find((row) => row.weekId === weekId && row.leagueMemberId === memberId)!;
+    const season = (memberId: string) =>
+      rows.find((row) => row.weekId === null && row.leagueMemberId === memberId)!;
+
+    expect(weekly(picker)).toMatchObject({ wins: 1, losses: 1, pushes: 1, points: 1.5 });
+    expect(season(picker)).toMatchObject({ wins: 1, losses: 1, pushes: 1, points: 1.5 });
+    expect(weekly(nonPicker)).toMatchObject({ wins: 0, losses: 0, pushes: 0, points: 0 });
+    expect(season(nonPicker)).toMatchObject({ wins: 0, losses: 0, pushes: 0, points: 0 });
+  });
+
+  it("sums the season counts across weeks while each weekly row carries only its own", async () => {
+    const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
+      weeks: [
+        { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+        {
+          weekNumber: 2,
+          kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000) }],
+        },
+      ],
+    });
+    const week1Id = weekIds.get("regular:1")!;
+    const week2Id = weekIds.get("regular:2")!;
+    const [g1] = gameIds.get("regular:1")!;
+    const [g2] = gameIds.get("regular:2")!;
+    const memberId = members.get(users[0]!.user.id)!;
+
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: memberId,
+      weekId: week1Id,
+      gameId: g1!,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: memberId,
+      weekId: week2Id,
+      gameId: g2!,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect
+
+    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
+
+    const rows = await standingsFor(db, leagueSeasonId);
+    const row = (weekId: string | null) =>
+      rows.find((r) => r.weekId === weekId && r.leagueMemberId === memberId)!;
+
+    expect(row(week1Id)).toMatchObject({ wins: 1, losses: 0, pushes: 0 });
+    expect(row(week2Id)).toMatchObject({ wins: 0, losses: 1, pushes: 0 });
+    expect(row(null)).toMatchObject({ wins: 1, losses: 1, pushes: 0 });
+  });
+
   it("a member who submitted nothing appears with 0 points, weekly and season", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement();
     const weekId = weekIds.get("regular:1")!;
@@ -702,6 +808,30 @@ describe("settlement idempotency (arch D10)", () => {
     expect(resultsTwice).toEqual(resultsOnce);
     expect(standingsTwice).toHaveLength(standingsOnce.length);
     expect(standingsTwice).toEqual(standingsOnce);
+  });
+
+  it("re-settling a mixed week leaves the W/L/P counts identical, not accumulated", async () => {
+    // The counts are recounted from `pickem_pick_results` on every rebuild
+    // (arch D10). An incremental counter would double them here — this is the
+    // property that forbids one.
+    const { leagueSeasonId, weekId, picker } = await seedThreeOutcomeWeek();
+    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    const once = snapshotStandings(await standingsFor(db, leagueSeasonId));
+    expect(
+      once
+        .filter((row) => row.leagueMemberId === picker)
+        .map((row) => [row.wins, row.losses, row.pushes]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]); // weekly + season, both the real record
+
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await rebuildLeagueSeason(db, clock, leagueSeasonId);
+
+    expect(snapshotStandings(await standingsFor(db, leagueSeasonId))).toEqual(once);
   });
 
   it("rebuildLeagueSeason after an incremental settle produces identical state", async () => {

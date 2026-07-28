@@ -152,6 +152,10 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     const body = (await res.json()) as PickemStandingsResponse;
     expect(body.rows).toHaveLength(users.length);
     expect(body.rows.every((row) => row.points === 0 && row.differential === 0)).toBe(true);
+    // The record zero-fills the same way — 0-0-0 is a real record, not a gap.
+    expect(body.rows.every((row) => row.wins === 0 && row.losses === 0 && row.pushes === 0)).toBe(
+      true,
+    );
     expect(body.lastUpdatedAt).toBeNull();
   });
 
@@ -253,6 +257,56 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     expect(body.rows[0]).toMatchObject({ points: 1, differential: 10, rank: 1, isViewer: true });
     expect(body.rows[1]).toMatchObject({ points: 1, differential: 10, rank: 1, isViewer: false });
     expect(body.rows[2]).toMatchObject({ points: 1, differential: 5, rank: 3, isViewer: false }); // skips rank 2
+  });
+
+  it("serves each member's settled W/L/P, and 0-0-0 for one with nothing settled", async () => {
+    const { league, leagueSeasonId, weekIds, gameIds, users, members } = await seedStandingsLeague({
+      displayNames: ["Alpha", "Bravo"],
+      weeks: [
+        {
+          weekNumber: 1,
+          kickoffs: [
+            { kickoffAt: WEEK1_KICKOFF },
+            { kickoffAt: WEEK1_KICKOFF },
+            { kickoffAt: WEEK1_KICKOFF },
+          ],
+        },
+      ],
+    });
+    const weekId = weekIds.get("regular:1")!;
+    const [g1, g2, g3] = gameIds.get("regular:1")!;
+    const alpha = members.get(users[0]!.user.id)!;
+
+    for (const gameId of [g1!, g2!, g3!]) {
+      await insertPick(db, {
+        leagueSeasonId,
+        leagueMemberId: alpha,
+        weekId,
+        gameId,
+        side: PICKEM_PICK_SIDE.HOME,
+      });
+    }
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 }); // correct
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 }); // incorrect
+    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // push
+
+    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+
+    const body = (await (
+      await getStandings(users[0]!.cookie, league.id)
+    ).json()) as PickemStandingsResponse;
+
+    expect(body.rows.find((row) => row.displayName === "Alpha")).toMatchObject({
+      wins: 1,
+      losses: 1,
+      pushes: 1,
+    });
+    expect(body.rows.find((row) => row.displayName === "Bravo")).toMatchObject({
+      wins: 0,
+      losses: 0,
+      pushes: 0,
+    });
   });
 
   it("weekly board carries only that week's points, while the season board sums across weeks", async () => {

@@ -244,6 +244,7 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
     .select({
       leagueMemberId: pickemPickResults.leagueMemberId,
       weekId: pickemPickResults.weekId,
+      outcome: pickemPickResults.outcome,
       points: pickemPickResults.points,
       differential: pickemPickResults.differential,
     })
@@ -261,6 +262,7 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
   for (const result of results) {
     const outcome: ScoredOutcome = {
       memberId: result.leagueMemberId,
+      outcome: result.outcome,
       points: result.points,
       differential: result.differential,
     };
@@ -279,6 +281,12 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
         weekId,
         points: entry.points,
         differential: entry.differential,
+        // Recounted from the stored results on every rebuild, never
+        // incremented — the W/L/P counts are part of the same pure derivation
+        // as points and rank (arch D10).
+        wins: entry.wins,
+        losses: entry.losses,
+        pushes: entry.pushes,
         rank: entry.rank,
         updatedAt,
       })),
@@ -294,6 +302,9 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
       weekId: null,
       points: entry.points,
       differential: entry.differential,
+      wins: entry.wins,
+      losses: entry.losses,
+      pushes: entry.pushes,
       rank: entry.rank,
       updatedAt,
     })),

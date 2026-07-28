@@ -673,7 +673,7 @@ export interface components {
         JobRunResponse: {
             job: string;
             /** @enum {string} */
-            status: "ok" | "error";
+            status: "ok" | "skipped" | "error";
             durationMs: number;
             details?: {
                 [key: string]: string | number | boolean;
@@ -956,6 +956,9 @@ export interface components {
             isViewer: boolean;
             points: number;
             differential: number;
+            wins: number;
+            losses: number;
+            pushes: number;
             rank: number;
         };
         PickemWeekPicksResponse: {

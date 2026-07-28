@@ -32,6 +32,14 @@ export const PickemStandingsRowSchema = z
      * members on equal points are ordered as they are.
      */
     differential: z.number(),
+    /**
+     * The member's settled record over the period — how many picks resolved
+     * correct, incorrect, and push. Display only: the spec's tiebreakers stop
+     * at the differential, so a better record never changes an ordering.
+     */
+    wins: z.number().int(),
+    losses: z.number().int(),
+    pushes: z.number().int(),
     /** Members level on points and differential share a rank. */
     rank: z.number().int(),
   })

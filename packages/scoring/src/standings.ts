@@ -1,22 +1,41 @@
+import { PICK_OUTCOME, type PickOutcome } from "@picksleagues/schemas";
+
 /**
  * Standings derivation (spec §Game Mode 1 — Standings, Tiebreakers).
  *
  * Pure, and mode-agnostic on purpose: it consumes scored outcomes, not picks,
  * so Elimination and March Madness rank through the same two functions once
- * their scoring modules produce points and a differential.
+ * their scoring modules produce points and a differential. `PICK_OUTCOME` is
+ * itself the shared outcome set (Pick'em grades against it and so does March
+ * Madness), so tallying it here keeps that property.
  */
 
 export interface ScoredOutcome {
   memberId: string;
+  /** How the pick resolved — tallied into the W/L/P counts below. */
+  outcome: PickOutcome;
   points: number;
   differential: number;
 }
 
-export interface StandingsEntry {
+/** A member's settled record over the period. Display data, never a tiebreaker. */
+export interface OutcomeCounts {
+  wins: number;
+  losses: number;
+  pushes: number;
+}
+
+export interface StandingsEntry extends OutcomeCounts {
   memberId: string;
   points: number;
   differential: number;
 }
+
+const COUNT_KEY = {
+  [PICK_OUTCOME.CORRECT]: "wins",
+  [PICK_OUTCOME.INCORRECT]: "losses",
+  [PICK_OUTCOME.PUSH]: "pushes",
+} as const satisfies Record<PickOutcome, keyof OutcomeCounts>;
 
 export interface RankedStandingsEntry extends StandingsEntry {
   rank: number;
@@ -33,7 +52,10 @@ export function aggregateStandings(
   memberIds: readonly string[],
 ): StandingsEntry[] {
   const totals = new Map<string, StandingsEntry>(
-    memberIds.map((memberId) => [memberId, { memberId, points: 0, differential: 0 }]),
+    memberIds.map((memberId) => [
+      memberId,
+      { memberId, points: 0, differential: 0, wins: 0, losses: 0, pushes: 0 },
+    ]),
   );
 
   for (const outcome of outcomes) {
@@ -45,6 +67,7 @@ export function aggregateStandings(
     }
     entry.points += outcome.points;
     entry.differential += outcome.differential;
+    entry[COUNT_KEY[outcome.outcome]] += 1;
   }
 
   return [...totals.values()];
@@ -55,6 +78,9 @@ export function aggregateStandings(
  * (spec §Tiebreakers). Members level on both **share** a rank, and the next
  * rank skips accordingly — standard competition ranking, so two members tied
  * for 1st are followed by 3rd, not 2nd.
+ *
+ * The W/L/P counts deliberately take no part in the ordering: the spec exhausts
+ * its tiebreakers at the differential, so a better record breaks nothing.
  *
  * Returned in rank order, which is also the order a leaderboard renders.
  */

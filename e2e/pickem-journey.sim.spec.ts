@@ -83,14 +83,17 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   let game1: SlateGameSummary;
   let game4: SlateGameSummary;
 
+  // Columns, in order: Rank, Member, W-L-P, Pts, Diff (pickem-standings-table.tsx).
   function assertStandingsRows(table: Locator) {
     const commishRow = table.locator("tr", { hasText: commishName });
     const joinerRow = table.locator("tr", { hasText: joinerName });
     return Promise.all([
-      expect(commishRow.locator("td").nth(2)).toHaveText("4"),
-      expect(commishRow.locator("td").nth(3)).toHaveText("+35"),
-      expect(joinerRow.locator("td").nth(2)).toHaveText("0"),
-      expect(joinerRow.locator("td").nth(3)).toHaveText("-35"),
+      expect(commishRow.locator("td").nth(2)).toHaveText("4-0-0"),
+      expect(commishRow.locator("td").nth(3)).toHaveText("4"),
+      expect(commishRow.locator("td").nth(4)).toHaveText("+35"),
+      expect(joinerRow.locator("td").nth(2)).toHaveText("0-4-0"),
+      expect(joinerRow.locator("td").nth(3)).toHaveText("0"),
+      expect(joinerRow.locator("td").nth(4)).toHaveText("-35"),
     ]);
   }
 

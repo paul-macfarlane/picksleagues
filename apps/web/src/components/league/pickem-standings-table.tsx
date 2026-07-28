@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import type { PickemStandingsRow } from "@picksleagues/schemas";
 import { usePickemStandings } from "@/api/pickem";
 import { formatDateTime } from "@/lib/format";
 import { useErrorToast } from "@/lib/use-error-toast";
@@ -21,12 +24,148 @@ export function rankLabel(rank: number, sharedCounts: Map<number, number>): stri
   return (sharedCounts.get(rank) ?? 0) > 1 ? `T-${rank}` : `${rank}`;
 }
 
+export const STANDINGS_SORT_COLUMN = {
+  RANK: "rank",
+  MEMBER: "member",
+  RECORD: "record",
+  POINTS: "points",
+  DIFFERENTIAL: "differential",
+} as const;
+
+export type StandingsSortColumn =
+  (typeof STANDINGS_SORT_COLUMN)[keyof typeof STANDINGS_SORT_COLUMN];
+
+export const SORT_DIRECTION = { ASCENDING: "ascending", DESCENDING: "descending" } as const;
+
+// Named for the `aria-sort` token set so the attribute is the value itself
+// rather than a mapping this file has to keep in sync.
+export type SortDirection = (typeof SORT_DIRECTION)[keyof typeof SORT_DIRECTION];
+
+export interface StandingsSort {
+  column: StandingsSortColumn;
+  direction: SortDirection;
+}
+
+/**
+ * Rank ascending is the league's actual standing, so it is what loads — sorting
+ * is a lens over the board, never a replacement for it.
+ */
+export const DEFAULT_STANDINGS_SORT: StandingsSort = {
+  column: STANDINGS_SORT_COLUMN.RANK,
+  direction: SORT_DIRECTION.ASCENDING,
+};
+
+// The direction a column takes on its *first* click: best-first for the scoring
+// columns, natural order for rank and name.
+const INITIAL_DIRECTION: Record<StandingsSortColumn, SortDirection> = {
+  [STANDINGS_SORT_COLUMN.RANK]: SORT_DIRECTION.ASCENDING,
+  [STANDINGS_SORT_COLUMN.MEMBER]: SORT_DIRECTION.ASCENDING,
+  [STANDINGS_SORT_COLUMN.RECORD]: SORT_DIRECTION.DESCENDING,
+  [STANDINGS_SORT_COLUMN.POINTS]: SORT_DIRECTION.DESCENDING,
+  [STANDINGS_SORT_COLUMN.DIFFERENTIAL]: SORT_DIRECTION.DESCENDING,
+};
+
+/** Clicking the sorted column reverses it; clicking another one adopts its default. */
+export function nextStandingsSort(
+  current: StandingsSort,
+  column: StandingsSortColumn,
+): StandingsSort {
+  if (current.column !== column) return { column, direction: INITIAL_DIRECTION[column] };
+  return {
+    column,
+    direction:
+      current.direction === SORT_DIRECTION.ASCENDING
+        ? SORT_DIRECTION.DESCENDING
+        : SORT_DIRECTION.ASCENDING,
+  };
+}
+
+function compareAscending(
+  column: StandingsSortColumn,
+  a: PickemStandingsRow,
+  b: PickemStandingsRow,
+): number {
+  switch (column) {
+    case STANDINGS_SORT_COLUMN.RANK:
+      return a.rank - b.rank;
+    case STANDINGS_SORT_COLUMN.MEMBER:
+      return a.displayName.localeCompare(b.displayName);
+    // The record column's headline number. Its other two figures are shown, not
+    // ordered on — inventing "then fewer losses" here would be a scoring rule
+    // the spec doesn't have.
+    case STANDINGS_SORT_COLUMN.RECORD:
+      return a.wins - b.wins;
+    case STANDINGS_SORT_COLUMN.POINTS:
+      return a.points - b.points;
+    case STANDINGS_SORT_COLUMN.DIFFERENTIAL:
+      return a.differential - b.differential;
+  }
+}
+
+/**
+ * Reorders the rows the server already ranked. Deliberately *only* a reordering:
+ * `rank` is competition ranking computed server-side (ties share a rank), so it
+ * travels with its row untouched — a member sorted to the top of a
+ * differential-sorted board is still whatever rank the league says they are.
+ *
+ * Stable by construction (`Array#sort` is), so rows the comparator calls equal
+ * keep the server's display-name order rather than shuffling between renders.
+ */
+export function sortStandingsRows(
+  rows: readonly PickemStandingsRow[],
+  sort: StandingsSort,
+): PickemStandingsRow[] {
+  const factor = sort.direction === SORT_DIRECTION.ASCENDING ? 1 : -1;
+  return [...rows].sort((a, b) => factor * compareAscending(sort.column, a, b));
+}
+
+function SortableHeader({
+  label,
+  column,
+  sort,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  column: StandingsSortColumn;
+  sort: StandingsSort;
+  onSort: (sort: StandingsSort) => void;
+  align?: "left" | "right";
+}) {
+  const isActive = sort.column === column;
+  const next = nextStandingsSort(sort, column);
+  const Indicator = sort.direction === SORT_DIRECTION.ASCENDING ? ArrowUpIcon : ArrowDownIcon;
+
+  return (
+    // `aria-sort` belongs on the header cell, and only the sorted one carries a
+    // direction — "none" everywhere else.
+    <th scope="col" aria-sort={isActive ? sort.direction : "none"} className="p-0">
+      <button
+        type="button"
+        onClick={() => onSort(next)}
+        // Names the *action*, and keeps the visible label inside it so voice
+        // control still matches what's on screen (WCAG 2.5.3).
+        aria-label={`Sort by ${label}, ${next.direction}`}
+        className={cn(
+          "flex w-full items-center gap-0.5 px-2 py-2 font-medium outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+          align === "right" ? "justify-end" : "justify-start",
+          isActive && "text-foreground",
+        )}
+      >
+        <span className="truncate">{label}</span>
+        {isActive ? <Indicator aria-hidden="true" className="size-3 shrink-0" /> : null}
+      </button>
+    </th>
+  );
+}
+
 export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; weekId?: string }) {
   const standings = usePickemStandings(leagueId, weekId);
+  const [sort, setSort] = useState<StandingsSort>(DEFAULT_STANDINGS_SORT);
 
   useErrorToast(standings.isError, "Couldn't load standings — please try again.");
 
-  const rows = standings.data?.rows ?? [];
+  const rows = sortStandingsRows(standings.data?.rows ?? [], sort);
   const lastUpdatedAt = standings.data?.lastUpdatedAt;
 
   const sharedCounts = new Map<number, number>();
@@ -48,32 +187,57 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
             Nothing has settled yet — standings appear once the period&apos;s games go final.
           </p>
         ) : (
-          // `table-fixed` with explicit widths on the narrow numeric columns
-          // (rather than a wider table inside an `overflow-x-auto` wrapper) so
-          // Pts/Diff — required alongside points (spec) — stay on-screen at
-          // phone width instead of sitting past an unscrolled edge.
+          // `table-fixed` with explicit widths on the narrow columns (rather
+          // than a wider table inside an `overflow-x-auto` wrapper) so Pts/Diff
+          // — required alongside points (spec) — stay on-screen at phone width
+          // instead of sitting past an unscrolled edge. The record column is a
+          // single "W-L-P" cell for the same reason: three more numeric columns
+          // would not fit, and the widths here are sized for the sorted
+          // column's arrow as well as the label.
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full table-fixed text-sm">
               <colgroup>
-                <col className="w-11" />
+                <col className="w-14" />
                 <col />
-                <col className="w-10" />
+                <col className="w-16" />
+                <col className="w-12" />
                 <col className="w-14" />
               </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted/50 text-left text-xs font-medium text-muted-foreground">
-                  <th scope="col" className="px-2 py-2">
-                    Rank
-                  </th>
-                  <th scope="col" className="px-2 py-2">
-                    Member
-                  </th>
-                  <th scope="col" className="px-2 py-2 text-right">
-                    Pts
-                  </th>
-                  <th scope="col" className="px-2 py-2 text-right">
-                    Diff
-                  </th>
+                  <SortableHeader
+                    label="Rank"
+                    column={STANDINGS_SORT_COLUMN.RANK}
+                    sort={sort}
+                    onSort={setSort}
+                  />
+                  <SortableHeader
+                    label="Member"
+                    column={STANDINGS_SORT_COLUMN.MEMBER}
+                    sort={sort}
+                    onSort={setSort}
+                  />
+                  <SortableHeader
+                    label="W-L-P"
+                    column={STANDINGS_SORT_COLUMN.RECORD}
+                    sort={sort}
+                    onSort={setSort}
+                    align="right"
+                  />
+                  <SortableHeader
+                    label="Pts"
+                    column={STANDINGS_SORT_COLUMN.POINTS}
+                    sort={sort}
+                    onSort={setSort}
+                    align="right"
+                  />
+                  <SortableHeader
+                    label="Diff"
+                    column={STANDINGS_SORT_COLUMN.DIFFERENTIAL}
+                    sort={sort}
+                    onSort={setSort}
+                    align="right"
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -89,9 +253,9 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                       {rankLabel(row.rank, sharedCounts)}
                     </td>
                     <td className="px-2 py-2">
-                      {/* Compact: Rank/Pts/Diff already claim fixed width (~171px
-                          total at 375px), so the username is dropped rather than
-                          truncating the name (repo owner's decided rule). */}
+                      {/* Compact: the numeric columns claim fixed width, so the
+                          username is dropped rather than truncating the name
+                          (repo owner's decided rule). */}
                       <UserIdentity
                         displayName={row.displayName}
                         username={row.username}
@@ -100,6 +264,9 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                         variant="compact"
                         avatarSize="sm"
                       />
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs tabular-nums">
+                      {row.wins}-{row.losses}-{row.pushes}
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">{row.points}</td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">

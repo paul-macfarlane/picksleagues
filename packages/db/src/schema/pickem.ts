@@ -149,6 +149,22 @@ export const pickemStandings = pgTable(
     weekId: uuid("week_id").references(() => weeks.id, { onDelete: "restrict" }),
     points: doublePrecision("points").notNull(),
     differential: doublePrecision("differential").notNull(),
+    /**
+     * The member's settled record over the row's period — display only, never a
+     * tiebreaker (the spec stops at points then differential). Counted from
+     * `pickem_pick_results.outcome` on every rebuild like everything else here,
+     * so the board stays fully recomputable from (picks, results, settings):
+     * no incremental counter path may write these.
+     *
+     * `default(0)` exists for the expand/contract window, not for callers — the
+     * migration workflow races the Vercel deploy (ADR-0003), so the previous
+     * deploy's insert must still satisfy the constraint. Settlement always
+     * writes all three explicitly, and the next settle overwrites any
+     * default-filled row wholesale.
+     */
+    wins: integer("wins").notNull().default(0),
+    losses: integer("losses").notNull().default(0),
+    pushes: integer("pushes").notNull().default(0),
     /** Ties share a rank (spec §Tiebreakers), so this is not unique. */
     rank: integer("rank").notNull(),
     /** Serves the "last updated" stamp the spec requires on standings views. */
