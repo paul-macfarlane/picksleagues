@@ -105,7 +105,10 @@ test.describe("identity", () => {
       await expect(page.locator("#username-error")).toHaveText("That username is already taken.");
 
       await openAccountMenu(page);
-      await expect(page.getByText(newDisplayName)).toBeVisible();
+      // Scoped to the menu: the profile page itself now renders the display
+      // name too (UserIdentity), so an unscoped match is ambiguous — and the
+      // claim under test is specifically that the *menu* picked up the change.
+      await expect(page.getByRole("menu").getByText(newDisplayName)).toBeVisible();
     } finally {
       await cleanup([user.id, otherUser.id]);
     }

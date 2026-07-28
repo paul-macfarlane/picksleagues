@@ -209,7 +209,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await selectPick(pageA, "PHI", "DAL", "DAL");
     await selectPick(pageA, "SEA", "SF", "SF");
     await pageA.getByRole("button", { name: "Save picks" }).click();
-    await expect(pageA.getByText("4 / 4 picked")).toBeVisible();
+    await expect(pageA.getByText("4 of 4 picks")).toBeVisible();
     await expect(pageA.getByRole("button", { name: "Save picks" })).toBeDisabled();
 
     // Joiner: the four losers — the exact inverse, so the two members' points
@@ -221,7 +221,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await selectPick(pageB, "PHI", "DAL", "PHI");
     await selectPick(pageB, "SEA", "SF", "SEA");
     await pageB.getByRole("button", { name: "Save picks" }).click();
-    await expect(pageB.getByText("4 / 4 picked")).toBeVisible();
+    await expect(pageB.getByText("4 of 4 picks")).toBeVisible();
     await expect(pageB.getByRole("button", { name: "Save picks" })).toBeDisabled();
   });
 
