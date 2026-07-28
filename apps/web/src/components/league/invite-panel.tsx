@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { LabeledDateTimeField } from "@/components/labeled-date-time-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -140,15 +141,12 @@ function NewInviteForm({
     >
       <h3 className="text-sm font-semibold text-foreground">New invite</h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="invite-expires-at">Expires (optional)</Label>
-          <Input
-            id="invite-expires-at"
-            type="datetime-local"
-            value={expiresAt}
-            onChange={(event) => setExpiresAt(event.target.value)}
-          />
-        </div>
+        <LabeledDateTimeField
+          id="invite-expires-at"
+          label="Expires (optional)"
+          value={expiresAt}
+          onChange={setExpiresAt}
+        />
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="invite-max-uses">Max uses (optional)</Label>
           <Input

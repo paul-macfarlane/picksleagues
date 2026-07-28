@@ -9,11 +9,10 @@ import {
 import { useAdminSeasons } from "@/api/admin";
 import { useAdjustSimClock } from "@/api/sim";
 import { formatDateTime, toLocalDateTimeInputValue } from "@/lib/format";
+import { LabeledDateTimeField } from "@/components/labeled-date-time-field";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SimControlRow } from "@/components/sim/sim-control-row";
 
 const MINUTE_MS = 60_000;
@@ -224,17 +223,15 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
           description="Type or pick any instant to position the clock at."
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="sim-clock-instant">Instant</Label>
-              {/* A native datetime picker, not a TanStack Form field: there's
-                  no free-text validation surface here to wire a Zod schema
-                  against, and this is a sibling of the plain selects above,
-                  not a data-entry form. */}
-              <Input
+            <div className="flex-1">
+              {/* Not a TanStack Form field: there's no free-text validation
+                  surface here to wire a Zod schema against, and this is a
+                  sibling of the plain selects above, not a data-entry form. */}
+              <LabeledDateTimeField
                 id="sim-clock-instant"
-                type="datetime-local"
+                label="Instant"
                 value={instantValue}
-                onChange={(event) => setInstantValue(event.target.value)}
+                onChange={setInstantValue}
               />
             </div>
             <Button
