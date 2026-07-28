@@ -99,11 +99,24 @@ export async function setGameOverride(
      * series of requests can either. Do not "simplify" this back into a
      * per-request diff of individual fields.
      *
-     * Comparing against `before` at all is what keeps a row that a provider bug
-     * already left violating (kickoff in the future on a game it reports final,
-     * no override in sight) fully editable: the violation pre-exists, so score
-     * and spread corrections on it still land, while nothing may deepen it into
-     * a *new* violation.
+     * Comparing against `before` at all is what keeps an already-violating row
+     * fully editable: the violation pre-exists, so score and spread corrections
+     * on it still land. Note this is a genuine carve-out, not a no-op — every
+     * request on such a row is permitted, including ones that leave it
+     * violating. `V` is a boolean; there is no depth to refuse.
+     *
+     * Two routes reach that state, and neither is admission-controllable here.
+     * A provider bug (a future kickoff on a game it already reports final), and
+     * — legitimately — an admin moving a kickoff *later* on a scheduled unscored
+     * game, which is allowed because nothing is knowable yet, after which
+     * `sync-scores` gates on the **provider** kickoff (not the effective one)
+     * and writes the final score while our effective kickoff is still ahead.
+     * Ingestion writes only provider columns and must never fail on account of a
+     * correction, so it cannot consult this guard. Detecting and repairing
+     * `unlocked ∧ outcome-knowable` rows is therefore an operational concern
+     * (ADM-3's audit surface is the natural home), not something this endpoint
+     * can prevent. What it *does* guarantee: nothing an admin does through this
+     * API moves a non-violating row into the carve-out.
      *
      * The legitimate cases survive: moving a kickoff earlier only ever locks, a
      * genuinely postponed game with no score anywhere is still reschedulable,
