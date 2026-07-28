@@ -1,8 +1,8 @@
 import { MEMBER_ROLE, type LeagueMember, type LeagueResponse } from "@picksleagues/schemas";
 import { useKickMember, useLeaveLeague, useUpdateMemberRole } from "@/api/members";
 import { authClient } from "@/lib/auth";
+import { formatDate } from "@/lib/format";
 import { memberRoleLabel } from "@/lib/league";
-import { initialsOf } from "@/lib/user";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,9 +14,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { UserIdentity } from "@/components/user-identity";
 
 export function MembersSection({
   league,
@@ -121,25 +121,18 @@ function MemberRow({
   isRolePending: boolean;
   isKickPending: boolean;
 }) {
-  const initials = initialsOf(member.displayName);
-
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
-      <div className="flex items-center gap-3">
-        <Avatar>
-          <AvatarImage src={member.image ?? undefined} alt="" />
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-foreground">{member.displayName}</span>
-          {member.username && (
-            <span className="text-xs text-muted-foreground">@{member.username}</span>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {memberRoleLabel(member.role)} · Joined {new Date(member.joinedAt).toLocaleDateString()}
-          </span>
-        </div>
-      </div>
+      <UserIdentity
+        displayName={member.displayName}
+        username={member.username}
+        image={member.image}
+        isViewer={isOwnRow}
+      >
+        <span className="block truncate text-xs text-muted-foreground">
+          {memberRoleLabel(member.role)} · Joined {formatDate(member.joinedAt)}
+        </span>
+      </UserIdentity>
       {isCommissioner && (
         <div className="flex items-center gap-2">
           {member.role === MEMBER_ROLE.COMMISSIONER ? (

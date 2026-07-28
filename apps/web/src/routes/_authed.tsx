@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { SimClockBanner } from "@/components/sim-clock-banner";
+import { UserIdentity } from "@/components/user-identity";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -263,10 +264,15 @@ function SessionMenu() {
             Menu.GroupLabel and throws at runtime unless nested in a Group. */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <span className="block truncate text-sm text-foreground">{displayName}</span>
-            <span className="block truncate font-normal text-muted-foreground">
-              {handleOf(session.user)}
-            </span>
+            {/* Text-only: the trigger above already renders the avatar. handleOf's
+                email fallback is correct here — this is the viewer's own,
+                possibly pre-claim, account (see UserIdentity's secondaryOverride). */}
+            <UserIdentity
+              displayName={displayName}
+              username={session.user.username}
+              showAvatar={false}
+              secondaryOverride={handleOf(session.user)}
+            />
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

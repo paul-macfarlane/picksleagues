@@ -11,11 +11,10 @@ import { useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText, spreadLabel } from "@/lib/game";
-import { initialsOf } from "@/lib/user";
 import { useErrorToast } from "@/lib/use-error-toast";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
+import { UserIdentity } from "@/components/user-identity";
 
 // The week/pick detail screen (spec Screens inventory): every member's picks
 // for one week, joined against that week's slate so each pick renders as a
@@ -96,16 +95,13 @@ function MemberPicksRow({
       data-testid="member-picks-row"
       className="flex flex-col gap-2 border-b border-border pb-4 last:border-0 last:pb-0"
     >
-      <div className="flex items-center gap-2">
-        <Avatar size="sm">
-          <AvatarImage src={member.image ?? undefined} alt="" />
-          <AvatarFallback>{initialsOf(member.displayName)}</AvatarFallback>
-        </Avatar>
-        <span className="text-sm font-medium text-foreground">
-          {member.displayName}
-          {member.isViewer && <span className="text-muted-foreground"> (You)</span>}
-        </span>
-      </div>
+      <UserIdentity
+        displayName={member.displayName}
+        username={member.username}
+        image={member.image}
+        isViewer={member.isViewer}
+        avatarSize="sm"
+      />
 
       {member.picks.length === 0 && member.hiddenPickCount === 0 && (
         <p className="pl-8 text-xs text-muted-foreground">No picks submitted.</p>

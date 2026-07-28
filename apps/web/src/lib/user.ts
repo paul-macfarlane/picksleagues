@@ -22,3 +22,22 @@ export function initialsOf(name: string): string {
       .toUpperCase() || "?"
   );
 }
+
+// The decided identity display rule (PKM UX feedback): display name is
+// primary, @username is secondary and shown wherever there's room; on the
+// tightest surfaces the username is dropped rather than truncating the name.
+// `UserIdentity` (components/user-identity.tsx) is the one renderer of this
+// rule; this is the pure "does this variant show a username" decision,
+// extracted so it's table-tested without a component render (the vitest
+// `unit` project is node-only — see pickem-standings-table.test.ts).
+export type UserIdentityVariant = "roomy" | "compact";
+
+export function identityLines(
+  user: { displayName: string; username?: string | null },
+  variant: UserIdentityVariant,
+): { primary: string; secondary: string | null } {
+  return {
+    primary: user.displayName,
+    secondary: variant === "roomy" && user.username ? `@${user.username}` : null,
+  };
+}

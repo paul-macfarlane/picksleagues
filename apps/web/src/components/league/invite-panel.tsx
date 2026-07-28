@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,7 +74,7 @@ function InviteRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium text-foreground capitalize">{invite.status}</span>
         <span className="text-xs text-muted-foreground">
-          Created {new Date(invite.createdAt).toLocaleDateString()}
+          Created {formatDate(invite.createdAt)}
         </span>
       </div>
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

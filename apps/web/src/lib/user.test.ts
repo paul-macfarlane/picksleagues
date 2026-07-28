@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayNameOf, handleOf, initialsOf } from "./user";
+import { displayNameOf, handleOf, identityLines, initialsOf } from "./user";
 
 describe("displayNameOf", () => {
   it.each([
@@ -18,6 +18,38 @@ describe("handleOf", () => {
     { user: { email: "jane@example.com" }, expected: "jane@example.com" },
   ])("returns $expected for $user", ({ user, expected }) => {
     expect(handleOf(user)).toBe(expected);
+  });
+});
+
+describe("identityLines", () => {
+  it.each([
+    {
+      user: { displayName: "Jane Doe", username: "janedoe" },
+      variant: "roomy" as const,
+      expected: { primary: "Jane Doe", secondary: "@janedoe" },
+    },
+    {
+      user: { displayName: "Jane Doe", username: null },
+      variant: "roomy" as const,
+      expected: { primary: "Jane Doe", secondary: null },
+    },
+    {
+      user: { displayName: "Jane Doe" },
+      variant: "roomy" as const,
+      expected: { primary: "Jane Doe", secondary: null },
+    },
+    {
+      user: { displayName: "Jane Doe", username: "janedoe" },
+      variant: "compact" as const,
+      expected: { primary: "Jane Doe", secondary: null },
+    },
+    {
+      user: { displayName: "Jane Doe", username: null },
+      variant: "compact" as const,
+      expected: { primary: "Jane Doe", secondary: null },
+    },
+  ])("$variant with $user -> $expected", ({ user, variant, expected }) => {
+    expect(identityLines(user, variant)).toEqual(expected);
   });
 });
 

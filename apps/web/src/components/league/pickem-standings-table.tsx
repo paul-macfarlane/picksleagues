@@ -1,10 +1,9 @@
 import { usePickemStandings } from "@/api/pickem";
 import { formatDateTime } from "@/lib/format";
-import { initialsOf } from "@/lib/user";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { QueryState } from "@/components/query-state";
+import { UserIdentity } from "@/components/user-identity";
 
 // Signed so a viewer can tell a favorable differential from an unfavorable one
 // at a glance — zero renders plain, matching the pick entry card's spread label.
@@ -90,16 +89,17 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                       {rankLabel(row.rank, sharedCounts)}
                     </td>
                     <td className="px-2 py-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <Avatar size="sm" className="shrink-0">
-                          <AvatarImage src={row.image ?? undefined} alt="" />
-                          <AvatarFallback>{initialsOf(row.displayName)}</AvatarFallback>
-                        </Avatar>
-                        <span className="min-w-0 truncate text-foreground">
-                          {row.displayName}
-                          {row.isViewer && <span className="text-muted-foreground"> (You)</span>}
-                        </span>
-                      </div>
+                      {/* Compact: Rank/Pts/Diff already claim fixed width (~171px
+                          total at 375px), so the username is dropped rather than
+                          truncating the name (repo owner's decided rule). */}
+                      <UserIdentity
+                        displayName={row.displayName}
+                        username={row.username}
+                        image={row.image}
+                        isViewer={row.isViewer}
+                        variant="compact"
+                        avatarSize="sm"
+                      />
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">{row.points}</td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">
