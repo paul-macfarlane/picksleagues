@@ -126,3 +126,28 @@ reach — its fixture has exactly as many games as picks allowed, so the cap and
 close together. The gap only opens when the cap is smaller than the slate, which is the
 ordinary configuration for a real NFL week. A UI predicate about whether to show a
 control belongs downstream of whether that control can do anything, not alongside it.
+
+## Round 4 — provisional pick standing + score attribution (2026-07-29)
+
+Two items raised as questions during round 3's review, both answered "build it".
+
+| # | Item | Resolution |
+| --- | --- | --- |
+| 1 | Show whether an in-progress pick is currently winning/losing/pushing? | **Yes, as a reading rather than a verdict.** Written into the spec under §UI conventions before building. The value is real and concentrated in ATS: applying a home-relative spread to an away-first score is three steps a member will not do for five picks mid-Sunday. The constraints are what make it safe — a signed magnitude ("covering by 7.5", "up 4") never an outcome word, no colour and no glyph, only while in progress, beside the existing "as of" stamp, and **never aggregated** into a projected standing. |
+| 2 | Unclear who has which score on a pick card | Every score now names its teams (`MIA 17 – BUF 27`) instead of rendering a bare away-first pair. One formatter in `gameStateLabel`, so both pick surfaces change together; the admin tables keep the raw `scoreText`, where the teams already have their own columns. |
+
+**The anti-drift decision worth recording:** the provisional margin is computed by
+`packages/scoring`'s `pickMargin` — extracted from the private `marginForPick` that
+settlement already used — rather than reimplemented in the web app. Duplicating four
+lines of sign arithmetic would have been easier, and the failure it invites is the one
+that would cost the most trust: a row reading "covering by 3" and then grading
+"Incorrect" with no score change in between. `apps/web` now depends on
+`@picksleagues/scoring`, which the purity rule permits (it forbids what that package may
+import, not who may consume it).
+
+Extracting it surfaced a latent wart: negating a zero margin yields `-0`, which is
+numerically zero but not `Object.is`-equal to it. Harmless in every comparison the code
+performs, but this value is persisted as the tiebreaker `differential` and formatted for
+display, so it is now normalised at the source. Found by a unit test asserting the new
+export directly — the transitive coverage through `settlePickemWeek` never compared a
+zero margin by identity.

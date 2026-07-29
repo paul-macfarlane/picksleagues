@@ -12,6 +12,7 @@ import {
 } from "@picksleagues/schemas";
 import {
   PICKEM_UNSETTLED_REASON,
+  pickMargin,
   settlePickemWeek,
   type PickemGameResult,
   type PickemPickInput,
@@ -563,5 +564,115 @@ describe("settlePickemWeek — week shapes", () => {
     settlePickemWeek(picks, games, settings(PICK_TYPE.STRAIGHT_UP));
 
     expect(JSON.stringify({ picks, games })).toBe(snapshot);
+  });
+});
+
+/**
+ * `pickMargin` is exercised throughout `settlePickemWeek` above; these cases
+ * cover it as an exported surface, because the pick UI now calls it directly to
+ * show where an unfinished pick stands. Sharing this function is what keeps a
+ * live "covering by 3" from ever contradicting the grade that follows it, so its
+ * sign convention deserves pinning independently of settlement.
+ */
+describe("pickMargin", () => {
+  it.each([
+    {
+      name: "SU home pick: positive when the home side leads",
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: null,
+      homeScore: 21,
+      awayScore: 17,
+      pickType: PICK_TYPE.STRAIGHT_UP,
+      expected: 4,
+    },
+    {
+      name: "SU away pick: mirrors the home margin",
+      side: PICKEM_PICK_SIDE.AWAY,
+      spreadAtPick: null,
+      homeScore: 21,
+      awayScore: 17,
+      pickType: PICK_TYPE.STRAIGHT_UP,
+      expected: -4,
+    },
+    {
+      name: "SU tie is zero on both sides",
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: null,
+      homeScore: 20,
+      awayScore: 20,
+      pickType: PICK_TYPE.STRAIGHT_UP,
+      expected: 0,
+    },
+    {
+      // A home underdog getting 3.5 that wins outright by 4 beats the number by
+      // 7.5 — the arithmetic a member cannot do in their head mid-game, and the
+      // reason the indicator exists.
+      name: "ATS home underdog winning outright beats the number by margin + spread",
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: 3.5,
+      homeScore: 21,
+      awayScore: 17,
+      pickType: PICK_TYPE.AGAINST_THE_SPREAD,
+      expected: 7.5,
+    },
+    {
+      name: "ATS away side of the same game is its mirror image",
+      side: PICKEM_PICK_SIDE.AWAY,
+      spreadAtPick: 3.5,
+      homeScore: 21,
+      awayScore: 17,
+      pickType: PICK_TYPE.AGAINST_THE_SPREAD,
+      expected: -7.5,
+    },
+    {
+      name: "ATS home favourite winning by less than the number is short",
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: -7,
+      homeScore: 24,
+      awayScore: 20,
+      pickType: PICK_TYPE.AGAINST_THE_SPREAD,
+      expected: -3,
+    },
+    {
+      name: "ATS landing exactly on a whole number is zero — a push",
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: -4,
+      homeScore: 24,
+      awayScore: 20,
+      pickType: PICK_TYPE.AGAINST_THE_SPREAD,
+      expected: 0,
+    },
+    {
+      name: "a scoreless game is zero, not null",
+      side: PICKEM_PICK_SIDE.AWAY,
+      spreadAtPick: null,
+      homeScore: 0,
+      awayScore: 0,
+      pickType: PICK_TYPE.STRAIGHT_UP,
+      expected: 0,
+    },
+  ])("$name", ({ side, spreadAtPick, homeScore, awayScore, pickType, expected }) => {
+    expect(pickMargin({ side, spreadAtPick }, homeScore, awayScore, pickType)).toBe(expected);
+  });
+
+  // Nothing to compare against. Settlement treats this as a loader bug and
+  // throws; a read path just renders no indicator.
+  it("is null for an ATS pick with no spread", () => {
+    expect(
+      pickMargin(
+        { side: PICKEM_PICK_SIDE.HOME, spreadAtPick: null },
+        21,
+        17,
+        PICK_TYPE.AGAINST_THE_SPREAD,
+      ),
+    ).toBeNull();
+  });
+
+  // The spread is meaningless in SU (`PickemPickInput.spreadAtPick`), so a
+  // stray one must not tilt the result.
+  it("ignores a stray spread in a straight-up league", () => {
+    expect(
+      pickMargin({ side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -7 }, 21, 17, PICK_TYPE.STRAIGHT_UP),
+    ).toBe(4);
   });
 });

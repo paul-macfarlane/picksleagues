@@ -114,6 +114,9 @@ importers:
       '@picksleagues/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
+      '@picksleagues/scoring':
+        specifier: workspace:*
+        version: link:../../packages/scoring
       '@tanstack/react-form':
         specifier: ^1.33.2
         version: 1.33.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

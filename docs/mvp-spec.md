@@ -246,6 +246,17 @@ When brackets tie on points: closest **absolute difference** between the Champio
 
 **UI conventions:** all kickoff times, deadlines, and timestamps display in the **user's local timezone** (browser-detected). Standings pages show a "last updated" timestamp. The UI never claims real-time freshness.
 
+Scores are always shown with **each number attached to its team** (`NE 19 – SEA 21`), never as a bare pair — away-first order is a convention a member should not have to know to read their own pick.
+
+**Provisional pick standing.** While a game is in progress, a pick shows where it currently stands against the score of the last sync: in ATS, its margin relative to the spread it accepted; in straight-up, its margin on the scoreboard. This is a **reading, not a verdict**, and the distinction is enforced in the presentation:
+
+- It is stated as a signed magnitude ("covering by 7.5", "short by 2.5", "up 4"), never as an outcome word ("winning", "correct") — a magnitude reads as a snapshot, and a snapshot is what it is.
+- It never borrows the settled outcome's colour or iconography. A graded pick's badge is the only thing in the app that asserts a result.
+- It is computed from the **same function settlement grades on**, so a provisional reading can never contradict the outcome that replaces it.
+- It appears only while the game is in progress, alongside the existing "as of" timestamp, and is **never aggregated** — there is no live projected score, standing, or leaderboard. Standings continue to update only as games go final.
+
+This is not a live feed and does not change the freshness model below: it is a derivation over already-ingested data, refreshed on the same ~5-minute cadence as everything else.
+
 No standalone stats pages, head-to-head views, or historical archives.
 
 ## Data Freshness & Expectations

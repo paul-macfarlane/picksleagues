@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { GAME_STATUS } from "@picksleagues/schemas";
+import { GAME_STATUS, PICK_TYPE } from "@picksleagues/schemas";
 import {
   clockLabel,
   gameStateAsOfLabel,
   gameStateLabel,
   isClosedToPicks,
   periodLabel,
+  pickMarginLabel,
   pickRowState,
 } from "./game";
 
@@ -71,6 +72,8 @@ describe("pickRowState", () => {
 
 describe("gameStateLabel", () => {
   const KICKOFF = "2026-09-13T17:00:00.000Z";
+  // Away first, matching the order the label renders and the score arrives in.
+  const TEAMS = { awayTeam: { abbreviation: "NE" }, homeTeam: { abbreviation: "SEA" } };
 
   it("shows the kickoff time only while the game is still scheduled", () => {
     const label = gameStateLabel({
@@ -78,6 +81,7 @@ describe("gameStateLabel", () => {
       kickoffAt: KICKOFF,
       awayScore: null,
       homeScore: null,
+      ...TEAMS,
     });
 
     expect(label.startsWith("Kickoff ")).toBe(true);
@@ -92,14 +96,14 @@ describe("gameStateLabel", () => {
       status: GAME_STATUS.IN_PROGRESS,
       awayScore: 14,
       homeScore: 7,
-      expected: "In progress 14–7",
+      expected: "In progress · NE 14 – SEA 7",
     },
     {
       name: "a final game shows the status and the final score",
       status: GAME_STATUS.FINAL,
       awayScore: 20,
       homeScore: 24,
-      expected: "Final 20–24",
+      expected: "Final · NE 20 – SEA 24",
     },
     {
       name: "a started game with no score yet shows the status alone",
@@ -113,7 +117,7 @@ describe("gameStateLabel", () => {
       status: GAME_STATUS.IN_PROGRESS,
       awayScore: 0,
       homeScore: 0,
-      expected: "In progress 0–0",
+      expected: "In progress · NE 0 – SEA 0",
     },
     {
       name: "a cancelled game shows why it will push",
@@ -123,7 +127,9 @@ describe("gameStateLabel", () => {
       expected: "Cancelled",
     },
   ])("$name", ({ status, awayScore, homeScore, expected }) => {
-    expect(gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore })).toBe(expected);
+    expect(gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore, ...TEAMS })).toBe(
+      expected,
+    );
   });
 
   it.each([
@@ -153,7 +159,7 @@ describe("gameStateLabel", () => {
       clockSeconds: 754,
       awayScore: 10,
       homeScore: 24,
-      expected: "Q3 12:34 · 10–24",
+      expected: "Q3 12:34 · NE 10 – SEA 24",
     },
     {
       name: "an overtime game renders OT rather than a fifth quarter",
@@ -162,7 +168,7 @@ describe("gameStateLabel", () => {
       clockSeconds: 65,
       awayScore: 20,
       homeScore: 20,
-      expected: "OT 1:05 · 20–20",
+      expected: "OT 1:05 · NE 20 – SEA 20",
     },
     {
       name: "period with no clock falls back to the plain status line",
@@ -171,7 +177,7 @@ describe("gameStateLabel", () => {
       clockSeconds: null,
       awayScore: 10,
       homeScore: 24,
-      expected: "In progress 10–24",
+      expected: "In progress · NE 10 – SEA 24",
     },
     {
       name: "clock with no period falls back to the plain status line",
@@ -180,7 +186,7 @@ describe("gameStateLabel", () => {
       clockSeconds: 754,
       awayScore: 10,
       homeScore: 24,
-      expected: "In progress 10–24",
+      expected: "In progress · NE 10 – SEA 24",
     },
     {
       name: "neither period nor clock falls back to the plain status line",
@@ -189,7 +195,7 @@ describe("gameStateLabel", () => {
       clockSeconds: null,
       awayScore: 10,
       homeScore: 24,
-      expected: "In progress 10–24",
+      expected: "In progress · NE 10 – SEA 24",
     },
     {
       name: "a live game with no score yet omits the score after the clock",
@@ -202,7 +208,15 @@ describe("gameStateLabel", () => {
     },
   ])("$name", ({ status, period, clockSeconds, awayScore, homeScore, expected }) => {
     expect(
-      gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore, period, clockSeconds }),
+      gameStateLabel({
+        status,
+        kickoffAt: KICKOFF,
+        awayScore,
+        homeScore,
+        period,
+        clockSeconds,
+        ...TEAMS,
+      }),
     ).toBe(expected);
   });
 });
@@ -219,6 +233,36 @@ describe("gameStateAsOfLabel", () => {
     "is null while the game is %s",
     (status) => {
       expect(gameStateAsOfLabel({ status, stateAsOf: STATE_AS_OF })).toBeNull();
+    },
+  );
+});
+
+/**
+ * A provisional reading, so the phrasing is the point: a magnitude the member
+ * can act on, never a verdict word that would read as settled. Pinned here
+ * because the copy is the whole safeguard — see `pickMarginLabel`.
+ */
+describe("pickMarginLabel", () => {
+  it.each([
+    { margin: 7.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "covering by 7.5" },
+    { margin: -2.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "short by 2.5" },
+    // A whole-number spread landed on exactly: the app's own word for it, so the
+    // reading and the grade that may follow use one vocabulary.
+    { margin: 0, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "pushing" },
+    { margin: 4, pickType: PICK_TYPE.STRAIGHT_UP, expected: "up 4" },
+    { margin: -2, pickType: PICK_TYPE.STRAIGHT_UP, expected: "down 2" },
+    { margin: 0, pickType: PICK_TYPE.STRAIGHT_UP, expected: "tied" },
+  ])("renders $margin in a $pickType league as $expected", ({ margin, pickType, expected }) => {
+    expect(pickMarginLabel(margin, pickType)).toBe(expected);
+  });
+
+  it.each([PICK_TYPE.AGAINST_THE_SPREAD, PICK_TYPE.STRAIGHT_UP])(
+    "never states a verdict in a %s league",
+    (pickType) => {
+      for (const margin of [7.5, 0, -7.5]) {
+        const label = pickMarginLabel(margin, pickType);
+        expect(label).not.toMatch(/correct|incorrect|winning|losing|won|lost/i);
+      }
     },
   );
 });

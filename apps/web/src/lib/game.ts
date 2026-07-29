@@ -1,4 +1,11 @@
-import { GAME_STATUS, WEEK_TYPE, type GameStatus, type WeekType } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  PICK_TYPE,
+  WEEK_TYPE,
+  type GameStatus,
+  type PickType,
+  type WeekType,
+} from "@picksleagues/schemas";
 import { formatDateTime } from "@/lib/format";
 
 // One home for the sports-data display labels (engineering rule on derived
@@ -52,6 +59,32 @@ export function clockLabel(clockSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+type GameStateInput = {
+  status: GameStatus;
+  kickoffAt: string;
+  awayScore: number | null;
+  homeScore: number | null;
+  awayTeam: { abbreviation: string };
+  homeTeam: { abbreviation: string };
+  period?: number | null;
+  clockSeconds?: number | null;
+};
+
+/**
+ * A score with each number attached to the team that owns it.
+ *
+ * A bare "19–21" is away-first by convention, which a member has to know *and*
+ * combine with remembering which side they took before the number means
+ * anything — the reported "it isn't clear who has what score". Naming both sides
+ * is the whole fix, and it costs one line's width on the only surfaces that show
+ * a pick beside a score. The raw form stays in `scoreText` for the admin tables,
+ * where the teams already have their own columns.
+ */
+function labelledScore(game: GameStateInput): string | null {
+  if (game.awayScore === null || game.homeScore === null) return null;
+  return `${game.awayTeam.abbreviation} ${game.awayScore} – ${game.homeTeam.abbreviation} ${game.homeScore}`;
+}
+
 /**
  * The one-line summary of where a game actually is, shared by the pick entry
  * grid and the week/pick detail so the two can't drift.
@@ -67,20 +100,14 @@ export function clockLabel(clockSeconds: number): string {
  * time, or a bare clock with no period) is less legible than the plain status
  * line it would replace, so anything short of both present falls back to it.
  */
-export function gameStateLabel(game: {
-  status: GameStatus;
-  kickoffAt: string;
-  awayScore: number | null;
-  homeScore: number | null;
-  period?: number | null;
-  clockSeconds?: number | null;
-}): string {
+export function gameStateLabel(game: GameStateInput): string {
   if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatDateTime(game.kickoffAt)}`;
-  if (game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null) {
-    const score = scoreText(game.awayScore, game.homeScore).trim();
-    return `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}${score ? ` · ${score}` : ""}`;
-  }
-  return `${gameStatusLabel(game.status)}${scoreText(game.awayScore, game.homeScore)}`;
+  const score = labelledScore(game);
+  const lead =
+    game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null
+      ? `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}`
+      : gameStatusLabel(game.status);
+  return score ? `${lead} · ${score}` : lead;
 }
 
 /**
@@ -94,6 +121,42 @@ export function gameStateLabel(game: {
 export function gameStateAsOfLabel(game: { status: GameStatus; stateAsOf: string }): string | null {
   if (game.status !== GAME_STATUS.IN_PROGRESS) return null;
   return `as of ${formatDateTime(game.stateAsOf)}`;
+}
+
+/**
+ * Where an unfinished pick currently stands, phrased as a *reading* rather than
+ * a verdict (spec §Data Freshness).
+ *
+ * Three deliberate constraints, because this sits one sync behind reality and
+ * beside a settled grade that is final:
+ *
+ * 1. **A number, never a verdict word.** "Covering by 7.5" is self-evidently a
+ *    snapshot; "Winning" reads as a fact, and a fact five minutes stale is
+ *    simply wrong. The number also does the work a member can't do in their
+ *    head: applying a home-relative spread to an away-first score.
+ * 2. **No colour and no glyph** at the call sites — `PICK_OUTCOME`'s green
+ *    check and red cross mean "this graded", and a provisional badge borrowing
+ *    them would erase that distinction in exactly the moment it matters.
+ * 3. **Attached to the pick, not the game**, and rendered only while the game is
+ *    in progress: before kickoff there is nothing to read, and afterwards the
+ *    real grade has arrived and this must get out of its way.
+ *
+ * The margin itself comes from `packages/scoring`'s `pickMargin` — the same
+ * arithmetic settlement grades on, so this can never contradict the outcome that
+ * follows it.
+ */
+export function pickMarginLabel(margin: number, pickType: PickType): string {
+  const magnitude = Math.abs(margin);
+  if (pickType === PICK_TYPE.AGAINST_THE_SPREAD) {
+    if (margin > 0) return `covering by ${magnitude}`;
+    if (margin < 0) return `short by ${magnitude}`;
+    // The app's own word for landing exactly on the number, matching what the
+    // grade will say if it holds (`PICK_OUTCOME.PUSH` → "Push").
+    return "pushing";
+  }
+  if (margin > 0) return `up ${magnitude}`;
+  if (margin < 0) return `down ${magnitude}`;
+  return "tied";
 }
 
 // Home-relative spread, flipped for the away side (spec §ATS) — the sign a

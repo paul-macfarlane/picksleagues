@@ -314,7 +314,17 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // the member made, so nothing reads as unsaved.
     await expect(pageA.getByText("4 of 4 picks")).toBeVisible();
     await expect(pageA.getByText("unsaved")).toHaveCount(0);
-    await expect(lockedRow.getByText("Your pick: BUF")).toBeVisible();
+
+    // Each number names its own team, so reading the score never depends on
+    // knowing that the away side comes first (spec §UI conventions). The
+    // simulator holds an in-progress game at 0–0 for its whole window by
+    // design, so the value here is fixed rather than merely unasserted.
+    await expect(lockedRow.getByText("MIA 0 – BUF 0")).toBeVisible();
+
+    // The provisional standing: a reading of the last sync, phrased as a
+    // magnitude and never as a verdict (spec §Provisional pick standing).
+    // Straight-up league, level at 0–0, so the pick is "tied".
+    await expect(lockedRow.getByText("Your pick: BUF · tied")).toBeVisible();
     const lockedPicked = lockedRow.getByRole("button", { name: "BUF", exact: true });
     const lockedUnpicked = lockedRow.getByRole("button", { name: "MIA", exact: true });
     await expect(lockedPicked).toBeDisabled();
@@ -402,6 +412,12 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     const settledRow = pageA.locator("li", { hasText: "MIA @ BUF" });
     await expect(settledRow.getByText("Correct")).toBeVisible();
     await expect(settledRow.getByText("Locked")).toHaveCount(0);
+    // BUF (home) beat MIA (away) 27–17 — named, and in away-home order.
+    await expect(settledRow.getByText("MIA 17 – BUF 27")).toBeVisible();
+    // The provisional standing must get out of the way once a real grade
+    // exists, or the row would assert an outcome twice in two vocabularies.
+    await expect(settledRow.getByText("Your pick: BUF")).toBeVisible();
+    await expect(settledRow.getByText(/tied|up \d|down \d/)).toHaveCount(0);
 
     // Nothing in the week can be changed any more, so the save bar retires
     // rather than pinning a permanently-disabled button to the screen, and

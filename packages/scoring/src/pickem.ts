@@ -172,30 +172,59 @@ export function settlePickemWeek(
  * raw points in SU, points relative to the spread in ATS. Positive means the
  * pick won, zero means push/tie, negative means it lost — one number that
  * carries both the outcome and the tiebreaker differential.
+ *
+ * Exported because the UI shows a member where an *unfinished* pick currently
+ * stands (spec §Data Freshness — a provisional reading of the last sync, never a
+ * verdict), and that reading must be the same arithmetic settlement will later
+ * grade on. Computing it twice is how "covering by 3" becomes "Incorrect" with
+ * no score change in between, which would cost more trust than the indicator
+ * buys. Applying it to a non-final score is the caller's call, not this
+ * function's: it is pure arithmetic over whatever score it is handed.
+ *
+ * Null only when an ATS pick carries no spread, which has nothing to compare
+ * against. In settlement that is a loader bug (see `settlePickemWeek`); on a
+ * read path it simply means there is nothing to show.
  */
+export function pickMargin(
+  pick: { side: PickemPickSide; spreadAtPick: number | null },
+  homeScore: number,
+  awayScore: number,
+  pickType: PickType,
+): number | null {
+  const homeMargin = homeScore - awayScore;
+  let margin: number;
+
+  if (pickType === PICK_TYPE.STRAIGHT_UP) {
+    margin = pick.side === PICKEM_PICK_SIDE.HOME ? homeMargin : -homeMargin;
+  } else {
+    if (pick.spreadAtPick === null) return null;
+    // Spreads are home-relative (negative = home favored), so the home side's
+    // result against the number is margin + spread, and the away side's is its
+    // mirror image.
+    const homeAgainstSpread = homeMargin + pick.spreadAtPick;
+    margin = pick.side === PICKEM_PICK_SIDE.HOME ? homeAgainstSpread : -homeAgainstSpread;
+  }
+
+  // Negating a zero margin yields `-0` — numerically zero, but not
+  // `Object.is`-equal to it. This value is persisted as a tiebreaker
+  // `differential` and formatted for display, so a tie must never leave here
+  // carrying a sign that a strict comparison or a snapshot could trip over.
+  return margin === 0 ? 0 : margin;
+}
+
 function marginForPick(
   pick: PickemPickInput,
   homeScore: number,
   awayScore: number,
   pickType: PickType,
 ): number {
-  const homeMargin = homeScore - awayScore;
-
-  if (pickType === PICK_TYPE.STRAIGHT_UP) {
-    return pick.side === PICKEM_PICK_SIDE.HOME ? homeMargin : -homeMargin;
-  }
-
-  if (pick.spreadAtPick === null) {
+  const margin = pickMargin(pick, homeScore, awayScore, pickType);
+  if (margin === null) {
     throw new Error(
       `settlePickemWeek: pick ${pick.pickId} is in an against-the-spread league but carries no spread`,
     );
   }
-
-  // Spreads are home-relative (negative = home favored), so the home side's
-  // result against the number is margin + spread, and the away side's is its
-  // mirror image.
-  const homeAgainstSpread = homeMargin + pick.spreadAtPick;
-  return pick.side === PICKEM_PICK_SIDE.HOME ? homeAgainstSpread : -homeAgainstSpread;
+  return margin;
 }
 
 function gradedOutcome(
