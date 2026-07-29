@@ -329,5 +329,19 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await expect(memberRow(detail, commishName).locator("li")).toHaveCount(4);
     await expect(memberRow(detail, joinerName).locator("li")).toHaveCount(4);
     await expect(detail.getByText(/more pick/)).toHaveCount(0);
+
+    // Each pick's grade reaches the UI. The commissioner took all four winners
+    // and the joiner took all four losers, so a mis-joined outcome can't pass
+    // by coincidence — and a check mark now means precisely this, which is why
+    // it appears nowhere before a pick settles.
+    await expect(memberRow(detail, commishName).getByText("Correct")).toHaveCount(4);
+    await expect(memberRow(detail, joinerName).getByText("Incorrect")).toHaveCount(4);
+
+    // Same grades on the pick editor, where the outcome takes the badge slot
+    // "Locked" held before the game finished.
+    await pageA.goto(`/leagues/${leagueId}/picks`);
+    const settledRow = pageA.locator("li", { hasText: "MIA @ BUF" });
+    await expect(settledRow.getByText("Correct")).toBeVisible();
+    await expect(settledRow.getByText("Locked")).toHaveCount(0);
   });
 });

@@ -1,25 +1,20 @@
 import { useState } from "react";
-import { CheckIcon } from "lucide-react";
 import {
-  PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickemPickSide,
   type PickType,
   type PickemPick,
   type PickemPickSubmission,
-  type SlateGame,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { gameStateAsOfLabel, gameStateLabel, pickRowState, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
+import { GameRow } from "@/components/league/pickem-game-row";
 import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
-import { TeamLogo } from "@/components/team-logo";
 
 // Only games that are still replaceable (spec/ADR-0015: unlocked and
 // pickable) seed the editable selection — a locked, cancelled/moved, or
@@ -301,209 +296,5 @@ function PickemWeekEditor({
         </div>
       </div>
     </>
-  );
-}
-
-/**
- * One side of a matchup as a pick control. `held` — not "selected" — because
- * it covers a locked or pushed pick just as much as a live selection: the fill,
- * the check, and `aria-pressed` are the row's answer to "who did I take", and
- * that question outlives the ability to change the answer.
- *
- * The check is what makes the fill unambiguous. A filled button alone reads as
- * the primary action ("press me"), which is the opposite of what it means here,
- * and the palette is achromatic (index.css — every token is `oklch(x 0 0)`), so
- * there is no colour available to carry the distinction instead.
- */
-function SideButton({
-  team,
-  spread,
-  held,
-  disabled,
-  onClick,
-}: {
-  team: SlateGame["homeTeam"];
-  spread: string | null;
-  held: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant={held ? "default" : "outline"}
-      aria-pressed={held}
-      // A held side spends most of its life disabled — every row is locked
-      // once its game kicks off — so it lifts out of the standard disabled
-      // dimming enough to stay readable against its outline sibling.
-      className={cn(held && "disabled:opacity-75")}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {held && <CheckIcon aria-hidden="true" />}
-      <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
-      {team.abbreviation}
-      {spread && ` ${spread}`}
-    </Button>
-  );
-}
-
-function GameRow({
-  leagueId,
-  weekId,
-  game,
-  pickType,
-  selectedSide,
-  retained,
-  eligibleReplacementGames,
-  buttonsDisabled,
-  onToggle,
-  onSubstituted,
-}: {
-  leagueId: string;
-  weekId: string;
-  game: SlateGame;
-  pickType: PickType;
-  selectedSide: PickemPickSide | undefined;
-  retained: { pick: PickemPick; pushed: boolean } | undefined;
-  eligibleReplacementGames: SlateGame[];
-  buttonsDisabled: boolean;
-  onToggle: (side: PickemPickSide) => void;
-  onSubstituted: (gameId: string, side: PickemPickSide) => void;
-}) {
-  const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
-  // ATS leagues can't submit a pick with no number to accept — the write path
-  // 409s (`spread_stale`, "no current number means there is nothing to
-  // accept") for every attempt until the odds sync lands, so this is guarded
-  // client-side rather than left to surface as a confusing repeat failure.
-  const noLineYet = showSpread && game.spread === null;
-  const editable = !game.locked && game.pickable && !noLineYet;
-  const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
-  const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
-  // The side the member holds, however they came to hold it: toggled in this
-  // editor, or committed earlier and now unchangeable (locked, or on a
-  // cancelled/moved game — `hydrateSelections` deliberately keeps those out of
-  // `selectedSide` so they can never be re-submitted). Everything *displayed*
-  // reads this; only `selectedSide` decides what the save payload contains.
-  // Splitting the two is the point: a locked row otherwise renders both sides
-  // identically, which is precisely when the member most wants to see which
-  // one they're stuck with.
-  const heldSide = selectedSide ?? retained?.pick.side;
-  // Locked/unplayable still outrank a held pick for the row highlight — those
-  // say "you can't act here", which is the more useful thing to see while
-  // scanning; the buttons below carry the who-did-I-pick answer in every state.
-  const rowState = pickRowState(game, heldSide !== undefined);
-  const stateAsOf = gameStateAsOfLabel(game);
-
-  return (
-    <li
-      className={cn(
-        "flex flex-col gap-2 rounded-lg border border-border p-3",
-        // Full-strength `primary`, not a fraction of it: the palette is
-        // achromatic, so a tinted border is the only row-level cue available
-        // and a 50% one sits too close to `border` (white/10% in dark) to
-        // survive scanning a 16-game slate.
-        rowState === "picked" && "border-primary bg-primary/5",
-      )}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p
-          className="flex items-center gap-1.5 text-sm font-medium text-foreground"
-          title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-        >
-          <TeamLogo
-            logoLightUrl={game.awayTeam.logoLightUrl}
-            logoDarkUrl={game.awayTeam.logoDarkUrl}
-            size="sm"
-          />
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-          <TeamLogo
-            logoLightUrl={game.homeTeam.logoLightUrl}
-            logoDarkUrl={game.homeTeam.logoDarkUrl}
-            size="sm"
-          />
-        </p>
-        {rowState === "picked" && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Picked
-          </span>
-        )}
-        {/* No status badge for unplayable games: the state line below now
-            carries the status for every non-scheduled game, and repeating
-            "Cancelled" twelve pixels apart reads as a rendering bug. The badges
-            that remain are about the *pick* (can I still change it), not the
-            game. */}
-        {game.locked && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            Locked
-          </span>
-        )}
-        {game.pickable && !game.locked && noLineYet && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            No line yet
-          </span>
-        )}
-      </div>
-
-      {/* Kickoff before the game starts, status + score after — a member whose
-          pick has locked wants to know how it is doing, not when it began. */}
-      <p className="text-xs text-muted-foreground">{gameStateLabel(game)}</p>
-      {/* Own line, not appended to the state line above: this row has the
-          room, and the qualifier reads more clearly set apart from the score
-          it's dating than crowded onto the same line (DATA-8; spec §UI
-          conventions — a stored clock reading can be minutes stale). */}
-      {stateAsOf && <p className="text-xs text-muted-foreground/70">{stateAsOf}</p>}
-
-      <div className="grid grid-cols-2 gap-2">
-        <SideButton
-          team={game.awayTeam}
-          spread={awaySpread}
-          held={heldSide === PICKEM_PICK_SIDE.AWAY}
-          disabled={!editable || buttonsDisabled}
-          onClick={() => onToggle(PICKEM_PICK_SIDE.AWAY)}
-        />
-        <SideButton
-          team={game.homeTeam}
-          spread={homeSpread}
-          held={heldSide === PICKEM_PICK_SIDE.HOME}
-          disabled={!editable || buttonsDisabled}
-          onClick={() => onToggle(PICKEM_PICK_SIDE.HOME)}
-        />
-      </div>
-
-      {!editable && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">
-            {retained
-              ? `Your pick: ${
-                  retained.pick.side === PICKEM_PICK_SIDE.HOME
-                    ? game.homeTeam.abbreviation
-                    : game.awayTeam.abbreviation
-                }`
-              : "No pick"}
-          </p>
-          {/* Only a pushed pick (spec §Cancellations) gets a substitute offer
-              — a plain locked pick (the game simply kicked off) is retained
-              too but stays as-is, so `pushed` gates this rather than `retained`
-              alone. */}
-          {retained?.pushed && (
-            <>
-              <p className="text-xs text-muted-foreground">
-                This game was cancelled or moved, so the pick resolved as a push — your other picks
-                are unaffected.
-              </p>
-              <PickemSubstituteDialog
-                leagueId={leagueId}
-                weekId={weekId}
-                pickType={pickType}
-                replacePickId={retained.pick.id}
-                eligibleGames={eligibleReplacementGames}
-                onSubstituted={onSubstituted}
-              />
-            </>
-          )}
-        </div>
-      )}
-    </li>
   );
 }

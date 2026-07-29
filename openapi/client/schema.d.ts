@@ -1002,11 +1002,14 @@ export interface components {
             gameId: string;
             side: components["schemas"]["PickemPickSide"];
             spread: number | null;
+            outcome: components["schemas"]["NullablePickOutcome"];
             /** Format: date-time */
             updatedAt: string;
         };
         /** @enum {string} */
         PickemPickSide: "home" | "away";
+        /** @enum {string|null} */
+        NullablePickOutcome: "correct" | "incorrect" | "push" | null;
         PickemRepickRequest: {
             /** Format: uuid */
             replacePickId: string;

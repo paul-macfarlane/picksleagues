@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
+import { PickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
 
 /**
@@ -119,6 +120,11 @@ export const SubmitPickemPicksRequestSchema = z
 
 export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSchema>;
 
+// Registered under its own component name rather than wrapped inline: reusing
+// the registered `PickOutcome` node here would fold `null` into that shared
+// component and widen every other reference to it.
+const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
+
 export const PickemPickSchema = z
   .object({
     id: z.string(),
@@ -126,6 +132,13 @@ export const PickemPickSchema = z
     side: PickemPickSideSchema,
     // The spread of record this pick was locked in against (null in SU leagues).
     spread: z.number().nullable(),
+    /**
+     * How this pick graded, or null while it has none — a pick whose game
+     * hasn't reached a terminal state has no result row at all (arch D10:
+     * results are a pure derivation). Null is therefore "not settled yet", not
+     * "settled as nothing", and the UI must not render it as an outcome.
+     */
+    outcome: NullablePickOutcomeSchema,
     updatedAt: z.iso.datetime(),
   })
   .openapi("PickemPick");

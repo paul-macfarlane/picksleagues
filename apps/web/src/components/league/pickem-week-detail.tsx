@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
+import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 
 // The week/pick detail screen (spec Screens inventory): every member's picks
 // for one week, joined against that week's slate so each pick renders as a
@@ -176,6 +177,9 @@ function PickRow({
         <span className="text-muted-foreground">
           ({game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation})
         </span>
+        {/* Same badge the pick editor uses, so a member reading their own row
+            here and there sees one vocabulary for how a pick graded. */}
+        {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
       </span>
       {/* Folded into the same span rather than a second block: this row is a
           single tight line per pick (unlike the pick-entry row, which has

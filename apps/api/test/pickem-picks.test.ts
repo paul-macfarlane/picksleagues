@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { games, leagueMembers, leagueSeasons, pickemPicks } from "@picksleagues/db";
+import { FixedClock } from "@picksleagues/core";
 import {
   ELIMINATION_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
@@ -9,6 +10,7 @@ import {
   LEAGUE_STATUS,
   MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
+  PICK_OUTCOME,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   PICKEM_PUSH_TIE_RESOLUTION,
@@ -17,6 +19,7 @@ import {
   type PickemWeekPicksResponse,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
+import { settleLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
@@ -26,6 +29,7 @@ import {
   membersOf,
   SEED_AT,
   seedSeason,
+  setGame,
   type SeededWeek,
 } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league-app";
@@ -104,6 +108,7 @@ async function seedPickemLeague(
   const [memberA, memberB] = base.users;
   return {
     seasonId: base.seasonId,
+    leagueSeasonId: base.leagueSeasonId,
     weekIds: base.weekIds,
     gameIds: base.gameIds,
     league: base.league,
@@ -491,6 +496,55 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(postBEntryA.hiddenPickCount).toBe(1);
     expect(postBEntryA.picks).toHaveLength(1);
     expect(postBEntryA.picks[0]).toMatchObject({ gameId: g1, side: PICKEM_PICK_SIDE.HOME });
+  });
+
+  // The picks surfaces render a settled pick's grade, so the read has to carry
+  // it. A left join, because the *absence* of a result is the "not settled yet"
+  // state (arch D10) — an inner join would drop every unsettled pick instead,
+  // which reads to the client as picks that were never made.
+  it("carries each pick's outcome once settled, and null until then", async () => {
+    const { league, leagueSeasonId, weekIds, gameIds, memberA } = await seedPickemLeague();
+    const weekId = weekIds.get("regular:1")!;
+    const [g1, g2, g3] = gameIds.get("regular:1")!;
+
+    expect(
+      (
+        await putPicks(memberA.cookie, league.id, weekId, {
+          picks: [
+            { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+            { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+            { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+
+    const unsettled = (await (
+      await getPicks(memberA.cookie, league.id, weekId)
+    ).json()) as PickemWeekPicksResponse;
+    const beforeEntry = unsettled.members.find((m) => m.userId === memberA.user.id)!;
+    expect(beforeEntry.picks).toHaveLength(3);
+    expect(beforeEntry.picks.map((pick) => pick.outcome)).toEqual([null, null, null]);
+
+    // One of each grade, so a mis-joined outcome can't coincidentally match.
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 });
+    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 });
+    await settleLeagueSeasonWeeks(
+      db,
+      new FixedClock(new Date("2026-09-20T00:00:00.000Z")),
+      leagueSeasonId,
+      [weekId],
+    );
+
+    const settled = (await (
+      await getPicks(memberA.cookie, league.id, weekId, appAfterKickoff)
+    ).json()) as PickemWeekPicksResponse;
+    const afterEntry = settled.members.find((m) => m.userId === memberA.user.id)!;
+    const outcomeByGame = new Map(afterEntry.picks.map((pick) => [pick.gameId, pick.outcome]));
+    expect(outcomeByGame.get(g1!)).toBe(PICK_OUTCOME.CORRECT);
+    expect(outcomeByGame.get(g2!)).toBe(PICK_OUTCOME.INCORRECT);
+    expect(outcomeByGame.get(g3!)).toBe(PICK_OUTCOME.PUSH);
   });
 
   it("isViewer is true only on the caller's own entry", async () => {

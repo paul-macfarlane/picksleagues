@@ -1390,6 +1390,9 @@
               "null"
             ]
           },
+          "outcome": {
+            "$ref": "#/components/schemas/NullablePickOutcome"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -1400,6 +1403,7 @@
           "gameId",
           "side",
           "spread",
+          "outcome",
           "updatedAt"
         ]
       },
@@ -1408,6 +1412,18 @@
         "enum": [
           "home",
           "away"
+        ]
+      },
+      "NullablePickOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "correct",
+          "incorrect",
+          "push",
+          null
         ]
       },
       "PickemRepickRequest": {

@@ -1,6 +1,6 @@
 import { and, count, countDistinct, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { isUniqueViolation, pickemPicks } from "@picksleagues/db";
+import { isUniqueViolation, pickemPickResults, pickemPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
@@ -188,10 +188,16 @@ export async function getPickemWeekPicks(
   // about member order, which is user-visible in both.
   const members = await loadMembers(db, leagueId);
 
-  const picks = await db
-    .select()
+  // Left join, because the absence of a result row IS the "not settled yet"
+  // state (arch D10 — results are a pure derivation, written only once a game
+  // reaches a terminal status). An inner join would silently drop every pick on
+  // a game still to be played.
+  const pickRows = await db
+    .select({ pick: pickemPicks, outcome: pickemPickResults.outcome })
     .from(pickemPicks)
+    .leftJoin(pickemPickResults, eq(pickemPickResults.pickemPickId, pickemPicks.id))
     .where(and(eq(pickemPicks.leagueSeasonId, leagueSeasonId), eq(pickemPicks.weekId, weekId)));
+  const picks = pickRows.map((row) => ({ ...row.pick, outcome: row.outcome }));
 
   const lockedByGame = await resolveLockStates(
     db,
@@ -226,6 +232,10 @@ export async function getPickemWeekPicks(
         gameId: pick.gameId,
         side: pick.side,
         spread: pick.spreadAtPick,
+        // No extra visibility surface: a result exists only for a game that has
+        // reached a terminal status, which is strictly later than the kickoff
+        // the filter above already gates another member's picks on.
+        outcome: pick.outcome,
         updatedAt: pick.updatedAt.toISOString(),
       })),
       hiddenPickCount: own.length - visible.length,
