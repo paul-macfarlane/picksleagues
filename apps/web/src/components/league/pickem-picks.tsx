@@ -45,6 +45,30 @@ export function openSelections(
   return open;
 }
 
+/**
+ * Whether any side button on the screen can still be operated — the honest
+ * condition for showing the save bar, since the bar exists to save changes and
+ * a change needs a control the member can actually press.
+ *
+ * Mirrors a row's own two gates exactly: the game must still be open, and
+ * adding a *new* pick is refused at the cap (`buttonsDisabled` below). So a
+ * held pick on an open game always stays operable — it can be given up, which
+ * is what frees a slot — while an unpicked open game is dead weight once the
+ * cap is reached.
+ *
+ * "Is any game still open" is the near-miss this replaces (feedback round 4):
+ * a member at their cap whose every pick has locked can act on nothing, yet a
+ * week with later kickoffs still has open games, so the bar stayed pinned with
+ * a Save that could never enable.
+ */
+export function hasOperableControl(
+  games: Pick<SlateGame, "id" | "locked" | "pickable">[],
+  selections: Map<string, PickemPickSide>,
+  atCap: boolean,
+): boolean {
+  return games.some((game) => !isClosedToPicks(game) && (selections.has(game.id) || !atCap));
+}
+
 function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
   return openSelections(slate.games, new Map(viewerPicks.map((pick) => [pick.gameId, pick.side])));
 }
@@ -184,12 +208,8 @@ function PickemWeekEditor({
     (game) => !isClosedToPicks(game) && !heldGameIds.has(game.id),
   );
 
-  // Whether the week still has anything the member could act on. Once every
-  // game has kicked off or stopped being playable, a "Save picks" button can
-  // never enable again, so the action bar retires and hands its count to the
-  // card header (feedback round 4) rather than pinning a dead control to the
-  // bottom of the screen for the rest of the week.
   const anyOpenGames = slate.games.some((game) => !isClosedToPicks(game));
+  const canEditPicks = hasOperableControl(slate.games, selections, atCap);
 
   // Pushed picks whose game moved to a different week entirely aren't in this
   // slate at all (ADR-0015), so they never render via the games list below —
@@ -247,17 +267,25 @@ function PickemWeekEditor({
               screen — repeating the count here in a second phrasing would only
               give it somewhere to drift. Once the bar retires it has nowhere
               else to go, so the same formatter renders it here instead. */}
+          {/* The two reasons the bar can be gone read differently to a member
+              and are worth separating: the week itself is over, or later games
+              remain but they are out of picks and every one they made has
+              locked. Exhaustive by construction — an open game is always
+              operable below the cap, so the bar only ever retires in these
+              two states. */}
           <CardDescription>
-            {anyOpenGames
+            {canEditPicks
               ? "Each pick locks at its own kickoff."
-              : `${pickProgressLabel(heldCount, picksAllowed)} · this week is locked.`}
+              : `${pickProgressLabel(heldCount, picksAllowed)} · ${
+                  anyOpenGames ? "every pick you made is locked." : "this week is locked."
+                }`}
           </CardDescription>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom
             (verified at 375px) — and is dropped with the bar, since the
             reserved gap reads as a broken layout with nothing in it. */}
-        <CardContent className={cn("flex flex-col gap-4", anyOpenGames && "pb-24")}>
+        <CardContent className={cn("flex flex-col gap-4", canEditPicks && "pb-24")}>
           {pushedOutOfWeekPicks.length > 0 && (
             <ul className="flex flex-col gap-3">
               {pushedOutOfWeekPicks.map((pick) => (
@@ -313,7 +341,8 @@ function PickemWeekEditor({
 
       {/* Sticky action bar (feedback: submitting a 16-game slate shouldn't
           require scrolling to the bottom to find the button). Mounted only
-          while some game is still open — see anyOpenGames. `fixed`, not
+          while a control on this page can still be operated — see
+          hasOperableControl. `fixed`, not
           CSS `sticky` — Card sets `overflow-hidden` for its rounded corners,
           and any ancestor with overflow other than visible clips/breaks a
           sticky descendant, whereas `fixed` escapes ancestor layout
@@ -323,7 +352,7 @@ function PickemWeekEditor({
           z-20 stays under the tab bar (z-30) and header (z-40) per
           routes/_authed.tsx's layering comment, and well under overlay
           portals (z-50). */}
-      {anyOpenGames && (
+      {canEditPicks && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
             <p className="text-sm text-muted-foreground">

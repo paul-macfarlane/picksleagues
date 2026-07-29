@@ -1,6 +1,43 @@
 import { describe, expect, it } from "vitest";
 import { PICKEM_PICK_SIDE } from "@picksleagues/schemas";
-import { openSelections, pickProgressLabel } from "./pickem-picks";
+import { hasOperableControl, openSelections, pickProgressLabel } from "./pickem-picks";
+
+/**
+ * Decides whether the save bar is shown at all, so the cases below are the
+ * ones where a member would otherwise be left staring at a Save button that
+ * can never enable.
+ */
+describe("hasOperableControl", () => {
+  const OPEN = { id: "open", locked: false, pickable: true };
+  const OTHER_OPEN = { id: "other-open", locked: false, pickable: true };
+  const LOCKED = { id: "locked", locked: true, pickable: true };
+  const CANCELLED = { id: "cancelled", locked: false, pickable: false };
+  const none = new Map<string, "home" | "away">();
+  const holding = (id: string) => new Map([[id, PICKEM_PICK_SIDE.HOME]]);
+
+  it("is operable below the cap while any game is open", () => {
+    expect(hasOperableControl([LOCKED, OPEN], none, false)).toBe(true);
+  });
+
+  it("is dead once every game has closed", () => {
+    expect(hasOperableControl([LOCKED, CANCELLED], none, false)).toBe(false);
+  });
+
+  // The reported case: later kickoffs remain, but the member is out of picks
+  // and every pick they hold has locked, so no button on the page can move.
+  it("is dead at the cap when no held pick is on an open game", () => {
+    expect(hasOperableControl([LOCKED, OPEN, OTHER_OPEN], none, true)).toBe(false);
+  });
+
+  // Still operable at the cap: giving up this pick is what frees the slot.
+  it("stays operable at the cap when a held pick is on an open game", () => {
+    expect(hasOperableControl([LOCKED, OPEN], holding("open"), true)).toBe(true);
+  });
+
+  it("is dead with no games at all", () => {
+    expect(hasOperableControl([], none, false)).toBe(false);
+  });
+});
 
 /**
  * The editor's half of the "held pick" count. It must stay exactly

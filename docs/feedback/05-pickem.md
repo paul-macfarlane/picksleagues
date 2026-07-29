@@ -90,7 +90,7 @@ alongside the settled-pick grades from the previous exchange.
 | 2 | Week-detail picks misalign on mobile | Each pick is now a two-line block at phone width (pick, then game state), one line at `sm`+. It was a single wrapping flex row, so a short matchup fitted beside its status while a long one wrapped — the same information landed somewhere different on every row, which is what made the list hard to scan. |
 | 3 | Backlog: user-editable profile image | Filed as **ID-4**, with the questions worth settling while planning it (URL allowlist vs any `https:`, broken-image behavior, and whether an arbitrary third-party image on a league-facing surface needs a trust-and-safety rule first). |
 | 4 | Overview tab reads inactive once a standings period is picked | Router compares search params alongside the path by default, and `exact: true` makes that comparison a full equality — so the tab's own `?week=` made it non-matching. `includeSearch: false`: a tab marks a section, and the section is the path. |
-| 5 | Hide unpicked/locked games once everything locks? | **Keep the full slate (owner's call).** Games lock one at a time through a Sunday, so a shrinking list is a moving target mid-scroll, and the games you passed on are the context for judging the ones you took. The *action bar* retires instead: once nothing is editable, a permanently-disabled Save is noise, so the bar unmounts and hands its count to the card header. |
+| 5 | Hide unpicked/locked games once everything locks? | **Keep the full slate (owner's call).** Games lock one at a time through a Sunday, so a shrinking list is a moving target mid-scroll, and the games you passed on are the context for judging the ones you took. The *action bar* retires instead: once nothing is operable, a permanently-disabled Save is noise, so the bar unmounts and hands its count to the card header. Shipped once wrong — see below. |
 | 6 | "In progress" indicator | New `GameStatePill`, on both the editor and the week detail. Takes the badge slot from "Locked" — an in-progress game has kicked off by definition, so the lock is implied and the live state is the fact worth the space. Deliberately static and never the word "Live": scores arrive on a sync job, so the UI must not read as a feed (same rule behind `gameStateAsOfLabel`). |
 | 7 | Sticky bar showed "8 of 5 picks" | **Real bug.** The editor seeded its selection map from the slate *at mount* and never re-filtered it. A background refetch (tab away and back) brings in games that have since locked; those picks joined the retained set while staying in the selection map, and `heldCount` added the two. Any navigation remounted and re-seeded, which is why a refresh "fixed" it. The rule now lives in `isClosedToPicks` and is applied on every render, so the two sets stay exactly complementary. |
 
@@ -106,3 +106,23 @@ render — green for the wrong reason. It now waits on a marker that can only ap
 the new slate has landed, and was confirmed by reverting the fix and watching it fail;
 the same was done for the tab-active fix. A test written for a bug it has not been shown
 to catch is a guess.
+
+**Item 5 shipped wrong the first time, and the miss is the more interesting half.**
+The bar was gated on "is any *game* still open", which sounds like the same question and
+isn't. A week whose later kickoffs are hours away always has open games — so a member at
+their pick cap with every pick already locked, who can operate no control on the screen,
+still got the pinned bar and a Save that could never enable. Exactly the state the item
+was about.
+
+The condition that holds is "can any control be operated", mirroring a row's own two
+gates: the game is open, *and* adding a new pick isn't refused by the cap. A held pick on
+an open game therefore stays operable — giving it up is what frees the slot — while an
+unpicked open game is dead weight once the cap is reached.
+
+The lesson is about where the first version got its condition. It was derived from the
+screen's *content* (what games exist) rather than from the member's *capability* (what
+they can press), and those coincide in every state the merge-gate journey happens to
+reach — its fixture has exactly as many games as picks allowed, so the cap and the slate
+close together. The gap only opens when the cap is smaller than the slate, which is the
+ordinary configuration for a real NFL week. A UI predicate about whether to show a
+control belongs downstream of whether that control can do anything, not alongside it.
