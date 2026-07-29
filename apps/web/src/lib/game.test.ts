@@ -1,6 +1,36 @@
 import { describe, expect, it } from "vitest";
 import { GAME_STATUS } from "@picksleagues/schemas";
-import { clockLabel, gameStateAsOfLabel, gameStateLabel, periodLabel, pickRowState } from "./game";
+import {
+  clockLabel,
+  gameStateAsOfLabel,
+  gameStateLabel,
+  isClosedToPicks,
+  periodLabel,
+  pickRowState,
+} from "./game";
+
+describe("isClosedToPicks", () => {
+  it.each([
+    {
+      name: "an unlocked, playable game is still open",
+      game: { locked: false, pickable: true },
+      expected: false,
+    },
+    { name: "kickoff closes it", game: { locked: true, pickable: true }, expected: true },
+    {
+      name: "a cancelled/moved game closes it",
+      game: { locked: false, pickable: false },
+      expected: true,
+    },
+    {
+      name: "both at once still closes it",
+      game: { locked: true, pickable: false },
+      expected: true,
+    },
+  ])("$name", ({ game, expected }) => {
+    expect(isClosedToPicks(game)).toBe(expected);
+  });
+});
 
 describe("pickRowState", () => {
   it.each([

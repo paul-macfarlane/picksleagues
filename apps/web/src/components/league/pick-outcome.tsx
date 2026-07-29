@@ -1,6 +1,6 @@
 import { CheckIcon, MinusIcon, XIcon } from "lucide-react";
 import { PICK_OUTCOME, type PickOutcome } from "@picksleagues/schemas";
-import { cn } from "@/lib/utils";
+import { StatusPill, type StatusPillTone } from "@/components/status-pill";
 
 /**
  * How a settled pick reads across every surface that shows one: the pick
@@ -23,26 +23,26 @@ const PICK_OUTCOME_DISPLAY = {
   [PICK_OUTCOME.CORRECT]: {
     label: "Correct",
     Icon: CheckIcon,
-    badge: "bg-success/10 text-success",
+    tone: "success",
     button: "border-success bg-success/10 text-success hover:bg-success/10",
   },
   [PICK_OUTCOME.INCORRECT]: {
     label: "Incorrect",
     Icon: XIcon,
-    badge: "bg-destructive/10 text-destructive",
+    tone: "danger",
     button: "border-destructive bg-destructive/10 text-destructive hover:bg-destructive/10",
   },
   [PICK_OUTCOME.PUSH]: {
     label: "Push",
     Icon: MinusIcon,
-    // Deliberately the neutral pill: a push is neither, and giving it a third
+    // Deliberately the neutral tone: a push is neither, and giving it a third
     // hue would imply a third verdict rather than the absence of one.
-    badge: "bg-muted text-muted-foreground",
+    tone: "neutral",
     button: "border-border bg-muted text-muted-foreground hover:bg-muted",
   },
 } as const satisfies Record<
   PickOutcome,
-  { label: string; Icon: typeof CheckIcon; badge: string; button: string }
+  { label: string; Icon: typeof CheckIcon; tone: StatusPillTone; button: string }
 >;
 
 /** Tint for the control showing the side that was picked, once it has graded. */
@@ -67,17 +67,11 @@ export function PickOutcomeBadge({
   outcome: PickOutcome;
   className?: string;
 }) {
-  const { label, Icon, badge } = PICK_OUTCOME_DISPLAY[outcome];
+  const { label, Icon, tone } = PICK_OUTCOME_DISPLAY[outcome];
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-        badge,
-        className,
-      )}
-    >
+    <StatusPill tone={tone} className={className}>
       <Icon aria-hidden="true" className="size-3" />
       {label}
-    </span>
+    </StatusPill>
   );
 }

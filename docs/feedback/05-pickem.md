@@ -79,3 +79,30 @@ flagging its own work, then a re-read of a comment that no longer matched the co
 each time what got verified was the line that changed rather than the condition guarding
 it. Worth remembering the next time a guard is tightened: re-derive the scope, not just
 the predicate.
+
+## Round 3 — pick-screen polish, after hands-on testing (2026-07-28)
+
+Six items from playing a simulated week through the UI. Landed on `feat/game-clock`
+alongside the settled-pick grades from the previous exchange.
+
+| # | Item | Resolution |
+| --- | --- | --- |
+| 2 | Week-detail picks misalign on mobile | Each pick is now a two-line block at phone width (pick, then game state), one line at `sm`+. It was a single wrapping flex row, so a short matchup fitted beside its status while a long one wrapped — the same information landed somewhere different on every row, which is what made the list hard to scan. |
+| 3 | Backlog: user-editable profile image | Filed as **ID-4**, with the questions worth settling while planning it (URL allowlist vs any `https:`, broken-image behavior, and whether an arbitrary third-party image on a league-facing surface needs a trust-and-safety rule first). |
+| 4 | Overview tab reads inactive once a standings period is picked | Router compares search params alongside the path by default, and `exact: true` makes that comparison a full equality — so the tab's own `?week=` made it non-matching. `includeSearch: false`: a tab marks a section, and the section is the path. |
+| 5 | Hide unpicked/locked games once everything locks? | **Keep the full slate (owner's call).** Games lock one at a time through a Sunday, so a shrinking list is a moving target mid-scroll, and the games you passed on are the context for judging the ones you took. The *action bar* retires instead: once nothing is editable, a permanently-disabled Save is noise, so the bar unmounts and hands its count to the card header. |
+| 6 | "In progress" indicator | New `GameStatePill`, on both the editor and the week detail. Takes the badge slot from "Locked" — an in-progress game has kicked off by definition, so the lock is implied and the live state is the fact worth the space. Deliberately static and never the word "Live": scores arrive on a sync job, so the UI must not read as a feed (same rule behind `gameStateAsOfLabel`). |
+| 7 | Sticky bar showed "8 of 5 picks" | **Real bug.** The editor seeded its selection map from the slate *at mount* and never re-filtered it. A background refetch (tab away and back) brings in games that have since locked; those picks joined the retained set while staying in the selection map, and `heldCount` added the two. Any navigation remounted and re-seeded, which is why a refresh "fixed" it. The rule now lives in `isClosedToPicks` and is applied on every render, so the two sets stay exactly complementary. |
+
+**The miscount was the round's only real defect, and its shape is worth keeping.** The
+buggy line was a *filter applied once* where the data it filtered kept changing —
+correct at mount and progressively wrong afterwards, in a component that remounts on
+almost every path a developer would take to reach it. Deriving both maps from one
+predicate on every render removes the window rather than narrowing it.
+
+Its regression test needed the same care. The first attempt asserted the count
+immediately after firing the visibility event and passed against the *pre-refetch*
+render — green for the wrong reason. It now waits on a marker that can only appear once
+the new slate has landed, and was confirmed by reverting the fix and watching it fail;
+the same was done for the tab-active fix. A test written for a bug it has not been shown
+to catch is a guess.

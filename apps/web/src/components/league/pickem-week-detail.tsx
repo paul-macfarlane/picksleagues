@@ -14,7 +14,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
+import { GameStatePill } from "@/components/league/game-state";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
+
+// One pick per row, and each row is a two-line block at phone width: what the
+// member took on the first line, where that game stands on the second
+// (feedback round 4). Previously both lines were a single wrapping flex row, so
+// a short matchup happened to fit beside its status while a long one wrapped —
+// the same information landed in a different place on every row, which is what
+// made the list hard to read. Widening to `sm` restores the one-line,
+// state-pushed-right layout, where the room actually exists.
+const PICK_ROW_CLASS_NAME =
+  "flex flex-col gap-0.5 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2";
 
 // The week/pick detail screen (spec Screens inventory): every member's picks
 // for one week, joined against that week's slate so each pick renders as a
@@ -150,7 +161,7 @@ function PickRow({
   // renderable without the game, but the outcome is the point: it pushes.
   if (!game) {
     return (
-      <li className="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <li className={PICK_ROW_CLASS_NAME}>
         <span className="text-muted-foreground">Pick on a game that moved out of this week</span>
         <span className="text-muted-foreground">Push</span>
       </li>
@@ -165,8 +176,8 @@ function PickRow({
   const stateAsOf = gameStateAsOfLabel(game);
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 text-xs">
-      <span className="flex items-center gap-1.5 text-foreground">
+    <li className={PICK_ROW_CLASS_NAME}>
+      <span className="flex flex-wrap items-center gap-1.5 text-foreground">
         <TeamLogo
           logoLightUrl={pickedTeam.logoLightUrl}
           logoDarkUrl={pickedTeam.logoDarkUrl}
@@ -181,14 +192,17 @@ function PickRow({
             here and there sees one vocabulary for how a pick graded. */}
         {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
       </span>
-      {/* Folded into the same span rather than a second block: this row is a
-          single tight line per pick (unlike the pick-entry row, which has
-          the room for its own line), so the qualifier trails the state text
-          it's dating, dimmer still so it can't be mistaken for a live badge
-          (DATA-8; spec §UI conventions). */}
-      <span className="text-muted-foreground">
-        {gameStateLabel(game)}
-        {stateAsOf && <span className="text-muted-foreground/70"> · {stateAsOf}</span>}
+      {/* The "as of" qualifier is folded into this same line rather than given
+          a block of its own: the row is already tight (unlike the pick-entry
+          row, which has the room), so it trails the state text it's dating,
+          dimmer still so it can't be mistaken for a live badge (DATA-8; spec
+          §UI conventions). */}
+      <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+        <GameStatePill status={game.status} />
+        <span>
+          {gameStateLabel(game)}
+          {stateAsOf && <span className="text-muted-foreground/70"> · {stateAsOf}</span>}
+        </span>
       </span>
     </li>
   );

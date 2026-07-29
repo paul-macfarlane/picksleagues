@@ -115,6 +115,23 @@ export function spreadLabel(spread: number | null, side: "home" | "away"): strin
 // "Your pick" copy, not the freshly-picked highlight.
 export type PickRowState = "unplayable" | "locked" | "picked" | "open";
 
+/**
+ * ADR-0015's retention boundary in one place: once a game has kicked off or
+ * stopped being playable, any pick on it is retained server-side and the pick
+ * editor can no longer change it.
+ *
+ * The pick screen asks this three ways that must agree — which rows render
+ * read-only, which selections still belong in the editable map, and whether the
+ * save bar has anything left to do. Restating it at each site is what let them
+ * drift: the selection map was filtered by this rule only at mount, so a game
+ * that locked while the screen was open stayed in it *and* joined the retained
+ * map, counting one pick twice ("8 of 5 picks") and queueing a submission the
+ * write path's lock guard must 409.
+ */
+export function isClosedToPicks(game: { locked: boolean; pickable: boolean }): boolean {
+  return game.locked || !game.pickable;
+}
+
 export function pickRowState(
   game: { pickable: boolean; locked: boolean },
   hasSelection: boolean,

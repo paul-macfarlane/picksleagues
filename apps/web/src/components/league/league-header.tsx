@@ -2,6 +2,7 @@ import type { LeagueResponse } from "@picksleagues/schemas";
 import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/status-pill";
 
 export function LeagueHeader({
   league,
@@ -21,14 +22,8 @@ export function LeagueHeader({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground capitalize">
-              {league.visibility}
-            </span>
-            {isCommissioner && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                Commissioner
-              </span>
-            )}
+            <StatusPill className="capitalize">{league.visibility}</StatusPill>
+            {isCommissioner && <StatusPill tone="accent">Commissioner</StatusPill>}
           </div>
         </div>
       </CardHeader>

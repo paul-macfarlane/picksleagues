@@ -5,31 +5,48 @@ import {
   type PickType,
   type PickemPick,
   type PickemPickSubmission,
+  type SlateGame,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
+import { isClosedToPicks } from "@/lib/game";
+import { cn } from "@/lib/utils";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
+import { StatusPill } from "@/components/status-pill";
 import { GameRow } from "@/components/league/pickem-game-row";
 import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
 
-// Only games that are still replaceable (spec/ADR-0015: unlocked and
-// pickable) seed the editable selection — a locked, cancelled/moved, or
-// week-moved pick is retained server-side automatically and must never be
-// re-submitted, so it never enters this map.
-function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
-  const selections = new Map<string, PickemPickSide>();
-  const gameById = new Map(slate.games.map((game) => [game.id, game]));
-  for (const pick of viewerPicks) {
-    const game = gameById.get(pick.gameId);
-    if (game && !game.locked && game.pickable) {
-      selections.set(pick.gameId, pick.side);
-    }
+/**
+ * Narrows a selection map to the games this editor may still submit
+ * (spec/ADR-0015: unlocked and pickable) — a locked, cancelled/moved, or
+ * week-moved pick is retained server-side and must never be re-submitted.
+ *
+ * Applied on **every** render, not only when seeding at mount. Games lock one
+ * at a time through a Sunday and a background slate refetch brings that in
+ * without remounting the editor, so a selection made while a game was open
+ * outlives the game's own editability. Leaving it in place counted the pick in
+ * both this map and the retained one ("8 of 5 picks") and would have submitted
+ * it into the write path's lock guard on the next save.
+ */
+export function openSelections(
+  games: Pick<SlateGame, "id" | "locked" | "pickable">[],
+  selections: Map<string, PickemPickSide>,
+): Map<string, PickemPickSide> {
+  const gameById = new Map(games.map((game) => [game.id, game]));
+  const open = new Map<string, PickemPickSide>();
+  for (const [gameId, side] of selections) {
+    const game = gameById.get(gameId);
+    if (game && !isClosedToPicks(game)) open.set(gameId, side);
   }
-  return selections;
+  return open;
+}
+
+function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
+  return openSelections(slate.games, new Map(viewerPicks.map((pick) => [pick.gameId, pick.side])));
 }
 
 function selectionsEqual(a: Map<string, PickemPickSide>, b: Map<string, PickemPickSide>): boolean {
@@ -117,8 +134,18 @@ function PickemWeekEditor({
   // (e.g. the spread_stale recovery path re-pulling this same slate) must
   // not silently discard picks the member is still deciding on, same
   // non-re-seeding rationale as the sim fixture editor.
-  const [seed, setSeed] = useState(() => hydrateSelections(slate, viewerPicks));
-  const [selections, setSelections] = useState<Map<string, PickemPickSide>>(() => new Map(seed));
+  const [storedSeed, setStoredSeed] = useState(() => hydrateSelections(slate, viewerPicks));
+  const [storedSelections, setStoredSelections] = useState<Map<string, PickemPickSide>>(
+    () => new Map(storedSeed),
+  );
+
+  // Both maps are re-narrowed against the *current* slate on every render
+  // rather than trusted to have stayed valid since mount — see openSelections.
+  // Filtering both keeps the dirty check honest: a game locking under the
+  // member drops the same entry from each side, so it can't read as an edit
+  // they didn't make.
+  const seed = openSelections(slate.games, storedSeed);
+  const selections = openSelections(slate.games, storedSelections);
 
   // Retained picks (locked, or on a now-unpickable/moved-out game) count
   // against the member's cap but can never be edited from this endpoint
@@ -132,11 +159,14 @@ function PickemWeekEditor({
   for (const pick of viewerPicks) {
     const game = gameById.get(pick.gameId);
     const pushed = !game || !game.pickable;
-    if (!game || game.locked || !game.pickable) {
+    if (!game || isClosedToPicks(game)) {
       retainedPickByGameId.set(pick.gameId, { pick, pushed });
     }
   }
 
+  // Exactly complementary to the retained map by construction — both sides key
+  // off `isClosedToPicks`, so no pick can land in both (the miscount) or
+  // neither (an undercount).
   const heldCount = retainedPickByGameId.size + selections.size;
   const atCap = heldCount >= picksAllowed;
   const dirty = !selectionsEqual(seed, selections);
@@ -151,8 +181,15 @@ function PickemWeekEditor({
     ...selections.keys(),
   ]);
   const eligibleReplacementGames = slate.games.filter(
-    (game) => !game.locked && game.pickable && !heldGameIds.has(game.id),
+    (game) => !isClosedToPicks(game) && !heldGameIds.has(game.id),
   );
+
+  // Whether the week still has anything the member could act on. Once every
+  // game has kicked off or stopped being playable, a "Save picks" button can
+  // never enable again, so the action bar retires and hands its count to the
+  // card header (feedback round 4) rather than pinning a dead control to the
+  // bottom of the screen for the rest of the week.
+  const anyOpenGames = slate.games.some((game) => !isClosedToPicks(game));
 
   // Pushed picks whose game moved to a different week entirely aren't in this
   // slate at all (ADR-0015), so they never render via the games list below —
@@ -162,7 +199,7 @@ function PickemWeekEditor({
     .map(([, retained]) => retained.pick);
 
   function toggle(gameId: string, side: PickemPickSide) {
-    setSelections((prev) => {
+    setStoredSelections((prev) => {
       const next = new Map(prev);
       if (next.get(gameId) === side) {
         next.delete(gameId);
@@ -179,8 +216,8 @@ function PickemWeekEditor({
   // rather than waiting on a remount. Written into `seed` too so the editor
   // doesn't read as dirty for a pick the member didn't touch.
   function handleSubstituted(gameId: string, side: PickemPickSide) {
-    setSelections((prev) => new Map(prev).set(gameId, side));
-    setSeed((prev) => new Map(prev).set(gameId, side));
+    setStoredSelections((prev) => new Map(prev).set(gameId, side));
+    setStoredSeed((prev) => new Map(prev).set(gameId, side));
   }
 
   function handleSubmit() {
@@ -196,7 +233,7 @@ function PickemWeekEditor({
       }));
     submit.mutate(payload, {
       onSuccess: (data) => {
-        if (data) setSeed(new Map(selections));
+        if (data) setStoredSeed(new Map(storedSelections));
       },
     });
   }
@@ -206,15 +243,21 @@ function PickemWeekEditor({
       <Card>
         <CardHeader>
           <CardTitle>{slate.label}</CardTitle>
-          {/* Progress lives in the action bar, which is always on screen —
-              repeating the same count here in a second phrasing would only
-              give it somewhere to drift, and this copy scrolls away anyway. */}
-          <CardDescription>Each pick locks at its own kickoff.</CardDescription>
+          {/* Progress normally lives in the action bar, which is always on
+              screen — repeating the count here in a second phrasing would only
+              give it somewhere to drift. Once the bar retires it has nowhere
+              else to go, so the same formatter renders it here instead. */}
+          <CardDescription>
+            {anyOpenGames
+              ? "Each pick locks at its own kickoff."
+              : `${pickProgressLabel(heldCount, picksAllowed)} · this week is locked.`}
+          </CardDescription>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom
-            (verified at 375px). */}
-        <CardContent className="flex flex-col gap-4 pb-24">
+            (verified at 375px) — and is dropped with the bar, since the
+            reserved gap reads as a broken layout with nothing in it. */}
+        <CardContent className={cn("flex flex-col gap-4", anyOpenGames && "pb-24")}>
           {pushedOutOfWeekPicks.length > 0 && (
             <ul className="flex flex-col gap-3">
               {pushedOutOfWeekPicks.map((pick) => (
@@ -226,9 +269,7 @@ function PickemWeekEditor({
                     <p className="text-sm font-medium text-foreground">
                       Pick moved out of this week
                     </p>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      Push
-                    </span>
+                    <StatusPill>Push</StatusPill>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     That game moved to a different week, so this pick resolved as a push.
@@ -271,7 +312,8 @@ function PickemWeekEditor({
       </Card>
 
       {/* Sticky action bar (feedback: submitting a 16-game slate shouldn't
-          require scrolling to the bottom to find the button). `fixed`, not
+          require scrolling to the bottom to find the button). Mounted only
+          while some game is still open — see anyOpenGames. `fixed`, not
           CSS `sticky` — Card sets `overflow-hidden` for its rounded corners,
           and any ancestor with overflow other than visible clips/breaks a
           sticky descendant, whereas `fixed` escapes ancestor layout
@@ -281,20 +323,22 @@ function PickemWeekEditor({
           z-20 stays under the tab bar (z-30) and header (z-40) per
           routes/_authed.tsx's layering comment, and well under overlay
           portals (z-50). */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <p className="text-sm text-muted-foreground">
-            {pickProgressLabel(heldCount, picksAllowed)}
-            {dirty && <span className="text-foreground"> · unsaved</span>}
-          </p>
-          {/* Async-button rule: disabled in place while pending, label never
-              changes — outcome feedback is the toast the mutation already
-              raises on success/error. */}
-          <Button disabled={submit.isPending || !dirty} onClick={handleSubmit}>
-            Save picks
-          </Button>
+      {anyOpenGames && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <p className="text-sm text-muted-foreground">
+              {pickProgressLabel(heldCount, picksAllowed)}
+              {dirty && <span className="text-foreground"> · unsaved</span>}
+            </p>
+            {/* Async-button rule: disabled in place while pending, label never
+                changes — outcome feedback is the toast the mutation already
+                raises on success/error. */}
+            <Button disabled={submit.isPending || !dirty} onClick={handleSubmit}>
+              Save picks
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

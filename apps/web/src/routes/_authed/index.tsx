@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/status-pill";
 
 export const Route = createFileRoute("/_authed/")({
   component: Dashboard,
@@ -117,17 +118,11 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
             {league.memberCount} member{league.memberCount === 1 ? "" : "s"}
           </span>
           {league.myRole === MEMBER_ROLE.COMMISSIONER && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              Commissioner
-            </span>
+            <StatusPill tone="accent">Commissioner</StatusPill>
           )}
           {/* No inline action — the card already links into the league, where
               a commissioner gets the "Start next season" control (ADR-0009). */}
-          {league.renewable && (
-            <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
-              New season available
-            </span>
-          )}
+          {league.renewable && <StatusPill tone="highlight">New season available</StatusPill>}
         </div>
         <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
         {/* Pick tables land in later epics — nothing to summarize yet. */}

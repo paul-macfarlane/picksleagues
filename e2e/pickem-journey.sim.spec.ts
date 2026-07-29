@@ -55,6 +55,26 @@ async function selectPick(page: Page, awayAbbr: string, homeAbbr: string, pickAb
   await row.getByRole("button", { name: pickAbbr, exact: true }).click();
 }
 
+// Tab away and come back, without navigating. TanStack Query refetches its
+// stale queries on regaining visibility, which is how an already-open screen
+// takes in state that changed while the member wasn't looking — the only way
+// to exercise a re-render against a *new* slate, since every `goto` remounts
+// the editor and re-seeds it from scratch. The flag has to actually flip:
+// the focus manager fires on change, not on every event.
+async function tabAwayAndBack(page: Page) {
+  await page.evaluate(() => {
+    const visit = (value: DocumentVisibilityState) => {
+      Object.defineProperty(document, "visibilityState", { value, configurable: true });
+      // Dispatched on `window`, where the query client's focus manager
+      // listens. A real `visibilitychange` fires on `document` and reaches
+      // `window` by bubbling, which a hand-built Event does not do by default.
+      window.dispatchEvent(new Event("visibilitychange"));
+    };
+    visit("hidden");
+    visit("visible");
+  });
+}
+
 // Addressed by the testid `MemberPicksRow` carries for exactly this purpose —
 // the row is the unit the visibility assertions care about, and locating it by
 // walking up from the display-name text would re-break on any layout change.
@@ -234,6 +254,14 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await pageA.getByRole("option", { name: "Week 1", exact: true }).click();
     await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}\\?week=`));
 
+    // A tab marks the section, and the section is the path: picking a
+    // standings period writes `?week=` into this route's own URL and must not
+    // read as having navigated away from it (feedback round 4).
+    await expect(pageA.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
     const detail = pageA.locator('[data-slot="card"]', { hasText: "Picks — Week 1" });
 
     const own = memberRow(detail, commishName);
@@ -246,15 +274,46 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   });
 
   test("advancing the clock past one kickoff locks that pick, and reveals it to other members", async () => {
+    // Open the editor *before* the kickoff, so the screen has to absorb the
+    // lock without a remount — the position a member is in whenever they leave
+    // the picks tab open through a Sunday.
+    await pageA.goto(`/leagues/${leagueId}/picks`);
+    await expect(pageA.getByText("4 of 4 picks")).toBeVisible();
+
     const lockInstant = new Date(new Date(game1.kickoffAt).getTime() + 60_000).toISOString();
     await adminContext.request.post("/api/sim/clock", {
       data: { kind: SIM_CLOCK_ADJUSTMENT_KIND.INSTANT, instant: lockInstant },
     });
 
-    // UI: the kicked-off game locks; the rest of the week stays editable.
-    await pageA.goto(`/leagues/${leagueId}/picks`);
+    // Pull the started game's live state through, so the row renders what a
+    // member actually sees mid-Sunday rather than a still-"Scheduled" row that
+    // happens to be locked.
+    await adminContext.request.post("/api/admin/jobs/nfl/sync-scores");
+
+    await tabAwayAndBack(pageA);
+
+    // UI: the kicked-off game locks; the rest of the week stays editable. A
+    // game being played takes the badge slot from "Locked" — it has kicked off
+    // by definition, and which of the three states the row is in is the more
+    // useful fact (feedback round 4). The lock itself is asserted below, by the
+    // controls and by the API's own refusal.
     const lockedRow = pageA.locator("li", { hasText: "MIA @ BUF" });
-    await expect(lockedRow.getByText("Locked")).toBeVisible();
+    await expect(lockedRow.getByText("In progress")).toBeVisible();
+    await expect(lockedRow.getByText("Locked")).toHaveCount(0);
+
+    // Read the count only *after* the row above proves the new slate has
+    // landed. The refetch is asynchronous, so asserting straight after the
+    // visibility event would pass against the pre-refetch render every time —
+    // green for the wrong reason, and blind to exactly the bug below.
+    //
+    // The count must survive the slate changing underneath an open editor: a
+    // pick whose game just locked moves from the editable selection into the
+    // retained set, and must not be counted by both. It was — the selection map
+    // was filtered only at mount — which is the reported "8 of 5 picks", and
+    // remounting on every navigation is what hid it. Nor is any of this an edit
+    // the member made, so nothing reads as unsaved.
+    await expect(pageA.getByText("4 of 4 picks")).toBeVisible();
+    await expect(pageA.getByText("unsaved")).toHaveCount(0);
     await expect(lockedRow.getByText("Your pick: BUF")).toBeVisible();
     const lockedPicked = lockedRow.getByRole("button", { name: "BUF", exact: true });
     const lockedUnpicked = lockedRow.getByRole("button", { name: "MIA", exact: true });
@@ -343,5 +402,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     const settledRow = pageA.locator("li", { hasText: "MIA @ BUF" });
     await expect(settledRow.getByText("Correct")).toBeVisible();
     await expect(settledRow.getByText("Locked")).toHaveCount(0);
+
+    // Nothing in the week can be changed any more, so the save bar retires
+    // rather than pinning a permanently-disabled button to the screen, and
+    // hands its count to the card header (feedback round 4).
+    await expect(pageA.getByRole("button", { name: "Save picks" })).toHaveCount(0);
+    await expect(pageA.getByText("4 of 4 picks · this week is locked.")).toBeVisible();
   });
 });

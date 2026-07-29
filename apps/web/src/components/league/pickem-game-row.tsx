@@ -1,4 +1,5 @@
 import {
+  GAME_STATUS,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickemPick,
@@ -7,15 +8,23 @@ import {
   type PickType,
   type SlateGame,
 } from "@picksleagues/schemas";
-import { gameStateAsOfLabel, gameStateLabel, pickRowState, spreadLabel } from "@/lib/game";
+import {
+  gameStateAsOfLabel,
+  gameStateLabel,
+  isClosedToPicks,
+  pickRowState,
+  spreadLabel,
+} from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
+import { GameStatePill } from "@/components/league/game-state";
 import {
   PickOutcomeBadge,
   PickOutcomeIcon,
   pickOutcomeButtonClassName,
 } from "@/components/league/pick-outcome";
+import { StatusPill } from "@/components/status-pill";
 import { TeamLogo } from "@/components/team-logo";
 
 /**
@@ -109,7 +118,10 @@ export function GameRow({
   // accept") for every attempt until the odds sync lands, so this is guarded
   // client-side rather than left to surface as a confusing repeat failure.
   const noLineYet = showSpread && game.spread === null;
-  const editable = !game.locked && game.pickable && !noLineYet;
+  const editable = !isClosedToPicks(game) && !noLineYet;
+  // Read once for the badge precedence below; `GameStatePill` re-checks it, so
+  // the two can't disagree about which status counts as live.
+  const inProgress = game.status === GAME_STATUS.IN_PROGRESS;
   const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
   const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
   // The side the member holds, however they came to hold it: toggled in this
@@ -158,31 +170,28 @@ export function GameRow({
             size="sm"
           />
         </p>
-        {/* One badge, most-informative-wins. A settled pick takes the slot from
-            "Locked": every settled pick is locked, so the lock is implied and
-            the grade is what's worth the space. No status badge for unplayable
-            games either — the state line below carries the status for every
-            non-scheduled game, and repeating "Cancelled" twelve pixels apart
-            reads as a rendering bug. The badges that remain are about the
-            *pick* (how did it go / can I still change it), not the game. */}
+        {/* One badge, most-informative-wins, and the chain is total because
+            each state strictly implies the next: a settled pick takes the slot
+            from "Locked" (every settled pick is locked, so the lock is implied
+            and the grade is worth more), and an in-progress game takes it from
+            "Locked" too — it has kicked off by definition, and "still being
+            played" is the fact that separates it from the finished games above
+            it and the unstarted ones below (feedback round 4). "In progress"
+            and "Picked" can never contend: a picked row is unlocked, and an
+            in-progress one cannot be. No status badge for unplayable games —
+            the state line below carries the status for every non-scheduled
+            game, and repeating "Cancelled" twelve pixels apart reads as a
+            rendering bug. */}
         {outcome ? (
           <PickOutcomeBadge outcome={outcome} />
+        ) : inProgress ? (
+          <GameStatePill status={game.status} />
         ) : rowState === "picked" ? (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Picked
-          </span>
+          <StatusPill tone="accent">Picked</StatusPill>
         ) : (
-          game.locked && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              Locked
-            </span>
-          )
+          game.locked && <StatusPill>Locked</StatusPill>
         )}
-        {game.pickable && !game.locked && noLineYet && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            No line yet
-          </span>
-        )}
+        {game.pickable && !game.locked && noLineYet && <StatusPill>No line yet</StatusPill>}
       </div>
 
       {/* Kickoff before the game starts, status + score after — a member whose
