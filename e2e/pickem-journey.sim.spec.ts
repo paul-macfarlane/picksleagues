@@ -256,8 +256,16 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     const lockedRow = pageA.locator("li", { hasText: "MIA @ BUF" });
     await expect(lockedRow.getByText("Locked")).toBeVisible();
     await expect(lockedRow.getByText("Your pick: BUF")).toBeVisible();
-    await expect(lockedRow.getByRole("button", { name: "BUF", exact: true })).toBeDisabled();
-    await expect(lockedRow.getByRole("button", { name: "MIA", exact: true })).toBeDisabled();
+    const lockedPicked = lockedRow.getByRole("button", { name: "BUF", exact: true });
+    const lockedUnpicked = lockedRow.getByRole("button", { name: "MIA", exact: true });
+    await expect(lockedPicked).toBeDisabled();
+    await expect(lockedUnpicked).toBeDisabled();
+    // Locking must not erase *which* side is held: both sides disabled and
+    // rendered identically was the reported defect, and the pressed state is
+    // the assertable half of the fix (the fill and the check ride on the same
+    // `held` flag).
+    await expect(lockedPicked).toHaveAttribute("aria-pressed", "true");
+    await expect(lockedUnpicked).toHaveAttribute("aria-pressed", "false");
 
     const openRow = pageA.locator("li", { hasText: "DEN @ KC" });
     await expect(openRow.getByText("Locked")).toBeHidden();

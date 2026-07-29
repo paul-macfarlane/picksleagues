@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckIcon } from "lucide-react";
 import {
   PICKEM_PICK_SIDE,
   PICK_TYPE,
@@ -303,6 +304,50 @@ function PickemWeekEditor({
   );
 }
 
+/**
+ * One side of a matchup as a pick control. `held` — not "selected" — because
+ * it covers a locked or pushed pick just as much as a live selection: the fill,
+ * the check, and `aria-pressed` are the row's answer to "who did I take", and
+ * that question outlives the ability to change the answer.
+ *
+ * The check is what makes the fill unambiguous. A filled button alone reads as
+ * the primary action ("press me"), which is the opposite of what it means here,
+ * and the palette is achromatic (index.css — every token is `oklch(x 0 0)`), so
+ * there is no colour available to carry the distinction instead.
+ */
+function SideButton({
+  team,
+  spread,
+  held,
+  disabled,
+  onClick,
+}: {
+  team: SlateGame["homeTeam"];
+  spread: string | null;
+  held: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={held ? "default" : "outline"}
+      aria-pressed={held}
+      // A held side spends most of its life disabled — every row is locked
+      // once its game kicks off — so it lifts out of the standard disabled
+      // dimming enough to stay readable against its outline sibling.
+      className={cn(held && "disabled:opacity-75")}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {held && <CheckIcon aria-hidden="true" />}
+      <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
+      {team.abbreviation}
+      {spread && ` ${spread}`}
+    </Button>
+  );
+}
+
 function GameRow({
   leagueId,
   weekId,
@@ -335,17 +380,30 @@ function GameRow({
   const editable = !game.locked && game.pickable && !noLineYet;
   const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
   const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
-  // Locked/unplayable already read distinctly via the badges below (and, for
-  // a retained pick, the "Your pick" copy) — `picked` only fires for a fresh,
-  // still-editable selection, which is what the row highlight below is for.
-  const rowState = pickRowState(game, editable && selectedSide !== undefined);
+  // The side the member holds, however they came to hold it: toggled in this
+  // editor, or committed earlier and now unchangeable (locked, or on a
+  // cancelled/moved game — `hydrateSelections` deliberately keeps those out of
+  // `selectedSide` so they can never be re-submitted). Everything *displayed*
+  // reads this; only `selectedSide` decides what the save payload contains.
+  // Splitting the two is the point: a locked row otherwise renders both sides
+  // identically, which is precisely when the member most wants to see which
+  // one they're stuck with.
+  const heldSide = selectedSide ?? retained?.pick.side;
+  // Locked/unplayable still outrank a held pick for the row highlight — those
+  // say "you can't act here", which is the more useful thing to see while
+  // scanning; the buttons below carry the who-did-I-pick answer in every state.
+  const rowState = pickRowState(game, heldSide !== undefined);
   const stateAsOf = gameStateAsOfLabel(game);
 
   return (
     <li
       className={cn(
         "flex flex-col gap-2 rounded-lg border border-border p-3",
-        rowState === "picked" && "border-primary/50 bg-primary/5",
+        // Full-strength `primary`, not a fraction of it: the palette is
+        // achromatic, so a tinted border is the only row-level cue available
+        // and a 50% one sits too close to `border` (white/10% in dark) to
+        // survive scanning a 16-game slate.
+        rowState === "picked" && "border-primary bg-primary/5",
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -397,36 +455,20 @@ function GameRow({
       {stateAsOf && <p className="text-xs text-muted-foreground/70">{stateAsOf}</p>}
 
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          type="button"
-          variant={selectedSide === PICKEM_PICK_SIDE.AWAY ? "default" : "outline"}
-          aria-pressed={selectedSide === PICKEM_PICK_SIDE.AWAY}
+        <SideButton
+          team={game.awayTeam}
+          spread={awaySpread}
+          held={heldSide === PICKEM_PICK_SIDE.AWAY}
           disabled={!editable || buttonsDisabled}
           onClick={() => onToggle(PICKEM_PICK_SIDE.AWAY)}
-        >
-          <TeamLogo
-            logoLightUrl={game.awayTeam.logoLightUrl}
-            logoDarkUrl={game.awayTeam.logoDarkUrl}
-            size="sm"
-          />
-          {game.awayTeam.abbreviation}
-          {awaySpread && ` ${awaySpread}`}
-        </Button>
-        <Button
-          type="button"
-          variant={selectedSide === PICKEM_PICK_SIDE.HOME ? "default" : "outline"}
-          aria-pressed={selectedSide === PICKEM_PICK_SIDE.HOME}
+        />
+        <SideButton
+          team={game.homeTeam}
+          spread={homeSpread}
+          held={heldSide === PICKEM_PICK_SIDE.HOME}
           disabled={!editable || buttonsDisabled}
           onClick={() => onToggle(PICKEM_PICK_SIDE.HOME)}
-        >
-          <TeamLogo
-            logoLightUrl={game.homeTeam.logoLightUrl}
-            logoDarkUrl={game.homeTeam.logoDarkUrl}
-            size="sm"
-          />
-          {game.homeTeam.abbreviation}
-          {homeSpread && ` ${homeSpread}`}
-        </Button>
+        />
       </div>
 
       {!editable && (
