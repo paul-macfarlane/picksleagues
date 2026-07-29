@@ -15,6 +15,37 @@ export function nflSeasonYearFor(now: Date): number {
   return isAugustThroughDecember ? utcYear : utcYear - 1;
 }
 
+// 0-indexed, matching Date's month argument: the season label flips on Aug 1.
+const AUGUST = 7;
+
+/**
+ * The earliest anchor at or after `earliest` for which a run of `spanMs` lies
+ * wholly inside one NFL season label — `earliest` itself unless the span
+ * straddles the Aug 1 flip, in which case the flip instant.
+ *
+ * This exists for the simulator (SIM-3). A library scenario's times are offsets
+ * from its anchor, so a scenario anchored in late July has its games in August:
+ * its season stamp and the year the sync jobs derive from `clock.now()` then
+ * disagree for as long as the clock sits on the near side of the flip, and a
+ * `SimulatedProvider` asked for a season its active scenario doesn't cover
+ * returns nothing — every job a silent no-op. Stamping from the far end instead
+ * only moves the disagreement to the other side of the flip. Nothing can stamp
+ * one year onto a span that reads as two, so the fix is to not straddle:
+ * anchoring at the flip makes the label constant across the scenario's whole
+ * life, whatever the operator does with the clock.
+ *
+ * Assumes a span shorter than a year (library scenarios run ~2 weeks) — the
+ * snapped anchor is the start of a label, so anything longer would straddle the
+ * *next* flip.
+ */
+export function nflSeasonAlignedAnchor(earliest: Date, spanMs: number): Date {
+  const seasonYear = nflSeasonYearFor(earliest);
+  if (nflSeasonYearFor(new Date(earliest.getTime() + spanMs)) === seasonYear) return earliest;
+  // Season `Y` starts Aug 1 of calendar year `Y`, so the next label's start is
+  // the only instant the span can have spilled past.
+  return new Date(Date.UTC(seasonYear + 1, AUGUST, 1));
+}
+
 /**
  * The most recent NFL season year whose Super Bowl has definitely been
  * played. This is a different question from `nflSeasonYearFor` — that

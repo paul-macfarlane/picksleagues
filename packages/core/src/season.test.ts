@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { WEEK_TYPE } from "@picksleagues/schemas";
 import { ESPN_POSTSEASON_NUMBER_BY_DOMAIN } from "./espn-provider";
-import { estimatedNflWeeks, latestCompletedNflSeasonYear, nflSeasonYearFor } from "./season";
+import {
+  estimatedNflWeeks,
+  latestCompletedNflSeasonYear,
+  nflSeasonAlignedAnchor,
+  nflSeasonYearFor,
+} from "./season";
 
 describe("nflSeasonYearFor", () => {
   it.each([
@@ -31,6 +36,82 @@ describe("latestCompletedNflSeasonYear", () => {
     { label: "leap day", now: "2024-02-29T00:00:00Z", expected: 2022 },
   ])("$label -> $expected", ({ now, expected }) => {
     expect(latestCompletedNflSeasonYear(new Date(now))).toBe(expected);
+  });
+});
+
+// The regression this exists for: a ~7-day scenario loaded on 2026-07-29 ends
+// on 2026-08-05, so its games sit in season 2026 while `nflSeasonYearFor(now)`
+// still reads 2025 — the simulator's sync jobs then ask for a season the
+// scenario doesn't cover and no-op. The window is only the last days of July,
+// which is why it surfaced as a merge-gate E2E failure and not in review.
+describe("nflSeasonAlignedAnchor", () => {
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  it.each([
+    {
+      label: "mid-season: already inside one label, returned unchanged",
+      earliest: "2026-10-01T12:00:00Z",
+      spanMs: WEEK_MS,
+      expected: "2026-10-01T12:00:00.000Z",
+    },
+    {
+      label: "spanning New Year: no flip there, so unchanged",
+      earliest: "2026-12-29T12:00:00Z",
+      spanMs: 2 * WEEK_MS,
+      expected: "2026-12-29T12:00:00.000Z",
+    },
+    {
+      label: "late July, span crosses Aug 1: snapped to the flip",
+      earliest: "2026-07-29T01:25:00Z",
+      spanMs: WEEK_MS,
+      expected: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      label: "early July, span ends before Aug 1: unchanged",
+      earliest: "2026-07-01T00:00:00Z",
+      spanMs: WEEK_MS,
+      expected: "2026-07-01T00:00:00.000Z",
+    },
+    {
+      label: "July 31, span ends one ms past the flip: snapped",
+      earliest: "2026-07-31T23:59:59.999Z",
+      spanMs: 2,
+      expected: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      label: "span ending exactly at the flip stays on the near side",
+      earliest: "2026-07-31T00:00:00Z",
+      spanMs: 24 * 60 * 60 * 1000,
+      expected: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      label: "already at the flip: unchanged",
+      earliest: "2026-08-01T00:00:00Z",
+      spanMs: WEEK_MS,
+      expected: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      label: "Jan-Jul maps back a year, so the snap is the *next* calendar Aug",
+      earliest: "2027-07-30T00:00:00Z",
+      spanMs: WEEK_MS,
+      expected: "2027-08-01T00:00:00.000Z",
+    },
+  ])("$label", ({ earliest, spanMs, expected }) => {
+    expect(nflSeasonAlignedAnchor(new Date(earliest), spanMs).toISOString()).toBe(expected);
+  });
+
+  it("the returned anchor labels the whole span, whenever it is loaded", () => {
+    // Every hour of a year: the property the simulator depends on, rather than
+    // trusting the handful of boundaries enumerated above.
+    const HOUR_MS = 60 * 60 * 1000;
+    const start = Date.UTC(2026, 0, 1);
+    for (let t = start; t < start + 365 * 24 * HOUR_MS; t += HOUR_MS) {
+      const anchor = nflSeasonAlignedAnchor(new Date(t), 2 * WEEK_MS);
+      expect(anchor.getTime()).toBeGreaterThanOrEqual(t);
+      expect(nflSeasonYearFor(new Date(anchor.getTime() + 2 * WEEK_MS))).toBe(
+        nflSeasonYearFor(anchor),
+      );
+    }
   });
 });
 
