@@ -405,6 +405,9 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // it appears nowhere before a pick settles.
     await expect(memberRow(detail, commishName).getByText("Correct")).toHaveCount(4);
     await expect(memberRow(detail, joinerName).getByText("Incorrect")).toHaveCount(4);
+    // Every graded pick pairs its badge with the size of the result — none of
+    // these four pushed, so all four carry a magnitude (round 5).
+    await expect(memberRow(detail, commishName).getByText(/^by \d/)).toHaveCount(4);
 
     // Same grades on the pick editor, where the outcome takes the badge slot
     // "Locked" held before the game finished.
@@ -414,9 +417,10 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await expect(settledRow.getByText("Locked")).toHaveCount(0);
     // BUF (home) beat MIA (away) 27–17 — named, and in away-home order.
     await expect(settledRow.getByText("MIA 17 – BUF 27")).toBeVisible();
-    // The provisional standing must get out of the way once a real grade
-    // exists, or the row would assert an outcome twice in two vocabularies.
-    await expect(settledRow.getByText("Your pick: BUF")).toBeVisible();
+    // The magnitude survives the grade but the provisional *phrasing* must not:
+    // the badge above owns the verdict, so the line states only how big the
+    // result was — the same number the standings' Diff column sums (round 5).
+    await expect(settledRow.getByText("Your pick: BUF · by 10")).toBeVisible();
     await expect(settledRow.getByText(/tied|up \d|down \d/)).toHaveCount(0);
 
     // Nothing in the week can be changed any more, so the save bar retires

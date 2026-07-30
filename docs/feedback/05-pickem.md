@@ -151,3 +151,45 @@ performs, but this value is persisted as the tiebreaker `differential` and forma
 display, so it is now normalised at the source. Found by a unit test asserting the new
 export directly — the transitive coverage through `settlePickemWeek` never compared a
 zero margin by identity.
+
+## Round 5 — settled pick margin (2026-07-29)
+
+| # | Item | Resolution |
+| --- | --- | --- |
+| 4 | Show the win/loss/push margin on *completed* games too, in the pick card and in League Picks? | **Yes.** A graded row now reads `Correct · by 10`: the badge keeps the verdict, the number adds only the magnitude. The framing in the request is the justification — the standings' `Diff` column already sums these, so showing the per-pick contribution makes a tiebreaker auditable against the week that produced it instead of taking the total on faith. Verified at 390px: the commissioner's four settled picks read `by 10`, `by 4`, `by 4`, `by 17`, and the Diff column above them reads `+35`. |
+| 5 | Does League Picks belong in its own tab? | **Answered, not built** — see the note below. |
+
+**Why the settled phrasing is not the provisional phrasing.** "Covered by 7.5" would have
+been the natural extension, and it is wrong here: the outcome badge sits twelve pixels
+away asserting the same thing in the app's settled vocabulary, and two verdicts in two
+vocabularies on one line is how a member starts wondering which one is authoritative.
+The division is verdict-from-the-badge, magnitude-from-the-number, and it happens to make
+both pick types read identically — `Incorrect · by 3` means "missed the spread by 3" in
+ATS and "lost by 3" in SU without needing separate copy.
+
+**Two states deliberately say nothing.** A push has no magnitude to state, whether it
+landed exactly on the number or the game was cancelled out from under it. And a game that
+has gone final but whose picks have **not graded yet** shows nothing at all: settlement is
+a job, so that window is real, and a bare "by 10" with no badge beside it to give it
+direction is worse than silence. That second case is why `pickStandingLabel` keys the
+settled branch on *the grade existing* rather than on `status === FINAL` — the obvious
+status check would have produced a directionless number during exactly that window.
+
+**The extraction this forced.** Both pick surfaces had been restating the same three-part
+guard inline (status check, null-score guard, `pickMargin` call), which is precisely how
+they would have come to disagree about when a number may appear next to a pick — the same
+class of drift that produced round 3's "8 of 5 picks". The rule now lives once, in
+`pickStandingLabel`, and both surfaces call it with no local conditions of their own.
+`pickMarginLabel` was renamed `provisionalMarginLabel` in the same pass: with two
+phrasings in play, a name that doesn't say which one it is was an invitation to reach for
+the wrong one.
+
+**On item 5 (League Picks placement) — answered rather than built.** Restructuring tab
+navigation is an IA decision with real rework either way, so it is recorded here as a
+recommendation awaiting a call, not shipped. The recommendation: fold the week detail into
+the existing Picks tab under its week selector and drop it from Overview, rather than
+adding a fifth tab. Today the detail only appears when a member changes the standings
+*scope* selector to a specific week, which means everyone's picks are a side effect of a
+standings control — and the most common combination (season standings + this week's
+picks) is unreachable. Two week-scoped states become one, and Overview goes back to being
+a summary.

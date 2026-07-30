@@ -1,5 +1,4 @@
 import {
-  GAME_STATUS,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickType,
@@ -9,8 +8,7 @@ import {
 } from "@picksleagues/schemas";
 import { useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { pickMargin } from "@picksleagues/scoring";
-import { gameStateAsOfLabel, gameStateLabel, pickMarginLabel, spreadLabel } from "@/lib/game";
+import { gameStateAsOfLabel, gameStateLabel, pickStandingLabel, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
@@ -176,19 +174,15 @@ function PickRow({
     ? spreadLabel(pick.spread, pick.side === PICKEM_PICK_SIDE.HOME ? "home" : "away")
     : null;
   const stateAsOf = gameStateAsOfLabel(game);
-  // Same rule as the pick editor's rows: a provisional reading only while the
-  // game runs, off the pick's own accepted spread. Shown for every member's
-  // revealed pick, not just the viewer's — a pick visible here has kicked off,
-  // so this discloses nothing the visibility rule doesn't already allow.
-  const standing =
-    game.status === GAME_STATUS.IN_PROGRESS && game.awayScore !== null && game.homeScore !== null
-      ? pickMargin(
-          { side: pick.side, spreadAtPick: pick.spread },
-          game.homeScore,
-          game.awayScore,
-          pickType,
-        )
-      : null;
+  // Literally the same rule as the pick editor's rows, via the same function.
+  // Shown for every member's revealed pick, not just the viewer's — a pick
+  // visible here has kicked off, so this discloses nothing the visibility rule
+  // doesn't already allow.
+  const standing = pickStandingLabel(
+    game,
+    { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome },
+    pickType,
+  );
 
   return (
     <li className={PICK_ROW_CLASS_NAME}>
@@ -204,12 +198,12 @@ function PickRow({
           ({game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation})
         </span>
         {/* Same badge the pick editor uses, so a member reading their own row
-            here and there sees one vocabulary for how a pick graded. Mutually
-            exclusive with the standing below it: a graded pick's game is over. */}
+            here and there sees one vocabulary for how a pick graded. The badge
+            owns the verdict and the standing beside it owns the magnitude —
+            they pair on a graded pick, and the standing stands alone while the
+            game is still running. */}
         {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
-        {standing !== null && (
-          <span className="text-muted-foreground">{pickMarginLabel(standing, pickType)}</span>
-        )}
+        {standing && <span className="text-muted-foreground">{standing}</span>}
       </span>
       {/* The "as of" qualifier is folded into this same line rather than given
           a block of its own: the row is already tight (unlike the pick-entry

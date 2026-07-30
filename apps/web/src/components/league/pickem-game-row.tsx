@@ -8,13 +8,12 @@ import {
   type PickType,
   type SlateGame,
 } from "@picksleagues/schemas";
-import { pickMargin } from "@picksleagues/scoring";
 import {
   gameStateAsOfLabel,
   gameStateLabel,
   isClosedToPicks,
-  pickMarginLabel,
   pickRowState,
+  pickStandingLabel,
   spreadLabel,
 } from "@/lib/game";
 import { cn } from "@/lib/utils";
@@ -143,19 +142,17 @@ export function GameRow({
   // scanning; the buttons below carry the who-did-I-pick answer in every state.
   const rowState = pickRowState(game, heldSide !== undefined);
   const stateAsOf = gameStateAsOfLabel(game);
-  // Only while the game is running: before kickoff there is nothing to read, and
-  // once it settles the real grade takes over (see pickMarginLabel). Read off
-  // the *pick's* accepted spread, never the game's current one, so it matches
-  // what settlement will grade.
-  const standing =
-    inProgress && retained && game.awayScore !== null && game.homeScore !== null
-      ? pickMargin(
-          { side: retained.pick.side, spreadAtPick: retained.pick.spread },
-          game.homeScore,
-          game.awayScore,
-          pickType,
-        )
-      : null;
+  // Read off the *pick's* accepted spread, never the game's current one, so it
+  // matches what settlement grades on. Which phrasing (a provisional reading
+  // while it runs, the bare magnitude once graded) is the helper's rule, not
+  // this row's.
+  const standing = retained
+    ? pickStandingLabel(
+        game,
+        { side: retained.pick.side, spreadAtPick: retained.pick.spread, outcome },
+        pickType,
+      )
+    : null;
 
   return (
     <li
@@ -241,7 +238,8 @@ export function GameRow({
         <div className="flex flex-col gap-2">
           {/* The standing rides on this line rather than the badge slot above
               because it is a fact about the *pick*, not the game — the badge
-              there is already saying "In progress", which is the game's news. */}
+              there is already saying "In progress" or how it graded, which is
+              the game's news. */}
           <p className="text-xs text-muted-foreground">
             {retained
               ? `Your pick: ${
@@ -250,7 +248,7 @@ export function GameRow({
                     : game.awayTeam.abbreviation
                 }`
               : "No pick"}
-            {standing !== null && ` · ${pickMarginLabel(standing, pickType)}`}
+            {standing && ` · ${standing}`}
           </p>
           {/* Only a pushed pick (spec §Cancellations) gets a substitute offer
               — a plain locked pick (the game simply kicked off) is retained

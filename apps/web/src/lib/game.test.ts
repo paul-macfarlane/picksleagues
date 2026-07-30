@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { GAME_STATUS, PICK_TYPE } from "@picksleagues/schemas";
+import { GAME_STATUS, PICKEM_PICK_SIDE, PICK_OUTCOME, PICK_TYPE } from "@picksleagues/schemas";
 import {
   clockLabel,
   gameStateAsOfLabel,
   gameStateLabel,
   isClosedToPicks,
   periodLabel,
-  pickMarginLabel,
   pickRowState,
+  pickStandingLabel,
+  provisionalMarginLabel,
 } from "./game";
 
 describe("isClosedToPicks", () => {
@@ -240,9 +241,9 @@ describe("gameStateAsOfLabel", () => {
 /**
  * A provisional reading, so the phrasing is the point: a magnitude the member
  * can act on, never a verdict word that would read as settled. Pinned here
- * because the copy is the whole safeguard — see `pickMarginLabel`.
+ * because the copy is the whole safeguard — see `provisionalMarginLabel`.
  */
-describe("pickMarginLabel", () => {
+describe("provisionalMarginLabel", () => {
   it.each([
     { margin: 7.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "covering by 7.5" },
     { margin: -2.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "short by 2.5" },
@@ -253,16 +254,128 @@ describe("pickMarginLabel", () => {
     { margin: -2, pickType: PICK_TYPE.STRAIGHT_UP, expected: "down 2" },
     { margin: 0, pickType: PICK_TYPE.STRAIGHT_UP, expected: "tied" },
   ])("renders $margin in a $pickType league as $expected", ({ margin, pickType, expected }) => {
-    expect(pickMarginLabel(margin, pickType)).toBe(expected);
+    expect(provisionalMarginLabel(margin, pickType)).toBe(expected);
   });
 
   it.each([PICK_TYPE.AGAINST_THE_SPREAD, PICK_TYPE.STRAIGHT_UP])(
     "never states a verdict in a %s league",
     (pickType) => {
       for (const margin of [7.5, 0, -7.5]) {
-        const label = pickMarginLabel(margin, pickType);
+        const label = provisionalMarginLabel(margin, pickType);
         expect(label).not.toMatch(/correct|incorrect|winning|losing|won|lost/i);
       }
     },
   );
+});
+
+/**
+ * The gate on which phrasing a moment is allowed. Both pick surfaces read this
+ * one function precisely so they can never disagree about when a number may
+ * appear next to a pick — the drift this replaced.
+ */
+describe("pickStandingLabel", () => {
+  const HOME_BY_10 = { awayScore: 17, homeScore: 27 };
+  const HOME_PICK = { side: PICKEM_PICK_SIDE.HOME, spreadAtPick: null, outcome: null };
+  const AWAY_PICK = { side: PICKEM_PICK_SIDE.AWAY, spreadAtPick: null, outcome: null };
+
+  it.each([
+    {
+      name: "an in-progress pick reads provisionally",
+      game: { status: GAME_STATUS.IN_PROGRESS, ...HOME_BY_10 },
+      pick: HOME_PICK,
+      expected: "up 10",
+    },
+    {
+      name: "a graded pick states the magnitude and leaves the verdict to the badge",
+      game: { status: GAME_STATUS.FINAL, ...HOME_BY_10 },
+      pick: { ...HOME_PICK, outcome: PICK_OUTCOME.CORRECT },
+      expected: "by 10",
+    },
+    {
+      name: "a losing graded pick states the same magnitude — direction is the badge's job",
+      game: { status: GAME_STATUS.FINAL, ...HOME_BY_10 },
+      pick: { ...AWAY_PICK, outcome: PICK_OUTCOME.INCORRECT },
+      expected: "by 10",
+    },
+    {
+      // The settlement sweep runs on a job, so a game can be over before its
+      // picks grade. A bare "by 10" with no badge to give it direction would be
+      // worse than saying nothing.
+      name: "a final game whose pick has not graded yet says nothing",
+      game: { status: GAME_STATUS.FINAL, ...HOME_BY_10 },
+      pick: HOME_PICK,
+      expected: null,
+    },
+    {
+      name: "a scheduled game says nothing",
+      game: { status: GAME_STATUS.SCHEDULED, awayScore: null, homeScore: null },
+      pick: HOME_PICK,
+      expected: null,
+    },
+    {
+      name: "a kicked-off game with no score yet says nothing",
+      game: { status: GAME_STATUS.IN_PROGRESS, awayScore: null, homeScore: null },
+      pick: HOME_PICK,
+      expected: null,
+    },
+    {
+      // A push has no magnitude to state, so the badge carries it alone.
+      name: "a tied straight-up push states no magnitude",
+      game: { status: GAME_STATUS.FINAL, awayScore: 20, homeScore: 20 },
+      pick: { ...HOME_PICK, outcome: PICK_OUTCOME.PUSH },
+      expected: null,
+    },
+    {
+      // Cancelled/moved games push with no score at all (spec §Cancellations).
+      name: "a cancelled game's push states no magnitude",
+      game: { status: GAME_STATUS.CANCELLED, awayScore: null, homeScore: null },
+      pick: { ...HOME_PICK, outcome: PICK_OUTCOME.PUSH },
+      expected: null,
+    },
+  ])("$name", ({ game, pick, expected }) => {
+    expect(pickStandingLabel(game, pick, PICK_TYPE.STRAIGHT_UP)).toBe(expected);
+  });
+
+  it.each([
+    // Home favoured by 3 and winning by 10 has covered by 7.5 with the hook.
+    {
+      name: "the home side reads against the number it accepted",
+      side: PICKEM_PICK_SIDE.HOME,
+      status: GAME_STATUS.IN_PROGRESS,
+      outcome: null,
+      expected: "covering by 7.5",
+    },
+    {
+      name: "the away side reads the mirror image of it",
+      side: PICKEM_PICK_SIDE.AWAY,
+      status: GAME_STATUS.IN_PROGRESS,
+      outcome: null,
+      expected: "short by 7.5",
+    },
+    {
+      name: "a graded spread pick states the magnitude alone",
+      side: PICKEM_PICK_SIDE.HOME,
+      status: GAME_STATUS.FINAL,
+      outcome: PICK_OUTCOME.CORRECT,
+      expected: "by 7.5",
+    },
+  ])("$name", ({ side, status, outcome, expected }) => {
+    expect(
+      pickStandingLabel(
+        { status, ...HOME_BY_10 },
+        { side, spreadAtPick: -2.5, outcome },
+        PICK_TYPE.AGAINST_THE_SPREAD,
+      ),
+    ).toBe(expected);
+  });
+
+  it("says nothing for a spread pick carrying no number to measure against", () => {
+    expect(
+      pickStandingLabel(
+        { status: GAME_STATUS.IN_PROGRESS, ...HOME_BY_10 },
+        { ...HOME_PICK, spreadAtPick: null },
+        PICK_TYPE.AGAINST_THE_SPREAD,
+      ),
+    ).toBeNull();
+  });
 });

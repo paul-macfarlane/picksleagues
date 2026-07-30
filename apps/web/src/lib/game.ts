@@ -3,9 +3,12 @@ import {
   PICK_TYPE,
   WEEK_TYPE,
   type GameStatus,
+  type PickemPickSide,
+  type PickOutcome,
   type PickType,
   type WeekType,
 } from "@picksleagues/schemas";
+import { pickMargin } from "@picksleagues/scoring";
 import { formatDateTime } from "@/lib/format";
 
 // One home for the sports-data display labels (engineering rule on derived
@@ -124,6 +127,49 @@ export function gameStateAsOfLabel(game: { status: GameStatus; stateAsOf: string
 }
 
 /**
+ * Where a pick stands, in the one phrasing its moment allows — the single home
+ * for the rule that a *reading* and a *grade* are different claims.
+ *
+ * Both surfaces that show a pick beside a score (the entry grid's rows and the
+ * week/pick detail) previously restated the status check, the null-score guard
+ * and the `pickMargin` call inline, which is exactly how the two would come to
+ * disagree about when a number may appear.
+ *
+ * Two moments say something, and they never overlap:
+ *
+ * - **In progress** → a provisional reading (see `provisionalMarginLabel`).
+ * - **Graded** → the *size* of the result and nothing else, because the outcome
+ *   badge beside it already carries the verdict. Keyed on the grade's existence
+ *   rather than on `FINAL`, so the window between a game ending and the
+ *   settlement sweep landing shows nothing: a bare "by 10" with no badge to
+ *   give it direction is worse than silence.
+ *
+ * Null when there is nothing honest to say: no scores yet, an ATS pick with no
+ * spread to measure against, or a push — which has no margin to state whether it
+ * landed exactly on the number or the game was cancelled out from under it.
+ */
+export function pickStandingLabel(
+  game: { status: GameStatus; awayScore: number | null; homeScore: number | null },
+  pick: { side: PickemPickSide; spreadAtPick: number | null; outcome: PickOutcome | null },
+  pickType: PickType,
+): string | null {
+  if (game.awayScore === null || game.homeScore === null) return null;
+
+  const graded = pick.outcome !== null;
+  if (!graded && game.status !== GAME_STATUS.IN_PROGRESS) return null;
+
+  const margin = pickMargin(pick, game.homeScore, game.awayScore, pickType);
+  if (margin === null) return null;
+
+  // The magnitude alone, and the same per-pick number the standings' "Diff"
+  // column sums (spec §Tiebreakers) — so a member who disputes a tiebreaker can
+  // audit it against the week that produced it, rather than taking the total on
+  // faith. Restating "Correct"/"Incorrect" here would just crowd the badge.
+  if (graded) return margin === 0 ? null : `by ${Math.abs(margin)}`;
+  return provisionalMarginLabel(margin, pickType);
+}
+
+/**
  * Where an unfinished pick currently stands, phrased as a *reading* rather than
  * a verdict (spec §Data Freshness).
  *
@@ -145,7 +191,7 @@ export function gameStateAsOfLabel(game: { status: GameStatus; stateAsOf: string
  * arithmetic settlement grades on, so this can never contradict the outcome that
  * follows it.
  */
-export function pickMarginLabel(margin: number, pickType: PickType): string {
+export function provisionalMarginLabel(margin: number, pickType: PickType): string {
   const magnitude = Math.abs(margin);
   if (pickType === PICK_TYPE.AGAINST_THE_SPREAD) {
     if (margin > 0) return `covering by ${magnitude}`;

@@ -257,6 +257,12 @@ Scores are always shown with **each number attached to its team** (`NE 19 – SE
 
 This is not a live feed and does not change the freshness model below: it is a derivation over already-ingested data, refreshed on the same ~5-minute cadence as everything else.
 
+**Settled pick margin.** Once a pick has graded, the row keeps showing the *size* of the result and nothing more — `Correct · by 10`. The outcome badge owns the verdict and the number owns the magnitude; restating the verdict in words beside its own badge only crowds it. Three consequences follow from that division:
+
+- A **push shows no margin** — there is nothing to state, whether the pick landed exactly on the number or the game was cancelled out from under it.
+- A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a bare magnitude with no badge beside it to give it direction is worse than silence.
+- The number is the **same per-pick value the standings' `Diff` column sums** (§Tiebreakers), so a member who disputes a tiebreaker can audit it against the week that produced it instead of taking the total on faith.
+
 No standalone stats pages, head-to-head views, or historical archives.
 
 ## Data Freshness & Expectations
