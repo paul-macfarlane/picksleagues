@@ -126,6 +126,9 @@ Library scenarios are re-materialized from their code definition on every load
 and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
+`docs/runbooks/pickem-regression.md` drives six of these seven as a manual Pick'em
+regression pass — what to click and what to assert, per scenario.
+
 ## Replay a real season
 
 Scenarios → **Import a replay season**. Pulls a real past NFL season from ESPN
