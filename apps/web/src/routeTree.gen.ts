@@ -29,6 +29,7 @@ import { Route as AuthedSimFixturesRouteImport } from './routes/_authed/sim/fixt
 import { Route as AuthedSimResetRouteImport } from './routes/_authed/sim/reset'
 import { Route as AuthedSimScenariosRouteImport } from './routes/_authed/sim/scenarios'
 import { Route as AuthedLeaguesLeagueIdIndexRouteImport } from './routes/_authed/leagues/$leagueId/index'
+import { Route as AuthedLeaguesLeagueIdLeaguePicksRouteImport } from './routes/_authed/leagues/$leagueId/league-picks'
 import { Route as AuthedLeaguesLeagueIdMembersRouteImport } from './routes/_authed/leagues/$leagueId/members'
 import { Route as AuthedLeaguesLeagueIdPicksRouteImport } from './routes/_authed/leagues/$leagueId/picks'
 import { Route as AuthedLeaguesLeagueIdSettingsRouteImport } from './routes/_authed/leagues/$leagueId/settings'
@@ -134,6 +135,12 @@ const AuthedLeaguesLeagueIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthedLeaguesLeagueIdRouteRoute,
   } as any)
+const AuthedLeaguesLeagueIdLeaguePicksRoute =
+  AuthedLeaguesLeagueIdLeaguePicksRouteImport.update({
+    id: '/league-picks',
+    path: '/league-picks',
+    getParentRoute: () => AuthedLeaguesLeagueIdRouteRoute,
+  } as any)
 const AuthedLeaguesLeagueIdMembersRoute =
   AuthedLeaguesLeagueIdMembersRouteImport.update({
     id: '/members',
@@ -172,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/sim/scenarios': typeof AuthedSimScenariosRoute
   '/admin/': typeof AuthedAdminIndexRoute
   '/sim/': typeof AuthedSimIndexRoute
+  '/leagues/$leagueId/league-picks': typeof AuthedLeaguesLeagueIdLeaguePicksRoute
   '/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/leagues/$leagueId/picks': typeof AuthedLeaguesLeagueIdPicksRoute
   '/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
@@ -193,6 +201,7 @@ export interface FileRoutesByTo {
   '/sim/scenarios': typeof AuthedSimScenariosRoute
   '/admin': typeof AuthedAdminIndexRoute
   '/sim': typeof AuthedSimIndexRoute
+  '/leagues/$leagueId/league-picks': typeof AuthedLeaguesLeagueIdLeaguePicksRoute
   '/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/leagues/$leagueId/picks': typeof AuthedLeaguesLeagueIdPicksRoute
   '/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
@@ -219,6 +228,7 @@ export interface FileRoutesById {
   '/_authed/sim/scenarios': typeof AuthedSimScenariosRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
   '/_authed/sim/': typeof AuthedSimIndexRoute
+  '/_authed/leagues/$leagueId/league-picks': typeof AuthedLeaguesLeagueIdLeaguePicksRoute
   '/_authed/leagues/$leagueId/members': typeof AuthedLeaguesLeagueIdMembersRoute
   '/_authed/leagues/$leagueId/picks': typeof AuthedLeaguesLeagueIdPicksRoute
   '/_authed/leagues/$leagueId/settings': typeof AuthedLeaguesLeagueIdSettingsRoute
@@ -245,6 +255,7 @@ export interface FileRouteTypes {
     | '/sim/scenarios'
     | '/admin/'
     | '/sim/'
+    | '/leagues/$leagueId/league-picks'
     | '/leagues/$leagueId/members'
     | '/leagues/$leagueId/picks'
     | '/leagues/$leagueId/settings'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/sim/scenarios'
     | '/admin'
     | '/sim'
+    | '/leagues/$leagueId/league-picks'
     | '/leagues/$leagueId/members'
     | '/leagues/$leagueId/picks'
     | '/leagues/$leagueId/settings'
@@ -291,6 +303,7 @@ export interface FileRouteTypes {
     | '/_authed/sim/scenarios'
     | '/_authed/admin/'
     | '/_authed/sim/'
+    | '/_authed/leagues/$leagueId/league-picks'
     | '/_authed/leagues/$leagueId/members'
     | '/_authed/leagues/$leagueId/picks'
     | '/_authed/leagues/$leagueId/settings'
@@ -446,6 +459,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedLeaguesLeagueIdIndexRouteImport
       parentRoute: typeof AuthedLeaguesLeagueIdRouteRoute
     }
+    '/_authed/leagues/$leagueId/league-picks': {
+      id: '/_authed/leagues/$leagueId/league-picks'
+      path: '/league-picks'
+      fullPath: '/leagues/$leagueId/league-picks'
+      preLoaderRoute: typeof AuthedLeaguesLeagueIdLeaguePicksRouteImport
+      parentRoute: typeof AuthedLeaguesLeagueIdRouteRoute
+    }
     '/_authed/leagues/$leagueId/members': {
       id: '/_authed/leagues/$leagueId/members'
       path: '/members'
@@ -506,6 +526,7 @@ const AuthedSimRouteRouteWithChildren = AuthedSimRouteRoute._addFileChildren(
 )
 
 interface AuthedLeaguesLeagueIdRouteRouteChildren {
+  AuthedLeaguesLeagueIdLeaguePicksRoute: typeof AuthedLeaguesLeagueIdLeaguePicksRoute
   AuthedLeaguesLeagueIdMembersRoute: typeof AuthedLeaguesLeagueIdMembersRoute
   AuthedLeaguesLeagueIdPicksRoute: typeof AuthedLeaguesLeagueIdPicksRoute
   AuthedLeaguesLeagueIdSettingsRoute: typeof AuthedLeaguesLeagueIdSettingsRoute
@@ -514,6 +535,8 @@ interface AuthedLeaguesLeagueIdRouteRouteChildren {
 
 const AuthedLeaguesLeagueIdRouteRouteChildren: AuthedLeaguesLeagueIdRouteRouteChildren =
   {
+    AuthedLeaguesLeagueIdLeaguePicksRoute:
+      AuthedLeaguesLeagueIdLeaguePicksRoute,
     AuthedLeaguesLeagueIdMembersRoute: AuthedLeaguesLeagueIdMembersRoute,
     AuthedLeaguesLeagueIdPicksRoute: AuthedLeaguesLeagueIdPicksRoute,
     AuthedLeaguesLeagueIdSettingsRoute: AuthedLeaguesLeagueIdSettingsRoute,

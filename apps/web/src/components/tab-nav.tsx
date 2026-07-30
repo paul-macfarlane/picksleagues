@@ -5,8 +5,12 @@ import { cn } from "@/lib/utils";
 // sections of one thing (a league, the admin surface). Tabs are real routes,
 // not local state, so each section is deep-linkable and survives a refresh —
 // callers render `<Link>`s with these props and their own `to`/`params`.
+// `shrink-0 whitespace-nowrap` is what actually makes the bar below scroll:
+// without them a flex item compresses to fit and wraps its own label, so a
+// two-word tab ("League Picks") stacked into two lines and doubled the bar's
+// height instead of overflowing it. Every tab was one word until it wasn't.
 const tabLinkClassName =
-  "border-b-2 border-transparent px-1 pb-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+  "shrink-0 whitespace-nowrap border-b-2 border-transparent px-1 pb-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
 export const tabLinkProps = {
   className: tabLinkClassName,

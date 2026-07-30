@@ -239,6 +239,8 @@ When brackets tie on points: closest **absolute difference** between the Champio
 - **League home** — standings (primary view: weekly/season toggle for Pick'em, survivor board for Elimination, bracket leaderboard for MM), members, league info, commissioner tools
 - **Pick entry** — weekly slate picker (Pick'em/Elimination) or bracket builder (MM)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
+
+Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "League Picks"). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
 - **League create/settings** — mode-specific settings forms
 - **Profile** — username, display name
 - **Join** — invite link landing + confirmation

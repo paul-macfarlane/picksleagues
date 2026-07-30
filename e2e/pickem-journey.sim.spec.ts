@@ -103,6 +103,18 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   let game1: SlateGameSummary;
   let game4: SlateGameSummary;
 
+  // Reaches the league-wide pick detail the way a member does — through its own
+  // tab (round 5) — and asserts the two things that move gave it: the tab is a
+  // real destination, and it opens on the *current* week without inheriting one
+  // from whichever surface the member came from.
+  async function openLeaguePicks() {
+    await pageA.getByRole("link", { name: "League Picks" }).click();
+    await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}/league-picks`));
+    const detail = pageA.locator('[data-slot="card"]', { hasText: "Picks — Week 1" });
+    await expect(detail).toBeVisible();
+    return detail;
+  }
+
   // Columns, in order: Rank, Member, W-L-P, Pts, Diff (pickem-standings-table.tsx).
   function assertStandingsRows(table: Locator) {
     const commishRow = table.locator("tr", { hasText: commishName });
@@ -261,8 +273,12 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
       "aria-current",
       "page",
     );
+    // ...and that scope selector governs the board alone. The league's picks
+    // are their own tab now (round 5), so changing the period here must not
+    // conjure a second card underneath it.
+    await expect(pageA.getByText(/^Picks — /)).toHaveCount(0);
 
-    const detail = pageA.locator('[data-slot="card"]', { hasText: "Picks — Week 1" });
+    const detail = await openLeaguePicks();
 
     const own = memberRow(detail, commishName);
     await expect(own.locator("li")).toHaveCount(4);
@@ -354,10 +370,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     // Visibility: the joiner's pick on the now-kicked-off game is revealed to
     // the commissioner; their other three picks (still unstarted) are not.
-    await pageA.goto(`/leagues/${leagueId}`);
-    await pageA.getByRole("combobox", { name: "View" }).click();
-    await pageA.getByRole("option", { name: "Week 1", exact: true }).click();
-    const detail = pageA.locator('[data-slot="card"]', { hasText: "Picks — Week 1" });
+    const detail = await openLeaguePicks();
     const other = memberRow(detail, joinerName);
     await expect(other.getByText("3 more picks in — not yet revealed.")).toBeVisible();
     await expect(other.locator("li")).toHaveCount(1);
@@ -394,7 +407,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await assertStandingsRows(weekTable);
 
     // Every game is final now, so both members' full picks are revealed.
-    const detail = pageA.locator('[data-slot="card"]', { hasText: "Picks — Week 1" });
+    const detail = await openLeaguePicks();
     await expect(memberRow(detail, commishName).locator("li")).toHaveCount(4);
     await expect(memberRow(detail, joinerName).locator("li")).toHaveCount(4);
     await expect(detail.getByText(/more pick/)).toHaveCount(0);

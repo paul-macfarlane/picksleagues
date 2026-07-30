@@ -157,7 +157,7 @@ zero margin by identity.
 | # | Item | Resolution |
 | --- | --- | --- |
 | 4 | Show the win/loss/push margin on *completed* games too, in the pick card and in League Picks? | **Yes.** A graded row now reads `Correct · by 10`: the badge keeps the verdict, the number adds only the magnitude. The framing in the request is the justification — the standings' `Diff` column already sums these, so showing the per-pick contribution makes a tiebreaker auditable against the week that produced it instead of taking the total on faith. Verified at 390px: the commissioner's four settled picks read `by 10`, `by 4`, `by 4`, `by 17`, and the Diff column above them reads `+35`. |
-| 5 | Does League Picks belong in its own tab? | **Answered, not built** — see the note below. |
+| 5 | Does League Picks belong in its own tab? | **Yes — own tab (owner's call).** The Pick'em tab bar is now Overview / My Picks / League Picks / Members / Settings, each pick surface week-scoped on its own `?weekId=` and defaulting to the current week. Overview's standings-scope selector governs the board alone. |
 
 **Why the settled phrasing is not the provisional phrasing.** "Covered by 7.5" would have
 been the natural extension, and it is wrong here: the outcome badge sits twelve pixels
@@ -184,12 +184,33 @@ class of drift that produced round 3's "8 of 5 picks". The rule now lives once, 
 phrasings in play, a name that doesn't say which one it is was an invitation to reach for
 the wrong one.
 
-**On item 5 (League Picks placement) — answered rather than built.** Restructuring tab
-navigation is an IA decision with real rework either way, so it is recorded here as a
-recommendation awaiting a call, not shipped. The recommendation: fold the week detail into
-the existing Picks tab under its week selector and drop it from Overview, rather than
-adding a fifth tab. Today the detail only appears when a member changes the standings
-*scope* selector to a specific week, which means everyone's picks are a side effect of a
-standings control — and the most common combination (season standings + this week's
-picks) is unreachable. Two week-scoped states become one, and Overview goes back to being
-a summary.
+**Item 5's real defect wasn't placement.** The week detail only appeared once a member
+moved Overview's standings *scope* selector off "Season", which made the whole league's
+picks a side effect of a standings control, left the most common pairing (season
+standings while checking this week's picks) unreachable, and advertised itself nowhere —
+nothing on Overview suggested that changing a dropdown would reveal a second card. Its
+own tab fixes discoverability and the coupling together.
+
+**A recommendation of mine was wrong, and the owner was right to push on it.** I argued
+against the five-tab option partly on "two week states to keep in sync". There is no sync
+burden: they are independent search params on independent routes with no shared store.
+The only real question was whether switching tabs should *carry* the week, and the answer
+is no — each surface defaults to the current week, which is what a member wants on the
+tab they just opened. Worth remembering that "two states" and "two states to keep in
+sync" are different claims, and only the second is a cost.
+
+**A latent `TabNav` bug surfaced immediately.** The bar is `overflow-x-auto` and its
+comment claimed it "scrolls rather than wraps", but its links had neither `shrink-0` nor
+`whitespace-nowrap` — so at 390px "My Picks" and "League Picks" each compressed and wrapped
+their own label, doubling the bar's height instead of overflowing it. Every tab in the app
+had been a single short word until this round, so the container's stated behaviour had
+never actually been exercised. Caught by looking at a phone-width screenshot; no assertion
+would have flagged it.
+
+**One extraction.** The two pick tabs are the same page frame around different content, so
+the week-select shell (weeks query, its pending/error/empty states, and the
+default-to-current-week rule) lives in `LeagueWeekPicker` rather than being copied. Its
+`children` is a function so the resolved week arrives as a non-optional string — otherwise
+both callers would restate a `{weekId && …}` guard the shell already enforces. Named
+generically rather than `pickem*` because Elimination's weekly slate is the second mode
+that will use it unchanged.

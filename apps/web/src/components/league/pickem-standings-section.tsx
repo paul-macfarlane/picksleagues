@@ -1,9 +1,7 @@
-import type { PickType } from "@picksleagues/schemas";
 import { useLeagueWeeks } from "@/api/weeks";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { LabeledSelect } from "@/components/labeled-select";
 import { PickemStandingsTable } from "@/components/league/pickem-standings-table";
-import { PickemWeekDetail } from "@/components/league/pickem-week-detail";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
 
@@ -12,21 +10,21 @@ import { QueryState } from "@/components/query-state";
 // can be a normal option value in LabeledSelect.
 const SEASON_SCOPE = "season";
 
-// Pick'em's standings: a season/week toggle over one board (spec §Standings),
-// plus the week/pick detail section once a specific week is selected — the
-// two are combined here rather than as separate routes/tabs so the "week
-// scope" state (owned by the caller, e.g. a URL search param) drives both.
+// Pick'em's standings: a season/week toggle over one board (spec §Standings).
+//
+// This scope selector once also revealed the week/pick detail below it, which
+// made the whole league's picks a side effect of a standings control — and made
+// season standings + this week's picks an unreachable combination. That section
+// now has its own tab (`/league-picks`), so this selector does one thing.
 export function PickemStandingsSection({
   leagueId,
   weekId,
   onSelectWeek,
-  pickType,
 }: {
   leagueId: string;
   // undefined selects the season-cumulative board (the default view).
   weekId: string | undefined;
   onSelectWeek: (weekId: string | undefined) => void;
-  pickType: PickType;
 }) {
   const weeks = useLeagueWeeks(leagueId);
 
@@ -70,8 +68,6 @@ export function PickemStandingsSection({
           </QueryState>
         </CardContent>
       </Card>
-
-      {weekId && <PickemWeekDetail leagueId={leagueId} weekId={weekId} pickType={pickType} />}
     </div>
   );
 }

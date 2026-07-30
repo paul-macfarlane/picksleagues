@@ -1,11 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import {
-  LEAGUE_ACTION,
-  LEAGUE_MODE,
-  type LeagueResponse,
-  type PickemSettings,
-} from "@picksleagues/schemas";
+import { LEAGUE_ACTION, LEAGUE_MODE, type LeagueResponse } from "@picksleagues/schemas";
 import { useLeague, useRenewLeague } from "@/api/leagues";
 import { canActOnLeague } from "@/lib/league";
 import { PickemStandingsSection } from "@/components/league/pickem-standings-section";
@@ -13,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const searchSchema = z.object({
-  // Absent selects the season-cumulative board — the spec's default view.
-  // Present, it also drives the week/pick detail section below it. Lives in
-  // the URL (same rationale as the picks tab's weekId) so a linked week
-  // survives a refresh.
+  // The standings board's scope, and nothing else since the week/pick detail
+  // moved to its own tab. Absent selects the season-cumulative board — the
+  // spec's default view. Lives in the URL (same rationale as the pick tabs'
+  // `weekId`) so a linked week survives a refresh.
   week: z.string().optional(),
 });
 
@@ -45,7 +40,6 @@ function LeagueOverview() {
           leagueId={leagueId}
           weekId={week}
           onSelectWeek={(next) => navigate({ search: next ? { week: next } : {}, replace: true })}
-          pickType={(league.data.settings as PickemSettings).pickType}
         />
       ) : (
         <Card>
