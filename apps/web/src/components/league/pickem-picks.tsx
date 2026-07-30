@@ -69,6 +69,41 @@ export function hasOperableControl(
   return games.some((game) => !isClosedToPicks(game) && (selections.has(game.id) || !atCap));
 }
 
+/**
+ * The games worth putting on a member's *own* pick screen: ones they hold a
+ * pick on, plus — while anything on the page can still be operated — every game
+ * still open. A game that kicked off without their pick is gone, so the week in
+ * review is their picks rather than a slate they must scan past.
+ *
+ * `canEditPicks` (i.e. `hasOperableControl`) rather than "is this game open" is
+ * what makes the second clause correct in both directions, and neither half is
+ * obvious:
+ *
+ * - **The cap alone must not hide a game.** At the cap with *unlocked* picks a
+ *   member can still switch into an unpicked game — ADR-0015 replaces the whole
+ *   week, so changing your mind usually means picking a *different* game — and
+ *   hiding the target would trap them. This is the objection that defeated the
+ *   two earlier "show only my picks" proposals; gating on the week's operability
+ *   rather than the game's answers it.
+ * - **Openness alone must not show one.** At the cap with every pick locked,
+ *   there is no slot to free, so an unstarted game is unreachable however open
+ *   it looks. Those are the dead rows this is meant to remove.
+ *
+ * Sharing the predicate with the save bar is the point: unpicked open games
+ * exist to be changed into, so they live and die with the control that saves
+ * changes. The screen becomes the week in review in the same render the bar
+ * retires in.
+ */
+export function visibleGames<T extends { id: string; locked: boolean; pickable: boolean }>(
+  games: readonly T[],
+  heldGameIds: ReadonlySet<string>,
+  canEditPicks: boolean,
+): T[] {
+  return games.filter(
+    (game) => heldGameIds.has(game.id) || (!isClosedToPicks(game) && canEditPicks),
+  );
+}
+
 function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
   return openSelections(slate.games, new Map(viewerPicks.map((pick) => [pick.gameId, pick.side])));
 }
@@ -210,6 +245,7 @@ function PickemWeekEditor({
 
   const anyOpenGames = slate.games.some((game) => !isClosedToPicks(game));
   const canEditPicks = hasOperableControl(slate.games, selections, atCap);
+  const shownGames = visibleGames(slate.games, heldGameIds, canEditPicks);
 
   // Pushed picks whose game moved to a different week entirely aren't in this
   // slate at all (ADR-0015), so they never render via the games list below —
@@ -315,8 +351,18 @@ function PickemWeekEditor({
             </ul>
           )}
 
+          {/* Reachable only once the week has closed around a member who
+              picked nothing: every other state either shows their picks or
+              still has an open game to offer. Without it the card renders as an
+              empty box, which reads as a load failure rather than an answer. */}
+          {shownGames.length === 0 && pushedOutOfWeekPicks.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              You didn&apos;t make any picks this week.
+            </p>
+          )}
+
           <ul className="flex flex-col gap-3">
-            {slate.games.map((game) => {
+            {shownGames.map((game) => {
               const currentSelection = selections.get(game.id);
               const wouldAddNew = currentSelection === undefined;
               return (

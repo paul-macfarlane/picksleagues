@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PICKEM_PICK_SIDE } from "@picksleagues/schemas";
-import { hasOperableControl, openSelections, pickProgressLabel } from "./pickem-picks";
+import {
+  hasOperableControl,
+  openSelections,
+  pickProgressLabel,
+  visibleGames,
+} from "./pickem-picks";
 
 /**
  * Decides whether the save bar is shown at all, so the cases below are the
@@ -80,6 +85,70 @@ describe("openSelections", () => {
     );
 
     expect([...held.entries()]).toEqual([["open", PICKEM_PICK_SIDE.HOME]]);
+  });
+});
+
+/**
+ * Which games reach the member's own pick screen. The two failure directions
+ * are opposite and both severe: hide a game the member could still switch into
+ * and they are trapped (ADR-0015 replaces the whole week, so changing your mind
+ * means picking a *different* game); show one they can never reach and the
+ * screen keeps the clutter this was meant to remove.
+ *
+ * Every case below has more games than picks — the merge-gate fixture has
+ * exactly as many, which is precisely why the gap between "open" and "reachable"
+ * is invisible there.
+ */
+describe("visibleGames", () => {
+  const OPEN = { id: "open", locked: false, pickable: true };
+  const OTHER_OPEN = { id: "other-open", locked: false, pickable: true };
+  const LOCKED = { id: "locked", locked: true, pickable: true };
+  const CANCELLED = { id: "cancelled", locked: false, pickable: false };
+  const SLATE = [LOCKED, CANCELLED, OPEN, OTHER_OPEN];
+  const ids = (games: { id: string }[]) => games.map((game) => game.id);
+  const holding = (...gameIds: string[]) => new Set(gameIds);
+
+  it("shows every open game while the member can still act", () => {
+    expect(ids(visibleGames(SLATE, holding(), true))).toEqual(["open", "other-open"]);
+  });
+
+  it("hides a game that kicked off without the member's pick", () => {
+    expect(ids(visibleGames(SLATE, holding(), true))).not.toContain("locked");
+  });
+
+  it("keeps a locked game the member did pick", () => {
+    expect(ids(visibleGames(SLATE, holding("locked"), true))).toEqual([
+      "locked",
+      "open",
+      "other-open",
+    ]);
+  });
+
+  // A cancelled game is unpickable but the pick on it is retained and offers a
+  // substitute (spec §Cancellations), so the row has to survive.
+  it("keeps a cancelled game the member picked", () => {
+    expect(ids(visibleGames(SLATE, holding("cancelled"), true))).toContain("cancelled");
+  });
+
+  // The whole point: nothing left to operate, so the screen is the week in
+  // review — the member's picks and nothing else, however open the rest looks.
+  it("collapses to the member's own picks once nothing can be operated", () => {
+    expect(ids(visibleGames(SLATE, holding("locked"), false))).toEqual(["locked"]);
+  });
+
+  // At the cap with unlocked picks the member is still operable, so the games
+  // they could switch *into* must stay. Hiding these is the trap that defeated
+  // the earlier "show only my picks" proposals.
+  it("keeps unpicked open games at the cap while a held pick is still unlocked", () => {
+    expect(ids(visibleGames(SLATE, holding("open"), true))).toEqual([
+      "open",
+      "other-open",
+      // "locked" and "cancelled" are unheld, so they stay hidden.
+    ]);
+  });
+
+  it("shows nothing when the member picked nothing and the week has closed", () => {
+    expect(visibleGames(SLATE, holding(), false)).toEqual([]);
   });
 });
 

@@ -241,6 +241,10 @@ When brackets tie on points: closest **absolute difference** between the Champio
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
 
 Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "League Picks"). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
+
+**Pick entry shows only what the member can act on or already holds.** A game they picked stays for the rest of the week; a game they did *not* pick disappears once it is out of reach, so the week in review is their picks rather than a slate to scan past. "Out of reach" is the same condition that governs the save control — a game they could still switch into must remain visible, because replacing a pick means picking a *different* game — so unpicked games survive exactly as long as anything on the screen can still be operated. A member who picked nothing sees a stated empty result, never a blank card.
+
+**Week/pick detail is ordered by the week's standing, best first,** with each member's weekly and season record beside their name and their picks collapsible beneath it. The order is the standings' own rank (§Tiebreakers), never a second ranking invented for this screen. Ordering by settled results cannot disclose a hidden pick: points come only from graded picks, and a graded pick's game is final and therefore already revealed.
 - **League create/settings** — mode-specific settings forms
 - **Profile** — username, display name
 - **Join** — invite link landing + confirmation

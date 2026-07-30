@@ -96,6 +96,13 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   let joinerName: string;
 
   let leagueId: string;
+  // A second league over the *same* slate with a cap of 2 (feedback round 5).
+  // The league above has exactly as many games as picks allowed, so "a game is
+  // open" and "the member can reach it" never diverge there — which is why the
+  // action-bar bug shipped and why the My Picks slate filter would be untested
+  // without this. Only the commissioner joins it; one member is enough to
+  // exercise a per-member view.
+  let capLeagueId: string;
   let weekId: string;
   // Only these two games are individually addressed later: game1 to compute
   // the "just past this kickoff" instant, game4 (the latest kickoff) to
@@ -255,6 +262,53 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await pageB.getByRole("button", { name: "Save picks" }).click();
     await expect(pageB.getByText("4 of 4 picks")).toBeVisible();
     await expect(pageB.getByRole("button", { name: "Save picks" })).toBeDisabled();
+
+    // The cap-2 league, arranged over the API — it exists to be *read* at two
+    // later clock positions, so nothing here is a user-facing assertion. Picks
+    // go on games 2 and 3, leaving game1 (the first kickoff) deliberately
+    // unpicked: that is the game the slate filter has to drop.
+    const created = await pageA.request.post("/api/leagues", {
+      data: {
+        mode: "pickem",
+        name: `E2E Cap2 ${commishName.slice(-8)}`,
+        visibility: "private",
+        settings: {
+          startWeek: { type: "regular", number: 1 },
+          endWeek: { type: "regular", number: 18 },
+          pickType: "straight_up",
+          picksPerWeek: 2,
+          pushTieResolution: "half_point",
+        },
+      },
+    });
+    expect(created.ok()).toBe(true);
+    capLeagueId = ((await created.json()) as { id: string }).id;
+
+    const capPicks = await pageA.request.put(
+      `/api/leagues/${capLeagueId}/pickem/weeks/${weekId}/picks`,
+      {
+        data: {
+          picks: [
+            { gameId: findGame("KC", "DEN").id, side: PICKEM_PICK_SIDE.AWAY, spread: null },
+            { gameId: findGame("DAL", "PHI").id, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          ],
+        },
+      },
+    );
+    expect(capPicks.ok()).toBe(true);
+  });
+
+  // The two states the equal-cap league structurally cannot reach.
+  test("with fewer picks than games, the slate keeps only what the member can still reach", async () => {
+    await pageA.goto(`/leagues/${capLeagueId}/my-picks`);
+
+    // Both picks are still unlocked, so the member can give one up and switch —
+    // every open game has to stay, including the two they passed on. Hiding
+    // these is the trap that defeated the earlier "show only my picks" designs.
+    await expect(pageA.getByText("2 of 2 picks")).toBeVisible();
+    for (const matchup of ["MIA @ BUF", "DEN @ KC", "PHI @ DAL", "SEA @ SF"]) {
+      await expect(pageA.locator("li", { hasText: matchup })).toBeVisible();
+    }
   });
 
   test("before kickoff, another member's picks are hidden behind a count", async () => {
@@ -368,8 +422,17 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     expect(refused.status()).toBe(409);
     expect(((await refused.json()) as { error: string }).error).toBe(ERROR_CODE.PICK_LOCKED);
 
+    // Cap-2 league: the game that kicked off without a pick on it is gone from
+    // the member's own slate, while the games they could still switch into stay
+    // — their two picks are unlocked, so the cap has not trapped them yet.
+    await pageA.goto(`/leagues/${capLeagueId}/my-picks`);
+    await expect(pageA.locator("li", { hasText: "DEN @ KC" })).toBeVisible();
+    await expect(pageA.locator("li", { hasText: "SEA @ SF" })).toBeVisible();
+    await expect(pageA.locator("li", { hasText: "MIA @ BUF" })).toHaveCount(0);
+
     // Visibility: the joiner's pick on the now-kicked-off game is revealed to
     // the commissioner; their other three picks (still unstarted) are not.
+    await pageA.goto(`/leagues/${leagueId}`);
     const detail = await openLeaguePicks();
     const other = memberRow(detail, joinerName);
     await expect(other.getByText("3 more picks in — not yet revealed.")).toBeVisible();
@@ -441,5 +504,16 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // hands its count to the card header (feedback round 4).
     await expect(pageA.getByRole("button", { name: "Save picks" })).toHaveCount(0);
     await expect(pageA.getByText("4 of 4 picks · this week is locked.")).toBeVisible();
+
+    // Cap-2 league, the week in review: nothing is operable any more, so the
+    // slate collapses to the two games the member actually picked. The two they
+    // passed on are gone — the whole point of the filter, and a state the
+    // equal-cap league above can never produce.
+    await pageA.goto(`/leagues/${capLeagueId}/my-picks`);
+    await expect(pageA.getByText("2 of 2 picks · this week is locked.")).toBeVisible();
+    await expect(pageA.locator("li", { hasText: "DEN @ KC" })).toBeVisible();
+    await expect(pageA.locator("li", { hasText: "PHI @ DAL" })).toBeVisible();
+    await expect(pageA.locator("li", { hasText: "MIA @ BUF" })).toHaveCount(0);
+    await expect(pageA.locator("li", { hasText: "SEA @ SF" })).toHaveCount(0);
   });
 });

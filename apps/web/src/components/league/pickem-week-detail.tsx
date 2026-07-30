@@ -1,12 +1,14 @@
+import { ChevronDownIcon } from "lucide-react";
 import {
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickType,
   type PickemMemberPicks,
   type PickemPick,
+  type PickemStandingsRow,
   type SlateGame,
 } from "@picksleagues/schemas";
-import { useWeekPicks } from "@/api/pickem";
+import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { gameStateAsOfLabel, gameStateLabel, pickStandingLabel, spreadLabel } from "@/lib/game";
 import { useErrorToast } from "@/lib/use-error-toast";
@@ -16,6 +18,7 @@ import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
+import { rankLabel } from "@/components/league/pickem-standings-table";
 
 // One pick per row, and each row is a two-line block at phone width: what the
 // member took on the first line, where that game stands on the second
@@ -27,11 +30,69 @@ import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 const PICK_ROW_CLASS_NAME =
   "flex flex-col gap-0.5 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2";
 
+function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStandingsRow> {
+  return new Map(rows.map((row) => [row.leagueMemberId, row]));
+}
+
+// How many members share each rank, so a tie renders "T-2" rather than being
+// silently renumbered — the same rule the standings table applies, from the
+// same helper.
+function sharedRankCounts(rows: readonly PickemStandingsRow[]): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const row of rows) counts.set(row.rank, (counts.get(row.rank) ?? 0) + 1);
+  return counts;
+}
+
+/**
+ * Orders members by how they did *this week*, best first (feedback round 5).
+ *
+ * The rank is the server's own (`pickem_standings`, spec §Tiebreakers: points
+ * then differential, ties sharing a rank) rather than a comparison invented
+ * here — two surfaces disagreeing about who is first is worse than either
+ * order, and a naive client sort would renumber ties the server deliberately
+ * shares.
+ *
+ * Nothing settled yet means no weekly rows at all, so unranked members fall
+ * back to their season standing and finally to name, which keeps the order
+ * stable from render to render instead of following whatever order the picks
+ * endpoint happened to return.
+ *
+ * **This cannot leak a hidden pick.** Weekly points come only from *graded*
+ * picks; grading requires a final game, and a final game has kicked off, so it
+ * is already revealed (spec §Pick Visibility). A member's position here is
+ * derived entirely from picks the viewer can see.
+ */
+export function orderMembersByWeek(
+  members: readonly PickemMemberPicks[],
+  weekRows: readonly PickemStandingsRow[],
+  seasonRows: readonly PickemStandingsRow[],
+): PickemMemberPicks[] {
+  const week = byMemberId(weekRows);
+  const season = byMemberId(seasonRows);
+  // `Infinity` puts the unranked after everyone ranked with no separate branch
+  // per tier. Compared, never subtracted: `1 - Infinity` is `-Infinity`, which
+  // is a correct sign but not a usable tie test, and `Infinity - Infinity` is
+  // `NaN`, which sorts arbitrarily.
+  const rankOf = (rows: Map<string, PickemStandingsRow>, memberId: string) =>
+    rows.get(memberId)?.rank ?? Infinity;
+  const compare = (x: number, y: number) => (x === y ? 0 : x < y ? -1 : 1);
+
+  return [...members].sort((a, b) => {
+    const byWeek = compare(rankOf(week, a.leagueMemberId), rankOf(week, b.leagueMemberId));
+    if (byWeek !== 0) return byWeek;
+    const bySeason = compare(rankOf(season, a.leagueMemberId), rankOf(season, b.leagueMemberId));
+    if (bySeason !== 0) return bySeason;
+    return a.displayName.localeCompare(b.displayName);
+  });
+}
+
 // The week/pick detail screen (spec Screens inventory): every member's picks
 // for one week, joined against that week's slate so each pick renders as a
-// real matchup rather than a bare game id. Visibility is already enforced by
-// the API (`picks` only contains kicked-off games for non-viewers); this
-// component never re-derives that rule, only renders what it was given.
+// real matchup rather than a bare game id, and against both standings boards so
+// each member arrives with the record that explains their position. Visibility
+// is already enforced by the API (`picks` only contains kicked-off games for
+// non-viewers); this component never re-derives that rule, only renders what it
+// was given.
 export function PickemWeekDetail({
   leagueId,
   weekId,
@@ -43,6 +104,8 @@ export function PickemWeekDetail({
 }) {
   const slate = useWeekSlate(weekId);
   const picks = useWeekPicks(leagueId, weekId);
+  const weekStandings = usePickemStandings(leagueId, weekId);
+  const seasonStandings = usePickemStandings(leagueId);
 
   useErrorToast(
     slate.isError || picks.isError,
@@ -50,13 +113,24 @@ export function PickemWeekDetail({
   );
 
   const gameById = new Map((slate.data?.games ?? []).map((game) => [game.id, game]));
+  // Standings are this screen's decoration, not its content, so a failure there
+  // degrades to unranked rows with no records rather than blanking the picks —
+  // hence they are absent from the QueryState below and from the toast above.
+  const weekRows = weekStandings.data?.rows ?? [];
+  const seasonRows = seasonStandings.data?.rows ?? [];
+  const weekByMember = byMemberId(weekRows);
+  const seasonByMember = byMemberId(seasonRows);
+  const weekShared = sharedRankCounts(weekRows);
+  const seasonShared = sharedRankCounts(seasonRows);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{slate.data && picks.data ? `Picks — ${slate.data.label}` : "Picks"}</CardTitle>
         {slate.data && picks.data && (
-          <CardDescription>Each pick is revealed once its game kicks off.</CardDescription>
+          <CardDescription>
+            Best week first. Each pick is revealed once its game kicks off.
+          </CardDescription>
         )}
       </CardHeader>
       <CardContent>
@@ -71,13 +145,17 @@ export function PickemWeekDetail({
           errorMessage="Couldn't load this week's picks."
         >
           {slate.data && picks.data && (
-            <div className="flex flex-col gap-4">
-              {picks.data.members.map((member) => (
-                <MemberPicksRow
+            <div className="flex flex-col">
+              {orderMembersByWeek(picks.data.members, weekRows, seasonRows).map((member) => (
+                <MemberPicksSection
                   key={member.leagueMemberId}
                   member={member}
                   gameById={gameById}
                   pickType={pickType}
+                  week={weekByMember.get(member.leagueMemberId)}
+                  season={seasonByMember.get(member.leagueMemberId)}
+                  weekShared={weekShared}
+                  seasonShared={seasonShared}
                 />
               ))}
             </div>
@@ -88,58 +166,101 @@ export function PickemWeekDetail({
   );
 }
 
-function MemberPicksRow({
+function recordText(row: PickemStandingsRow): string {
+  return `${row.wins}-${row.losses}-${row.pushes} · ${row.points} pts`;
+}
+
+function MemberPicksSection({
   member,
   gameById,
   pickType,
+  week,
+  season,
+  weekShared,
+  seasonShared,
 }: {
   member: PickemMemberPicks;
   gameById: Map<string, SlateGame>;
   pickType: PickType;
+  week: PickemStandingsRow | undefined;
+  season: PickemStandingsRow | undefined;
+  weekShared: Map<number, number>;
+  seasonShared: Map<number, number>;
 }) {
   return (
-    // The testid is the E2E seam for this row: the pick-visibility assertions
-    // (PKM-8) otherwise have to walk up from the display-name text node, which
-    // re-breaks on any layout change. Specs narrow to one member by filtering
-    // these on the name they already know.
-    <div
+    // Native `<details>` rather than a disclosure component: it is collapsible,
+    // keyboard-operable and screen-reader-announced with no state to own, and
+    // the repo has no accordion primitive to reuse. Open by default so the page
+    // still reads as a comparison at a glance — folding a member away is the
+    // deliberate act, not expanding one.
+    //
+    // The testid stays on the outer element: the pick-visibility assertions
+    // (PKM-8) address this row rather than walking up from a display-name text
+    // node, which would re-break on any layout change.
+    <details
+      open
       data-testid="member-picks-row"
-      className="flex flex-col gap-2 border-b border-border pb-4 last:border-0 last:pb-0"
+      className="group border-b border-border last:border-0"
     >
-      <UserIdentity
-        displayName={member.displayName}
-        username={member.username}
-        image={member.image}
-        isViewer={member.isViewer}
-        avatarSize="sm"
-      />
+      <summary className="flex cursor-pointer list-none items-center gap-2 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        {/* Fixed width so the ranks form a column the eye can run down, and
+            an em dash rather than a blank while the week has yet to settle —
+            an empty cell reads as a missing value. */}
+        <span className="w-7 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+          {week ? rankLabel(week.rank, weekShared) : "—"}
+        </span>
+        <UserIdentity
+          displayName={member.displayName}
+          username={member.username}
+          image={member.image}
+          isViewer={member.isViewer}
+          avatarSize="sm"
+        >
+          {/* The week leads because this is a week view; the season trails it,
+              dimmer, as the context for whether a good week was typical. */}
+          <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            <span>Week {week ? recordText(week) : "not settled"}</span>
+            {season && (
+              <span className="text-muted-foreground/70">
+                Season {recordText(season)} · rank {rankLabel(season.rank, seasonShared)}
+              </span>
+            )}
+          </span>
+        </UserIdentity>
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+        />
+      </summary>
 
-      {member.picks.length === 0 && member.hiddenPickCount === 0 && (
-        <p className="pl-8 text-xs text-muted-foreground">No picks submitted.</p>
-      )}
+      <div className="flex flex-col gap-2 pb-3">
+        {member.picks.length === 0 && member.hiddenPickCount === 0 && (
+          <p className="pl-9 text-xs text-muted-foreground">No picks submitted.</p>
+        )}
 
-      {member.picks.length > 0 && (
-        <ul className="flex flex-col gap-1.5 pl-8">
-          {member.picks.map((pick) => (
-            <PickRow
-              key={pick.id}
-              pick={pick}
-              game={gameById.get(pick.gameId)}
-              pickType={pickType}
-            />
-          ))}
-        </ul>
-      )}
+        {member.picks.length > 0 && (
+          <ul className="flex flex-col gap-1.5 pl-9">
+            {member.picks.map((pick) => (
+              <PickRow
+                key={pick.id}
+                pick={pick}
+                game={gameById.get(pick.gameId)}
+                pickType={pickType}
+              />
+            ))}
+          </ul>
+        )}
 
-      {/* Rendered as a count, never as placeholder rows implying content
-          (spec §Pick Visibility) — the games behind it haven't kicked off. */}
-      {member.hiddenPickCount > 0 && (
-        <p className="pl-8 text-xs text-muted-foreground">
-          {member.hiddenPickCount} more pick{member.hiddenPickCount === 1 ? "" : "s"} in — not yet
-          revealed.
-        </p>
-      )}
-    </div>
+        {/* Rendered as a count, never as placeholder rows implying content
+            (spec §Pick Visibility) — the games behind it haven't kicked off. */}
+        {member.hiddenPickCount > 0 && (
+          <p className="pl-9 text-xs text-muted-foreground">
+            {member.hiddenPickCount} more pick{member.hiddenPickCount === 1 ? "" : "s"} in — not yet
+            revealed.
+          </p>
+        )}
+      </div>
+    </details>
   );
 }
 

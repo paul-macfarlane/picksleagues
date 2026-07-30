@@ -214,3 +214,57 @@ default-to-current-week rule) lives in `LeagueWeekPicker` rather than being copi
 both callers would restate a `{weekId && …}` guard the shell already enforces. Named
 generically rather than `pickem*` because Elimination's weekly slate is the second mode
 that will use it unchanged.
+
+## Round 6 — pick-surface focus + League Picks rework (2026-07-29)
+
+| # | Item | Resolution |
+| --- | --- | --- |
+| 1 | Rename the pick-entry route to `/my-picks` | Done (`7591649`). No redirect from `/picks` — the branch is unmerged and the old path was never shared. |
+| 2 | My Picks should show only games I picked or can still pick | **Built**, with the predicate widened — see below. Owner accepted the three costs named up front: rows vanishing mid-Sunday, the full slate no longer existing anywhere in the app, and the need for an empty state ("You didn't make any picks this week."). |
+| 3 | League Picks: collapsible per member, sorted by weekly success, records and ranks shown | **Built.** Rows stay compact (see the pushback below); each member is a `<details>` open by default, ordered by the server's weekly rank with the season standing as the fallback, and headed by week + season record. |
+| 4 | Simulator banner handles mobile poorly | The link was a member of the same `flex-wrap` row as the text, so `ml-auto` pushed it onto a line of its own at phone width — right-aligned under nothing, reading as a stray third row. It is now a sibling of a wrapping text column and stays beside it, vertically centred; the `·` separator hides below `sm`, where the scenario takes its own line and a trailing separator would dangle. |
+
+**The rule that makes item 2 work is not the one that was asked for**, and the difference
+is the whole design. "Show it if I can still pick it" is right in one direction and wrong
+in the other:
+
+- **The cap alone must not hide a game.** At the cap with *unlocked* picks, a member can
+  still switch into an unpicked game — ADR-0015 replaces the whole week, so changing your
+  mind usually means picking a *different* game. Hiding the target traps them. This is
+  precisely the objection that defeated the round 2 and round 3 versions of this idea.
+- **Openness alone must not show one.** At the cap with every pick locked there is no slot
+  to free, so an unstarted game is unreachable however open it looks.
+
+Both are satisfied by gating on the *week's* operability rather than the *game's*:
+`held || (open && hasOperableControl(...))`. Sharing that predicate with the save bar is
+deliberate — unpicked open games exist to be changed into, so they live and die with the
+control that saves changes, and the screen becomes the week in review in the same render
+the bar retires in.
+
+**The testing gap was real and is now closed.** The merge-gate fixture has four games and
+a cap of four, so "open" and "reachable" never diverge in it — the structural blind spot
+that let round 3's action-bar bug ship, and one that would have left this filter untested
+while looking covered. The journey now also drives a second league over the same slate
+with a cap of 2, asserting both directions at the two clock positions it already passes
+through: unpicked-and-kicked-off vanishes while swap targets remain, then the slate
+collapses to the member's own two picks once nothing is operable. Confirmed by reverting
+the filter and watching the E2E fail on exactly that assertion.
+
+**Pushback that was accepted:** reusing the *editor's* row on League Picks. That row is
+built around controls — two side buttons with `aria-pressed`, disabled states, cap logic,
+the substitute dialog — all inert for another member's pick and roughly four times the
+height of a compact line. The shared vocabulary already exists (`TeamLogo`,
+`PickOutcomeBadge`, `GameStatePill`, `gameStateLabel`, `pickStandingLabel`); what differs
+is layout, and it differs because the tasks differ. Collapsing would have solved the
+height problem the tall row creates, but at the cost of cross-member comparison — "who
+else took the Cowboys" reads down one column today and would have meant expanding two
+members and scrolling past a thousand pixels. Compact rows plus collapse keeps both.
+
+**A comparator bug caught by writing the test for the case, not the happy path.** The
+first ordering used `rankA - rankB` with an `Number.isFinite` guard to skip unranked
+members. But a ranked member against an unranked one yields `1 - Infinity === -Infinity` —
+a correct *sign* that the finite check discards, silently falling through to the season
+tiebreak and letting a season leader outrank someone who actually won the week. Comparing
+(`x === y ? 0 : x < y ? -1 : 1`) instead of subtracting handles both sentinels, since
+`Infinity === Infinity`. Verified by restoring the buggy version and watching the intended
+test — and only that test — fail.
