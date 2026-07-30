@@ -244,7 +244,7 @@ Pick entry and week/pick detail are **sibling sections of a league, each week-sc
 
 **Pick entry shows only what the member can act on or already holds.** A game they picked stays for the rest of the week; a game they did *not* pick disappears once it is out of reach, so the week in review is their picks rather than a slate to scan past. "Out of reach" is the same condition that governs the save control — a game they could still switch into must remain visible, because replacing a pick means picking a *different* game — so unpicked games survive exactly as long as anything on the screen can still be operated. A member who picked nothing sees a stated empty result, never a blank card.
 
-**Week/pick detail is ordered by the week's standing, best first,** with each member's weekly and season record beside their name and their picks collapsible beneath it. The order is the standings' own rank (§Tiebreakers), never a second ranking invented for this screen. Ordering by settled results cannot disclose a hidden pick: points come only from graded picks, and a graded pick's game is final and therefore already revealed.
+**Week/pick detail is ordered by the week's standing, best first,** with each member's weekly and season record beside their name and their picks collapsed beneath it — including the viewer's own, whose picks have their own screen. The page therefore opens as a weekly leaderboard and expands into detail on request. The order is the standings' own rank (§Tiebreakers), never a second ranking invented for this screen. Ordering by settled results cannot disclose a hidden pick: points come only from graded picks, and a graded pick's game is final and therefore already revealed.
 - **League create/settings** — mode-specific settings forms
 - **Profile** — username, display name
 - **Join** — invite link landing + confirmation
@@ -263,10 +263,10 @@ Scores are always shown with **each number attached to its team** (`NE 19 – SE
 
 This is not a live feed and does not change the freshness model below: it is a derivation over already-ingested data, refreshed on the same ~5-minute cadence as everything else.
 
-**Settled pick margin.** Once a pick has graded, the row keeps showing the *size* of the result and nothing more — `Correct · by 10`. The outcome badge owns the verdict and the number owns the magnitude; restating the verdict in words beside its own badge only crowds it. Three consequences follow from that division:
+**Settled pick margin.** Once a pick has graded, the row states the size of the result in the **past tense of the reading it replaces** — "covering by 7.5" becomes "covered by 7.5", "up 4" becomes "won by 4". A bare magnitude is not enough: a lone number does not say what it measures, and what it measures differs by pick type (points against an accepted spread, or points on the scoreboard). Tense is what keeps it from reading as a second verdict beside the outcome badge — one sentence resolving, not a new vocabulary appearing. Three consequences:
 
-- A **push shows no margin** — there is nothing to state, whether the pick landed exactly on the number or the game was cancelled out from under it.
-- A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a bare magnitude with no badge beside it to give it direction is worse than silence.
+- A **push shows no margin.** There is no number to qualify, so the badge carries it alone — this is the one case where the words would be pure duplication.
+- A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a reading with no badge beside it to confirm it is worse than silence.
 - The number is the **same per-pick value the standings' `Diff` column sums** (§Tiebreakers), so a member who disputes a tiebreaker can audit it against the week that produced it instead of taking the total on faith.
 
 No standalone stats pages, head-to-head views, or historical archives.

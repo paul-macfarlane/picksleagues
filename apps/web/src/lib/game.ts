@@ -138,11 +138,10 @@ export function gameStateAsOfLabel(game: { status: GameStatus; stateAsOf: string
  * Two moments say something, and they never overlap:
  *
  * - **In progress** → a provisional reading (see `provisionalMarginLabel`).
- * - **Graded** → the *size* of the result and nothing else, because the outcome
- *   badge beside it already carries the verdict. Keyed on the grade's existence
- *   rather than on `FINAL`, so the window between a game ending and the
- *   settlement sweep landing shows nothing: a bare "by 10" with no badge to
- *   give it direction is worse than silence.
+ * - **Graded** → the settled reading (see `settledMarginLabel`). Keyed on the
+ *   grade's existence rather than on `FINAL`, so the window between a game
+ *   ending and the settlement sweep landing shows nothing: a reading with no
+ *   badge beside it to confirm it is worse than silence.
  *
  * Null when there is nothing honest to say: no scores yet, an ATS pick with no
  * spread to measure against, or a push — which has no margin to state whether it
@@ -161,12 +160,39 @@ export function pickStandingLabel(
   const margin = pickMargin(pick, game.homeScore, game.awayScore, pickType);
   if (margin === null) return null;
 
-  // The magnitude alone, and the same per-pick number the standings' "Diff"
-  // column sums (spec §Tiebreakers) — so a member who disputes a tiebreaker can
-  // audit it against the week that produced it, rather than taking the total on
-  // faith. Restating "Correct"/"Incorrect" here would just crowd the badge.
-  if (graded) return margin === 0 ? null : `by ${Math.abs(margin)}`;
+  if (graded) return settledMarginLabel(margin, pickType);
   return provisionalMarginLabel(margin, pickType);
+}
+
+/**
+ * How a graded pick's margin reads: the past tense of the reading the row
+ * carried while its game was still running.
+ *
+ * This began as the bare magnitude ("by 10"), on the theory that the outcome
+ * badge beside it owns the verdict and repeating it would only crowd the badge.
+ * Wrong in practice: a lone number doesn't say what it measures, and what it
+ * measures genuinely differs by pick type — 7.5 against the spread is points
+ * relative to a number the member accepted, while 10 straight-up is points on
+ * the scoreboard. Naming it costs one word and removes the guess.
+ *
+ * Tense is what keeps it from becoming a second verdict beside the badge:
+ * "covering by 7.5" becomes "covered by 7.5", so a member watching a game
+ * settle sees one sentence resolve rather than a new vocabulary appear. It also
+ * stays the number the standings' "Diff" column sums (spec §Tiebreakers), so a
+ * disputed tiebreaker can be audited against the week that produced it.
+ *
+ * Null on a push, which is not an oversight: the ambiguity above is a property
+ * of *numbers* without units, and a push has no number to qualify — so "pushed"
+ * next to a badge already reading "Push" would be the one case where the words
+ * really are pure duplication.
+ */
+export function settledMarginLabel(margin: number, pickType: PickType): string | null {
+  if (margin === 0) return null;
+  const magnitude = Math.abs(margin);
+  if (pickType === PICK_TYPE.AGAINST_THE_SPREAD) {
+    return margin > 0 ? `covered by ${magnitude}` : `short by ${magnitude}`;
+  }
+  return margin > 0 ? `won by ${magnitude}` : `lost by ${magnitude}`;
 }
 
 /**

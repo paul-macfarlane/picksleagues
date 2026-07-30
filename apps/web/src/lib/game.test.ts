@@ -9,6 +9,7 @@ import {
   pickRowState,
   pickStandingLabel,
   provisionalMarginLabel,
+  settledMarginLabel,
 } from "./game";
 
 describe("isClosedToPicks", () => {
@@ -269,6 +270,40 @@ describe("provisionalMarginLabel", () => {
 });
 
 /**
+ * The settled counterpart, and the reason it is not a bare magnitude: "by 7.5"
+ * doesn't say what it measures, and what it measures differs by pick type. The
+ * pairing with `provisionalMarginLabel` is the design — same sentence, resolved
+ * tense — so both halves are asserted side by side here.
+ */
+describe("settledMarginLabel", () => {
+  it.each([
+    { margin: 7.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "covered by 7.5" },
+    { margin: -2.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: "short by 2.5" },
+    { margin: 4, pickType: PICK_TYPE.STRAIGHT_UP, expected: "won by 4" },
+    { margin: -2, pickType: PICK_TYPE.STRAIGHT_UP, expected: "lost by 2" },
+    // No number to qualify, and the badge beside it already reads "Push".
+    { margin: 0, pickType: PICK_TYPE.AGAINST_THE_SPREAD, expected: null },
+    { margin: 0, pickType: PICK_TYPE.STRAIGHT_UP, expected: null },
+  ])("renders $margin in a $pickType league as $expected", ({ margin, pickType, expected }) => {
+    expect(settledMarginLabel(margin, pickType)).toBe(expected);
+  });
+
+  it.each([
+    { margin: 7.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD },
+    { margin: -7.5, pickType: PICK_TYPE.AGAINST_THE_SPREAD },
+    { margin: 4, pickType: PICK_TYPE.STRAIGHT_UP },
+    { margin: -4, pickType: PICK_TYPE.STRAIGHT_UP },
+  ])(
+    "states what the $margin measures rather than a bare number ($pickType)",
+    ({ margin, pickType }) => {
+      // The defect this replaced: "by 10" gave the size of a result without
+      // saying whether it was scoreboard points or points against a spread.
+      expect(settledMarginLabel(margin, pickType)).not.toMatch(/^by \d/);
+    },
+  );
+});
+
+/**
  * The gate on which phrasing a moment is allowed. Both pick surfaces read this
  * one function precisely so they can never disagree about when a number may
  * appear next to a pick — the drift this replaced.
@@ -286,16 +321,16 @@ describe("pickStandingLabel", () => {
       expected: "up 10",
     },
     {
-      name: "a graded pick states the magnitude and leaves the verdict to the badge",
+      name: "a graded pick reads as the past tense of the reading it replaced",
       game: { status: GAME_STATUS.FINAL, ...HOME_BY_10 },
       pick: { ...HOME_PICK, outcome: PICK_OUTCOME.CORRECT },
-      expected: "by 10",
+      expected: "won by 10",
     },
     {
-      name: "a losing graded pick states the same magnitude — direction is the badge's job",
+      name: "a losing graded pick names its own direction rather than leaning on the badge",
       game: { status: GAME_STATUS.FINAL, ...HOME_BY_10 },
       pick: { ...AWAY_PICK, outcome: PICK_OUTCOME.INCORRECT },
-      expected: "by 10",
+      expected: "lost by 10",
     },
     {
       // The settlement sweep runs on a job, so a game can be over before its
@@ -353,11 +388,11 @@ describe("pickStandingLabel", () => {
       expected: "short by 7.5",
     },
     {
-      name: "a graded spread pick states the magnitude alone",
+      name: "a graded spread pick names the spread it beat, not a scoreboard margin",
       side: PICKEM_PICK_SIDE.HOME,
       status: GAME_STATUS.FINAL,
       outcome: PICK_OUTCOME.CORRECT,
-      expected: "by 7.5",
+      expected: "covered by 7.5",
     },
   ])("$name", ({ side, status, outcome, expected }) => {
     expect(

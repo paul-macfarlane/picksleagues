@@ -82,6 +82,17 @@ function memberRow(scope: Locator, displayName: string): Locator {
   return scope.getByTestId("member-picks-row").filter({ hasText: displayName });
 }
 
+// Members are collapsed by default (feedback round 6), so anything asserted as
+// *visible* inside one has to be opened first — through the summary, the way a
+// reader opens it. Counting assertions deliberately do not call this: a closed
+// `<details>` keeps its children in the DOM, so those still measure what was
+// rendered rather than what is on screen.
+async function expandMember(scope: Locator, displayName: string): Promise<Locator> {
+  const row = memberRow(scope, displayName);
+  await row.locator("summary").click();
+  return row;
+}
+
 test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   let adminContext: BrowserContext;
   let commishContext: BrowserContext;
@@ -334,11 +345,14 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     const detail = await openLeaguePicks();
 
+    // Every member starts collapsed, the viewer included — the page opens as a
+    // weekly leaderboard and a reader expands the member they came for.
     const own = memberRow(detail, commishName);
+    await expect(own.locator("li").first()).toBeHidden();
     await expect(own.locator("li")).toHaveCount(4);
     await expect(own.getByText(/more pick/)).toHaveCount(0);
 
-    const other = memberRow(detail, joinerName);
+    const other = await expandMember(detail, joinerName);
     await expect(other.getByText("4 more picks in — not yet revealed.")).toBeVisible();
     await expect(other.locator("li")).toHaveCount(0);
   });
@@ -434,7 +448,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // the commissioner; their other three picks (still unstarted) are not.
     await pageA.goto(`/leagues/${leagueId}`);
     const detail = await openLeaguePicks();
-    const other = memberRow(detail, joinerName);
+    const other = await expandMember(detail, joinerName);
     await expect(other.getByText("3 more picks in — not yet revealed.")).toBeVisible();
     await expect(other.locator("li")).toHaveCount(1);
     await expect(other.locator("li").first()).toContainText("MIA");
@@ -483,7 +497,8 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await expect(memberRow(detail, joinerName).getByText("Incorrect")).toHaveCount(4);
     // Every graded pick pairs its badge with the size of the result — none of
     // these four pushed, so all four carry a magnitude (round 5).
-    await expect(memberRow(detail, commishName).getByText(/^by \d/)).toHaveCount(4);
+    await expect(memberRow(detail, commishName).getByText(/^won by \d/)).toHaveCount(4);
+    await expect(memberRow(detail, joinerName).getByText(/^lost by \d/)).toHaveCount(4);
 
     // Same grades on the pick editor, where the outcome takes the badge slot
     // "Locked" held before the game finished.
@@ -496,7 +511,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // The magnitude survives the grade but the provisional *phrasing* must not:
     // the badge above owns the verdict, so the line states only how big the
     // result was — the same number the standings' Diff column sums (round 5).
-    await expect(settledRow.getByText("Your pick: BUF · by 10")).toBeVisible();
+    await expect(settledRow.getByText("Your pick: BUF · won by 10")).toBeVisible();
     await expect(settledRow.getByText(/tied|up \d|down \d/)).toHaveCount(0);
 
     // Nothing in the week can be changed any more, so the save bar retires

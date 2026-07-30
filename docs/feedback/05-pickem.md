@@ -268,3 +268,44 @@ tiebreak and letting a season leader outrank someone who actually won the week. 
 (`x === y ? 0 : x < y ? -1 : 1`) instead of subtracting handles both sentinels, since
 `Infinity === Infinity`. Verified by restoring the buggy version and watching the intended
 test — and only that test — fail.
+
+## Round 7 — settled copy + collapse default (2026-07-30)
+
+| # | Item | Resolution |
+| --- | --- | --- |
+| 1 | "by X" is unclear on a resolved game | **Conceded — my round 5 call was wrong.** Settled picks now read as the past tense of the reading they replace: `covered by 7.5` / `short by 2.5` in ATS, `won by 4` / `lost by 2` straight-up. |
+| 2 | Collapse League Picks by default | **Agreed, no pushback.** Every member starts closed, the viewer included. |
+| 3 | Relative date displays app-wide | **Answered, not built** — see the note below; there is a prerequisite. |
+
+**Why the bare magnitude was wrong.** Round 5 reasoned that the outcome badge owns the
+verdict, so the number should carry only the size and never restate it. That protects
+against a redundancy that turns out not to be the real risk. The actual problem is that a
+lone number does not say *what it measures*, and what it measures genuinely differs by
+pick type: 7.5 against the spread is points relative to a number the member accepted,
+while 10 straight-up is points on the scoreboard. One word removes the guess.
+
+Tense is what stops the fix from re-introducing the redundancy the original design feared.
+"Covering by 7.5" becoming "covered by 7.5" is one sentence resolving, not a second
+verdict appearing beside the badge — and a member who watches a game settle sees continuity
+rather than a vocabulary change.
+
+**Pushes still show nothing,** and this is deliberate rather than an omission carried
+over. The ambiguity above is a property of *numbers without units*; a push has no number
+to qualify, so "pushed" next to a badge already reading "Push" would be the one case where
+the words really are pure duplication.
+
+**On collapsing: the argument I lost was better than the one I made.** I had defaulted to
+expanded to preserve cross-member comparison. But with rank and both records now in the
+header, the collapsed page already *is* the comparison — a weekly leaderboard — and
+opening a member is the question a reader actually arrives with. I also considered
+auto-expanding the viewer's own row and rejected it: their picks have a whole tab of their
+own, so that would spend the one open row on the least useful member.
+
+**A measurement mistake worth recording, because it nearly became a bug report.** Checking
+the chevron's rotation, my first probe was `memberRow(...).locator("svg").last()` — which
+resolves to the last outcome icon in the *collapsed content*, not the chevron, because a
+closed `<details>` keeps its children in the DOM. It read `none` in both states and looked
+like proof the CSS variant was broken. Scoped to `summary > svg` it read `none` → `0deg`,
+which was the transition caught at its first frame; polling showed it settling at `180deg`.
+Two wrong readings in a row, both plausible, before the affordance turned out to be fine.
+A screenshot taken immediately after a click is mid-animation and is not evidence.

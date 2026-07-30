@@ -129,7 +129,8 @@ export function PickemWeekDetail({
         <CardTitle>{slate.data && picks.data ? `Picks — ${slate.data.label}` : "Picks"}</CardTitle>
         {slate.data && picks.data && (
           <CardDescription>
-            Best week first. Each pick is revealed once its game kicks off.
+            Best week first — open a member to see their picks. Each pick is revealed once its game
+            kicks off.
           </CardDescription>
         )}
       </CardHeader>
@@ -188,20 +189,21 @@ function MemberPicksSection({
   seasonShared: Map<number, number>;
 }) {
   return (
-    // Native `<details>` rather than a disclosure component: it is collapsible,
+    // Native `<details>` rather than a disclosure component: collapsible,
     // keyboard-operable and screen-reader-announced with no state to own, and
-    // the repo has no accordion primitive to reuse. Open by default so the page
-    // still reads as a comparison at a glance — folding a member away is the
-    // deliberate act, not expanding one.
+    // the repo has no accordion primitive to reuse.
+    //
+    // Closed by default (owner's call), including the viewer's own row. With
+    // the rank and both records in the header, the collapsed page is already a
+    // weekly leaderboard, and opening a member is the question a reader
+    // actually arrives with. Uniform rather than auto-expanding the viewer:
+    // their own picks have a whole tab of their own, so expanding them here
+    // would spend the one open row on the least useful member.
     //
     // The testid stays on the outer element: the pick-visibility assertions
     // (PKM-8) address this row rather than walking up from a display-name text
     // node, which would re-break on any layout change.
-    <details
-      open
-      data-testid="member-picks-row"
-      className="group border-b border-border last:border-0"
-    >
+    <details data-testid="member-picks-row" className="group border-b border-border last:border-0">
       <summary className="flex cursor-pointer list-none items-center gap-2 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
         {/* Fixed width so the ranks form a column the eye can run down, and
             an em dash rather than a blank while the week has yet to settle —
