@@ -3,7 +3,7 @@ import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import type { PickemStandingsRow } from "@picksleagues/schemas";
 import { usePickemStandings } from "@/api/pickem";
 import { formatDateTime } from "@/lib/format";
-import { useErrorToast } from "@/lib/use-error-toast";
+import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { cn } from "@/lib/utils";
 import { QueryState } from "@/components/query-state";
 import { UserIdentity } from "@/components/user-identity";
@@ -13,15 +13,6 @@ import { UserIdentity } from "@/components/user-identity";
 function formatSigned(value: number): string {
   if (value === 0) return "0";
   return value > 0 ? `+${value}` : `${value}`;
-}
-
-// Members level on points *and* differential share a rank (spec §Tiebreakers)
-// — counted here so ties render "T-<rank>" rather than silently renumbering.
-// Exported for its unit test: the vitest `unit` project runs in a node
-// environment, so the rule is pinned as a pure function rather than through a
-// component render (same idiom as sim/fixture-patch.ts).
-export function rankLabel(rank: number, sharedCounts: Map<number, number>): string {
-  return (sharedCounts.get(rank) ?? 0) > 1 ? `T-${rank}` : `${rank}`;
 }
 
 export const STANDINGS_SORT_COLUMN = {
@@ -163,15 +154,9 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
   const standings = usePickemStandings(leagueId, weekId);
   const [sort, setSort] = useState<StandingsSort>(DEFAULT_STANDINGS_SORT);
 
-  useErrorToast(standings.isError, "Couldn't load standings — please try again.");
-
   const rows = sortStandingsRows(standings.data?.rows ?? [], sort);
   const lastUpdatedAt = standings.data?.lastUpdatedAt;
-
-  const sharedCounts = new Map<number, number>();
-  for (const row of rows) {
-    sharedCounts.set(row.rank, (sharedCounts.get(row.rank) ?? 0) + 1);
-  }
+  const sharedCounts = sharedRankCounts(rows);
 
   return (
     <QueryState

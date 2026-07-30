@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { LEAGUE_MODE, type PickemSettings } from "@picksleagues/schemas";
 import { useLeague } from "@/api/leagues";
+import { pickemSettingsOf } from "@/lib/league-settings";
 import { PickemWeekDetail } from "@/components/league/pickem-week-detail";
 import { LeagueWeekPicker } from "@/components/league/league-week-picker";
 
@@ -39,10 +39,11 @@ function LeaguePicksAllMembers() {
 
   if (!league.data) return null;
   // Direct navigation guard — the tab itself only renders for Pick'em
-  // leagues (route.tsx), but this route is still reachable by URL.
-  if (league.data.mode !== LEAGUE_MODE.PICKEM) return null;
-
-  const { pickType } = league.data.settings as PickemSettings;
+  // leagues (route.tsx), but this route is still reachable by URL. Parsed
+  // rather than cast (see pickemSettingsOf); `null` also covers a settings
+  // blob that doesn't parse, which this screen could render nothing sane from.
+  const settings = pickemSettingsOf(league.data);
+  if (!settings) return null;
 
   return (
     <LeagueWeekPicker
@@ -52,7 +53,11 @@ function LeaguePicksAllMembers() {
       onSelectWeek={(next) => navigate({ search: { weekId: next }, replace: true })}
     >
       {(effectiveWeekId) => (
-        <PickemWeekDetail leagueId={leagueId} weekId={effectiveWeekId} pickType={pickType} />
+        <PickemWeekDetail
+          leagueId={leagueId}
+          weekId={effectiveWeekId}
+          pickType={settings.pickType}
+        />
       )}
     </LeagueWeekPicker>
   );

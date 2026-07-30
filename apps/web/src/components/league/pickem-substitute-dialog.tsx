@@ -126,8 +126,8 @@ export function PickemSubstituteDialog({
             uncontrolled (console warning); `null` is its "no selection" value. */}
         <RadioGroup value={choice} onValueChange={(value) => setChoice(value as string)}>
           {eligibleGames.map((game) => {
-            const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
-            const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
+            const awaySpread = showSpread ? spreadLabel(game.spread, PICKEM_PICK_SIDE.AWAY) : null;
+            const homeSpread = showSpread ? spreadLabel(game.spread, PICKEM_PICK_SIDE.HOME) : null;
             return (
               <div
                 key={game.id}

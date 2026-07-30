@@ -12,14 +12,13 @@ import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { gameStateAsOfLabel, gameStateLabel, pickStandingLabel, spreadLabel } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
-import { useErrorToast } from "@/lib/use-error-toast";
+import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
-import { rankLabel } from "@/components/league/pickem-standings-table";
 
 // One pick per row, and each row is a two-line block at phone width: what the
 // member took on the first line, where that game stands on the second
@@ -33,15 +32,6 @@ const PICK_ROW_CLASS_NAME =
 
 function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStandingsRow> {
   return new Map(rows.map((row) => [row.leagueMemberId, row]));
-}
-
-// How many members share each rank, so a tie renders "T-2" rather than being
-// silently renumbered — the same rule the standings table applies, from the
-// same helper.
-function sharedRankCounts(rows: readonly PickemStandingsRow[]): Map<number, number> {
-  const counts = new Map<number, number>();
-  for (const row of rows) counts.set(row.rank, (counts.get(row.rank) ?? 0) + 1);
-  return counts;
 }
 
 /**
@@ -107,11 +97,6 @@ export function PickemWeekDetail({
   const picks = useWeekPicks(leagueId, weekId);
   const weekStandings = usePickemStandings(leagueId, weekId);
   const seasonStandings = usePickemStandings(leagueId);
-
-  useErrorToast(
-    slate.isError || picks.isError,
-    "Couldn't load this week's picks — please try again.",
-  );
 
   const gameById = new Map((slate.data?.games ?? []).map((game) => [game.id, game]));
   // Standings are this screen's decoration, not its content, so a failure there
@@ -295,9 +280,7 @@ function PickRow({
 
   const pickedTeam = pick.side === PICKEM_PICK_SIDE.HOME ? game.homeTeam : game.awayTeam;
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
-  const spread = showSpread
-    ? spreadLabel(pick.spread, pick.side === PICKEM_PICK_SIDE.HOME ? "home" : "away")
-    : null;
+  const spread = showSpread ? spreadLabel(pick.spread, pick.side) : null;
   const stateAsOf = gameStateAsOfLabel(game);
   // Literally the same rule as the pick editor's rows, via the same function.
   // Shown for every member's revealed pick, not just the viewer's — a pick

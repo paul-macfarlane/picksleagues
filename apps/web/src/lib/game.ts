@@ -1,6 +1,7 @@
 import {
   GAME_STATUS,
   PICK_TYPE,
+  PICKEM_PICK_SIDE,
   WEEK_TYPE,
   type GameStatus,
   type PickemPickSide,
@@ -238,9 +239,9 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
 // member reads next to the team they'd be picking, not the raw stored number.
 // Shared by the pick entry grid, the substitute-pick dialog, and the week/pick
 // detail view so the three surfaces never drift on how a spread reads.
-export function spreadLabel(spread: number | null, side: "home" | "away"): string | null {
+export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
   if (spread === null) return null;
-  const value = side === "home" ? spread : -spread;
+  const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;
   return value > 0 ? `+${value}` : `${value}`;
 }
 

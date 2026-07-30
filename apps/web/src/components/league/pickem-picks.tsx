@@ -12,7 +12,6 @@ import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { isClosedToPicks } from "@/lib/game";
 import { cn } from "@/lib/utils";
-import { useErrorToast } from "@/lib/use-error-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
@@ -135,11 +134,6 @@ export function PickemPicks({
 }) {
   const slate = useWeekSlate(weekId);
   const picks = useWeekPicks(leagueId, weekId);
-
-  useErrorToast(
-    slate.isError || picks.isError,
-    "Couldn't load this week's picks — please try again.",
-  );
 
   return (
     <QueryState

@@ -1,5 +1,4 @@
 import { useLeagueWeeks } from "@/api/weeks";
-import { useErrorToast } from "@/lib/use-error-toast";
 import { LabeledSelect } from "@/components/labeled-select";
 import { PickemStandingsTable } from "@/components/league/pickem-standings-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,8 +26,6 @@ export function PickemStandingsSection({
   onSelectWeek: (weekId: string | undefined) => void;
 }) {
   const weeks = useLeagueWeeks(leagueId);
-
-  useErrorToast(weeks.isError, "Couldn't load this league's weeks — please try again.");
 
   const allWeeks = weeks.data?.weeks ?? [];
   const scopeOptions = [

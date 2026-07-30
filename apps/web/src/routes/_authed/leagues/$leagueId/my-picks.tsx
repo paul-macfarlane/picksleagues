@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { LEAGUE_MODE, type PickemSettings } from "@picksleagues/schemas";
 import { useLeague } from "@/api/leagues";
+import { pickemSettingsOf } from "@/lib/league-settings";
 import { PickemPicks } from "@/components/league/pickem-picks";
 import { LeagueWeekPicker } from "@/components/league/league-week-picker";
 
@@ -19,10 +19,10 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/_authed/leagues/$leagueId/my-picks")({
   validateSearch: searchSchema,
-  component: LeaguePicks,
+  component: MyPicks,
 });
 
-function LeaguePicks() {
+function MyPicks() {
   const { leagueId } = Route.useParams();
   const { weekId } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -32,10 +32,11 @@ function LeaguePicks() {
 
   if (!league.data) return null;
   // Direct navigation guard — the tab itself only renders for Pick'em
-  // leagues (route.tsx), but this route is still reachable by URL.
-  if (league.data.mode !== LEAGUE_MODE.PICKEM) return null;
-
-  const { pickType } = league.data.settings as PickemSettings;
+  // leagues (route.tsx), but this route is still reachable by URL. Parsed
+  // rather than cast (see pickemSettingsOf); `null` also covers a settings
+  // blob that doesn't parse, which this screen could render nothing sane from.
+  const settings = pickemSettingsOf(league.data);
+  if (!settings) return null;
 
   return (
     <LeagueWeekPicker
@@ -45,7 +46,7 @@ function LeaguePicks() {
       onSelectWeek={(next) => navigate({ search: { weekId: next }, replace: true })}
     >
       {(effectiveWeekId) => (
-        <PickemPicks leagueId={leagueId} weekId={effectiveWeekId} pickType={pickType} />
+        <PickemPicks leagueId={leagueId} weekId={effectiveWeekId} pickType={settings.pickType} />
       )}
     </LeagueWeekPicker>
   );

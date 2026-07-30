@@ -125,8 +125,8 @@ export function GameRow({
   // Read once for the badge precedence below; `GameStatePill` re-checks it, so
   // the two can't disagree about which status counts as live.
   const inProgress = game.status === GAME_STATUS.IN_PROGRESS;
-  const awaySpread = showSpread ? spreadLabel(game.spread, "away") : null;
-  const homeSpread = showSpread ? spreadLabel(game.spread, "home") : null;
+  const awaySpread = showSpread ? spreadLabel(game.spread, PICKEM_PICK_SIDE.AWAY) : null;
+  const homeSpread = showSpread ? spreadLabel(game.spread, PICKEM_PICK_SIDE.HOME) : null;
   // The side the member holds, however they came to hold it: toggled in this
   // editor, or committed earlier and now unchangeable (locked, or on a
   // cancelled/moved game — `hydrateSelections` deliberately keeps those out of

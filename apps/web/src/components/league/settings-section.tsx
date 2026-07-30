@@ -12,11 +12,9 @@ import {
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
   type EliminationPushTieResolution,
-  type EliminationSettings,
   type LeagueResponse,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
-  type MarchMadnessSettings,
   type PickType,
   type PickemPushTieResolution,
   type PickemSettings,
@@ -51,6 +49,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
 import { usePickemPickSummary } from "@/api/pickem";
+import {
+  eliminationSettingsOf,
+  marchMadnessSettingsOf,
+  pickemSettingsOf,
+} from "@/lib/league-settings";
 import { useErrorToast } from "@/lib/use-error-toast";
 
 export function LeagueSettingsSection({
@@ -86,12 +89,13 @@ function settingsFingerprint(league: LeagueResponse): string {
 function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: boolean }) {
   const updateLeague = useUpdateLeague(league.id);
 
-  // Stated deviation from the TanStack-Form rule (mirrors new.tsx): the whole
-  // merged form — name included — is plain useState. Mixing TanStack Form's
-  // field API for just the name with controlled state for visibility /
-  // maxMembers / mode settings would fragment dirty-tracking and the single
-  // Save button across two paradigms; every field here is re-validated as one
-  // assembled object at save time regardless.
+  // The forms rule's per-mode carve-out (engineering rules §Quality), which
+  // this and `leagues/new.tsx` are the whole of: the merged form — name
+  // included — is plain useState, because splitting it between TanStack Form's
+  // field API for the mode-agnostic inputs and controlled state for the
+  // per-mode fieldsets would fragment dirty-tracking and the single Save across
+  // two paradigms. Every field is re-validated as one assembled object at save
+  // time regardless.
   const [name, setName] = useState(league.name);
   const [visibility, setVisibility] = useState<LeagueVisibility>(league.visibility);
   const [maxMembers, setMaxMembers] = useState(league.maxMembers);
@@ -99,6 +103,23 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   const isPickem = league.mode === LEAGUE_MODE.PICKEM;
   const isElimination = league.mode === LEAGUE_MODE.ELIMINATION;
   const isMarchMadness = league.mode === LEAGUE_MODE.MARCH_MADNESS;
+
+  // Parsed once, and used for all three jobs below — seeding the controls,
+  // deciding what counts as dirty, and deciding whether a save would strand
+  // picks. Casting instead would let those three read `undefined` for a field
+  // a stored blob predates while the server's own parse reads a real default
+  // (see pickemSettingsOf), and the dirty check would then have to restate
+  // every `.default()` by hand to compensate — which is exactly how a client
+  // comes to believe a pick-destroying change is harmless.
+  //
+  // `null` means "not this mode, or the stored blob doesn't parse". The second
+  // can't happen for a blob the server itself wrote, but it fails safe
+  // everywhere it's consulted: controls seed from the create-form defaults, the
+  // fieldset reads as dirty so the commissioner can save a correction, and
+  // `wouldInvalidatePicks` assumes the worst.
+  const pickemSettings = pickemSettingsOf(league);
+  const eliminationSettings = eliminationSettingsOf(league);
+  const marchMadnessSettings = marchMadnessSettingsOf(league);
 
   // Fetched only for a Pick'em editor — an ordinary member has no use for it
   // (403 otherwise), and the two other modes have no pick-invalidation rule
@@ -109,56 +130,41 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // mode's fieldset renders) — a league's mode never changes post-create, but
   // branching the hooks themselves on it would violate rules-of-hooks.
   const [pickemStartWeek, setPickemStartWeek] = useState(
-    isPickem
-      ? encodeWeek((league.settings as PickemSettings).startWeek)
-      : DEFAULT_PICKEM_START_WEEK,
+    pickemSettings ? encodeWeek(pickemSettings.startWeek) : DEFAULT_PICKEM_START_WEEK,
   );
   const [pickemEndWeek, setPickemEndWeek] = useState(
-    isPickem ? encodeWeek((league.settings as PickemSettings).endWeek) : DEFAULT_PICKEM_END_WEEK,
+    pickemSettings ? encodeWeek(pickemSettings.endWeek) : DEFAULT_PICKEM_END_WEEK,
   );
   const [pickemPickType, setPickemPickType] = useState<PickType>(
-    isPickem ? (league.settings as PickemSettings).pickType : PICK_TYPE.STRAIGHT_UP,
+    pickemSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
   );
-  const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(
-    isPickem ? (league.settings as PickemSettings).picksPerWeek : 5,
-  );
+  const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
   const [pickemPushTie, setPickemPushTie] = useState<PickemPushTieResolution>(
-    isPickem
-      ? ((league.settings as PickemSettings).pushTieResolution ??
-          PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT)
-      : PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT,
+    pickemSettings?.pushTieResolution ?? PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT,
   );
 
   const [eliminationStartWeek, setEliminationStartWeek] = useState(
-    isElimination
-      ? encodeWeek((league.settings as EliminationSettings).startWeek)
-      : DEFAULT_PICKEM_START_WEEK,
+    eliminationSettings ? encodeWeek(eliminationSettings.startWeek) : DEFAULT_PICKEM_START_WEEK,
   );
   const [eliminationEndWeek, setEliminationEndWeek] = useState(
-    isElimination
-      ? encodeWeek((league.settings as EliminationSettings).endWeek)
-      : DEFAULT_PICKEM_END_WEEK,
+    eliminationSettings ? encodeWeek(eliminationSettings.endWeek) : DEFAULT_PICKEM_END_WEEK,
   );
   const [eliminationPickType, setEliminationPickType] = useState<PickType>(
-    isElimination ? (league.settings as EliminationSettings).pickType : PICK_TYPE.STRAIGHT_UP,
+    eliminationSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
   );
   const [eliminationPushTie, setEliminationPushTie] = useState<EliminationPushTieResolution>(
-    isElimination
-      ? ((league.settings as EliminationSettings).pushTieResolution ??
-          ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE)
-      : ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+    eliminationSettings?.pushTieResolution ?? ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
   );
 
-  const initialMarchMadness = isMarchMadness ? (league.settings as MarchMadnessSettings) : null;
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
-    initialMarchMadness?.maxBracketsPerMember ?? 5,
+    marchMadnessSettings?.maxBracketsPerMember ?? 5,
   );
   const [mmScoringModel, setMmScoringModel] = useState<MarchMadnessScoringModel>(
-    initialMarchMadness?.scoringModel ?? MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
+    marchMadnessSettings?.scoringModel ?? MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
   );
   const [mmRoundValues, setMmRoundValues] = useState<number[]>(
-    initialMarchMadness?.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-      ? initialMarchMadness.roundValues
+    marchMadnessSettings?.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
+      ? marchMadnessSettings.roundValues
       : [0, 0, 0, 0, 0, 0],
   );
 
@@ -188,7 +194,6 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // value only ever governs whether the client shows a warning first.
   let wouldInvalidatePicks = false;
   if (isPickem) {
-    const existing = league.settings as PickemSettings;
     const draft: PickemSettings = {
       startWeek: decodeWeek(pickemStartWeek),
       endWeek: decodeWeek(pickemEndWeek),
@@ -197,41 +202,34 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
       pushTieResolution: pickemPushTie,
     };
     assembledSettings = draft;
-    settingsDirty =
-      pickemStartWeek !== encodeWeek(existing.startWeek) ||
-      pickemEndWeek !== encodeWeek(existing.endWeek) ||
-      pickemPickType !== existing.pickType ||
-      pickemPicksPerWeek !== existing.picksPerWeek ||
-      pickemPushTie !== (existing.pushTieResolution ?? PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT);
-    // Parsed, not cast: `picksPerWeek` carries a `.default()`, and the
-    // server's own settings write parses both sides through this same
-    // schema before comparing (services/pickem/settings-reset.ts) so its
-    // defaults materialize. Comparing against a bare cast of a stored row
-    // that predates a field would read `undefined` here but a real default
-    // there, letting this client silently decide a pick-destroying change
-    // was harmless when the server would clear every pick on save. A parse
-    // failure can't happen for any settings blob the server itself wrote,
-    // but fails safe (assume invalidation) rather than trust that blindly.
-    const existingParsed = LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].safeParse(league.settings);
-    wouldInvalidatePicks = existingParsed.success
-      ? pickemSettingsInvalidatePicks(existingParsed.data, draft)
+    // Both sides of every comparison below come from the same parse the server
+    // compares against (services/pickem/settings-reset.ts), so a `.default()`
+    // is materialized identically here and there — no `??` fallback restating
+    // one, which is what would silently drift the day a default changes.
+    settingsDirty = pickemSettings
+      ? pickemStartWeek !== encodeWeek(pickemSettings.startWeek) ||
+        pickemEndWeek !== encodeWeek(pickemSettings.endWeek) ||
+        pickemPickType !== pickemSettings.pickType ||
+        pickemPicksPerWeek !== pickemSettings.picksPerWeek ||
+        pickemPushTie !== pickemSettings.pushTieResolution
+      : true;
+    wouldInvalidatePicks = pickemSettings
+      ? pickemSettingsInvalidatePicks(pickemSettings, draft)
       : true;
   } else if (isElimination) {
-    const existing = league.settings as EliminationSettings;
     assembledSettings = {
       startWeek: decodeWeek(eliminationStartWeek),
       endWeek: decodeWeek(eliminationEndWeek),
       pickType: eliminationPickType,
       pushTieResolution: eliminationPushTie,
     };
-    settingsDirty =
-      eliminationStartWeek !== encodeWeek(existing.startWeek) ||
-      eliminationEndWeek !== encodeWeek(existing.endWeek) ||
-      eliminationPickType !== existing.pickType ||
-      eliminationPushTie !==
-        (existing.pushTieResolution ?? ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE);
+    settingsDirty = eliminationSettings
+      ? eliminationStartWeek !== encodeWeek(eliminationSettings.startWeek) ||
+        eliminationEndWeek !== encodeWeek(eliminationSettings.endWeek) ||
+        eliminationPickType !== eliminationSettings.pickType ||
+        eliminationPushTie !== eliminationSettings.pushTieResolution
+      : true;
   } else {
-    const existing = league.settings as MarchMadnessSettings;
     assembledSettings =
       mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
         ? {
@@ -240,12 +238,13 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
             roundValues: mmRoundValues,
           }
         : { maxBracketsPerMember: mmMaxBrackets, scoringModel: mmScoringModel };
-    settingsDirty =
-      mmMaxBrackets !== existing.maxBracketsPerMember ||
-      mmScoringModel !== existing.scoringModel ||
-      (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-        existing.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-        JSON.stringify(mmRoundValues) !== JSON.stringify(existing.roundValues));
+    settingsDirty = marchMadnessSettings
+      ? mmMaxBrackets !== marchMadnessSettings.maxBracketsPerMember ||
+        mmScoringModel !== marchMadnessSettings.scoringModel ||
+        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
+          marchMadnessSettings.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
+          JSON.stringify(mmRoundValues) !== JSON.stringify(marchMadnessSettings.roundValues))
+      : true;
   }
 
   // Every other failed query in this codebase surfaces via the shared toast —

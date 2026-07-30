@@ -19,6 +19,7 @@ import {
 } from "@picksleagues/schemas";
 import {
   aggregateStandings,
+  PICKEM_UNSETTLED_REASON,
   rankStandings,
   settlePickemWeek,
   type PickemGameResult,
@@ -214,7 +215,7 @@ async function settleWeekResults(
   for (const pick of settlement.unsettled) {
     // A final game with no score is a provider fault an admin override fixes —
     // worth a log line, unlike the ordinary not-yet-played case.
-    if (pick.reason !== "not_yet_played") {
+    if (pick.reason !== PICKEM_UNSETTLED_REASON.NOT_YET_PLAYED) {
       logInfo("settlement.unsettleable-pick", {
         leagueSeasonId: season.leagueSeasonId,
         weekId,
