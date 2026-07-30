@@ -88,7 +88,7 @@ function LeagueLayout() {
                 Overview's standings-scope dropdown. */}
             {league.data.mode === LEAGUE_MODE.PICKEM && (
               <>
-                <Link to="/leagues/$leagueId/picks" params={{ leagueId }} {...tabLinkProps}>
+                <Link to="/leagues/$leagueId/my-picks" params={{ leagueId }} {...tabLinkProps}>
                   My Picks
                 </Link>
                 <Link to="/leagues/$leagueId/league-picks" params={{ leagueId }} {...tabLinkProps}>

@@ -20,7 +20,7 @@ import { LeagueWeekPicker } from "@/components/league/league-week-picker";
 const searchSchema = z.object({
   // Same contract as the picks tab's: linkable, survives a refresh, and
   // defaults to the server's current week rather than one derived here. Its own
-  // param, deliberately — see the note in picks.tsx.
+  // param, deliberately — see the note in my-picks.tsx.
   weekId: z.string().optional(),
 });
 

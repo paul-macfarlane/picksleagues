@@ -17,7 +17,7 @@ const searchSchema = z.object({
   weekId: z.string().optional(),
 });
 
-export const Route = createFileRoute("/_authed/leagues/$leagueId/picks")({
+export const Route = createFileRoute("/_authed/leagues/$leagueId/my-picks")({
   validateSearch: searchSchema,
   component: LeaguePicks,
 });

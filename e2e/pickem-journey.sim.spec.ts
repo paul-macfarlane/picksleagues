@@ -235,7 +235,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     game4 = findGame("SF", "SEA");
 
     // Commissioner: the four actual winners.
-    await pageA.goto(`/leagues/${leagueId}/picks`);
+    await pageA.goto(`/leagues/${leagueId}/my-picks`);
     await selectPick(pageA, "MIA", "BUF", "BUF");
     await selectPick(pageA, "DEN", "KC", "DEN");
     await selectPick(pageA, "PHI", "DAL", "DAL");
@@ -247,7 +247,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // Joiner: the four losers — the exact inverse, so the two members' points
     // and differentials end up unambiguously separated rather than merely
     // different (makes the final standings assertion a clean derivation).
-    await pageB.goto(`/leagues/${leagueId}/picks`);
+    await pageB.goto(`/leagues/${leagueId}/my-picks`);
     await selectPick(pageB, "MIA", "BUF", "MIA");
     await selectPick(pageB, "DEN", "KC", "KC");
     await selectPick(pageB, "PHI", "DAL", "PHI");
@@ -293,7 +293,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // Open the editor *before* the kickoff, so the screen has to absorb the
     // lock without a remount — the position a member is in whenever they leave
     // the picks tab open through a Sunday.
-    await pageA.goto(`/leagues/${leagueId}/picks`);
+    await pageA.goto(`/leagues/${leagueId}/my-picks`);
     await expect(pageA.getByText("4 of 4 picks")).toBeVisible();
 
     const lockInstant = new Date(new Date(game1.kickoffAt).getTime() + 60_000).toISOString();
@@ -424,7 +424,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     // Same grades on the pick editor, where the outcome takes the badge slot
     // "Locked" held before the game finished.
-    await pageA.goto(`/leagues/${leagueId}/picks`);
+    await pageA.goto(`/leagues/${leagueId}/my-picks`);
     const settledRow = pageA.locator("li", { hasText: "MIA @ BUF" });
     await expect(settledRow.getByText("Correct")).toBeVisible();
     await expect(settledRow.getByText("Locked")).toHaveCount(0);
