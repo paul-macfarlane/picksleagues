@@ -9,7 +9,7 @@ import {
   type WeekType,
 } from "@picksleagues/schemas";
 import { pickMargin } from "@picksleagues/scoring";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatKickoff } from "@/lib/format";
 
 // One home for the sports-data display labels (engineering rule on derived
 // display values), alongside lib/league.ts's mode/role maps. The admin
@@ -97,14 +97,17 @@ function labelledScore(game: GameStateInput): string | null {
  * progress, and including a score an admin has corrected by hand (ADM-2), which
  * arrives here already override-resolved.
  *
+ * `now` is threaded in rather than read here because the scheduled branch
+ * phrases the kickoff relative to it — see `formatKickoff`.
+ *
  * `period`/`clockSeconds` (DATA-8) are independently nullable, and only ever
  * both present together (the provider populates them as a pair) — but this
  * degrades defensively rather than trusting that: either alone ("Q3" with no
  * time, or a bare clock with no period) is less legible than the plain status
  * line it would replace, so anything short of both present falls back to it.
  */
-export function gameStateLabel(game: GameStateInput): string {
-  if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatDateTime(game.kickoffAt)}`;
+export function gameStateLabel(game: GameStateInput, now: Date): string {
+  if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatKickoff(game.kickoffAt, now)}`;
   const score = labelledScore(game);
   const lead =
     game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null

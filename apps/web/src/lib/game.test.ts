@@ -74,17 +74,24 @@ describe("pickRowState", () => {
 
 describe("gameStateLabel", () => {
   const KICKOFF = "2026-09-13T17:00:00.000Z";
+  // Far enough from the kickoff that the relative branch never engages, so
+  // these cases stay about status and score. `formatKickoff` owns the relative
+  // phrasing and is tested against its own boundaries in format.test.ts.
+  const NOW = new Date("2026-08-01T12:00:00.000Z");
   // Away first, matching the order the label renders and the score arrives in.
   const TEAMS = { awayTeam: { abbreviation: "NE" }, homeTeam: { abbreviation: "SEA" } };
 
   it("shows the kickoff time only while the game is still scheduled", () => {
-    const label = gameStateLabel({
-      status: GAME_STATUS.SCHEDULED,
-      kickoffAt: KICKOFF,
-      awayScore: null,
-      homeScore: null,
-      ...TEAMS,
-    });
+    const label = gameStateLabel(
+      {
+        status: GAME_STATUS.SCHEDULED,
+        kickoffAt: KICKOFF,
+        awayScore: null,
+        homeScore: null,
+        ...TEAMS,
+      },
+      NOW,
+    );
 
     expect(label.startsWith("Kickoff ")).toBe(true);
     // Locale/timezone-dependent beyond the prefix, so the assertion pins the
@@ -129,9 +136,9 @@ describe("gameStateLabel", () => {
       expected: "Cancelled",
     },
   ])("$name", ({ status, awayScore, homeScore, expected }) => {
-    expect(gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore, ...TEAMS })).toBe(
-      expected,
-    );
+    expect(
+      gameStateLabel({ status, kickoffAt: KICKOFF, awayScore, homeScore, ...TEAMS }, NOW),
+    ).toBe(expected);
   });
 
   it.each([
@@ -210,15 +217,18 @@ describe("gameStateLabel", () => {
     },
   ])("$name", ({ status, period, clockSeconds, awayScore, homeScore, expected }) => {
     expect(
-      gameStateLabel({
-        status,
-        kickoffAt: KICKOFF,
-        awayScore,
-        homeScore,
-        period,
-        clockSeconds,
-        ...TEAMS,
-      }),
+      gameStateLabel(
+        {
+          status,
+          kickoffAt: KICKOFF,
+          awayScore,
+          homeScore,
+          period,
+          clockSeconds,
+          ...TEAMS,
+        },
+        NOW,
+      ),
     ).toBe(expected);
   });
 });

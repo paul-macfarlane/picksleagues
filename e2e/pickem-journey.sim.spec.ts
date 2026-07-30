@@ -420,6 +420,15 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await expect(lockedPicked).toHaveAttribute("aria-pressed", "true");
     await expect(lockedUnpicked).toHaveAttribute("aria-pressed", "false");
 
+    // Kickoffs read relative to the *app* clock (arch D13), not the browser's.
+    // This is the assertion that tells the two apart: simulated time has jumped
+    // three days ahead, so the last game is ~12h away and reads "Today"/
+    // "Tomorrow", while a browser-clock label would still call it three days
+    // out and print a weekday. Nothing else in the suite can distinguish them.
+    await expect(
+      pageA.locator("li", { hasText: "SEA @ SF" }).getByText(/Kickoff (Today|Tomorrow) /),
+    ).toBeVisible();
+
     const openRow = pageA.locator("li", { hasText: "DEN @ KC" });
     await expect(openRow.getByText("Locked")).toBeHidden();
     await expect(openRow.getByRole("button", { name: "DEN", exact: true })).toBeEnabled();

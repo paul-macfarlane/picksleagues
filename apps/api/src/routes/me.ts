@@ -19,6 +19,7 @@ import { deleteAccount, getUser, updateProfile } from "../services/users";
 function serializeMe(
   user: typeof users.$inferSelect,
   capabilities: { simEnabled: boolean },
+  now: Date,
 ): MeResponse {
   return {
     id: user.id,
@@ -30,6 +31,9 @@ function serializeMe(
     // with the row rather than being resolved from env alongside `simEnabled`.
     isAdmin: user.appRole === APP_ROLE.ADMIN,
     ...capabilities,
+    // Read per response, never cached: the simulator can move the clock
+    // between two requests in the same session.
+    now: now.toISOString(),
   };
 }
 
@@ -105,6 +109,7 @@ export function meRoutes(deps: AppDeps) {
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
     const user = await getUser(db, sessionUser.id);
     if (!user) {
@@ -119,7 +124,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(user, capabilities), 200);
+    return c.json(serializeMe(user, capabilities, clock.now()), 200);
   });
 
   app.openapi(updateMe, async (c) => {
@@ -139,7 +144,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(result.user, capabilities), 200);
+    return c.json(serializeMe(result.user, capabilities, clock.now()), 200);
   });
 
   app.openapi(deleteMe, async (c) => {

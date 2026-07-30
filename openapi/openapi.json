@@ -46,6 +46,10 @@
           },
           "simEnabled": {
             "type": "boolean"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -55,7 +59,8 @@
           "email",
           "image",
           "isAdmin",
-          "simEnabled"
+          "simEnabled",
+          "now"
         ]
       },
       "NullableUsername": {

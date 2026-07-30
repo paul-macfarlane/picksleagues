@@ -21,6 +21,7 @@ Standards for all code in this repo. When a rule and `docs/architecture.md` conf
 ## Time & locking (the load-bearing rules)
 
 - **All "now" reads go through the injected `Clock`** — no raw `Date.now()`, no `new Date()` for current time, no SQL `now()` in domain logic (lint-enforced). Clock values reach SQL as bound parameters.
+- **The SPA has a clock too, and it is the server's** (`apps/web/src/lib/app-clock.ts`). Any label phrased relative to now reads `useAppNow()`, never `Date.now()` — under the simulator the browser sits at a different instant, so a browser-clock label contradicts the very lock states the API computed. The lint rule above does not cover `apps/web`, so this one is on review. The store learns the offset where a `/me` response lands, which is the only moment the browser's clock is a valid reference for the server's; components must not re-derive it.
 - **Lock state is derived, never stored** (arch D11): reads compute `locked = kickoff_at <= clock.now()`; every pick mutation re-validates `kickoff_at > clock.now()` inside its transaction and returns 409 on violation. No `locked` columns, no lock-flipping jobs.
 - **Pick visibility is enforced in the query layer** — pick rows are serialized to non-owners only after the associated game kicks off. Never client-side filtering, never a visibility flag column.
 - Join cutoffs and commissioner power windows (pre-start vs post-start) derive from the same clock + game timestamps.

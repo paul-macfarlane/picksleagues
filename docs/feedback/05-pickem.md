@@ -309,3 +309,47 @@ like proof the CSS variant was broken. Scoped to `summary > svg` it read `none` 
 which was the transition caught at its first frame; polling showed it settling at `180deg`.
 Two wrong readings in a row, both plausible, before the affordance turned out to be fine.
 A screenshot taken immediately after a click is mid-animation and is not evidence.
+
+## Round 8 — relative kickoff times, and a clock for the SPA (2026-07-30)
+
+| # | Item | Resolution |
+| --- | --- | --- |
+| 3 | Relative date displays ("today", "Friday") — typical? worth it? | **Yes to both, and built.** Upcoming kickoffs now read `Today 1:00 PM` / `Tomorrow 8:20 PM` / `Sun 1:00 PM`, falling back to the absolute stamp a week out. Scoped to things that have not happened yet: settled kickoffs, "last updated" stamps and audit rows keep the precise instant. |
+
+**The feature was the easy half.** Every relative label needs a "now", and the browser's
+is the wrong one: under the simulator the app clock sits at a different instant — in the
+merge-gate journey, three days apart — so a browser-clock label announces that a game the
+API has already locked kicks off in three days. That contradiction would appear on exactly
+the screens the simulator exists to exercise. Worth noting the time-discipline lint rule
+(`no-restricted-syntax` on `Date.now()` / `new Date()`) covers `apps/api` and
+`packages/*` but **not** `apps/web`, so nothing would have stopped it shipping. The
+engineering rules now carry the SPA half explicitly.
+
+So `/me` — the request every authenticated page already makes — carries the server's
+reading, and `apps/web/src/lib/app-clock.ts` keeps the **offset** rather than the instant,
+so time keeps moving between fetches instead of freezing at the last response.
+
+**Three designs, two rejected by the linter, and it was right each time.**
+
+1. A context provider deriving the offset in `useMemo`, with `useAppNow()` returning
+   `new Date(Date.now() + offset)`. React Compiler's `react-hooks/purity` rejected both
+   halves — and correctly: a clock read during render is impure, and two components in one
+   pass can straddle a boundary and disagree.
+2. Same provider with the offset moved into an effect. `react-hooks/set-state-in-effect`
+   rejected that: no render caused this value, so it has no business being render state.
+3. What shipped: an **external store**, which is what the thing actually is — a mutable
+   value learned from the network and read during render, exactly the case
+   `useSyncExternalStore` exists for. The offset is captured in the query layer where the
+   response lands (the one moment the browser's clock is a valid reference for the
+   server's), and `useAppNow()` subscribes. No provider, no effect, no state.
+
+The third design also removed both caveats the first two had needed documenting: the
+snapshot is a minute bucket (`===`-stable, as the store contract requires), so subscribers
+re-render each minute and a page left open across midnight stops insisting on yesterday's
+answer.
+
+**The assertion that proves it.** Nothing else in the suite can tell the two clocks apart,
+because outside the simulator they agree. After the journey advances simulated time three
+days, the last game is ~12h out and must read "Today"/"Tomorrow" — a browser-clock label
+would still call it three days away and print a weekday. Verified by swapping the offset
+out and watching that one assertion fail.

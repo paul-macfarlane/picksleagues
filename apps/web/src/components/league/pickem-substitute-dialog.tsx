@@ -7,7 +7,8 @@ import {
   type SlateGame,
 } from "@picksleagues/schemas";
 import { useRepick } from "@/api/pickem";
-import { formatDateTime } from "@/lib/format";
+import { useAppNow } from "@/lib/app-clock";
+import { formatKickoff } from "@/lib/format";
 import { spreadLabel } from "@/lib/game";
 import {
   AlertDialog,
@@ -67,6 +68,7 @@ export function PickemSubstituteDialog({
   onSubstituted: (gameId: string, side: PickemPickSide) => void;
 }) {
   const repick = useRepick(leagueId, weekId);
+  const now = useAppNow();
   const [choice, setChoice] = useState<string | null>(null);
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
 
@@ -148,7 +150,7 @@ export function PickemSubstituteDialog({
                   />
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Kickoff {formatDateTime(game.kickoffAt)}
+                  Kickoff {formatKickoff(game.kickoffAt, now)}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <Label className="flex items-center justify-between gap-2 rounded-md border border-border p-2 has-[[data-checked]]:border-primary">

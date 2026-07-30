@@ -99,6 +99,9 @@ describe("GET /api/me", () => {
       image: null,
       isAdmin: false,
       simEnabled: false,
+      // Served from the injected Clock (arch D13), never a raw `new Date()` —
+      // pinned to the fixture instant so a regression to real time fails here.
+      now: FIXED_NOW.toISOString(),
     });
   });
 
@@ -175,6 +178,9 @@ describe("PATCH /api/me", () => {
       image: null,
       isAdmin: false,
       simEnabled: false,
+      // Served from the injected Clock (arch D13), never a raw `new Date()` —
+      // pinned to the fixture instant so a regression to real time fails here.
+      now: FIXED_NOW.toISOString(),
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -246,6 +252,9 @@ describe("PATCH /api/me", () => {
       image: null,
       isAdmin: false,
       simEnabled: false,
+      // Served from the injected Clock (arch D13), never a raw `new Date()` —
+      // pinned to the fixture instant so a regression to real time fails here.
+      now: FIXED_NOW.toISOString(),
     });
 
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
@@ -268,6 +277,9 @@ describe("PATCH /api/me", () => {
       image: null,
       isAdmin: false,
       simEnabled: false,
+      // Served from the injected Clock (arch D13), never a raw `new Date()` —
+      // pinned to the fixture instant so a regression to real time fails here.
+      now: FIXED_NOW.toISOString(),
     });
   });
 

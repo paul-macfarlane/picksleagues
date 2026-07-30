@@ -252,6 +252,10 @@ Pick entry and week/pick detail are **sibling sections of a league, each week-sc
 
 **UI conventions:** all kickoff times, deadlines, and timestamps display in the **user's local timezone** (browser-detected). Standings pages show a "last updated" timestamp. The UI never claims real-time freshness.
 
+**Upcoming kickoffs and deadlines read relative to now** — "Today 1:00 PM", "Tomorrow 8:20 PM", "Sun 1:00 PM" — falling back to the absolute stamp a week out, where a weekday name stops distinguishing itself from today. A week's slate is nearly always inside that window, so the relative form is the one that answers "when do I need to have picked". It is scoped to things that have *not happened*: settled kickoffs, "last updated" stamps, and audit rows keep the precise instant, because "yesterday" beside a final score is less use than a date.
+
+That "now" is the **application's clock, never the browser's** (architecture D13). Under the simulator the two sit at different instants, so a browser-clock label would announce that a game the API has already locked kicks off tomorrow. The clock reaches the client on the session bootstrap response, and the client keeps the *offset* so time continues to move between fetches.
+
 Scores are always shown with **each number attached to its team** (`NE 19 – SEA 21`), never as a bare pair — away-first order is a convention a member should not have to know to read their own pick.
 
 **Provisional pick standing.** While a game is in progress, a pick shows where it currently stands against the score of the last sync: in ATS, its margin relative to the spread it accepted; in straight-up, its margin on the scoreboard. This is a **reading, not a verdict**, and the distinction is enforced in the presentation:

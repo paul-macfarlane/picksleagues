@@ -16,6 +16,7 @@ import {
   pickStandingLabel,
   spreadLabel,
 } from "@/lib/game";
+import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
@@ -113,6 +114,7 @@ export function GameRow({
   onToggle: (side: PickemPickSide) => void;
   onSubstituted: (gameId: string, side: PickemPickSide) => void;
 }) {
+  const now = useAppNow();
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
   // ATS leagues can't submit a pick with no number to accept — the write path
   // 409s (`spread_stale`, "no current number means there is nothing to
@@ -208,7 +210,7 @@ export function GameRow({
 
       {/* Kickoff before the game starts, status + score after — a member whose
           pick has locked wants to know how it is doing, not when it began. */}
-      <p className="text-xs text-muted-foreground">{gameStateLabel(game)}</p>
+      <p className="text-xs text-muted-foreground">{gameStateLabel(game, now)}</p>
       {/* Own line, not appended to the state line above: this row has the
           room, and the qualifier reads more clearly set apart from the score
           it's dating than crowded onto the same line (DATA-8; spec §UI

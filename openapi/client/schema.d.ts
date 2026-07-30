@@ -675,6 +675,8 @@ export interface components {
             image: string | null;
             isAdmin: boolean;
             simEnabled: boolean;
+            /** Format: date-time */
+            now: string;
         };
         NullableUsername: string | null;
         ErrorResponse: {

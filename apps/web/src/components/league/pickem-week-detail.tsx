@@ -11,6 +11,7 @@ import {
 import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { gameStateAsOfLabel, gameStateLabel, pickStandingLabel, spreadLabel } from "@/lib/game";
+import { useAppNow } from "@/lib/app-clock";
 import { useErrorToast } from "@/lib/use-error-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
@@ -275,6 +276,7 @@ function PickRow({
   game: SlateGame | undefined;
   pickType: PickType;
 }) {
+  const now = useAppNow();
   // A miss here is expected, not a disagreement between the endpoints: picks
   // are read by the week they were *made* in, while the slate is the games
   // currently *in* that week. A provider week move repoints the game and leaves
@@ -336,7 +338,7 @@ function PickRow({
       <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
         <GameStatePill status={game.status} />
         <span>
-          {gameStateLabel(game)}
+          {gameStateLabel(game, now)}
           {stateAsOf && <span className="text-muted-foreground/70"> · {stateAsOf}</span>}
         </span>
       </span>

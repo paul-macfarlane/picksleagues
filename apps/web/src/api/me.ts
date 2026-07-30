@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import type { MeResponse, UpdateMeRequest } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
+import { syncAppClock } from "@/lib/app-clock";
 
 export const ME_QUERY_KEY = ["me"];
 
@@ -12,6 +13,9 @@ export function useMe() {
     queryFn: async () => {
       const { data, error } = await api.GET("/api/me");
       if (error) throw error;
+      // The one place the browser's clock is a valid reference for the
+      // server's: the response has just landed (arch D13, lib/app-clock).
+      syncAppClock(data.now);
       return data;
     },
   });
@@ -31,6 +35,7 @@ export function useUpdateMe(options: {
   return useMutation({
     mutationFn: async (body: UpdateMeRequest) => {
       const { data, error, response } = await api.PATCH("/api/me", { body });
+      if (data) syncAppClock(data.now);
       if (error) {
         if (response.status === 409) {
           options.onUsernameTaken();
