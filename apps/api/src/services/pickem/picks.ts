@@ -29,6 +29,8 @@ import {
   resolveLockStates,
   type ResolvedSlateGame,
 } from "../slate";
+import { settleLeagueSeasonWeeks } from "./settlement";
+import { logError } from "../../lib/logger";
 
 /**
  * Pick'em pick entry (spec §Game Mode 1 — Core Rules, Locking, ATS spread
@@ -431,6 +433,14 @@ export async function submitPickemPicks(
 
   if (refusal) return { ok: false, reason: refusal };
 
+  // Deliberately no settlement call here, unlike `repickPickemPick`. This path
+  // only ever deletes picks that are `replaceable` — in the slate, unlocked, and
+  // pickable — and such a game is `scheduled`, which settlement records no
+  // result for. There is therefore nothing stale to rebuild. (The one way that
+  // could stop holding is the ADM-3 hole: an override moving a kickoff later,
+  // then ingestion writing a final score off the provider kickoff, leaving a
+  // scored game unlocked. The nightly sweep repairs it; adding a settlement
+  // round trip to the app's hottest write path to cover it would not pay.)
   return getPickemWeekPicks(db, clock, leagueId, weekId, userId);
 }
 
@@ -532,6 +542,28 @@ export async function repickPickemPick(
   });
 
   if (refusal) return { ok: false, reason: refusal };
+
+  /**
+   * Re-settle, because this is the one write path that can give up an
+   * **already-graded** pick. The pick it replaces has pushed — that is the
+   * precondition for the whole operation — so a `pickem_pick_results` row for it
+   * may already exist, and deleting the pick cascades that row away while
+   * `pickem_standings` keeps counting the points it contributed. Without this,
+   * the board credits a member for a pick they no longer hold until something
+   * else happens to settle that season (arch D10: standings must be what a full
+   * recompute would produce, at any time — not eventually).
+   *
+   * Outside the transaction and non-fatal, for the same reasons as the admin
+   * override's recompute: settlement takes a per-league-season lock, and the
+   * substitution is already committed, so a failure here must not roll it back
+   * or report the member's pick change as failed. The nightly sweep repairs the
+   * derivation; the log is how anyone learns it had to.
+   */
+  try {
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+  } catch (error) {
+    logError("pickem-repick.settlement-failed", { leagueId, weekId, leagueSeasonId, error });
+  }
 
   return getPickemWeekPicks(db, clock, leagueId, weekId, userId);
 }

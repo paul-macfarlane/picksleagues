@@ -115,6 +115,13 @@ export function PickemSubstituteDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Choose a replacement pick</AlertDialogTitle>
           <AlertDialogDescription>
+            {/* The trade is the thing to say out loud: a member arriving here
+                holds a push worth points, and substituting gives it up for a
+                pick that scores nothing until its game finishes. Without this
+                the standings appear to drop for no reason right after the
+                substitution lands. */}
+            You&apos;ll give up the push this pick is worth, and the replacement scores when its
+            game finishes.{" "}
             {showSpread
               ? "You'll accept the current spread on this pick only — your other unstarted picks keep the spreads they were made at."
               : "Pick any of this week's remaining available games."}

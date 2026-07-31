@@ -900,6 +900,57 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
     expect(results.some((r) => r.pickemPickId === g1PickId)).toBe(false);
   });
 
+  /**
+   * Found by manual regression testing: substituting away an already-graded push
+   * left the member still holding its points on the board. The result row
+   * cascades away with the deleted pick, but `pickem_standings` is a
+   * materialized aggregate — nothing rebuilt it, so the board credited a pick
+   * that no longer existed until something else settled that season.
+   *
+   * Asserted with NO settle call between the repick and the read, which is
+   * exactly what the pre-existing coverage was missing: every other repick test
+   * settles manually afterward and so never observes the window.
+   */
+  it("rebuilds standings on the substitution itself, so the surrendered push stops counting immediately", async () => {
+    const { league, leagueSeasonId, weekIds, gameIds, memberA } = await seedRepickLeague();
+    const weekId = weekIds.get("regular:1")!;
+    const [g1, g2] = gameIds.get("regular:1")!;
+
+    const initial = await putPicks(memberA.cookie, league.id, weekId, {
+      picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null }],
+    });
+    expect(initial.status).toBe(200);
+    const g1PickId = ((await initial.json()) as PickemWeekPicksResponse).members.find(
+      (m) => m.userId === memberA.user.id,
+    )!.picks[0]!.id;
+
+    // Cancel and settle: the member is now genuinely holding a graded push.
+    await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
+    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
+    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+
+    const before = (await (
+      await getStandings(memberA.cookie, league.id)
+    ).json()) as PickemStandingsResponse;
+    const rowBefore = before.rows.find((r) => r.userId === memberA.user.id)!;
+    expect(rowBefore).toMatchObject({ points: 0.5, pushes: 1 });
+
+    const res = await postRepick(memberA.cookie, league.id, weekId, {
+      replacePickId: g1PickId,
+      gameId: g2,
+      side: PICKEM_PICK_SIDE.HOME,
+      spread: null,
+    });
+    expect(res.status).toBe(200);
+
+    // No settle call here on purpose — the repick must have done it.
+    const after = (await (
+      await getStandings(memberA.cookie, league.id)
+    ).json()) as PickemStandingsResponse;
+    const rowAfter = after.rows.find((r) => r.userId === memberA.user.id)!;
+    expect(rowAfter).toMatchObject({ points: 0, pushes: 0, wins: 0, losses: 0 });
+  });
+
   it("refuses the only reachable replacement when no unstarted, un-held game remains — the push stands (spec §Cancellations)", async () => {
     const { league, leagueSeasonId, weekIds, gameIds, memberA } = await seedRepickLeague();
     const weekId = weekIds.get("regular:1")!;

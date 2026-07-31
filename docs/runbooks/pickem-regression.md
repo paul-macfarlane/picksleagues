@@ -52,12 +52,12 @@ the tie. Where a pass depends on one, it says so.
 
 Assert:
 
-- [ ] The exact push grades **Push**, worth **0.5** on the default push/tie setting.
-- [ ] A graded push shows the **badge only** — no margin phrase beside it. ("pushed"
+- [X] The exact push grades **Push**, worth **0.5** on the default push/tie setting.
+- [X] A graded push shows the **badge only** — no margin phrase beside it. ("pushed"
       is the *in-progress* wording; once graded, the badge is the whole verdict.)
-- [ ] The cover reads `covered by N`, the non-cover `short by N`.
-- [ ] Standings differential: the push contributes **0**, not the raw margin.
-- [ ] The spread rendered on the pick row matches the one stored against the pick
+- [X] The cover reads `covered by N`, the non-cover `short by N`.
+- [X] Standings differential: the push contributes **0**, not the raw margin.
+- [X] The spread rendered on the pick row matches the one stored against the pick
       after settlement — a member should never see the number move under a made pick.
 
 ## Pass 2 — Straight-up tie
@@ -69,9 +69,9 @@ no spread involved.
 
 Assert:
 
-- [ ] The tied game grades **Push** at the same 0.5, and shows no margin phrase.
-- [ ] No spread appears anywhere on the pick rows in a straight-up league.
-- [ ] Standings W-L-P counts the push in the **P** column, not as a loss.
+- [X] The tied game grades **Push** at the same 0.5, and shows no margin phrase.
+- [X] No spread appears anywhere on the pick rows in a straight-up league.
+- [X] Standings W-L-P counts the push in the **P** column, not as a loss.
 
 ## Pass 3 — Cancellation and the substitute flow
 
@@ -98,18 +98,25 @@ That leaves `cancelled-game-3` unstarted and unheld: the substitute target.
 
 Assert:
 
-- [ ] The cancelled game's pick is **retained**, marked as a push, and is **not**
+- [X] The cancelled game's pick is **retained**, marked as a push, and is **not**
       silently deleted.
-- [ ] A **substitute** control is offered on it.
-- [ ] Substituting **replaces** rather than adds — the "N of M picks" count is
+- [X] A **substitute** control is offered on it.
+- [X] Substituting **replaces** rather than adds — the "N of M picks" count is
       unchanged afterward.
-- [ ] The substitute picker does not offer a game the member already holds, nor one
+- [X] The confirm dialog says what the trade is: the push is given up, and the
+      replacement scores only when its game finishes.
+- [X] The substitute picker does not offer a game the member already holds, nor one
       already toggled-but-unsaved in the editor.
-- [ ] Declining to substitute leaves the push standing through settlement (spec:
+- [X] Declining to substitute leaves the push standing through settlement (spec:
       "If no unstarted games remain, the push stands").
-- [ ] `cancelled-game-1` — cancelled before anyone could pick it — is **visible but
-      not pickable** to either member, and offers no substitute (there is no pick to
-      replace). A fresh pick on a cancelled game would be free points.
+- [X] `cancelled-game-1` — cancelled before anyone could pick it — is **absent from My
+      Picks entirely** for both members. Not "visible but disabled": a game nobody
+      holds and nobody can pick is dead weight on the screen, so `visibleGames` drops
+      it (feedback round 6). A fresh pick on a cancelled game would be free points, and
+      the row that would offer one doesn't exist.
+- [X] After substituting, the standings drop the surrendered push **immediately** —
+      before the replacement's game has played, and with no sync or settle in between.
+      The board must never credit a pick the member no longer holds.
 
 ## Pass 4 — Postponement is *not* cancellation
 

@@ -26,6 +26,13 @@ export type SimTeamDef = {
   abbreviation: string;
   name: string;
   location: string;
+  // Carried so a loaded scenario renders like ingested data — the pick and
+  // standings surfaces show team logos, and a scenario without them exercises a
+  // fallback the real app almost never takes (SIM-4: "looks like genuine
+  // ingested data"). Nullable to match `ProviderTeam`: the provider legitimately
+  // has no asset for some teams, and a scenario may say so too.
+  logoLightUrl: string | null;
+  logoDarkUrl: string | null;
 };
 
 export type SimWeekDef = {
@@ -198,8 +205,8 @@ export async function writeScenario(
           abbreviation: team.abbreviation,
           name: team.name,
           location: team.location,
-          logoLightUrl: null,
-          logoDarkUrl: null,
+          logoLightUrl: team.logoLightUrl,
+          logoDarkUrl: team.logoDarkUrl,
           createdAt: now,
           updatedAt: now,
         })),
