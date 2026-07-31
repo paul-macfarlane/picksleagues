@@ -106,6 +106,35 @@ export function visibleGames<T extends { id: string; locked: boolean; pickable: 
 }
 
 /**
+ * How many of the member's already-committed picks a save would re-price.
+ *
+ * ATS submissions are all-or-nothing by rule: the payload carries *every*
+ * selected game at its current line, so changing one pick accepts the latest
+ * spread on all the others too (spec §ATS spread acceptance, ADR-0015 —
+ * "spreads cannot be selectively frozen"). Lines move through the week, so a
+ * member who picked on Tuesday and edits on Saturday is the ordinary case, not
+ * an edge one, and the count is what makes the consequence legible before they
+ * commit rather than after.
+ *
+ * Counts only *committed* picks whose stored number differs from the live one.
+ * A brand-new selection isn't being re-priced — it has no prior price — and an
+ * unchanged line isn't either, even though it is resubmitted.
+ */
+export function repricedPickCount(
+  games: readonly Pick<SlateGame, "id" | "spread">[],
+  selections: ReadonlyMap<string, PickemPickSide>,
+  committedSpreadByGameId: ReadonlyMap<string, number | null>,
+): number {
+  let count = 0;
+  for (const game of games) {
+    if (!selections.has(game.id)) continue;
+    if (!committedSpreadByGameId.has(game.id)) continue;
+    if (committedSpreadByGameId.get(game.id) !== game.spread) count += 1;
+  }
+  return count;
+}
+
+/**
  * Whether this week's screen has nothing at all to render.
  *
  * Deliberately not "is the slate empty". A pick whose game moved to another
@@ -278,6 +307,18 @@ function PickemWeekEditor({
     (game) => !isClosedToPicks(game) && !heldGameIds.has(game.id),
   );
 
+  // Every committed pick by game, retained or not — the row needs the number
+  // the member actually holds, which `retainedPickByGameId` only carries for
+  // picks that have stopped being editable.
+  const committedPickByGameId = new Map(viewerPicks.map((pick) => [pick.gameId, pick]));
+  const committedSpreadByGameId = new Map(
+    viewerPicks.map((pick) => [pick.gameId, pick.spread] as const),
+  );
+  const repriced =
+    pickType === PICK_TYPE.AGAINST_THE_SPREAD
+      ? repricedPickCount(slate.games, selections, committedSpreadByGameId)
+      : 0;
+
   const anyOpenGames = slate.games.some((game) => !isClosedToPicks(game));
   const canEditPicks = hasOperableControl(slate.games, selections, atCap);
   const shownGames = visibleGames(slate.games, heldGameIds, canEditPicks);
@@ -423,6 +464,7 @@ function PickemWeekEditor({
                   pickType={pickType}
                   selectedSide={currentSelection}
                   retained={retainedPickByGameId.get(game.id)}
+                  committedPick={committedPickByGameId.get(game.id)}
                   eligibleReplacementGames={eligibleReplacementGames}
                   buttonsDisabled={wouldAddNew && atCap}
                   onToggle={(side) => toggle(game.id, side)}
@@ -450,10 +492,25 @@ function PickemWeekEditor({
       {canEditPicks && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <p className="text-sm text-muted-foreground">
-              {pickProgressLabel(heldCount, picksAllowed)}
-              {dirty && <span className="text-foreground"> · unsaved</span>}
-            </p>
+            <div className="flex flex-col">
+              <p className="text-sm text-muted-foreground">
+                {pickProgressLabel(heldCount, picksAllowed)}
+                {dirty && <span className="text-foreground"> · unsaved</span>}
+              </p>
+              {/* Stated before the save, not after: the all-or-nothing rule
+                  means editing one game moves the number on every other
+                  unstarted pick too, which is invisible from the row being
+                  edited. Muted and factual rather than a warning — lines drift
+                  all week, so this is the normal case and reads as information,
+                  not a problem. Only while a save is actually pending (dirty);
+                  otherwise it announces a consequence of nothing. */}
+              {dirty && repriced > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Saving updates {repriced} {repriced === 1 ? "pick" : "picks"} to the latest
+                  spreads.
+                </p>
+              )}
+            </div>
             {/* Async-button rule: disabled in place while pending, label never
                 changes — outcome feedback is the toast the mutation already
                 raises on success/error. */}

@@ -4,6 +4,7 @@ import {
   hasOperableControl,
   openSelections,
   pickProgressLabel,
+  repricedPickCount,
   visibleGames,
   weekHasNothingToShow,
 } from "./pickem-picks";
@@ -192,5 +193,49 @@ describe("weekHasNothingToShow", () => {
   it("is not empty whenever the slate has games", () => {
     expect(weekHasNothingToShow(3, 0)).toBe(false);
     expect(weekHasNothingToShow(3, 2)).toBe(false);
+  });
+});
+
+/**
+ * The all-or-nothing rule (spec §ATS spread acceptance): a save carries every
+ * selected game at its current line, so editing one pick accepts the latest
+ * spread on all the others. Lines drift through the week, so this is the
+ * ordinary case — the count is what makes it legible before the member commits.
+ */
+describe("repricedPickCount", () => {
+  const game = (id: string, spread: number | null) => ({ id, spread });
+  const sides = (...ids: string[]) =>
+    new Map(ids.map((id) => [id, PICKEM_PICK_SIDE.HOME] as const));
+
+  it("counts a committed pick whose line has moved", () => {
+    expect(repricedPickCount([game("a", -6)], sides("a"), new Map([["a", -3.5]]))).toBe(1);
+  });
+
+  it("ignores a committed pick whose line is unchanged, though it is still resubmitted", () => {
+    expect(repricedPickCount([game("a", -3.5)], sides("a"), new Map([["a", -3.5]]))).toBe(0);
+  });
+
+  it("ignores a brand-new selection — it has no prior price to be re-priced from", () => {
+    expect(repricedPickCount([game("a", -6)], sides("a"), new Map())).toBe(0);
+  });
+
+  it("ignores a committed pick that is not in the submission", () => {
+    expect(repricedPickCount([game("a", -6)], new Map(), new Map([["a", -3.5]]))).toBe(0);
+  });
+
+  it("counts across the whole slate, which is the point of the rule", () => {
+    const games = [game("a", -6), game("b", 2.5), game("c", -1)];
+    const committed = new Map([
+      ["a", -3.5],
+      ["b", 2.5],
+      ["c", -7],
+    ]);
+    expect(repricedPickCount(games, sides("a", "b", "c"), committed)).toBe(2);
+  });
+
+  // A stored null is a real prior value (an SU pick, or one taken before any
+  // line existed), so moving off it is a re-price like any other.
+  it("treats a stored null against a live number as moved", () => {
+    expect(repricedPickCount([game("a", -6)], sides("a"), new Map([["a", null]]))).toBe(1);
   });
 });

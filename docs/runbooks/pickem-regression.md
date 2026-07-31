@@ -168,20 +168,20 @@ one. Loading it does not move anything; you move a game with the fixture editor.
 
 Assert:
 
-- [ ] The pick resolves as a **push** and is not lost.
-- [ ] Week 1's My Picks shows a dedicated row — *"Pick moved out of this week"* — since
+- [X] The pick resolves as a **push** and is not lost.
+- [X] Week 1's My Picks shows a dedicated row — *"Pick moved out of this week"* — since
       the game is no longer in that slate at all. Specifically **not** "No games synced
       for this week yet": a pick that moved out is absent from the slate by definition,
       so a week can be slate-empty and still owe the member their pick.
-- [ ] League Picks shows the same pick with the same explanation, not a blank row.
-- [ ] A **substitute** is offered, and `week-move-4` is an eligible target.
-- [ ] **The moved game is pickable again in its new week** (ADR-0017). Go to **week
+- [X] League Picks shows the same pick with the same explanation, not a blank row.
+- [X] A **substitute** is offered, and `week-move-4` is an eligible target.
+- [X] **The moved game is pickable again in its new week** (ADR-0017). Go to **week
       2**, where the game now lives, and pick it — it is accepted. You hold two picks
       on one matchup: week 1's settles as a push (its game left that week), week 2's
       grades normally. That is not a double-dip, because each cost a pick slot; the
       old behaviour refused it and left you one pick short of everyone else whenever
       the cap met the slate size.
-- [ ] Your week-2 cap is reachable. With Picks Per Week equal to the number of games
+- [X] Your week-2 cap is reachable. With Picks Per Week equal to the number of games
       in week 2, you can actually place all of them — the count in the action bar is
       not a number you're locked out of hitting.
 
@@ -204,6 +204,22 @@ Assert:
 - [ ] Resubmitting succeeds and stores the **new** spread.
 - [ ] Every *other* unstarted pick is re-priced too — changing one pick re-prices the
       whole week (ADR-0015). A pick made at an old line must not keep it.
+
+The same fixture edit, without submitting, covers how a moved line is *displayed* —
+the ordinary case, since spreads drift all week:
+
+- [ ] The row of a pick whose line moved says what you hold against what's on offer:
+      *"Picked PHI −3.5 · now −6"*. The buttons keep the **live** number, because
+      that is what saving would buy.
+- [ ] The action bar names the all-or-nothing consequence once you're dirty:
+      *"Saving updates N picks to the latest spreads"* — where N counts every
+      committed pick whose line moved, not just the one you touched.
+- [ ] A **locked** pick shows the spread it was **made at**, never the live one.
+      Cross-check it against the margin phrase on the same row ("covered by N"),
+      which is computed from the stored number — the two must agree. They didn't
+      before: the button showed the current line beside a margin measured from the
+      old one.
+- [ ] League Picks shows the same locked pick at the same stored number.
 
 ## Pass 7 — A settings change that destroys picks
 
