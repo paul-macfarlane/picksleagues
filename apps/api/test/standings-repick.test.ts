@@ -997,8 +997,16 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
     expect(own.picks.find((p) => p.id === g1PickId)).toMatchObject({ gameId: g1 });
   });
 
-  describe("cross-week duplicate (unique constraint spans all weeks, both checks are week-scoped)", () => {
-    it("400s duplicate_pick, not a 500, through the batch endpoint when a held pick's game is repointed into the week being submitted", async () => {
+  /**
+   * Uniqueness is per (member, game, week) since ADR-0017. These two cases used
+   * to be `duplicate_pick` refusals, because the constraint spanned every week
+   * while both endpoints' own checks were week-scoped. That reach enforced a
+   * rule Pick'em's spec doesn't have — the once-per rule belongs to Elimination,
+   * as a team ledger — and cost a member a usable pick slot whenever a game they
+   * held moved into a week they were picking.
+   */
+  describe("the same game in two different weeks (ADR-0017)", () => {
+    it("accepts a pick through the batch endpoint on a held pick's game repointed into the week being submitted", async () => {
       const { league, weekIds, gameIds, memberA } = await seedRepickLeague({
         weeks: [
           ...FOUR_GAME_WEEK,
@@ -1018,22 +1026,23 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
       expect(week2Pick.status).toBe(200);
 
       // The provider repoints the game into week 1; the pick keeps its own
-      // `week_id` (ADR-0015), so it's invisible to week 1's own-picks query —
-      // the `seen`/existing-picks checks in submitPickemPicks are scoped to
-      // this one week, but the DB constraint spans all of them.
+      // `week_id` (ADR-0015). The member now holds it in both weeks — week 2's
+      // copy settles as a push (its game has left that week) and week 1's grades
+      // normally. Two slots spent, so this is no advantage; refusing it was the
+      // disadvantage.
       await setGame(db, week2GameId, { weekId: week1Id });
 
       const res = await putPicks(memberA.cookie, league.id, week1Id, {
         picks: [{ gameId: week2GameId, side: PICKEM_PICK_SIDE.HOME, spread: null }],
       });
-      expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({
-        error: "duplicate_pick",
-        message: expect.any(String),
-      });
+      expect(res.status).toBe(200);
+      const own = ((await res.json()) as PickemWeekPicksResponse).members.find(
+        (m) => m.userId === memberA.user.id,
+      )!;
+      expect(own.picks.map((p) => p.gameId)).toEqual([week2GameId]);
     });
 
-    it("400s duplicate_pick, not a 500, through the repick path when the replacement was repointed in alongside the member's own cross-week pick", async () => {
+    it("accepts a substitution onto a game repointed in alongside the member's own pick on it from another week", async () => {
       const { league, weekIds, gameIds, memberA } = await seedRepickLeague({
         weeks: [
           ...FOUR_GAME_WEEK,
@@ -1061,10 +1070,10 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
       });
       expect(week2Pick.status).toBe(200);
 
-      // g1 is cancelled, earning a substitution; the game repointed into week
-      // 1 passes the in-week `alreadyPicked` check (that pick's `week_id`
-      // still points at week 2), but collides with the member's own row on
-      // insert via the cross-week unique constraint.
+      // g1 is cancelled, earning a substitution onto the game repointed into
+      // week 1. The member's other pick on that game still points at week 2, so
+      // the in-week `alreadyPicked` check passes — and the constraint, now
+      // week-scoped, no longer objects either.
       await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
       await setGame(db, week2GameId, { weekId: week1Id });
 
@@ -1074,11 +1083,11 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
         side: PICKEM_PICK_SIDE.HOME,
         spread: null,
       });
-      expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({
-        error: "duplicate_pick",
-        message: expect.any(String),
-      });
+      expect(res.status).toBe(200);
+      const own = ((await res.json()) as PickemWeekPicksResponse).members.find(
+        (m) => m.userId === memberA.user.id,
+      )!;
+      expect(own.picks.map((p) => p.gameId)).toEqual([week2GameId]);
     });
   });
 

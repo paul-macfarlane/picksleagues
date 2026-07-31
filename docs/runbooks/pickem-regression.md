@@ -175,13 +175,15 @@ Assert:
       so a week can be slate-empty and still owe the member their pick.
 - [ ] League Picks shows the same pick with the same explanation, not a blank row.
 - [ ] A **substitute** is offered, and `week-move-4` is an eligible target.
-- [ ] **No second bite at the moved game.** Go to **week 2**, where the game now lives,
-      and try to pick it. You are refused (`duplicate_pick`) — you already hold a pick
-      on that game from week 1, and a member picks a given game at most once. The
-      unique constraint spans every week while both endpoints' own duplicate checks are
-      week-scoped, so this is the constraint doing the work. You keep the week-1 push
-      and do not also get to score the game in week 2. Substituting *inside* week 1 is
-      the remedy the spec offers, not re-picking it in its new home.
+- [ ] **The moved game is pickable again in its new week** (ADR-0017). Go to **week
+      2**, where the game now lives, and pick it — it is accepted. You hold two picks
+      on one matchup: week 1's settles as a push (its game left that week), week 2's
+      grades normally. That is not a double-dip, because each cost a pick slot; the
+      old behaviour refused it and left you one pick short of everyone else whenever
+      the cap met the slate size.
+- [ ] Your week-2 cap is reachable. With Picks Per Week equal to the number of games
+      in week 2, you can actually place all of them — the count in the action bar is
+      not a number you're locked out of hitting.
 
 ## Pass 6 — The spread moves under a submission
 

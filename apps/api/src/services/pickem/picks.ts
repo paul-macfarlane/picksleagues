@@ -153,6 +153,24 @@ function picksAllowedFor(picksPerWeek: number, slate: readonly ResolvedSlateGame
 }
 
 /**
+ * A duplicate-pick unique violation, under either name the constraint may carry
+ * while migration 0018 rolls out.
+ *
+ * Both on purpose: migrations race the deploy (ADR-0003), so a request can land
+ * on this code while the old, week-unscoped constraint is still in place. Under
+ * that one the cross-week pick ADR-0017 legalises still raises — and serving a
+ * typed refusal for one deploy window beats the logged 500 an unmatched
+ * constraint name would produce. The old name can go once 0018 is applied
+ * everywhere.
+ */
+function isDuplicatePickViolation(error: unknown): boolean {
+  return (
+    isUniqueViolation(error, "pickem_picks_member_game_week_unique") ||
+    isUniqueViolation(error, "pickem_picks_member_game_unique")
+  );
+}
+
+/**
  * The ATS spread-acceptance rule (spec §ATS spread acceptance), in one place —
  * both write paths enforce it and a change to the semantics must reach both.
  *
@@ -419,11 +437,10 @@ export async function submitPickemPicks(
           })),
         );
       } catch (error) {
-        // `pickem_picks_member_game_unique` spans every week, but the checks
-        // above only see this one — a game moved INTO this week that the member
-        // already picked in its old week collides here. A typed refusal, not
-        // the logged 500 the raw driver error would become.
-        if (isUniqueViolation(error, "pickem_picks_member_game_unique")) {
+        // Backstop for a same-week duplicate the app checks and the member row
+        // lock should already have prevented — a typed refusal, not the logged
+        // 500 the raw driver error would become.
+        if (isDuplicatePickViolation(error)) {
           return PICKEM_REFUSAL.DUPLICATE_PICK;
         }
         throw error;
@@ -532,9 +549,8 @@ export async function repickPickemPick(
         updatedAt: now,
       });
     } catch (error) {
-      // Same cross-week collision as the batch path: the duplicate check above
-      // is scoped to this week, the constraint is not.
-      if (isUniqueViolation(error, "pickem_picks_member_game_unique")) {
+      // Same backstop as the batch path.
+      if (isDuplicatePickViolation(error)) {
         return PICKEM_REFUSAL.DUPLICATE_PICK;
       }
       throw error;

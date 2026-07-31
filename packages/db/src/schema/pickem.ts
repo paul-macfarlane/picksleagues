@@ -66,9 +66,25 @@ export const pickemPicks = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    // A member picks a given game at most once (spec §Core Rules) — the
-    // batch-upsert endpoint's replace semantics rely on this holding.
-    unique("pickem_picks_member_game_unique").on(table.leagueMemberId, table.gameId),
+    /**
+     * A member picks a given game at most once **per week** — the batch
+     * endpoint's replace semantics rely on this holding.
+     *
+     * Scoped to the week deliberately (ADR-0017). Spanning every week enforced
+     * a rule Pick'em's spec does not have: its Core Rules say only that each
+     * week a member picks from *that week's* slate, and the once-per rule in
+     * the spec belongs to Elimination, where it is a *team* ledger ("a member
+     * may pick each NFL team at most once per league"). The cross-week reach
+     * was a side effect of not scoping the constraint, and it had a cost: a
+     * member whose pick's game moved to a later week could never pick that game
+     * there, which at a full slate left them one pick short of everyone else
+     * and contradicted "all members pick every available game that week".
+     */
+    unique("pickem_picks_member_game_week_unique").on(
+      table.leagueMemberId,
+      table.gameId,
+      table.weekId,
+    ),
     // Serves the per-week read/replace path (own picks, others' picks) and the
     // picks-per-week cap count.
     index("pickem_picks_season_week_idx").on(table.leagueSeasonId, table.weekId),

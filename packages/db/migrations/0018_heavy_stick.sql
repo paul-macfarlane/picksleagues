@@ -1,0 +1,2 @@
+ALTER TABLE "pickem_picks" DROP CONSTRAINT "pickem_picks_member_game_unique";--> statement-breakpoint
+ALTER TABLE "pickem_picks" ADD CONSTRAINT "pickem_picks_member_game_week_unique" UNIQUE("league_member_id","game_id","week_id");
