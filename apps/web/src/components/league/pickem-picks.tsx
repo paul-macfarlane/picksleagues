@@ -261,6 +261,21 @@ function PickemWeekEditor({
   const [storedSelections, setStoredSelections] = useState<Map<string, PickemPickSide>>(
     () => new Map(storedSeed),
   );
+  /**
+   * The member has explicitly taken the latest spreads on their unstarted picks.
+   *
+   * An explicit act rather than an implied one, because the alternative is
+   * worse in both directions: leaving the live number on a *highlighted* button
+   * reads as "you picked this" no matter what copy sits beside it, and without
+   * an accept control the only way to take a moved line was to toggle a pick
+   * off and back on to make the form dirty — a workaround the member has to
+   * invent.
+   *
+   * Week-scoped, not per row, because that is the rule's own scope: accepting
+   * re-prices every unstarted pick (spec §ATS spread acceptance). A per-row
+   * control would state the opposite of what it does.
+   */
+  const [spreadsAccepted, setSpreadsAccepted] = useState(false);
 
   // Both maps are re-narrowed against the *current* slate on every render
   // rather than trusted to have stayed valid since mount — see openSelections.
@@ -292,7 +307,10 @@ function PickemWeekEditor({
   // neither (an undercount).
   const heldCount = retainedPickByGameId.size + selections.size;
   const atCap = heldCount >= picksAllowed;
-  const dirty = !selectionsEqual(seed, selections);
+  // Accepting moved spreads is itself a change worth saving even when no
+  // selection moved — it is the whole point of the control, and without it the
+  // member would have to fake a change to submit at the new numbers.
+  const selectionsChanged = !selectionsEqual(seed, selections);
 
   // A pushed pick may be substituted for any of the week's currently
   // available games (spec §Cancellations) — unstarted, pickable, and not
@@ -318,6 +336,7 @@ function PickemWeekEditor({
     pickType === PICK_TYPE.AGAINST_THE_SPREAD
       ? repricedPickCount(slate.games, selections, committedSpreadByGameId)
       : 0;
+  const dirty = selectionsChanged || (spreadsAccepted && repriced > 0);
 
   const anyOpenGames = slate.games.some((game) => !isClosedToPicks(game));
   const canEditPicks = hasOperableControl(slate.games, selections, atCap);
@@ -365,7 +384,12 @@ function PickemWeekEditor({
       }));
     submit.mutate(payload, {
       onSuccess: (data) => {
-        if (data) setStoredSeed(new Map(storedSelections));
+        if (!data) return;
+        setStoredSeed(new Map(storedSelections));
+        // The refetched picks come back carrying the numbers just accepted, so
+        // `repriced` returns to 0 on its own — clearing the flag keeps the two
+        // from disagreeing for the render in between.
+        setSpreadsAccepted(false);
       },
     });
   }
@@ -465,6 +489,7 @@ function PickemWeekEditor({
                   selectedSide={currentSelection}
                   retained={retainedPickByGameId.get(game.id)}
                   committedPick={committedPickByGameId.get(game.id)}
+                  spreadsAccepted={spreadsAccepted}
                   eligibleReplacementGames={eligibleReplacementGames}
                   buttonsDisabled={wouldAddNew && atCap}
                   onToggle={(side) => toggle(game.id, side)}
@@ -491,7 +516,10 @@ function PickemWeekEditor({
           portals (z-50). */}
       {canEditPicks && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          {/* Stacks at phone width: the accept control makes this row two
+              buttons wide, which crowds the count beside it at 375px. Above
+              `sm` there is room for the original single line. */}
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-col">
               <p className="text-sm text-muted-foreground">
                 {pickProgressLabel(heldCount, picksAllowed)}
@@ -502,21 +530,41 @@ function PickemWeekEditor({
                   unstarted pick too, which is invisible from the row being
                   edited. Muted and factual rather than a warning — lines drift
                   all week, so this is the normal case and reads as information,
-                  not a problem. Only while a save is actually pending (dirty);
-                  otherwise it announces a consequence of nothing. */}
-              {dirty && repriced > 0 && (
+                  not a problem.
+
+                  The two phrasings are the same fact at different moments:
+                  before accepting it is an offer with its scope named, after it
+                  is what the pending save will do. */}
+              {repriced > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Saving updates {repriced} {repriced === 1 ? "pick" : "picks"} to the latest
-                  spreads.
+                  {spreadsAccepted || selectionsChanged
+                    ? `Saving updates ${repriced} ${repriced === 1 ? "pick" : "picks"} to the latest spreads.`
+                    : `${repriced} ${repriced === 1 ? "pick is" : "picks are"} at spreads that have moved.`}
                 </p>
               )}
             </div>
-            {/* Async-button rule: disabled in place while pending, label never
-                changes — outcome feedback is the toast the mutation already
-                raises on success/error. */}
-            <Button disabled={submit.isPending || !dirty} onClick={handleSubmit}>
-              Save picks
-            </Button>
+            <div className="flex shrink-0 items-center justify-end gap-2">
+              {/* Week-scoped by design — see `spreadsAccepted`. Hidden once
+                  accepted (or once an edit has already committed the member to
+                  re-pricing), because at that point the bar's own line already
+                  says what the save will do and a second control would imply
+                  there is more to opt into. */}
+              {repriced > 0 && !spreadsAccepted && !selectionsChanged && (
+                <Button
+                  variant="outline"
+                  disabled={submit.isPending}
+                  onClick={() => setSpreadsAccepted(true)}
+                >
+                  Accept latest spreads
+                </Button>
+              )}
+              {/* Async-button rule: disabled in place while pending, label never
+                  changes — outcome feedback is the toast the mutation already
+                  raises on success/error. */}
+              <Button disabled={submit.isPending || !dirty} onClick={handleSubmit}>
+                Save picks
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -208,12 +208,21 @@ Assert:
 The same fixture edit, without submitting, covers how a moved line is *displayed* —
 the ordinary case, since spreads drift all week:
 
-- [ ] The row of a pick whose line moved says what you hold against what's on offer:
-      *"Picked PHI −3.5 · now −6"*. The buttons keep the **live** number, because
-      that is what saving would buy.
-- [ ] The action bar names the all-or-nothing consequence once you're dirty:
-      *"Saving updates N picks to the latest spreads"* — where N counts every
-      committed pick whose line moved, not just the one you touched.
+- [ ] The **held** side keeps the spread you picked at. It must never show the new
+      number: a highlighted button reads as "you picked this" whatever the copy
+      beside it says.
+- [ ] The **opposite** side shows the live number — taking it genuinely would cost
+      that. The two sides disagreeing is correct here, and is what a moved line
+      looks like.
+- [ ] The row says so: *"Line moved to −6 — your pick holds −3.5."*
+- [ ] The action bar reports it week-wide: *"N picks are at spreads that have moved."*
+- [ ] An **Accept latest spreads** control appears in the bar, not on the row —
+      accepting re-prices *every* unstarted pick, so a per-row button would state
+      the opposite of what it does.
+- [ ] Accepting flips the held buttons to the new numbers, enables Save, and changes
+      the line to *"Saving updates N picks to the latest spreads."*
+- [ ] You never have to toggle a pick off and on to take a moved line. If that is the
+      only way to enable Save, the accept control is missing or mis-gated.
 - [ ] A **locked** pick shows the spread it was **made at**, never the live one.
       Cross-check it against the margin phrase on the same row ("covered by N"),
       which is computed from the stored number — the two must agree. They didn't
