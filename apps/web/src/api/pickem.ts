@@ -33,11 +33,18 @@ export function useWeekPicks(leagueId: string, weekId: string | undefined) {
   });
 }
 
+// Everything below the scope segment, for invalidating *both* boards at once.
+// Derived from here rather than restated so the prefix can't drift from the key
+// it is supposed to match.
+export function pickemStandingsQueryPrefix(leagueId: string) {
+  return ["league", leagueId, "pickem", "standings"];
+}
+
 // Season-cumulative board when `weekId` is omitted, a single week's board
 // otherwise — one endpoint at two scopes (spec §Standings), so one query key
 // shape covers both, keyed by the resolved scope rather than "undefined".
 export function pickemStandingsQueryKey(leagueId: string, weekId?: string) {
-  return ["league", leagueId, "pickem", "standings", weekId ?? "season"];
+  return [...pickemStandingsQueryPrefix(leagueId), weekId ?? "season"];
 }
 
 export function usePickemStandings(leagueId: string, weekId?: string) {
@@ -202,7 +209,22 @@ export function useRepick(leagueId: string, weekId: string) {
     onSuccess: async (data) => {
       if (!data) return;
       toast.success("Pick substituted");
-      await queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) }),
+        // Standings too — uniquely among the pick endpoints. A substitution
+        // surrenders an already-graded push, so the server re-settles the week
+        // as part of the request and both boards have genuinely changed. The
+        // batch submit needs no equivalent: it can only replace picks on
+        // unstarted games, which have no results to invalidate.
+        //
+        // Prefix-matched so the weekly and season boards are both caught. This
+        // is not belt-and-braces: today the substitute control only lives on My
+        // Picks, which renders no standings, so the numbers happen to come back
+        // right when the member navigates to a tab that does. That is incidental
+        // — it depends on the control and the board never sharing a screen, and
+        // would break silently the first time they did.
+        queryClient.invalidateQueries({ queryKey: pickemStandingsQueryPrefix(leagueId) }),
+      ]);
     },
     onError: () => toast.error("Couldn't substitute that pick — please try again."),
   });
