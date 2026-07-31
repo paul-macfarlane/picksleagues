@@ -1,11 +1,11 @@
-import { and, asc, eq, gt, lte } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
 import {
-  GAME_STATUS,
   JOB_SKIP_REASON,
   SPORT,
+  UNSTARTED_GAME_STATUSES,
   WEEK_TYPE,
   type WeekType,
 } from "@picksleagues/schemas";
@@ -70,8 +70,15 @@ export async function syncNflOdds(
   }
 
   // Our tables are the source of truth for what's unstarted — lock state is
-  // derived, never stored (arch D11): kickoff still in the future and status
-  // untouched by any in-progress/final transition.
+  // derived, never stored (arch D11): kickoff still in the future, and a status
+  // that is neither started nor abandoned.
+  //
+  // `UNSTARTED_GAME_STATUSES`, not `= scheduled`. A postponed game is announced
+  // ahead of time and played later, so picks on it are legitimate — but keying
+  // on `scheduled` alone gave it no snapshot, and an ATS league then refused
+  // every pick on it with `spread_unavailable`, permanently. The slate calls
+  // such a game pickable; this must agree, or the app offers a pick it will
+  // always reject.
   const unstartedGames = await db
     .select({ id: games.id, providerGameId: games.providerGameId })
     .from(games)
@@ -79,7 +86,7 @@ export async function syncNflOdds(
       and(
         eq(games.weekId, targetWeek.id),
         gt(games.kickoffAt, now),
-        eq(games.status, GAME_STATUS.SCHEDULED),
+        inArray(games.status, [...UNSTARTED_GAME_STATUSES]),
       ),
     );
 

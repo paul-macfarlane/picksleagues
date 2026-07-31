@@ -61,3 +61,26 @@ const STARTED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.IN_PROGRESS, G
 export function isStartedStatus(status: GameStatus): boolean {
   return STARTED_GAME_STATUSES.includes(status);
 }
+
+/**
+ * Statuses meaning the game is still ahead of us — neither started nor
+ * abandoned — so a pick on it is legitimate and it still needs a current
+ * spread. Exactly the complement of `isStartedStatus` ∪ `isUnplayedStatus`,
+ * which is why it is declared as one rather than as a third hand-listed set:
+ * every status belongs to exactly one of the three, and a new member of
+ * `GAME_STATUS` lands here by default, where it is visible, rather than
+ * silently dropping out of the odds sync.
+ *
+ * `postponed` being here is the whole point. It is announced ahead of time and
+ * played later, so members may pick it — but the odds sync used to key on
+ * `scheduled` alone, so a postponed game got no snapshot, and with no number to
+ * accept an ATS league refused every pick on it forever. The two rules have to
+ * agree about what is still pickable, so they read the same predicate.
+ */
+export const UNSTARTED_GAME_STATUSES: readonly GameStatus[] = Object.values(GAME_STATUS).filter(
+  (status) => !isStartedStatus(status) && !isUnplayedStatus(status),
+);
+
+export function isUnstartedStatus(status: GameStatus): boolean {
+  return UNSTARTED_GAME_STATUSES.includes(status);
+}

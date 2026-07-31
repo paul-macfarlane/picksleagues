@@ -9,7 +9,13 @@ import {
   type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
-import { SPORT, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  SPORT,
+  WEEK_TYPE,
+  type WeekType,
+  type JobRunResponse,
+} from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
@@ -112,6 +118,44 @@ describe("syncNflOdds", () => {
     expect(snapshots).toHaveLength(1);
     const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
     expect(snapshots[0]).toMatchObject({ gameId: g2?.id, spread: 2.5 });
+  });
+
+  /**
+   * Found by manual regression testing (runbook Pass 4, ATS variant). Keying on
+   * `status = scheduled` denied a postponed game any snapshot, so an ATS league
+   * refused every pick on it with `spread_unavailable` — permanently, since a
+   * postponement is announced ahead of time and never becomes `scheduled` again.
+   *
+   * Both directions matter and are asserted together: the slate calls a
+   * postponed game pickable (it is played later, spec §Cancellations) and a
+   * cancelled one not, so the odds sync has to draw the line in the same place
+   * or the app offers a pick it will always reject.
+   */
+  it("snapshots a postponed game whose kickoff is still ahead, but never a cancelled one", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "postponed",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: -3.5,
+        status: GAME_STATUS.POSTPONED,
+      }),
+      providerGame({
+        providerGameId: "cancelled",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T20:00:00.000Z"),
+        spread: 6.5,
+        status: GAME_STATUS.CANCELLED,
+      }),
+    ]);
+
+    const details = await syncNflOdds(db, oddsClock, provider, {});
+    expect(details).toMatchObject({ unstartedGames: 1, snapshotsInserted: 1 });
+
+    const snapshots = await db.select().from(oddsSnapshots);
+    expect(snapshots).toHaveLength(1);
+    const [postponed] = await db.select().from(games).where(eq(games.providerGameId, "postponed"));
+    expect(snapshots[0]).toMatchObject({ gameId: postponed?.id, spread: -3.5 });
   });
 
   it("stamps capturedAt from the injected clock, not the DB clock", async () => {

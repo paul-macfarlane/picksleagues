@@ -120,7 +120,7 @@ Assert:
 
 ## Pass 4 — Postponement is *not* cancellation
 
-**Scenario:** `postponed-game` · Either pick type
+**Scenario:** `postponed-game` · **Run it once per pick type — the ATS run found a bug**
 
 The trap: a postponed game looks like a cancelled one and behaves like neither.
 A postponement inside the week is played later and resolves normally — so unlike a
@@ -136,6 +136,15 @@ Assert:
 - [ ] Once its kickoff passes, the pick is locked and revealed to other members like
       any other.
 - [ ] Standings do not count it in either direction.
+
+In an **ATS** league, additionally — this is where the pick type changes the answer,
+and where a postponed game was unpickable until the odds sync learned about it:
+
+- [ ] The postponed game **shows a spread**, the one its fixture declares.
+- [ ] It is **pickable**. A postponed game reading "no line yet", or a pick on it
+      refused as `spread_unavailable`, means the odds sync skipped it — the bug this
+      pass exists to catch. A game the slate calls pickable must never be one the
+      write path always rejects.
 
 ## Pass 5 — A game that moves to another week
 
