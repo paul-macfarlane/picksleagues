@@ -213,12 +213,16 @@ export function GameRow({
   // Only where a holding actually survives and its number disagrees with the
   // live one. A locked row already shows what it holds, an accepted one has no
   // gap left, and a switched one has no holding left to report.
-  const lineMoved =
-    showSpread &&
-    editable &&
-    storedPriceSide !== null &&
-    committedPick !== undefined &&
-    committedPick.spread !== game.spread;
+  //
+  // Carried as one object rather than a boolean so the side the two labels are
+  // signed against comes from the same narrowing that decided to show them.
+  // Split apart, each label needs its own fallback for a case this condition has
+  // already excluded — and a defaulted side renders the spread with the *wrong
+  // sign*, which is worse than rendering nothing.
+  const movedLine =
+    showSpread && editable && storedPriceSide !== null && committedPick?.spread !== game.spread
+      ? { side: storedPriceSide, held: committedPick?.spread ?? null }
+      : null;
   // Only ever on a retained pick — an editable one, by definition, is on a game
   // that hasn't started, so it can have no result (arch D10).
   const outcome = retained?.pick.outcome ?? null;
@@ -305,11 +309,10 @@ export function GameRow({
           re-prices every unstarted pick — a per-row button would say the
           opposite. Deliberately not a warning tone: spreads drift all week, so
           meeting one that moved is the ordinary case. */}
-      {lineMoved && (
+      {movedLine && (
         <p className="text-xs text-muted-foreground">
-          Line moved to {spreadLabel(game.spread, storedPriceSide ?? PICKEM_PICK_SIDE.HOME)} — your
-          pick holds{" "}
-          {spreadLabel(committedPick?.spread ?? null, storedPriceSide ?? PICKEM_PICK_SIDE.HOME)}.
+          Line moved to {spreadLabel(game.spread, movedLine.side)} — your pick holds{" "}
+          {spreadLabel(movedLine.held, movedLine.side)}.
         </p>
       )}
 

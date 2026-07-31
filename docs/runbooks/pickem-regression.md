@@ -219,6 +219,12 @@ the ordinary case, since spreads drift all week:
 - [ ] An **Accept latest spreads** control appears in the bar, not on the row —
       accepting re-prices *every* unstarted pick, so a per-row button would state
       the opposite of what it does.
+- [ ] **Switch that pick to the other team.** Both sides must now read the *live*
+      number, and the "Line moved" note must disappear — the holding is being given
+      up, so no old price is true about the row any more. The failure to watch for is
+      the two labels trading places: the newly-picked side showing the **inverse** of
+      the old line (`−3.5` rendering as `+3.5`) while the abandoned side takes the
+      live one. Switching back restores the held/live split above.
 - [ ] Accepting flips the held buttons to the new numbers, enables Save, and changes
       the line to *"Saving updates N picks to the latest spreads."*
 - [ ] You never have to toggle a pick off and on to take a moved line. If that is the

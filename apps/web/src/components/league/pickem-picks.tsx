@@ -372,16 +372,24 @@ function PickemWeekEditor({
   }
 
   function handleSubmit() {
-    const payload: PickemPickSubmission[] = slate.games
-      .filter((game) => selections.has(game.id))
-      .map((game) => ({
-        gameId: game.id,
-        side: selections.get(game.id) as PickemPickSide,
-        // Every submitted pick carries the spread currently shown for that
-        // game — the write path re-prices every unstarted pick on every
-        // edit (ADR-0015); SU leagues send null (spec §Pick Type).
-        spread: pickType === PICK_TYPE.AGAINST_THE_SPREAD ? game.spread : null,
-      }));
+    // Built by lookup-then-narrow rather than filter-then-assert: a `filter`
+    // teaches TypeScript nothing about the `get` that follows it, so the only
+    // way to keep the shape was a cast that would have outlived any future
+    // change to the selection map.
+    const payload: PickemPickSubmission[] = slate.games.flatMap((game) => {
+      const side = selections.get(game.id);
+      if (side === undefined) return [];
+      return [
+        {
+          gameId: game.id,
+          side,
+          // Every submitted pick carries the spread currently shown for that
+          // game — the write path re-prices every unstarted pick on every
+          // edit (ADR-0015); SU leagues send null (spec §Pick Type).
+          spread: pickType === PICK_TYPE.AGAINST_THE_SPREAD ? game.spread : null,
+        },
+      ];
+    });
     submit.mutate(payload, {
       onSuccess: (data) => {
         if (!data) return;

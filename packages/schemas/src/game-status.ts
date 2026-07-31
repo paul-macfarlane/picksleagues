@@ -74,13 +74,12 @@ export function isStartedStatus(status: GameStatus): boolean {
  * `postponed` being here is the whole point. It is announced ahead of time and
  * played later, so members may pick it — but the odds sync used to key on
  * `scheduled` alone, so a postponed game got no snapshot, and with no number to
- * accept an ATS league refused every pick on it forever. The two rules have to
- * agree about what is still pickable, so they read the same predicate.
+ * accept an ATS league refused every pick on it forever.
+ *
+ * Exported as the list rather than behind an `isUnstartedStatus` predicate like
+ * its two siblings: the caller is a SQL `inArray`, and a predicate no query can
+ * push down would only be a second way to ask the same question.
  */
 export const UNSTARTED_GAME_STATUSES: readonly GameStatus[] = Object.values(GAME_STATUS).filter(
   (status) => !isStartedStatus(status) && !isUnplayedStatus(status),
 );
-
-export function isUnstartedStatus(status: GameStatus): boolean {
-  return UNSTARTED_GAME_STATUSES.includes(status);
-}
