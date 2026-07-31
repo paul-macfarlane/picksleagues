@@ -1398,6 +1398,9 @@
           "outcome": {
             "$ref": "#/components/schemas/NullablePickOutcome"
           },
+          "movedGame": {
+            "$ref": "#/components/schemas/NullablePickemMovedGame"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -1409,6 +1412,7 @@
           "side",
           "spread",
           "outcome",
+          "movedGame",
           "updatedAt"
         ]
       },
@@ -1429,6 +1433,28 @@
           "incorrect",
           "push",
           null
+        ]
+      },
+      "NullablePickemMovedGame": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "homeTeam": {
+            "$ref": "#/components/schemas/SlateTeam"
+          },
+          "awayTeam": {
+            "$ref": "#/components/schemas/SlateTeam"
+          },
+          "weekLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "homeTeam",
+          "awayTeam",
+          "weekLabel"
         ]
       },
       "PickemRepickRequest": {

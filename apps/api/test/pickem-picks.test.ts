@@ -906,6 +906,39 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       return { league, week1Id, week2Id, g1: g1!, g2: g2!, g3: g3!, memberA };
     }
 
+    /**
+     * The pick's game is absent from the week's slate by construction, so the
+     * client has nothing to join against to name it — every other pick renders
+     * its matchup from the slate. Without `movedGame` on the wire the only
+     * honest thing the UI could say was "a game moved", which tells a member
+     * their pick pushed but not which pick it was (manual regression, Pass 5).
+     */
+    it("carries the moved game's matchup and destination week on the pick, and null for picks still in the week", async () => {
+      const { league, week1Id, week2Id, g1, g2, memberA } = await seedMovableGame(5);
+
+      await putPicks(memberA.cookie, league.id, week1Id, {
+        picks: [
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
+          { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+      await db.update(games).set({ weekId: week2Id }).where(eq(games.id, g1));
+
+      const res = await getPicks(memberA.cookie, league.id, week1Id);
+      const own = ((await res.json()) as PickemWeekPicksResponse).members.find(
+        (m) => m.userId === memberA.user.id,
+      )!;
+
+      const moved = own.picks.find((p) => p.gameId === g1)!;
+      expect(moved.movedGame).toMatchObject({ weekLabel: expect.any(String) });
+      expect(moved.movedGame?.homeTeam.abbreviation).toEqual(expect.any(String));
+      expect(moved.movedGame?.awayTeam.abbreviation).toEqual(expect.any(String));
+
+      // The pick that stayed put renders from the slate and must not carry it —
+      // a non-null here would make "did this move?" ambiguous.
+      expect(own.picks.find((p) => p.gameId === g2)!.movedGame).toBeNull();
+    });
+
     it("is not deleted by a later submission that omits it", async () => {
       const { league, week1Id, week2Id, g1, g2, memberA } = await seedMovableGame(5);
 

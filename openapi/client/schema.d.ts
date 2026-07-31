@@ -1005,6 +1005,7 @@ export interface components {
             side: components["schemas"]["PickemPickSide"];
             spread: number | null;
             outcome: components["schemas"]["NullablePickOutcome"];
+            movedGame: components["schemas"]["NullablePickemMovedGame"];
             /** Format: date-time */
             updatedAt: string;
         };
@@ -1012,6 +1013,11 @@ export interface components {
         PickemPickSide: "home" | "away";
         /** @enum {string|null} */
         NullablePickOutcome: "correct" | "incorrect" | "push" | null;
+        NullablePickemMovedGame: {
+            homeTeam: components["schemas"]["SlateTeam"];
+            awayTeam: components["schemas"]["SlateTeam"];
+            weekLabel: string;
+        } | null;
         PickemRepickRequest: {
             /** Format: uuid */
             replacePickId: string;

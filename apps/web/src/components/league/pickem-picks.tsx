@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickemPickSide,
   type PickType,
@@ -10,12 +11,13 @@ import {
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { isClosedToPicks } from "@/lib/game";
+import { isClosedToPicks, spreadLabel } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
 import { StatusPill } from "@/components/status-pill";
+import { TeamLogo } from "@/components/team-logo";
 import { GameRow } from "@/components/league/pickem-game-row";
 import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
 
@@ -116,6 +118,29 @@ export function visibleGames<T extends { id: string; locked: boolean; pickable: 
  */
 export function weekHasNothingToShow(slateGameCount: number, viewerPickCount: number): boolean {
   return slateGameCount === 0 && viewerPickCount === 0;
+}
+
+/**
+ * The team a moved-out pick was on, rendered the same way a slate row renders
+ * one — logo, abbreviation, and the spread of record in an ATS league. Falls
+ * back to nothing renderable only if the API sent no `movedGame`, which it does
+ * for exactly the picks that are still in the slate (and so never reach here).
+ */
+function MovedPickTeam({ pick, pickType }: { pick: PickemPick; pickType: PickType }) {
+  if (!pick.movedGame) return <>Pick moved out of this week</>;
+
+  const picked =
+    pick.side === PICKEM_PICK_SIDE.HOME ? pick.movedGame.homeTeam : pick.movedGame.awayTeam;
+  const spread =
+    pickType === PICK_TYPE.AGAINST_THE_SPREAD ? spreadLabel(pick.spread, pick.side) : null;
+
+  return (
+    <>
+      <TeamLogo logoLightUrl={picked.logoLightUrl} logoDarkUrl={picked.logoDarkUrl} size="sm" />
+      {picked.abbreviation}
+      {spread && ` ${spread}`}
+    </>
+  );
 }
 
 function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
@@ -348,13 +373,19 @@ function PickemWeekEditor({
                   className="flex flex-col gap-2 rounded-lg border border-border p-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-foreground">
-                      Pick moved out of this week
+                    {/* Name the pick, not just its fate. Without the matchup a
+                        member holding several picks can't tell which one this
+                        row is about — the game is absent from the slate, so
+                        the API carries the teams on the pick itself. */}
+                    <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
+                      <MovedPickTeam pick={pick} pickType={pickType} />
                     </p>
                     <StatusPill>Push</StatusPill>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    That game moved to a different week, so this pick resolved as a push.
+                    {pick.movedGame
+                      ? `${pick.movedGame.awayTeam.abbreviation} @ ${pick.movedGame.homeTeam.abbreviation} moved to ${pick.movedGame.weekLabel}, so this pick resolved as a push.`
+                      : "That game moved to a different week, so this pick resolved as a push."}
                   </p>
                   <PickemSubstituteDialog
                     leagueId={leagueId}

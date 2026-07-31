@@ -2,6 +2,7 @@ import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
 import { PickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
+import { SlateTeamSchema } from "./slate";
 
 /**
  * Pick'em pick entry, its standings, and the shapes only this mode has (spec
@@ -125,6 +126,35 @@ export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSc
 // component and widen every other reference to it.
 const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
 
+/**
+ * Enough of a game to name it, for a pick whose game has left the week the pick
+ * was made in (a provider week move — ADR-0015).
+ *
+ * It exists because such a game is, by definition, absent from the week's own
+ * slate: the read path returns picks by the week they were *made* in, while the
+ * slate is the games currently *in* that week. Every other pick renders its
+ * matchup by joining against the slate; this one has nothing to join to, and
+ * without this carried it can only be described as "a game that moved" — which
+ * tells a member their pick pushed but not which pick it was.
+ *
+ * `weekLabel` is where the game went, not where the pick lives.
+ */
+export const PickemMovedGameSchema = z
+  .object({
+    homeTeam: SlateTeamSchema,
+    awayTeam: SlateTeamSchema,
+    weekLabel: z.string(),
+  })
+  .openapi("PickemMovedGame");
+
+export type PickemMovedGame = z.infer<typeof PickemMovedGameSchema>;
+
+// Registered under its own name rather than inlined as `.nullable()`: the
+// wrapper would inherit the registration and fold `null` into the shared
+// component, silently widening every other `$ref` to it (see NullableUsername).
+export const NullablePickemMovedGameSchema =
+  PickemMovedGameSchema.nullable().openapi("NullablePickemMovedGame");
+
 export const PickemPickSchema = z
   .object({
     id: z.string(),
@@ -139,6 +169,11 @@ export const PickemPickSchema = z
      * "settled as nothing", and the UI must not render it as an outcome.
      */
     outcome: NullablePickOutcomeSchema,
+    // Non-null only for a pick whose game left this week — see the schema above.
+    // Its presence *is* the "this pick moved out" signal; the UI needs no second
+    // flag, and can't derive it, since the slate it would check is exactly what
+    // no longer contains the game.
+    movedGame: NullablePickemMovedGameSchema,
     updatedAt: z.iso.datetime(),
   })
   .openapi("PickemPick");

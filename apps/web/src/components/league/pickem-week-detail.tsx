@@ -270,9 +270,37 @@ function PickRow({
   // both this week's view and the week it moved to. The matchup isn't
   // renderable without the game, but the outcome is the point: it pushes.
   if (!game) {
+    const moved = pick.movedGame;
+    const movedPick = moved
+      ? pick.side === PICKEM_PICK_SIDE.HOME
+        ? moved.homeTeam
+        : moved.awayTeam
+      : null;
     return (
       <li className={PICK_ROW_CLASS_NAME}>
-        <span className="text-muted-foreground">Pick on a game that moved out of this week</span>
+        {/* Named, not just described. The matchup rides on the pick because the
+            game is absent from this week's slate by definition — without it a
+            reader sees "a game moved" with no way to tell which. */}
+        <span className="flex flex-wrap items-center gap-1.5 text-foreground">
+          {movedPick && moved ? (
+            <>
+              <TeamLogo
+                logoLightUrl={movedPick.logoLightUrl}
+                logoDarkUrl={movedPick.logoDarkUrl}
+                size="sm"
+              />
+              {movedPick.abbreviation}
+              <span className="text-muted-foreground">
+                ({moved.awayTeam.abbreviation} @ {moved.homeTeam.abbreviation} — moved to{" "}
+                {moved.weekLabel})
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">
+              Pick on a game that moved out of this week
+            </span>
+          )}
+        </span>
         <span className="text-muted-foreground">Push</span>
       </li>
     );

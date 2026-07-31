@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import { games, teams, weeks } from "@picksleagues/db";
@@ -158,6 +158,47 @@ export async function resolveLockStates(
   // restated here — this and `loadResolvedWeekGames` must not drift.
   return new Map(
     rows.map((row) => [row.id, isLocked(resolveGameOverrides(row, null).kickoffAt, now)]),
+  );
+}
+
+/**
+ * Matchup and destination week for games that have left `weekId`, keyed by game
+ * id. The pick read path's only source of identity for a pick whose game moved
+ * (ADR-0015): such a game is absent from that week's slate by construction, so
+ * there is nothing for the usual slate join to find.
+ *
+ * Filtered in SQL rather than by loading every referenced game and discarding
+ * the in-week ones — the in-week case is the overwhelming majority, and it is
+ * already served by the slate.
+ */
+export async function loadMovedGameSummaries(
+  db: Db,
+  gameIds: readonly string[],
+  weekId: string,
+): Promise<Map<string, { homeTeam: SlateTeam; awayTeam: SlateTeam; weekLabel: string }>> {
+  if (gameIds.length === 0) return new Map();
+
+  const homeTeams = alias(teams, "moved_home_teams");
+  const awayTeams = alias(teams, "moved_away_teams");
+
+  const rows = await db
+    .select({
+      gameId: games.id,
+      homeTeam: teamColumns(homeTeams),
+      awayTeam: teamColumns(awayTeams),
+      weekLabel: weeks.label,
+    })
+    .from(games)
+    .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
+    .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
+    .innerJoin(weeks, eq(weeks.id, games.weekId))
+    .where(and(inArray(games.id, [...gameIds]), ne(games.weekId, weekId)));
+
+  return new Map(
+    rows.map((row) => [
+      row.gameId,
+      { homeTeam: row.homeTeam, awayTeam: row.awayTeam, weekLabel: row.weekLabel },
+    ]),
   );
 }
 
