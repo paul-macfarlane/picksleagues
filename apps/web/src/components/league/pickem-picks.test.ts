@@ -5,6 +5,7 @@ import {
   openSelections,
   pickProgressLabel,
   visibleGames,
+  weekHasNothingToShow,
 } from "./pickem-picks";
 
 /**
@@ -169,5 +170,27 @@ describe("pickProgressLabel", () => {
 
   it("renders a partial count", () => {
     expect(pickProgressLabel(2, 5)).toBe("2 of 5 picks");
+  });
+});
+
+/**
+ * Found by manual regression testing (runbook Pass 5). A week whose only game
+ * moved away rendered "No games synced for this week yet" and dropped the
+ * editor entirely — hiding the member's own retained pick, its push, and its
+ * substitute control. A pick that moved out of the week is absent from the
+ * slate by definition (ADR-0015), so the slate alone can never answer this.
+ */
+describe("weekHasNothingToShow", () => {
+  it("is empty when the slate has no games and the member holds none", () => {
+    expect(weekHasNothingToShow(0, 0)).toBe(true);
+  });
+
+  it("is NOT empty when every game left the week but the member still holds a pick", () => {
+    expect(weekHasNothingToShow(0, 1)).toBe(false);
+  });
+
+  it("is not empty whenever the slate has games", () => {
+    expect(weekHasNothingToShow(3, 0)).toBe(false);
+    expect(weekHasNothingToShow(3, 2)).toBe(false);
   });
 });

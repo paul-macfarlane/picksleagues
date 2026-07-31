@@ -129,19 +129,19 @@ reads "Postponed" from the first sync; pick it directly, then advance past its k
 
 Assert:
 
-- [ ] The pick on the postponed game **stays**, and grades **nothing** — no result,
+- [X] The pick on the postponed game **stays**, and grades **nothing** — no result,
       no points, no W/L/P movement. It is pending, not pushed.
-- [ ] **No substitute** is offered on it. (This is the difference from Pass 3, and it
+- [X] **No substitute** is offered on it. (This is the difference from Pass 3, and it
       is correct: the game will be played.)
-- [ ] Once its kickoff passes, the pick is locked and revealed to other members like
+- [X] Once its kickoff passes, the pick is locked and revealed to other members like
       any other.
-- [ ] Standings do not count it in either direction.
+- [X] Standings do not count it in either direction.
 
 In an **ATS** league, additionally — this is where the pick type changes the answer,
 and where a postponed game was unpickable until the odds sync learned about it:
 
-- [ ] The postponed game **shows a spread**, the one its fixture declares.
-- [ ] It is **pickable**. A postponed game reading "no line yet", or a pick on it
+- [X] The postponed game **shows a spread**, the one its fixture declares.
+- [X] It is **pickable**. A postponed game reading "no line yet", or a pick on it
       refused as `spread_unavailable`, means the odds sync skipped it — the bug this
       pass exists to catch. A game the slate calls pickable must never be one the
       write path always rejects.
@@ -156,10 +156,12 @@ No admin action can produce this — a week move is the *provider* repointing th
 A move is a game's week **changing between two syncs**, so the scenario is only step
 one. Loading it does not move anything; you move a game with the fixture editor.
 
-1. Load `week-move` → Sync schedule. Week 1 holds `week-move-1` (BUF/MIA); the
-   scenario's own oddity, `week-move-3`, sits in week 2 despite a week-1 kickoff —
-   that pins ingestion assigning by declared week, not by date. Leave it alone.
-2. As a member, pick **`week-move-1` in week 1**.
+1. Load `week-move` → Sync schedule. Week 1 holds `week-move-1` (BUF/MIA) and
+   `week-move-4` (SF/SEA, kicking off last). The scenario's own oddity,
+   `week-move-3`, sits in week 2 despite a week-1 kickoff — that pins ingestion
+   assigning by declared week, not by date. Leave it alone.
+2. As a member, pick **`week-move-1` in week 1**. Leave `week-move-4` unpicked: it is
+   the substitute target, and it exists for that.
 3. Sim → Fixtures → edit `week-move-1`'s **week number** to 2 → **Sync schedule again.**
    That second sync is the move.
 4. Sync scores → `/sim/settle`.
@@ -168,11 +170,18 @@ Assert:
 
 - [ ] The pick resolves as a **push** and is not lost.
 - [ ] Week 1's My Picks shows a dedicated row — *"Pick moved out of this week"* — since
-      the game is no longer in that slate at all.
+      the game is no longer in that slate at all. Specifically **not** "No games synced
+      for this week yet": a pick that moved out is absent from the slate by definition,
+      so a week can be slate-empty and still owe the member their pick.
 - [ ] League Picks shows the same pick with the same explanation, not a blank row.
-- [ ] A **substitute** is offered against week 1's remaining unstarted games.
-- [ ] The member is **not** double-charged: the moved pick plus a week-2 pick on the
-      same game must not both count. (The unique constraint spans every week.)
+- [ ] A **substitute** is offered, and `week-move-4` is an eligible target.
+- [ ] **No second bite at the moved game.** Go to **week 2**, where the game now lives,
+      and try to pick it. You are refused (`duplicate_pick`) — you already hold a pick
+      on that game from week 1, and a member picks a given game at most once. The
+      unique constraint spans every week while both endpoints' own duplicate checks are
+      week-scoped, so this is the constraint doing the work. You keep the week-1 push
+      and do not also get to score the game in week 2. Substituting *inside* week 1 is
+      the remedy the spec offers, not re-picking it in its new home.
 
 ## Pass 6 — The spread moves under a submission
 

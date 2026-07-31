@@ -103,6 +103,21 @@ export function visibleGames<T extends { id: string; locked: boolean; pickable: 
   );
 }
 
+/**
+ * Whether this week's screen has nothing at all to render.
+ *
+ * Deliberately not "is the slate empty". A pick whose game moved to another
+ * week is retained (ADR-0015) and is *by definition* absent from this week's
+ * slate — so a week can hold zero games and still owe the member the pushed
+ * pick they carry, its explanation, and its substitute control. Gating the
+ * editor on the slate alone hid exactly that, behind a "no games synced"
+ * message that additionally blamed ingestion for something the provider did on
+ * purpose.
+ */
+export function weekHasNothingToShow(slateGameCount: number, viewerPickCount: number): boolean {
+  return slateGameCount === 0 && viewerPickCount === 0;
+}
+
 function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
   return openSelections(slate.games, new Map(viewerPicks.map((pick) => [pick.gameId, pick.side])));
 }
@@ -134,6 +149,7 @@ export function PickemPicks({
 }) {
   const slate = useWeekSlate(weekId);
   const picks = useWeekPicks(leagueId, weekId);
+  const viewerPicks = picks.data?.members.find((member) => member.isViewer)?.picks ?? [];
 
   return (
     <QueryState
@@ -145,7 +161,7 @@ export function PickemPicks({
         void picks.refetch();
       }}
       errorMessage="Couldn't load this week."
-      isEmpty={slate.data?.games.length === 0}
+      isEmpty={weekHasNothingToShow(slate.data?.games.length ?? 0, viewerPicks.length)}
       emptyMessage="No games synced for this week yet."
     >
       {slate.data && picks.data && (
@@ -159,7 +175,7 @@ export function PickemPicks({
           pickType={pickType}
           slate={slate.data}
           picksAllowed={picks.data.picksAllowed}
-          viewerPicks={picks.data.members.find((member) => member.isViewer)?.picks ?? []}
+          viewerPicks={viewerPicks}
         />
       )}
     </QueryState>
@@ -306,9 +322,17 @@ function PickemWeekEditor({
           <CardDescription>
             {canEditPicks
               ? "Each pick locks at its own kickoff."
-              : `${pickProgressLabel(heldCount, picksAllowed)} · ${
-                  anyOpenGames ? "every pick you made is locked." : "this week is locked."
-                }`}
+              : slate.games.length === 0
+                ? // Reachable only when every game left the week and the member is
+                  // holding picks on them — otherwise the screen is the empty
+                  // state above. The progress phrasing is actively wrong here:
+                  // `picksAllowed` counts *available* games, so a member holding
+                  // one pick reads "1 of 0 picks", and "this week is locked" names
+                  // the wrong reason. The rows below carry the real explanation.
+                  "No games remain in this week."
+                : `${pickProgressLabel(heldCount, picksAllowed)} · ${
+                    anyOpenGames ? "every pick you made is locked." : "this week is locked."
+                  }`}
           </CardDescription>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
