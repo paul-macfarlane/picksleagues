@@ -91,6 +91,43 @@ function SideButton({
   );
 }
 
+/**
+ * Which side, if any, should show the spread its pick was *bought* at rather
+ * than the live line — null when nothing on the row is held at an old price.
+ *
+ * Keyed on the **committed** side, never on whichever side is currently lit.
+ * That distinction is the whole function: once the member switches teams, the
+ * committed pick is being given up, and its replacement prices at the live line
+ * like any new pick, so the old number stops being true about anything on the
+ * row. Keying on the lit side instead put the *inverse of the old line* on the
+ * newly-picked team (`-3.5` becoming `+3.5` on the other side) while handing the
+ * abandoned team the live number — the two labels swapping places on one click.
+ *
+ * Deselecting entirely is the same story: nothing is held, so nothing shows a
+ * stored price.
+ *
+ * A row that has stopped being editable keeps its stored number unconditionally.
+ * There is no selection to compare against (`openSelections` drops closed games)
+ * and the pick is frozen server-side, so neither a switch nor an acceptance can
+ * reach it.
+ */
+export function storedPriceSideFor({
+  committedSide,
+  selectedSide,
+  editable,
+  spreadsAccepted,
+}: {
+  committedSide: PickemPickSide | undefined;
+  selectedSide: PickemPickSide | undefined;
+  editable: boolean;
+  spreadsAccepted: boolean;
+}): PickemPickSide | null {
+  if (committedSide === undefined) return null;
+  if (!editable) return committedSide;
+  if (spreadsAccepted) return null;
+  return selectedSide === committedSide ? committedSide : null;
+}
+
 export function GameRow({
   leagueId,
   weekId,
@@ -161,18 +198,25 @@ export function GameRow({
    * only unfreezes an *editable* row: a locked pick is retained server-side at
    * the number it was made against, whatever the member accepts afterwards.
    */
-  const showsLiveOnHeld = editable && spreadsAccepted;
-  const holdingSpread = committedPick && !showsLiveOnHeld ? committedPick.spread : game.spread;
+  const storedPriceSide = storedPriceSideFor({
+    committedSide: committedPick?.side,
+    selectedSide,
+    editable,
+    spreadsAccepted,
+  });
   const spreadFor = (side: PickemPickSide) =>
-    showSpread ? spreadLabel(heldSide === side ? holdingSpread : game.spread, side) : null;
+    showSpread
+      ? spreadLabel(side === storedPriceSide ? (committedPick?.spread ?? null) : game.spread, side)
+      : null;
   const awaySpread = spreadFor(PICKEM_PICK_SIDE.AWAY);
   const homeSpread = spreadFor(PICKEM_PICK_SIDE.HOME);
-  // Only where the two disagree and the member can still act — a locked row
-  // already shows what it holds, and an accepted one has no gap left to report.
+  // Only where a holding actually survives and its number disagrees with the
+  // live one. A locked row already shows what it holds, an accepted one has no
+  // gap left, and a switched one has no holding left to report.
   const lineMoved =
     showSpread &&
     editable &&
-    !spreadsAccepted &&
+    storedPriceSide !== null &&
     committedPick !== undefined &&
     committedPick.spread !== game.spread;
   // Only ever on a retained pick — an editable one, by definition, is on a game
@@ -263,8 +307,9 @@ export function GameRow({
           meeting one that moved is the ordinary case. */}
       {lineMoved && (
         <p className="text-xs text-muted-foreground">
-          Line moved to {spreadLabel(game.spread, heldSide ?? PICKEM_PICK_SIDE.HOME)} — your pick
-          holds {spreadLabel(committedPick?.spread ?? null, heldSide ?? PICKEM_PICK_SIDE.HOME)}.
+          Line moved to {spreadLabel(game.spread, storedPriceSide ?? PICKEM_PICK_SIDE.HOME)} — your
+          pick holds{" "}
+          {spreadLabel(committedPick?.spread ?? null, storedPriceSide ?? PICKEM_PICK_SIDE.HOME)}.
         </p>
       )}
 
