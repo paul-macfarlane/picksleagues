@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { WEEK_TYPE, type SimStateResponse, type WeekType } from "@picksleagues/schemas";
 import { useSimFixtureGames } from "@/api/sim";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 import { weekTypeLabel } from "@/lib/game";
 import { SimFixtureRow } from "@/components/sim/sim-fixture-row";
 import { LabeledSelect } from "@/components/labeled-select";
@@ -104,7 +104,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
               (`skipToken` in api/sim.ts), which reports `isPending` forever —
               treat "nothing to browse" as an empty state, same as
               games-browser.tsx's week-less season. */}
-          <AdminQueryState
+          <QueryState
             isPending={Boolean(selectedScenarioId) && fixtures.isPending}
             isError={fixtures.isError}
             onRetry={() => fixtures.refetch()}
@@ -121,7 +121,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
                 <SimFixtureRow key={game.id} game={game} />
               ))}
             </ul>
-          </AdminQueryState>
+          </QueryState>
         </div>
       </CardContent>
     </Card>

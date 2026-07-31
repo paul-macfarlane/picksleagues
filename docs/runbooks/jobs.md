@@ -14,7 +14,8 @@ the cron scheduler alerts on).
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
 | `/api/jobs/nfl/sync-schedule`     | Upsert NFL season, weeks (regular + postseason, Pro Bowl excluded), games, kickoffs, statuses |
 | `/api/jobs/nfl/sync-odds`         | Snapshot current spreads for unstarted games in the current/next week into `odds_snapshots`   |
-| `/api/jobs/nfl/sync-scores`       | Refresh live/final scores + statuses; fast no-op when no games are active                     |
+| `/api/jobs/nfl/sync-scores`       | Refresh live/final scores + statuses; fast no-op when no games are active. **Settles the affected league-weeks** when a game goes final — scores and standings move together |
+| `/api/jobs/settle-sweep`          | Nightly reconciliation: recompute `pickem_pick_results` + `pickem_standings` for every active league season from stored results (arch D10) |
 
 Query params (all optional; defaults derive from the Clock and our own tables):
 `season` (e.g. `2026`), `week`, `weekType` (`regular` | `postseason`; defaults to
@@ -61,9 +62,15 @@ header `x-job-secret: <production JOB_SECRET>`.
 | `nfl-sync-schedule`| Daily 6am ET                        | `0 10 * * *`            | 10:00 UTC = 6am EDT; acceptable drift under EST           |
 | `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season   |
 | `nfl-sync-scores`  | Every 5 minutes                     | `*/5 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
+| `settle-sweep`     | Daily 3am ET                        | `0 7 * * *`             | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
 
-Future jobs (`settle-sweep` daily 3am ET, `ncaamb-sync-bracket` every 5 min on tournament
-days) follow the same pattern and get added here when their epics land.
+`settle-sweep` takes no query params — it derives its own scope (every active league
+season). It is a **safety net, not the main path**: `nfl-sync-scores` already settles a
+game's picks within ~5 minutes of it going final, so a missed sweep costs freshness of
+late corrections, never correctness of the day's results.
+
+Future jobs (`ncaamb-sync-bracket`, every 5 min on tournament days) follow the same
+pattern and get added here when their epics land.
 
 **Failure alerting:** enable cron-job.org's failure notifications (Settings → Notify on
 failure) for each job. A failed run returns HTTP 500, which cron-job.org emails about —

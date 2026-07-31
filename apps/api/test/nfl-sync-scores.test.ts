@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games } from "@picksleagues/db";
+import { createDb, games, sportSeasons } from "@picksleagues/db";
 import {
   FixedClock,
   type GameDataProvider,
@@ -120,6 +120,8 @@ describe("syncNflScores", () => {
         status: GAME_STATUS.IN_PROGRESS,
         homeScore: 7,
         awayScore: 3,
+        period: 2,
+        clockSeconds: 421,
       }),
     ]);
 
@@ -137,6 +139,121 @@ describe("syncNflScores", () => {
     expect(g2?.status).toBe(GAME_STATUS.IN_PROGRESS);
     expect(g2?.homeScore).toBe(7);
     expect(g2?.awayScore).toBe(3);
+    // Live state lands with the scores it was observed alongside (DATA-8), and
+    // `updated_at` is the as-of instant reads serve for it.
+    expect(g2?.period).toBe(2);
+    expect(g2?.clockSeconds).toBe(421);
+    expect(g2?.updatedAt).toEqual(AFTER_KICKOFFS);
+  });
+
+  /**
+   * The whole reason the game clock is part of change detection: between two
+   * polls of a game whose score hasn't moved, the clock still has, and the
+   * as-of stamp the UI shows is `updated_at` — a tick the job declined to
+   * persist would be served under a minutes-old timestamp.
+   */
+  it("persists a clock-only change, moving the as-of stamp with it", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
+    ]);
+
+    const inProgress = (period: number, clockSeconds: number) =>
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 7,
+        awayScore: 3,
+        period,
+        clockSeconds,
+      });
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [inProgress(2, 421)]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    // Same score, same status, five minutes of game clock later.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [inProgress(2, 121)]);
+    const laterClock = new FixedClock(new Date(AFTER_KICKOFFS.getTime() + 5 * 60 * 1000));
+    const details = await syncNflScores(db, laterClock, provider, {});
+    expect(details).toMatchObject({ gamesUpdated: 1, wentFinal: 0 });
+
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+    expect(g2?.clockSeconds).toBe(121);
+    expect(g2?.updatedAt).toEqual(laterClock.now());
+  });
+
+  it("clears the live state when a game goes final", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
+    ]);
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 21,
+        awayScore: 17,
+        period: 4,
+        clockSeconds: 12,
+      }),
+    ]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.FINAL,
+        homeScore: 21,
+        awayScore: 17,
+      }),
+    ]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+    expect(g2?.status).toBe(GAME_STATUS.FINAL);
+    expect(g2?.period).toBeNull();
+    expect(g2?.clockSeconds).toBeNull();
+  });
+
+  it("no-ops when the provider repeats identical live state", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
+      }),
+    ]);
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        status: GAME_STATUS.IN_PROGRESS,
+        homeScore: 7,
+        awayScore: 3,
+        period: 2,
+        clockSeconds: 421,
+      }),
+    ]);
+    await syncNflScores(db, afterClock, provider, {});
+
+    const laterClock = new FixedClock(new Date(AFTER_KICKOFFS.getTime() + 5 * 60 * 1000));
+    const details = await syncNflScores(db, laterClock, provider, {});
+    expect(details).toMatchObject({ gamesUpdated: 0, wentFinal: 0 });
+
+    // Nothing moved, so the as-of stamp stays honest about when this reading
+    // was actually observed.
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
     expect(g2?.updatedAt).toEqual(AFTER_KICKOFFS);
   });
 
@@ -404,6 +521,115 @@ describe("syncNflScores", () => {
       weekNumber: 1,
     });
     expect(third).toMatchObject({ gamesUpdated: 0, wentFinal: 0 });
+  });
+});
+
+/**
+ * Same offseason roll-forward as sync-odds: with the derived season concluded,
+ * a season-derived run must target the next season's weeks. The bare path's
+ * active-games gate is season-agnostic (it joins each active game's own
+ * season), so the roll-forward shows up on the season-derived explicit week.
+ */
+describe("syncNflScores: offseason season roll-forward", () => {
+  const NEXT_SEASON_YEAR = SEASON_YEAR + 1;
+  // July 2027 → nflSeasonYearFor derives 2026, the concluded season.
+  const offseasonClock = new FixedClock(new Date("2027-07-27T00:00:00.000Z"));
+
+  async function seedSeason(seasonYear: number, week: ProviderWeek, weekGames: ProviderGame[]) {
+    provider.structure = { seasonYear, weeks: [week] };
+    provider.gamesByWeek = new Map([[weekKey(week.weekType, week.weekNumber), weekGames]]);
+    await syncNflSchedule(db, seedClock, provider, { seasonYear });
+    provider.fetchCalls = [];
+  }
+
+  /** The derived default season, played out and final — nothing left active. */
+  function seedConcludedDefaultSeason() {
+    return seedSeason(
+      SEASON_YEAR,
+      providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z"),
+      [
+        providerGame({
+          providerGameId: "g2",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+          status: GAME_STATUS.FINAL,
+          homeScore: 21,
+          awayScore: 17,
+        }),
+      ],
+    );
+  }
+
+  function seedUpcomingSeason() {
+    return seedSeason(
+      NEXT_SEASON_YEAR,
+      providerWeek(1, "2027-09-09T00:00:00.000Z", "2027-09-16T00:00:00.000Z"),
+      [
+        providerGame({
+          providerGameId: "n1",
+          weekNumber: 1,
+          kickoffAt: new Date("2027-09-12T17:00:00.000Z"),
+        }),
+      ],
+    );
+  }
+
+  it("default season concluded + next season synced: a season-derived week targets the NEXT season", async () => {
+    await seedConcludedDefaultSeason();
+    await seedUpcomingSeason();
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "n1",
+        weekNumber: 1,
+        kickoffAt: new Date("2027-09-12T17:00:00.000Z"),
+        status: GAME_STATUS.POSTPONED,
+      }),
+    ]);
+
+    const details = await syncNflScores(db, offseasonClock, provider, { weekNumber: 1 });
+    expect(details).toMatchObject({ weeksFetched: 1, gamesUpdated: 1 });
+    expect(provider.fetchCalls).toEqual([[NEXT_SEASON_YEAR, WEEK_TYPE.REGULAR, 1]]);
+
+    const [n1] = await db.select().from(games).where(eq(games.providerGameId, "n1"));
+    expect(n1?.status).toBe(GAME_STATUS.POSTPONED);
+
+    // Idempotent: the same provider data a second time writes nothing.
+    provider.fetchCalls = [];
+    const second = await syncNflScores(db, offseasonClock, provider, { weekNumber: 1 });
+    expect(second).toMatchObject({ gamesUpdated: 0, wentFinal: 0 });
+  });
+
+  it("default season concluded + NO next season row: stays on the default and never creates one", async () => {
+    await seedConcludedDefaultSeason();
+    const seasonsBefore = await db.select().from(sportSeasons);
+
+    const details = await syncNflScores(db, offseasonClock, provider, { weekNumber: 1 });
+    expect(details).toMatchObject({ weeksFetched: 1 });
+    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, WEEK_TYPE.REGULAR, 1]]);
+    // Creating next year's season is schedule-sync's job — recurring syncs only
+    // ever query reference data.
+    expect(await db.select().from(sportSeasons)).toEqual(seasonsBefore);
+  });
+
+  it("an explicit season still wins over the roll-forward", async () => {
+    await seedConcludedDefaultSeason();
+    await seedUpcomingSeason();
+
+    const details = await syncNflScores(db, offseasonClock, provider, {
+      seasonYear: SEASON_YEAR,
+      weekNumber: 1,
+    });
+    expect(details).toMatchObject({ weeksFetched: 1 });
+    expect(provider.fetchCalls).toEqual([[SEASON_YEAR, WEEK_TYPE.REGULAR, 1]]);
+  });
+
+  it("a bare run in the offseason stays a clean no-op (nothing is in flight)", async () => {
+    await seedConcludedDefaultSeason();
+    await seedUpcomingSeason();
+
+    const details = await syncNflScores(db, offseasonClock, provider, {});
+    expect(details).toEqual({ skipped: true, reason: "no_active_games", activeGames: 0 });
+    expect(provider.fetchCalls).toHaveLength(0);
   });
 });
 

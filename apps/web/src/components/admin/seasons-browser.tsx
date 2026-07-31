@@ -4,7 +4,7 @@ import { useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { weekTypeLabel } from "@/lib/game";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 
 export function SeasonsBrowser() {
   const seasons = useAdminSeasons(SPORT.NFL);
@@ -19,7 +19,7 @@ export function SeasonsBrowser() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AdminQueryState
+        <QueryState
           isPending={seasons.isPending}
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
@@ -37,7 +37,7 @@ export function SeasonsBrowser() {
               </li>
             ))}
           </ul>
-        </AdminQueryState>
+        </QueryState>
       </CardContent>
     </Card>
   );

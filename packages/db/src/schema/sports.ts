@@ -134,12 +134,22 @@ export const games = pgTable(
     // Null until the game is in progress or final.
     homeScore: integer("home_score"),
     awayScore: integer("away_score"),
+    // Live in-game state (DATA-8): the 1-based period (5+ in overtime) and the
+    // seconds remaining in it, normalized by the provider adapter — never its
+    // display string. Both null unless the game is in progress, so they go back
+    // to null when it ends. `updated_at` is their as-of instant: score sync only
+    // writes the row when something it observes changed, so the last write is
+    // the moment this clock reading was true (reads serve it as `stateAsOf`).
+    period: integer("period"),
+    clockSeconds: integer("clock_seconds"),
     // Override parallels (admin corrections only — never written by ingestion, arch D15).
     overrideHomeScore: integer("override_home_score"),
     overrideAwayScore: integer("override_away_score"),
     overrideStatus: text("override_status").$type<GameStatus>(),
     overrideKickoffAt: timestamp("override_kickoff_at", { withTimezone: true }),
     overrideSpread: doublePrecision("override_spread"),
+    overridePeriod: integer("override_period"),
+    overrideClockSeconds: integer("override_clock_seconds"),
     overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
     overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

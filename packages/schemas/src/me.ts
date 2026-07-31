@@ -25,6 +25,23 @@ export const MeResponseSchema = z
     // from a 404 on an unregistered route — the sim routes' absence is the
     // actual gate, this only hides the UI.
     simEnabled: z.boolean(),
+    /**
+     * The application's current time, read from the injected `Clock` (arch
+     * D13) — **not** a profile field, and here on purpose.
+     *
+     * The SPA renders kickoffs relative to now ("Today 1:00 PM", "Sun 8:20
+     * PM"), and the browser's own clock is the wrong one to ask: under the
+     * simulator it runs at a different instant entirely, so a game the API has
+     * already locked would be labelled as kicking off tomorrow. Every derived
+     * time in the product comes from this clock, and now the labels do too.
+     *
+     * Carried on `/me` rather than a `/clock` endpoint of its own because this
+     * is the request every authenticated page already makes to bootstrap the
+     * session, so the reading costs no extra round trip. The SPA keeps the
+     * *offset* from its own clock rather than this instant, so time keeps
+     * moving between fetches.
+     */
+    now: z.iso.datetime(),
   })
   .openapi("MeResponse");
 

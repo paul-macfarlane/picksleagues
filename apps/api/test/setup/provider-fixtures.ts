@@ -28,6 +28,8 @@ export function providerGame(
     status: GAME_STATUS.SCHEDULED,
     homeScore: null,
     awayScore: null,
+    period: null,
+    clockSeconds: null,
     spread: null,
     ...overrides,
   };

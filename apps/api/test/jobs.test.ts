@@ -36,6 +36,22 @@ function buildDummyJobApp() {
     },
   });
 
+  const skipRoute = createRoute({
+    method: "post",
+    path: "/jobs/dummy-skip",
+    operationId: "dummySkip",
+    responses: {
+      200: {
+        description: "ok",
+        content: { "application/json": { schema: JobRunResponseSchema } },
+      },
+      500: {
+        description: "error",
+        content: { "application/json": { schema: JobRunResponseSchema } },
+      },
+    },
+  });
+
   const failRoute = createRoute({
     method: "post",
     path: "/jobs/dummy-fail",
@@ -54,6 +70,10 @@ function buildDummyJobApp() {
 
   app.openapi(succeedRoute, (c) =>
     runJob(c, "dummy-succeed", async () => ({ rowsUpserted: 3, ok: true })),
+  );
+
+  app.openapi(skipRoute, (c) =>
+    runJob(c, "dummy-skip", async () => ({ skipped: true, reason: "no_current_week" })),
   );
 
   app.openapi(failRoute, (c) =>
@@ -95,6 +115,18 @@ describe("jobSecretMiddleware + runJob conventions", () => {
     expect(body.status).toBe("ok");
     expect(typeof body.durationMs).toBe("number");
     expect(body.details).toEqual({ rowsUpserted: 3, ok: true });
+  });
+
+  it("reports a run that had nothing to do as skipped, still 200 (a skip is not a failure)", async () => {
+    const res = await postDummy("/jobs/dummy-skip", { "x-job-secret": testEnv.JOB_SECRET });
+
+    // 2xx is load-bearing: only real failures may trip the cron scheduler's
+    // failure notifications (ADR-0007).
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as JobRunResponse;
+    expect(body.job).toBe("dummy-skip");
+    expect(body.status).toBe("skipped");
+    expect(body.details).toEqual({ skipped: true, reason: "no_current_week" });
   });
 
   it("500s with an error envelope and message on failure", async () => {

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { DisplayNameSchema, UsernameSchema, type MeResponse } from "@picksleagues/schemas";
 import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
-import { initialsOf } from "@/lib/user";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -19,11 +18,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UserIdentity } from "@/components/user-identity";
 
 export const Route = createFileRoute("/_authed/profile")({
   component: Profile,
@@ -120,17 +119,21 @@ function ProfileForm({
     },
   });
 
-  const initials = initialsOf(profile.displayName);
-
   return (
     <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
+      {/* Every top-level page carries this heading in this style — the identity
+          card below shows *who* you are, which is not the same as naming the
+          page for a screen reader landing on it. */}
+      <h1 className="self-start text-2xl font-semibold text-foreground">Your profile</h1>
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <Avatar size="lg">
-            <AvatarImage src={profile.image ?? undefined} alt="" />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <h1 className="text-2xl font-semibold text-foreground">Your profile</h1>
+          <UserIdentity
+            displayName={profile.displayName}
+            username={profile.username}
+            image={profile.image}
+            avatarSize="lg"
+            className="flex-col"
+          />
           <CardDescription>Your avatar comes from your sign-in provider.</CardDescription>
         </CardHeader>
         <CardContent>

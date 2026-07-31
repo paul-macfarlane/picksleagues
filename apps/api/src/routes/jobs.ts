@@ -11,6 +11,8 @@ import {
   SyncQuerySchema,
 } from "../lib/nfl-sync-jobs";
 import { jobSecretMiddleware } from "../middleware/job-secret";
+import { SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
+import { settleSweep } from "../services/pickem/settlement";
 
 const jobResponses = {
   200: jobRunResponses[200],
@@ -58,6 +60,20 @@ const nflSyncRoutes = {
 } as const;
 
 /**
+ * Not part of `NFL_SYNC_JOBS`: the nightly reconciliation is mode-agnostic and
+ * takes no provider (it recomputes from our own stored results, arch D10), so
+ * it shares the envelope but not the registry, whose whole shape is
+ * "(db, clock, provider, week opts)".
+ */
+const settleSweepRoute = createRoute({
+  method: "post",
+  path: "/jobs/settle-sweep",
+  operationId: "runSettleSweep",
+  summary: "Recompute results and standings for every active league season",
+  responses: { 200: jobRunResponses[200], 401: jobResponses[401], 500: jobRunResponses[500] },
+});
+
+/**
  * Mounts `/jobs/*` behind the shared-secret guard (DATA-4/5). Mounted
  * unconditionally in app.ts (per meRoutes' idiom) so generate-openapi.ts —
  * which builds the app with no deps — still reflects these routes in the
@@ -97,6 +113,13 @@ export function jobRoutes(deps: AppDeps) {
       );
     });
   }
+
+  app.openapi(settleSweepRoute, async (c) => {
+    const { db, clock: resolveClock } = deps;
+    if (!db || !resolveClock) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
+    const clock = await resolveClock();
+    return runJob(c, SETTLE_SWEEP_JOB_NAME, () => settleSweep(db, clock));
+  });
 
   return app;
 }

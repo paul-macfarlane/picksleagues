@@ -8,7 +8,7 @@ Answer this question about the codebase/product: **$ARGUMENTS**
 ## Ground rules
 
 - **Read-only.** This command investigates and answers; it never edits code, docs, or backlog. If the answer implies a change worth making, end with the concrete next step (a proposed backlog item, `/task`, or `/adr`) and stop.
-- **Facts come from scouts, not memory.** Dispatch one or more `scout` subagents to establish current behavior — schema, mutation paths, and render sites for behavior questions; call sites and coverage for code questions. Independent angles go out in parallel. Exception: a question answerable from one known file may be read directly.
+- **Facts come from the repo, not memory.** Establish current behavior by reading the relevant code directly; when the question needs a genuinely broad survey (many call sites, several subsystems), fan out `scout` subagents in parallel instead. Every claim in the answer is anchored to file:line either way.
 - **Check the spec, not just the code.** When the question is "what _should_ it do", also check `docs/mvp-spec.md`, `docs/architecture.md` (incl. its decision log D1–D15), and `docs/adr/` — the answer may already be decided, and a recommendation that contradicts the locked docs must say so explicitly.
 
 ## Answer shape

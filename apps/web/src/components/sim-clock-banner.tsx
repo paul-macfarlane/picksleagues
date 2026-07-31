@@ -29,14 +29,28 @@ export function SimClockBanner() {
 
   return (
     <div className="border-t border-border bg-muted text-muted-foreground">
-      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5 text-xs sm:px-6">
-        <span className="font-medium text-foreground">Simulated time</span>
-        <span>{formatDateTime(clock.now)}</span>
-        <span aria-hidden="true">·</span>
-        <span>{activeScenario ? activeScenario.name : "No scenario loaded"}</span>
+      {/* The link is a sibling of the wrapping text rather than a member of it
+          (feedback round 5): as one flex-wrap row, `ml-auto` pushed it onto a
+          line of its own at phone width, right-aligned under nothing and
+          reading as a stray third row. Now the text block wraps inside its own
+          column and the link stays put beside it, vertically centred. */}
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-1.5 text-xs sm:px-6">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+          <span className="font-medium text-foreground">Simulated time</span>
+          <span>{formatDateTime(clock.now)}</span>
+          {/* The separator only earns its place while both parts share a line;
+              below `sm` the scenario takes its own, where a leading "·" would
+              dangle off the end of the one above it. */}
+          <span aria-hidden="true" className="hidden sm:inline">
+            ·
+          </span>
+          <span className="w-full sm:w-auto">
+            {activeScenario ? activeScenario.name : "No scenario loaded"}
+          </span>
+        </div>
         <Link
           to="/sim"
-          className="ml-auto underline outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="shrink-0 underline outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           Simulator
         </Link>

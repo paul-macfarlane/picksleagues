@@ -1,0 +1,230 @@
+import { z } from "@hono/zod-openapi";
+import { MAX_PICKS_PER_WEEK } from "./league-settings";
+import { PickOutcomeSchema } from "./pick-outcome";
+import { PickemPickSideSchema } from "./pickem-pick-side";
+import { SlateTeamSchema } from "./slate";
+
+/**
+ * Pick'em pick entry, its standings, and the shapes only this mode has (spec
+ * §Game Mode 1). The slate these picks are made against and the league's week
+ * list are mode-agnostic and live in `slate.ts` / `league-weeks.ts`.
+ *
+ * Two rules shape these types and are worth stating once here:
+ * - **Lock state is derived, never stored** (arch D11). Games carry `locked`
+ *   from the slate; there is no column behind it and clients must not cache it
+ *   across a session.
+ * - **Pick visibility is enforced in the query layer** (arch §Locking Model).
+ *   Another member's `picks` array only ever contains games that have kicked
+ *   off; `hiddenPickCount` reports how many more they have submitted so the UI
+ *   can show "5 picks in" without leaking which games those are.
+ */
+
+export const PickemStandingsRowSchema = z
+  .object({
+    leagueMemberId: z.string(),
+    userId: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string(),
+    image: z.string().nullable(),
+    isViewer: z.boolean(),
+    points: z.number(),
+    /**
+     * Cumulative margin differential over the period — the spec's only
+     * tiebreaker (§Tiebreakers). Serialized so the UI can show *why* two
+     * members on equal points are ordered as they are.
+     */
+    differential: z.number(),
+    /**
+     * The member's settled record over the period — how many picks resolved
+     * correct, incorrect, and push. Display only: the spec's tiebreakers stop
+     * at the differential, so a better record never changes an ordering.
+     */
+    wins: z.number().int(),
+    losses: z.number().int(),
+    pushes: z.number().int(),
+    /** Members level on points and differential share a rank. */
+    rank: z.number().int(),
+  })
+  .openapi("PickemStandingsRow");
+
+export type PickemStandingsRow = z.infer<typeof PickemStandingsRowSchema>;
+
+export const PickemStandingsResponseSchema = z
+  .object({
+    /** Null on the season-cumulative board; set on a weekly one. */
+    weekId: z.string().nullable(),
+    rows: z.array(PickemStandingsRowSchema),
+    /**
+     * When settlement last wrote this board. The spec requires standings show a
+     * "last updated" stamp and never claim real-time freshness — null means
+     * nothing has settled yet.
+     */
+    lastUpdatedAt: z.iso.datetime().nullable(),
+  })
+  .openapi("PickemStandingsResponse");
+
+export type PickemStandingsResponse = z.infer<typeof PickemStandingsResponseSchema>;
+
+/**
+ * Substitutes one pick for another after its game was cancelled or moved out of
+ * the week (spec §Cancellations, Postponements & Re-picks).
+ *
+ * Deliberately not a flag on the batch upsert: that endpoint re-prices *every*
+ * unstarted pick on any change, and this rule is its exact inverse — only the
+ * replacement accepts a spread, and the member's other picks keep theirs
+ * (ADR-0015). One replaces the other rather than adding to it: the push is what
+ * the member holds if they do *not* re-pick, so a substitute that stacked on top
+ * would hand them more scoring chances than Picks Per Week allows.
+ */
+export const PickemRepickRequestSchema = z
+  .object({
+    /** The pick being given up — its game must be cancelled or moved. */
+    replacePickId: z.uuid(),
+    gameId: z.uuid(),
+    side: PickemPickSideSchema,
+    /** Required in ATS leagues, and matched against the replacement's current spread only. */
+    spread: z.number().nullable().default(null),
+  })
+  .openapi("PickemRepickRequest");
+
+export type PickemRepickRequest = z.infer<typeof PickemRepickRequestSchema>;
+
+export const PickemPickSubmissionSchema = z
+  .object({
+    gameId: z.uuid(),
+    side: PickemPickSideSchema,
+    /**
+     * The spread the member is accepting for this pick. Required in ATS leagues
+     * and rejected with `spread_stale` (409) when it no longer matches the
+     * current number — the "accept the latest spreads on all unstarted picks"
+     * rule (spec §ATS spread acceptance). Ignored in straight-up leagues.
+     */
+    spread: z.number().nullable().default(null),
+  })
+  .openapi("PickemPickSubmission");
+
+export type PickemPickSubmission = z.infer<typeof PickemPickSubmissionSchema>;
+
+/**
+ * Replaces the member's *unstarted* picks for the week wholesale. Picks whose
+ * game has already kicked off are immutable and must be omitted — submitting
+ * one is a `pick_locked` (409), not a silent no-op, so a stale client learns
+ * its slate moved rather than believing an edit landed.
+ */
+export const SubmitPickemPicksRequestSchema = z
+  .object({
+    // A structural ceiling only — the per-league cap is enforced server-side
+    // against the league's own `picksPerWeek` and the week's actual slate size.
+    picks: z.array(PickemPickSubmissionSchema).max(MAX_PICKS_PER_WEEK),
+  })
+  .openapi("SubmitPickemPicksRequest");
+
+export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSchema>;
+
+// Registered under its own component name rather than wrapped inline: reusing
+// the registered `PickOutcome` node here would fold `null` into that shared
+// component and widen every other reference to it.
+const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
+
+/**
+ * Enough of a game to name it, for a pick whose game has left the week the pick
+ * was made in (a provider week move — ADR-0015).
+ *
+ * It exists because such a game is, by definition, absent from the week's own
+ * slate: the read path returns picks by the week they were *made* in, while the
+ * slate is the games currently *in* that week. Every other pick renders its
+ * matchup by joining against the slate; this one has nothing to join to, and
+ * without this carried it can only be described as "a game that moved" — which
+ * tells a member their pick pushed but not which pick it was.
+ *
+ * `weekLabel` is where the game went, not where the pick lives.
+ */
+export const PickemMovedGameSchema = z
+  .object({
+    homeTeam: SlateTeamSchema,
+    awayTeam: SlateTeamSchema,
+    weekLabel: z.string(),
+  })
+  .openapi("PickemMovedGame");
+
+export type PickemMovedGame = z.infer<typeof PickemMovedGameSchema>;
+
+// Registered under its own name rather than inlined as `.nullable()`: the
+// wrapper would inherit the registration and fold `null` into the shared
+// component, silently widening every other `$ref` to it (see NullableUsername).
+export const NullablePickemMovedGameSchema =
+  PickemMovedGameSchema.nullable().openapi("NullablePickemMovedGame");
+
+export const PickemPickSchema = z
+  .object({
+    id: z.string(),
+    gameId: z.string(),
+    side: PickemPickSideSchema,
+    // The spread of record this pick was locked in against (null in SU leagues).
+    spread: z.number().nullable(),
+    /**
+     * How this pick graded, or null while it has none — a pick whose game
+     * hasn't reached a terminal state has no result row at all (arch D10:
+     * results are a pure derivation). Null is therefore "not settled yet", not
+     * "settled as nothing", and the UI must not render it as an outcome.
+     */
+    outcome: NullablePickOutcomeSchema,
+    // Non-null only for a pick whose game left this week — see the schema above.
+    // Its presence *is* the "this pick moved out" signal; the UI needs no second
+    // flag, and can't derive it, since the slate it would check is exactly what
+    // no longer contains the game.
+    movedGame: NullablePickemMovedGameSchema,
+    updatedAt: z.iso.datetime(),
+  })
+  .openapi("PickemPick");
+
+export type PickemPick = z.infer<typeof PickemPickSchema>;
+
+export const PickemMemberPicksSchema = z
+  .object({
+    leagueMemberId: z.string(),
+    userId: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string(),
+    image: z.string().nullable(),
+    isViewer: z.boolean(),
+    /**
+     * The viewer's own picks in full; another member's only once each game has
+     * kicked off (spec §Pick Visibility). Filtered in the query layer.
+     */
+    picks: z.array(PickemPickSchema),
+    // Submitted picks not yet visible to the viewer. Always 0 for the viewer.
+    hiddenPickCount: z.number().int(),
+  })
+  .openapi("PickemMemberPicks");
+
+export type PickemMemberPicks = z.infer<typeof PickemMemberPicksSchema>;
+
+/**
+ * How much a settings edit would destroy — the settings editor's pre-save
+ * warning input (spec §Commissioner Powers). `memberCount` is the number of
+ * distinct members holding at least one pick, not the league's roster size,
+ * so "N members lose picks" reads accurately even when some members haven't
+ * picked yet.
+ */
+export const PickemPickSummarySchema = z
+  .object({
+    pickCount: z.number().int(),
+    memberCount: z.number().int(),
+  })
+  .openapi("PickemPickSummary");
+
+export type PickemPickSummary = z.infer<typeof PickemPickSummarySchema>;
+
+export const PickemWeekPicksResponseSchema = z
+  .object({
+    weekId: z.string(),
+    // The effective cap for this week: min(picksPerWeek, games in the slate) —
+    // the spec's "fewer games than Picks Per Week" rule, resolved server-side
+    // so the UI never re-derives it.
+    picksAllowed: z.number().int(),
+    members: z.array(PickemMemberPicksSchema),
+  })
+  .openapi("PickemWeekPicksResponse");
+
+export type PickemWeekPicksResponse = z.infer<typeof PickemWeekPicksResponseSchema>;

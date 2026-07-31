@@ -1,12 +1,32 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { NflSyncJob, Sport } from "@picksleagues/schemas";
+import { ERROR_CODE, JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
+import type { GameOverrideRequest, JobSkipReason, NflSyncJob, Sport } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
+import { toastOnExpectedError } from "@/api/refusals";
 
 // One home for the admin cache-key shape: every browser query below is
 // prefixed with this, so a single invalidation after a sync job covers all
 // four without the run-job hook restating the key literal.
 const ADMIN_QUERY_KEY_PREFIX = ["admin"];
+
+// Wire slug → operator copy for a run that had nothing to do. A skip is a 200,
+// so without this the operator can't tell "nothing happened" from "work
+// happened" — which is how a season-resolution gap stayed invisible.
+const JOB_SKIP_COPY: Record<JobSkipReason, string> = {
+  [JOB_SKIP_REASON.SEASON_NOT_SYNCED]: "that season isn't synced yet",
+  [JOB_SKIP_REASON.WEEK_NOT_SYNCED]: "that week isn't synced yet",
+  [JOB_SKIP_REASON.NO_CURRENT_WEEK]: "no current or upcoming week to sync",
+  [JOB_SKIP_REASON.NO_ACTIVE_GAMES]: "no games are in flight",
+};
+
+function skipMessage(job: string, reason: unknown): string {
+  const copy =
+    typeof reason === "string" && reason in JOB_SKIP_COPY
+      ? JOB_SKIP_COPY[reason as JobSkipReason]
+      : "nothing to do";
+  return `Skipped ${job} — ${copy}.`;
+}
 
 // Each job row mounts its own instance and scopes pending state off
 // `mutation.variables` (async-button standard). SyncJobsCard, SeasonsBrowser,
@@ -31,6 +51,12 @@ export function useRunNflSyncJob() {
     },
     onSuccess: async (data) => {
       if (!data) return;
+      if (data.status === JOB_RUN_STATUS.SKIPPED) {
+        // Informational, not success: the job completed but wrote nothing, so
+        // there is also nothing for the sibling browsers to refetch.
+        toast.info(skipMessage(data.job, data.details?.reason));
+        return;
+      }
       toast.success(`Ran ${data.job} in ${data.durationMs}ms`);
       await queryClient.invalidateQueries({ queryKey: ADMIN_QUERY_KEY_PREFIX });
     },
@@ -115,5 +141,62 @@ export function useAdminGameOdds(gameId: string, enabled: boolean) {
       return data;
     },
     enabled,
+  });
+}
+
+/**
+ * The one write on the admin surface (ADM-2, arch §Manual Sports Data
+ * Overrides). Variables carry the game id so a row scopes its pending state off
+ * `mutation.variables` rather than disabling every row (async-button standard).
+ */
+export function useSetGameOverride() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ gameId, override }: { gameId: string; override: GameOverrideRequest }) => {
+      const { data, error, response } = await api.PUT("/api/admin/games/{gameId}/override", {
+        params: { path: { gameId } },
+        body: override,
+      });
+      if (error) {
+        // The 409 carries the recovery instruction verbatim (move the kickoff
+        // into the past, or assert `scheduled` with both scores nulled in the
+        // same edit), so it is shown, not replaced.
+        toastOnExpectedError(
+          error,
+          response,
+          (status, err) =>
+            (status === 404 && err.error === ERROR_CODE.GAME_NOT_FOUND) ||
+            (status === 409 && err.error === ERROR_CODE.OVERRIDE_UNLOCKS_GAME),
+        );
+        return null;
+      }
+      return data;
+    },
+    onSuccess: async (data) => {
+      if (!data) return;
+      const label = `${data.game.awayTeam.abbreviation} @ ${data.game.homeTeam.abbreviation}`;
+      if (data.resettled) {
+        toast.success(`Saved override for ${label}`);
+      } else {
+        // The correction committed — only the recompute that follows it failed.
+        // Saying "couldn't save" here would be false, and the retry it invites
+        // writes a second audit row; the nightly settle sweep re-derives
+        // results and standings (arch D10).
+        toast.warning(
+          `Saved override for ${label}, but results and standings couldn't be recomputed — they'll catch up on the next settlement sweep.`,
+        );
+      }
+      // Deliberately the whole cache, for the same reason the simulator's clock
+      // mutations take it (api/sim.ts): an override moves this game's effective
+      // kickoff, status and scores, which are the inputs to lock state, pick
+      // visibility, join cutoffs, league start — and, because the write
+      // re-settles affected leagues server-side, to every pick result and
+      // standings row derived from it. The set of leagues touched isn't
+      // knowable client-side, so an enumerated key list here would be a list
+      // that silently goes stale — and a stale standings board after a
+      // correction is the SPA lying about the exact thing the correction fixed.
+      await queryClient.invalidateQueries();
+    },
+    onError: () => toast.error("Couldn't save that override — please try again."),
   });
 }

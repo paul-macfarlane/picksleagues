@@ -128,6 +128,11 @@ export async function importReplaySeason(
       abbreviation: listed?.abbreviation ?? abbreviation,
       name: listed?.name ?? name,
       location: listed?.location ?? name,
+      // Carried through from the listing so a replayed season renders with the
+      // same logos a live sync would. Null when the listing is missing the team
+      // entirely — the game row a fallback is built from has no logo to offer.
+      logoLightUrl: listed?.logoLightUrl ?? null,
+      logoDarkUrl: listed?.logoDarkUrl ?? null,
     });
   };
 

@@ -1,16 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LEAGUE_ACTION, type LeagueResponse } from "@picksleagues/schemas";
+import { z } from "zod";
+import { LEAGUE_ACTION, LEAGUE_MODE, type LeagueResponse } from "@picksleagues/schemas";
 import { useLeague, useRenewLeague } from "@/api/leagues";
 import { canActOnLeague } from "@/lib/league";
+import { PickemStandingsSection } from "@/components/league/pickem-standings-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+const searchSchema = z.object({
+  // The standings board's scope, and nothing else since the week/pick detail
+  // moved to its own tab. Absent selects the season-cumulative board — the
+  // spec's default view. Lives in the URL (same rationale as the pick tabs'
+  // `weekId`) so a linked week survives a refresh.
+  week: z.string().optional(),
+});
+
 export const Route = createFileRoute("/_authed/leagues/$leagueId/")({
+  validateSearch: searchSchema,
   component: LeagueOverview,
 });
 
 function LeagueOverview() {
   const { leagueId } = Route.useParams();
+  const { week } = Route.useSearch();
+  const navigate = Route.useNavigate();
   // Populated by the parent layout route — this reads the same cache entry
   // (leagueQueryKey) and renders instantly rather than refetching.
   const league = useLeague(leagueId);
@@ -22,18 +35,26 @@ function LeagueOverview() {
       {league.data.renewable && canActOnLeague(league.data, LEAGUE_ACTION.RENEW_SEASON) && (
         <RenewSeasonBanner league={league.data} />
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Standings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Filled per mode once picks/scoring ship (later epics) — nothing
-              to compute yet. */}
-          <p className="text-sm text-muted-foreground">
-            Standings will appear here once picks ship.
-          </p>
-        </CardContent>
-      </Card>
+      {league.data.mode === LEAGUE_MODE.PICKEM ? (
+        <PickemStandingsSection
+          leagueId={leagueId}
+          weekId={week}
+          onSelectWeek={(next) => navigate({ search: next ? { week: next } : {}, replace: true })}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Standings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Elimination's survivor board and MM's bracket leaderboard ship
+                with their own epics — nothing to compute yet for those modes. */}
+            <p className="text-sm text-muted-foreground">
+              Standings for this game mode aren&apos;t available yet.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

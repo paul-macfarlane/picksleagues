@@ -3,9 +3,10 @@ import { ADMIN_ODDS_SNAPSHOT_LIMIT, SPORT, type AdminGame } from "@picksleagues/
 import { useAdminGameOdds, useAdminGames, useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
+import { GameOverrideForm } from "@/components/admin/game-override-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 
 // `LabeledSelect` renders one label string for both the closed trigger and
 // the open list — a single source keeps a selected provisional season
@@ -66,7 +67,7 @@ export function GamesBrowser({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AdminQueryState
+        <QueryState
           isPending={seasons.isPending}
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
@@ -103,7 +104,7 @@ export function GamesBrowser({
             {/* A season with no weeks leaves the games query skipped, which
                 reports `isPending` forever — treat "nothing to ask for" as an
                 empty state rather than a load that never resolves. */}
-            <AdminQueryState
+            <QueryState
               isPending={Boolean(effectiveWeekId) && games.isPending}
               isError={games.isError}
               onRetry={() => games.refetch()}
@@ -120,9 +121,9 @@ export function GamesBrowser({
                   <GameRow key={game.id} game={game} />
                 ))}
               </ul>
-            </AdminQueryState>
+            </QueryState>
           </div>
-        </AdminQueryState>
+        </QueryState>
       </CardContent>
     </Card>
   );
@@ -150,6 +151,7 @@ function ResolvedField({
 function GameRow({ game }: { game: AdminGame }) {
   const overridden = isOverridden(game);
   const [oddsOpen, setOddsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const odds = useAdminGameOdds(game.id, oddsOpen);
 
   return (
@@ -208,7 +210,7 @@ function GameRow({ game }: { game: AdminGame }) {
         </summary>
         {oddsOpen && (
           <div className="mt-2">
-            <AdminQueryState
+            <QueryState
               isPending={odds.isPending}
               isError={odds.isError}
               onRetry={() => odds.refetch()}
@@ -232,9 +234,22 @@ function GameRow({ game }: { game: AdminGame }) {
                   Only the most recent {ADMIN_ODDS_SNAPSHOT_LIMIT} snapshots are shown.
                 </p>
               )}
-            </AdminQueryState>
+            </QueryState>
           </div>
         )}
+      </details>
+
+      {/* Never rendered hidden, so opening always mounts against the current
+          `game` prop. `GameOverrideForm` itself now re-seeds on every
+          server-side change to the override values (fingerprint-keyed
+          remount, game-override-form.tsx), including while this stays open
+          across a save — a stale seed is what turns a diff-based save into a
+          stale write. */}
+      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
+        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
+          Edit override
+        </summary>
+        {editOpen && <GameOverrideForm game={game} />}
       </details>
     </li>
   );

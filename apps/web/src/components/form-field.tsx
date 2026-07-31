@@ -52,7 +52,7 @@ export function FormTextField({
 // A field error is either a plain string (server-set via `form.setErrorMap`,
 // e.g. the 409 "username taken" case) or a Standard Schema issue object (from
 // a Zod validator) — normalize both to the message text rendered above.
-function fieldErrorMessage(error: unknown): string {
+export function fieldErrorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error) {
     return String((error as { message: unknown }).message);

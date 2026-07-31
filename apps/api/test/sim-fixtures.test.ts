@@ -49,6 +49,7 @@ describe("GET /api/sim/fixtures/games", () => {
     expect(all.games.map((g) => g.providerGameId)).toEqual([
       "week-move-1",
       "week-move-3",
+      "week-move-4",
       "week-move-2",
     ]);
 

@@ -3,6 +3,7 @@ import { useLoadSimScenario } from "@/api/sim";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/status-pill";
 
 function ScenarioRow({
   name,
@@ -24,11 +25,7 @@ function ScenarioRow({
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-foreground">{name}</p>
-          {active && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              Active
-            </span>
-          )}
+          {active && <StatusPill>Active</StatusPill>}
         </div>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
         <p className="text-xs text-muted-foreground">{meta}</p>

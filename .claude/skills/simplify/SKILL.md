@@ -7,7 +7,7 @@ Run a simplification pass over: **$ARGUMENTS** (default range: `staging..HEAD`).
 
 The correctness evaluator hunts behavior and skips style by design — this pass is where
 craft debt gets caught, typically at epic close-out (see /task step 4). Dispatch a
-read-only reviewer (evaluator agent, default tier) over the full diff with this brief:
+read-only reviewer (`evaluator` agent) over the full diff with this brief:
 
 1. **Duplication:** logic/queries/fixtures/markup restated 3+ times across the diff (or
    2 in the diff + 1 pre-existing) that deserve the shared home the rule-of-three

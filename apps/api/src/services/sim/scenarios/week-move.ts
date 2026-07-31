@@ -48,6 +48,23 @@ export const weekMoveScenario: SimScenarioDefinition = {
       finalAwayScore: 13,
     },
     {
+      // A second genuine week-1 game, so moving `week-move-1` out leaves the
+      // week with something still in it. Without this the scenario cannot
+      // exercise the half of the move that matters to a *member*: a pick that
+      // pushed earns a substitute, and a substitute needs an unstarted game to
+      // land on. Kicks off last in week 1 so it is still open after the move.
+      providerGameId: "week-move-4",
+      weekType: WEEK_1.weekType,
+      weekNumber: WEEK_1.weekNumber,
+      homeTeamAbbr: "SEA",
+      awayTeamAbbr: "SF",
+      kickoffAtOffsetMs: kickoffOffsetMs(WEEK_1.startsAtOffsetMs, 2),
+      spread: -2.5,
+      finalStatus: SIM_FINAL_STATUS.FINAL,
+      finalHomeScore: 17,
+      finalAwayScore: 13,
+    },
+    {
       // Declared week 2, but the kickoff offset (index 1 within week 1's
       // window) sits before week 1 even ends — the moved game.
       providerGameId: "week-move-3",

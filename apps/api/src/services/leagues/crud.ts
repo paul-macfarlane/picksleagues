@@ -15,6 +15,8 @@ import {
   type LeagueSummary,
   type LeagueVisibility,
 } from "@picksleagues/schemas";
+import { logInfo } from "../../lib/logger";
+import { resetPicksInvalidatedBySettings } from "../pickem/settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
 import { lockLeagueRow, lockUserRow } from "./locks";
 import {
@@ -142,7 +144,8 @@ export type UpdateLeagueResult =
       reason: "league_not_found" | "not_commissioner" | "league_started" | "start_week_passed";
     }
   | { ok: false; reason: "invalid_settings"; message: string }
-  | { ok: false; reason: "max_members_below_member_count" };
+  | { ok: false; reason: "max_members_below_member_count" }
+  | { ok: false; reason: "picks_locked" };
 
 /**
  * Commissioner edits (spec §Commissioner Powers): name is cosmetic and
@@ -237,11 +240,40 @@ export async function updateLeague(
       if (!isPreStart(newStartsAt, clock)) {
         return { ok: false, reason: "start_week_passed" };
       }
+      // A rule change can strand picks made under the old rules (a pick with no
+      // spread in a now-ATS league is unsettleable), so clearing them commits
+      // with the settings write and the two can never disagree — but only while
+      // no pick has locked, since a locked pick is already revealed and possibly
+      // settled.
+      //
+      // Ordered BEFORE the settings write on purpose: every refusal in this
+      // transaction *returns* rather than throws, and Drizzle commits whenever
+      // the callback resolves normally. A refusal after a write would therefore
+      // return 409 and still persist the change. Every `return { ok: false }`
+      // here must stay ahead of every write.
+      const pickReset = await resetPicksInvalidatedBySettings(
+        tx,
+        clock,
+        league.mode,
+        season.id,
+        season.settings,
+        parsed.data,
+      );
+      if (!pickReset.ok) return { ok: false, reason: pickReset.reason };
+
       // Settings live on the current instance now (ADR-0009).
       await tx
         .update(leagueSeasons)
         .set({ settings: parsed.data, updatedAt: now })
         .where(eq(leagueSeasons.id, season.id));
+
+      if (pickReset.cleared > 0) {
+        logInfo("league.settings-reset-picks", {
+          leagueId,
+          leagueSeasonId: season.id,
+          clearedPicks: pickReset.cleared,
+        });
+      }
     }
 
     if (

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { games, simFixtureGames, weeks } from "@picksleagues/db";
+import { games, simFixtureGames, sportSeasons, weeks } from "@picksleagues/db";
 import { SIM_GAME_DURATION_MS } from "@picksleagues/core";
 import { GAME_STATUS, type JobRunResponse, type SimStateResponse } from "@picksleagues/schemas";
 import {
@@ -117,6 +117,38 @@ describe("POST /api/sim/scenarios/{slug}/load", () => {
     // The earlier ESPN-sourced row is untouched — proves this was a swap of
     // the *source*, not a wipe-and-reload.
     expect(afterScenario).toContain("espn-game-1");
+  });
+
+  // Every other test here syncs with an explicit `?season=`, which reads the
+  // year off the load response and so can't catch the two disagreeing. The
+  // canonical operator workflow (docs/simulator-guide.md) and the merge-gate
+  // E2E both fire the job bare, deriving the year from the simulated clock:
+  // that is the path a scenario straddling the Aug 1 season-label flip broke,
+  // silently, for the last days of July (`nflSeasonAlignedAnchor`).
+  it("a bare schedule sync — no ?season= — ingests the loaded scenario's games", async () => {
+    const { app, cookie } = await adminCaller();
+    const scenario = await loadLibraryScenario(app, cookie);
+
+    const run = await runScheduleSyncJob(app);
+    expect(run.status).toBe(200);
+    expect(((await run.json()) as JobRunResponse).status).toBe("ok");
+
+    const ingested = await db.select({ id: games.providerGameId }).from(games);
+    expect(ingested.map((row) => row.id).sort()).toEqual([
+      "mixed-week-1",
+      "mixed-week-2",
+      "mixed-week-3",
+      "mixed-week-4",
+    ]);
+    // The season the games landed in is the one the scenario is stamped with —
+    // the league a member then creates binds to the latest ingested season, so
+    // a mismatch here is an empty slate rather than a visible error.
+    const [seasonRow] = await db
+      .select({ year: sportSeasons.year })
+      .from(sportSeasons)
+      .innerJoin(weeks, eq(weeks.seasonId, sportSeasons.id))
+      .limit(1);
+    expect(seasonRow?.year).toBe(scenario.seasonYear);
   });
 
   it("clock-projected ingestion: scheduled+null before kickoff, final+scores after the game window (ADR-0012)", async () => {

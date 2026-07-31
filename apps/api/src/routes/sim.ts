@@ -8,6 +8,8 @@ import {
   SimReplayRequestSchema,
   SimResetRequestSchema,
   SimResetResponseSchema,
+  SimSettleRequestSchema,
+  SimSettleResponseSchema,
   SimStateResponseSchema,
   UpdateSimFixtureGameRequestSchema,
   WeekTypeSchema,
@@ -33,6 +35,7 @@ import { adjustSimClock, readRealNow } from "../services/sim/clock";
 import { listFixtureGames, updateFixtureGame } from "../services/sim/fixtures";
 import { importReplaySeason, isReplayableSeasonYear } from "../services/sim/replay";
 import { resetSimEnvironment } from "../services/sim/reset";
+import { settleForSim } from "../services/sim/settle";
 import { loadScenario, readSimState } from "../services/sim/state";
 
 const REPLAY_JOB_NAME = "sim-import-replay";
@@ -175,6 +178,26 @@ const resetSimRoute = createRoute({
   },
 });
 
+const settleSimRoute = createRoute({
+  method: "post",
+  path: "/sim/settle",
+  operationId: "settleSim",
+  summary:
+    "Rebuild one league season (or every active one) at the simulated now, and inspect the result",
+  request: {
+    body: { content: { "application/json": { schema: SimSettleRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        "The rebuilt pickem_pick_results/pickem_standings, read back from the tables — leagues ordered by name, weeks by start, standings by rank then display name",
+      content: { "application/json": { schema: SimSettleResponseSchema } },
+    },
+    ...simResponses,
+    404: errorResponse("`leagueId` supplied but no such league"),
+  },
+});
+
 /**
  * The simulator's control surface (SIM-2/3/6; spec §Testing & Internal Tooling).
  *
@@ -198,7 +221,7 @@ export function simRoutes(deps: AppDeps) {
   // Scoped past the replay route, which resolves deps itself so its
   // misconfiguration 500 keeps the JobRunResponse shape (the admin job route
   // makes the same trade for the same reason).
-  for (const path of ["/sim/state", "/sim/clock", "/sim/reset", "/sim/fixtures/*"]) {
+  for (const path of ["/sim/state", "/sim/clock", "/sim/reset", "/sim/settle", "/sim/fixtures/*"]) {
     app.use(path, requireDbAndClock(deps));
   }
   app.use("/sim/scenarios/:slug/load", requireDbAndClock(deps));
@@ -343,6 +366,17 @@ export function simRoutes(deps: AppDeps) {
       },
       200,
     );
+  });
+
+  app.openapi(settleSimRoute, async (c) => {
+    const result = await settleForSim(c.get("db"), c.get("clock"), c.req.valid("json"));
+    if (!result.ok) {
+      return c.json(
+        ErrorResponseSchema.parse({ error: result.reason, message: "No such league." }),
+        404,
+      );
+    }
+    return c.json(result.response, 200);
   });
 
   return app;

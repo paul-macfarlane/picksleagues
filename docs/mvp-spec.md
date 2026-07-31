@@ -239,12 +239,39 @@ When brackets tie on points: closest **absolute difference** between the Champio
 - **League home** — standings (primary view: weekly/season toggle for Pick'em, survivor board for Elimination, bracket leaderboard for MM), members, league info, commissioner tools
 - **Pick entry** — weekly slate picker (Pick'em/Elimination) or bracket builder (MM)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
+
+Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "League Picks"). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
+
+**Pick entry shows only what the member can act on or already holds.** A game they picked stays for the rest of the week; a game they did *not* pick disappears once it is out of reach, so the week in review is their picks rather than a slate to scan past. "Out of reach" is the same condition that governs the save control — a game they could still switch into must remain visible, because replacing a pick means picking a *different* game — so unpicked games survive exactly as long as anything on the screen can still be operated. A member who picked nothing sees a stated empty result, never a blank card.
+
+**Week/pick detail is ordered by the week's standing, best first,** with each member's weekly and season record beside their name and their picks collapsed beneath it — including the viewer's own, whose picks have their own screen. The page therefore opens as a weekly leaderboard and expands into detail on request. The order is the standings' own rank (§Tiebreakers), never a second ranking invented for this screen. Ordering by settled results cannot disclose a hidden pick: points come only from graded picks, and a graded pick's game is final and therefore already revealed.
 - **League create/settings** — mode-specific settings forms
 - **Profile** — username, display name
 - **Join** — invite link landing + confirmation
 - **Rules guide** — static in-app reference, one page per game mode, covering scoring, locking, visibility, cancellations, and tiebreakers exactly as specified in this document. Linked from league pages and pick entry.
 
 **UI conventions:** all kickoff times, deadlines, and timestamps display in the **user's local timezone** (browser-detected). Standings pages show a "last updated" timestamp. The UI never claims real-time freshness.
+
+**Upcoming kickoffs and deadlines read relative to now** — "Today 1:00 PM", "Tomorrow 8:20 PM", "Sun 1:00 PM" — falling back to the absolute stamp a week out, where a weekday name stops distinguishing itself from today. A week's slate is nearly always inside that window, so the relative form is the one that answers "when do I need to have picked". It is scoped to things that have *not happened*: settled kickoffs, "last updated" stamps, and audit rows keep the precise instant, because "yesterday" beside a final score is less use than a date.
+
+That "now" is the **application's clock, never the browser's** (architecture D13). Under the simulator the two sit at different instants, so a browser-clock label would announce that a game the API has already locked kicks off tomorrow. The clock reaches the client on the session bootstrap response, and the client keeps the *offset* so time continues to move between fetches.
+
+Scores are always shown with **each number attached to its team** (`NE 19 – SEA 21`), never as a bare pair — away-first order is a convention a member should not have to know to read their own pick.
+
+**Provisional pick standing.** While a game is in progress, a pick shows where it currently stands against the score of the last sync: in ATS, its margin relative to the spread it accepted; in straight-up, its margin on the scoreboard. This is a **reading, not a verdict**, and the distinction is enforced in the presentation:
+
+- It is stated as a signed magnitude ("covering by 7.5", "short by 2.5", "up 4"), never as an outcome word ("winning", "correct") — a magnitude reads as a snapshot, and a snapshot is what it is.
+- It never borrows the settled outcome's colour or iconography. A graded pick's badge is the only thing in the app that asserts a result.
+- It is computed from the **same function settlement grades on**, so a provisional reading can never contradict the outcome that replaces it.
+- It appears only while the game is in progress, alongside the existing "as of" timestamp, and is **never aggregated** — there is no live projected score, standing, or leaderboard. Standings continue to update only as games go final.
+
+This is not a live feed and does not change the freshness model below: it is a derivation over already-ingested data, refreshed on the same ~5-minute cadence as everything else.
+
+**Settled pick margin.** Once a pick has graded, the row states the size of the result in the **past tense of the reading it replaces** — "covering by 7.5" becomes "covered by 7.5", "up 4" becomes "won by 4". A bare magnitude is not enough: a lone number does not say what it measures, and what it measures differs by pick type (points against an accepted spread, or points on the scoreboard). Tense is what keeps it from reading as a second verdict beside the outcome badge — one sentence resolving, not a new vocabulary appearing. Three consequences:
+
+- A **push shows no margin.** There is no number to qualify, so the badge carries it alone — this is the one case where the words would be pure duplication.
+- A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a reading with no badge beside it to confirm it is worse than silence.
+- The number is the **same per-pick value the standings' `Diff` column sums** (§Tiebreakers), so a member who disputes a tiebreaker can audit it against the week that produced it instead of taking the total on faith.
 
 No standalone stats pages, head-to-head views, or historical archives.
 

@@ -300,3 +300,88 @@ export const SimReplayRequestSchema = z
   .openapi("SimReplayRequest");
 
 export type SimReplayRequest = z.infer<typeof SimReplayRequestSchema>;
+
+/**
+ * Step-through settlement (SIM-5; spec §Testing & Internal Tooling: "trigger
+ * settlement per simulated week and inspect resulting pick outcomes and
+ * standings at each step"). Omitted `leagueId` settles every active league
+ * season (mirrors the nightly sweep, arch D10); a supplied one scopes to that
+ * league's current season instance (ADR-0009).
+ */
+export const SimSettleRequestSchema = z
+  .object({ leagueId: z.uuid().optional() })
+  .openapi("SimSettleRequest");
+
+export type SimSettleRequest = z.infer<typeof SimSettleRequestSchema>;
+
+/**
+ * Counters from `SettlementSummary` (apps/api settlement service) — mirrored
+ * here rather than shared, since that type lives in the API's service layer
+ * and this is the wire contract for it.
+ */
+export const SimSettlementSummarySchema = z
+  .object({
+    leagueSeasons: z.number().int(),
+    weeks: z.number().int(),
+    results: z.number().int(),
+    unsettled: z.number().int(),
+  })
+  .openapi("SimSettlementSummary");
+
+export type SimSettlementSummary = z.infer<typeof SimSettlementSummarySchema>;
+
+/** One standings row, as stored on `pickem_standings` joined to its member's identity. */
+export const SimSettlePickemStandingsRowSchema = z
+  .object({
+    leagueMemberId: z.string(),
+    // Null for deleted accounts and never-claimed edge states — same shape as
+    // `LeagueMember.username`.
+    username: z.string().nullable(),
+    displayName: z.string(),
+    points: z.number(),
+    differential: z.number(),
+    rank: z.number().int(),
+  })
+  .openapi("SimSettlePickemStandingsRow");
+
+export type SimSettlePickemStandingsRow = z.infer<typeof SimSettlePickemStandingsRowSchema>;
+
+/** One league-week's board, restricted to weeks that actually settled results. */
+export const SimSettleWeekResultSchema = z
+  .object({
+    weekId: z.string(),
+    label: z.string(),
+    weekType: WeekTypeSchema,
+    weekNumber: z.number().int(),
+    results: z.number().int(),
+    standings: z.array(SimSettlePickemStandingsRowSchema),
+  })
+  .openapi("SimSettleWeekResult");
+
+export type SimSettleWeekResult = z.infer<typeof SimSettleWeekResultSchema>;
+
+/** One targeted league season's post-rebuild state, the inspection surface. */
+export const SimSettleLeagueResultSchema = z
+  .object({
+    leagueId: z.string(),
+    leagueName: z.string(),
+    leagueSeasonId: z.string(),
+    seasonYear: z.number().int(),
+    summary: SimSettlementSummarySchema,
+    seasonStandings: z.array(SimSettlePickemStandingsRowSchema),
+    weeks: z.array(SimSettleWeekResultSchema),
+  })
+  .openapi("SimSettleLeagueResult");
+
+export type SimSettleLeagueResult = z.infer<typeof SimSettleLeagueResultSchema>;
+
+export const SimSettleResponseSchema = z
+  .object({
+    settledAt: z.iso.datetime(),
+    // Ordered by league name, weeks by week start, and standings rows by rank
+    // then displayName — stable and diffable across runs.
+    leagues: z.array(SimSettleLeagueResultSchema),
+  })
+  .openapi("SimSettleResponse");
+
+export type SimSettleResponse = z.infer<typeof SimSettleResponseSchema>;

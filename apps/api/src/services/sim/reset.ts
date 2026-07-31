@@ -1,4 +1,4 @@
-import { eq, type SQL } from "drizzle-orm";
+import { eq, inArray, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import {
@@ -8,6 +8,9 @@ import {
   leagueSeasons,
   leagues,
   oddsSnapshots,
+  pickemPickResults,
+  pickemPicks,
+  pickemStandings,
   setSimClockOffsetMs,
   setSimState,
   simScenarios,
@@ -56,16 +59,45 @@ async function deleteAndCount(tx: Db, table: PgTable, where?: SQL): Promise<numb
  * itself goes last. `leagueId` undefined means "every league" (environment
  * scope); a value scopes to one league.
  *
- * Forward compatibility: when the Pick'em epic (PKM-*) adds the per-mode pick
- * tables plus `pick_results`/`standings`, add their deletes here, ahead of
- * `league_members`/`leagues` if they reference either — this is the one place
- * a new league-owned table needs listed for reset to stay complete.
+ * Forward compatibility: every new league-owned table needs listing here for
+ * reset to stay complete — `pickem_picks` (PKM-2), `pickem_pick_results` and
+ * `pickem_standings` (PKM-4), each ahead of `league_members`/`leagues` since they
+ * reference both.
+ *
+ * Settlement output is deleted explicitly rather than left to cascade from
+ * members/picks. It would in fact cascade, but the counters this returns are
+ * the sim panel's report of what a reset did, and a table that vanishes without
+ * being counted reads as a table that was missed.
  */
 async function deleteLeagueOwnedData(
   tx: Db,
   leagueId: string | undefined,
 ): Promise<Record<string, number>> {
+  // Picks and settlement output carry no league id of their own, so a
+  // league-scoped reset matches them through that league's member rows.
+  const memberScope = leagueId
+    ? tx
+        .select({ id: leagueMembers.id })
+        .from(leagueMembers)
+        .where(eq(leagueMembers.leagueId, leagueId))
+    : undefined;
+
   return {
+    pickem_pick_results: await deleteAndCount(
+      tx,
+      pickemPickResults,
+      memberScope ? inArray(pickemPickResults.leagueMemberId, memberScope) : undefined,
+    ),
+    pickem_standings: await deleteAndCount(
+      tx,
+      pickemStandings,
+      memberScope ? inArray(pickemStandings.leagueMemberId, memberScope) : undefined,
+    ),
+    pickem_picks: await deleteAndCount(
+      tx,
+      pickemPicks,
+      memberScope ? inArray(pickemPicks.leagueMemberId, memberScope) : undefined,
+    ),
     league_invites: await deleteAndCount(
       tx,
       leagueInvites,

@@ -61,12 +61,19 @@ export const PickemPushTieResolutionSchema = z
   .enum(PICKEM_PUSH_TIE_RESOLUTION)
   .openapi("PickemPushTieResolution");
 
+/**
+ * Ceiling on Picks Per Week (spec §Pick'em League Settings) — also the most
+ * games any NFL week can offer, which is why the batch pick endpoint bounds its
+ * array by the same number.
+ */
+export const MAX_PICKS_PER_WEEK = 16;
+
 export const PickemSettingsSchema = z
   .object({
     startWeek: NflWeekRefSchema,
     endWeek: NflWeekRefSchema,
     pickType: PickTypeSchema,
-    picksPerWeek: z.number().int().min(1).max(16).default(5),
+    picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
     pushTieResolution: PickemPushTieResolutionSchema.default(PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT),
   })
   .refine((s) => nflSeasonOrdinal(s.endWeek) >= nflSeasonOrdinal(s.startWeek), {
@@ -76,6 +83,35 @@ export const PickemSettingsSchema = z
   .openapi("PickemSettings");
 
 export type PickemSettings = z.infer<typeof PickemSettingsSchema>;
+
+/**
+ * Whether a Pick'em settings edit invalidates already-submitted picks (spec
+ * §Commissioner Powers's pick-safety rule). Shared by the API's pre-start
+ * settings write (`resetPicksInvalidatedBySettings`, which clears invalidated
+ * picks) and the web settings editor (which warns before that happens) — one
+ * rule, so the two surfaces can never disagree about what a save destroys.
+ *
+ * Each clause names the exact way it could strand a pick made legally under
+ * the old settings:
+ * - switching Pick Type to ATS leaves picks with no spread, which settlement
+ *   cannot grade at all (it throws by design rather than guess);
+ * - lowering Picks Per Week leaves members over the cap;
+ * - narrowing the week range orphans picks in weeks no longer in the league.
+ *
+ * A change that cannot strand a pick (Push/Tie Resolution, which scoring
+ * reads at settlement time; Picks Per Week *raised*) invalidates nothing.
+ */
+export function pickemSettingsInvalidatePicks(
+  previous: PickemSettings,
+  next: PickemSettings,
+): boolean {
+  return (
+    previous.pickType !== next.pickType ||
+    next.picksPerWeek < previous.picksPerWeek ||
+    nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek) ||
+    nflSeasonOrdinal(next.endWeek) < nflSeasonOrdinal(previous.endWeek)
+  );
+}
 
 /**
  * On an ATS push / SU tie in Elimination (spec §Elimination League Settings):

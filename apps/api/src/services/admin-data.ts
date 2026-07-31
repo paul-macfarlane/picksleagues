@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, inArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import { games, oddsSnapshots, sportSeasons, teams, weeks } from "@picksleagues/db";
@@ -11,6 +11,7 @@ import {
   type Sport,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
+import { latestSpreadsForGames } from "./odds";
 
 /**
  * Queries behind the admin page's read-only reference-data browsers (arch
@@ -96,76 +97,97 @@ export async function listSeasons(db: Db, sport: Sport): Promise<AdminSeason[]> 
   }));
 }
 
-export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]> {
+/**
+ * The joined shape both game reads below project from. Extracted so the
+ * one-game read (the override write's response) and the week list can't drift
+ * on which columns the `AdminGame` block is built from.
+ */
+function selectAdminGameRows(db: Db, where: SQL | undefined) {
   const homeTeams = alias(teams, "home_teams");
   const awayTeams = alias(teams, "away_teams");
 
-  const rows = await db
-    .select({
-      game: games,
-      homeTeam: { id: homeTeams.id, abbreviation: homeTeams.abbreviation, name: homeTeams.name },
-      awayTeam: { id: awayTeams.id, abbreviation: awayTeams.abbreviation, name: awayTeams.name },
-    })
-    .from(games)
-    .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
-    .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-    .where(eq(games.weekId, weekId))
-    // Ordered by the kickoff the app actually uses, so a corrected game sorts
-    // where an operator expects to find it.
-    .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId));
+  return (
+    db
+      .select({
+        game: games,
+        homeTeam: { id: homeTeams.id, abbreviation: homeTeams.abbreviation, name: homeTeams.name },
+        awayTeam: { id: awayTeams.id, abbreviation: awayTeams.abbreviation, name: awayTeams.name },
+      })
+      .from(games)
+      .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
+      .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
+      .where(where)
+      // Ordered by the kickoff the app actually uses, so a corrected game sorts
+      // where an operator expects to find it.
+      .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId))
+  );
+}
+
+type AdminGameRow = Awaited<ReturnType<typeof selectAdminGameRows>>[number];
+
+function serializeAdminGame(
+  { game, homeTeam, awayTeam }: AdminGameRow,
+  latest: { spread: number; capturedAt: Date } | null,
+): AdminGame {
+  const effective = resolveGameOverrides(game, latest?.spread ?? null);
+  return {
+    id: game.id,
+    weekId: game.weekId,
+    providerGameId: game.providerGameId,
+    homeTeam,
+    awayTeam,
+    kickoffAt: game.kickoffAt.toISOString(),
+    status: game.status,
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
+    period: game.period,
+    clockSeconds: game.clockSeconds,
+    latestSpread: latest?.spread ?? null,
+    latestSpreadCapturedAt: latest?.capturedAt.toISOString() ?? null,
+    overrideKickoffAt: game.overrideKickoffAt?.toISOString() ?? null,
+    overrideStatus: game.overrideStatus,
+    overrideHomeScore: game.overrideHomeScore,
+    overrideAwayScore: game.overrideAwayScore,
+    overrideSpread: game.overrideSpread,
+    overridePeriod: game.overridePeriod,
+    overrideClockSeconds: game.overrideClockSeconds,
+    overriddenBy: game.overriddenBy,
+    overriddenAt: game.overriddenAt?.toISOString() ?? null,
+    effectiveKickoffAt: effective.kickoffAt.toISOString(),
+    effectiveStatus: effective.status,
+    effectiveHomeScore: effective.homeScore,
+    effectiveAwayScore: effective.awayScore,
+    effectiveSpread: effective.spread,
+    effectivePeriod: effective.period,
+    effectiveClockSeconds: effective.clockSeconds,
+  };
+}
+
+export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]> {
+  const rows = await selectAdminGameRows(db, eq(games.weekId, weekId));
   if (rows.length === 0) return [];
 
-  // One row per game: the latest snapshot is what a browser means by "current
-  // spread" (settlement's choice of snapshot is a lock-time question, not this).
-  const latestSnapshots = await db
-    .selectDistinctOn([oddsSnapshots.gameId], {
-      gameId: oddsSnapshots.gameId,
-      spread: oddsSnapshots.spread,
-      capturedAt: oddsSnapshots.capturedAt,
-    })
-    .from(oddsSnapshots)
-    .where(
-      inArray(
-        oddsSnapshots.gameId,
-        rows.map((row) => row.game.id),
-      ),
-    )
-    // `id` breaks the tie: a sync run stamps every row it inserts with one
-    // `clock.now()`, so two snapshots for a game CAN share `captured_at`
-    // exactly (trivially so under the simulator's fixed clock) and DISTINCT ON
-    // would otherwise pick between them arbitrarily.
-    .orderBy(oddsSnapshots.gameId, desc(oddsSnapshots.capturedAt), desc(oddsSnapshots.id));
-  const latestByGame = new Map(latestSnapshots.map((snapshot) => [snapshot.gameId, snapshot]));
+  // The latest snapshot is what a browser means by "current spread" —
+  // the same resolution the pick slate and pick-time validation use.
+  const latestByGame = await latestSpreadsForGames(
+    db,
+    rows.map((row) => row.game.id),
+  );
 
-  return rows.map(({ game, homeTeam, awayTeam }) => {
-    const latest = latestByGame.get(game.id) ?? null;
-    const effective = resolveGameOverrides(game, latest?.spread ?? null);
-    return {
-      id: game.id,
-      weekId: game.weekId,
-      providerGameId: game.providerGameId,
-      homeTeam,
-      awayTeam,
-      kickoffAt: game.kickoffAt.toISOString(),
-      status: game.status,
-      homeScore: game.homeScore,
-      awayScore: game.awayScore,
-      latestSpread: latest?.spread ?? null,
-      latestSpreadCapturedAt: latest?.capturedAt.toISOString() ?? null,
-      overrideKickoffAt: game.overrideKickoffAt?.toISOString() ?? null,
-      overrideStatus: game.overrideStatus,
-      overrideHomeScore: game.overrideHomeScore,
-      overrideAwayScore: game.overrideAwayScore,
-      overrideSpread: game.overrideSpread,
-      overriddenBy: game.overriddenBy,
-      overriddenAt: game.overriddenAt?.toISOString() ?? null,
-      effectiveKickoffAt: effective.kickoffAt.toISOString(),
-      effectiveStatus: effective.status,
-      effectiveHomeScore: effective.homeScore,
-      effectiveAwayScore: effective.awayScore,
-      effectiveSpread: effective.spread,
-    };
-  });
+  return rows.map((row) => serializeAdminGame(row, latestByGame.get(row.game.id) ?? null));
+}
+
+/**
+ * One game in the same shape the browser lists, so the override write can
+ * answer with the row an operator was just editing — provider, override, and
+ * resolved values side by side. Null when the game doesn't exist.
+ */
+export async function loadAdminGame(db: Db, gameId: string): Promise<AdminGame | null> {
+  const [row] = await selectAdminGameRows(db, eq(games.id, gameId));
+  if (!row) return null;
+
+  const latestByGame = await latestSpreadsForGames(db, [row.game.id]);
+  return serializeAdminGame(row, latestByGame.get(row.game.id) ?? null);
 }
 
 /** Null when the game doesn't exist — distinct from a game with no snapshots yet. */

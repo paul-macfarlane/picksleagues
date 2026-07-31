@@ -43,6 +43,22 @@ export const ERROR_CODE = {
   WEEK_NOT_FOUND: "week_not_found",
   WEEK_HAS_NO_GAMES: "week_has_no_games",
   SEASON_NOT_AVAILABLE: "season_not_available",
+  WRONG_LEAGUE_MODE: "wrong_league_mode",
+  WEEK_OUT_OF_RANGE: "week_out_of_range",
+  GAME_NOT_IN_WEEK: "game_not_in_week",
+  GAME_NOT_PICKABLE: "game_not_pickable",
+  DUPLICATE_PICK: "duplicate_pick",
+  TOO_MANY_PICKS: "too_many_picks",
+  // Adjacent and easy to confuse: PICK_LOCKED refuses a *pick mutation* whose
+  // game has kicked off; PICKS_LOCKED refuses a *settings change* that would
+  // discard picks which have already locked.
+  PICK_LOCKED: "pick_locked",
+  PICKS_LOCKED: "picks_locked",
+  SPREAD_STALE: "spread_stale",
+  SPREAD_UNAVAILABLE: "spread_unavailable",
+  PICK_NOT_FOUND: "pick_not_found",
+  PICK_NOT_REPLACEABLE: "pick_not_replaceable",
+  OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

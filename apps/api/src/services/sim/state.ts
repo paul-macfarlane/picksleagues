@@ -1,7 +1,13 @@
 import { asc, count, desc, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { getSimState, setSimState, simFixtureGames, simScenarios } from "@picksleagues/db";
-import { latestCompletedNflSeasonYear, nflSeasonYearFor, type Clock } from "@picksleagues/core";
+import {
+  latestCompletedNflSeasonYear,
+  nflSeasonAlignedAnchor,
+  nflSeasonYearFor,
+  SIM_GAME_DURATION_MS,
+  type Clock,
+} from "@picksleagues/core";
 import {
   ERROR_CODE,
   SIM_SCENARIO_SOURCE,
@@ -122,21 +128,24 @@ export async function loadScenario(
   let startsAt: Date;
 
   if (definition) {
-    // Season year derived from the last kickoff rather than the anchor: library
-    // kickoffs run days past it, and `nflSeasonYearFor` flips on Aug 1. A
-    // scenario loaded in late July would otherwise be stamped with the previous
-    // season while its games sit in the next one — the sync jobs, deriving the
-    // year from the clock once the operator advances into those games, would
-    // then ask the provider for a season the scenario doesn't cover and every
-    // job would silently no-op.
-    const lastKickoff = definition.games.reduce(
-      (latest, game) => Math.max(latest, game.kickoffAtOffsetMs),
-      0,
+    // A library definition's offsets run days past its anchor, so anchoring at
+    // real time in late July would put the scenario's games on the far side of
+    // the Aug 1 season-label flip — leaving no year that labels the whole
+    // scenario, and so a stamp the sync jobs' clock-derived year disagrees with
+    // on one side of the flip or the other (`nflSeasonAlignedAnchor`, which
+    // carries the full reasoning). Anchoring at the flip instead keeps the label
+    // constant for the scenario's whole span; every other time of year this
+    // returns real time unchanged.
+    const span = Math.max(
+      ...definition.weeks.map((week) => week.endsAtOffsetMs),
+      // Past the kickoff, since the operator advances to a game's final.
+      ...definition.games.map((game) => game.kickoffAtOffsetMs + SIM_GAME_DURATION_MS),
     );
+    const anchor = nflSeasonAlignedAnchor(realNow, span);
     const materialized = materializeDefinition(
       definition,
-      realNow,
-      nflSeasonYearFor(new Date(realNow.getTime() + lastKickoff)),
+      anchor,
+      nflSeasonYearFor(anchor),
       SIM_SCENARIO_SOURCE.LIBRARY,
     );
     scenarioId = await writeScenario(db, clock, materialized);

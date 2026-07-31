@@ -3,7 +3,10 @@ import { loadEnv } from "@picksleagues/core";
 import { createApp } from "./app";
 import { createRuntimeDeps } from "./runtime";
 
-const port = 3000;
+// 3000 for `pnpm dev`. Overridable so the E2E stack can run its own API on a
+// separate port against its own database (playwright.config.ts), leaving a
+// hand-testing dev server on 3000 untouched.
+const port = Number(process.env.API_PORT ?? 3000);
 
 const env = loadEnv();
 
