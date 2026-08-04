@@ -28,3 +28,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0016](0016-per-mode-result-and-standings-tables.md) | Results/standings are per-mode; mode-scoped naming repo-wide | Accepted |
 | [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
 | [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |
+| [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
