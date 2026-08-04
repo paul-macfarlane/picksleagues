@@ -1,9 +1,8 @@
----
-name: verify
-description: Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator).
----
-
 # Verifying Picks Leagues changes at runtime
+
+Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator). This is the repository's operational verification knowledge — the *how*. `docs/agents/testing.md` owns verification **policy** (what counts as evidence, where it is stored, what earns a `PASS`) and points here for the mechanics.
+
+Formerly the `/verify` skill; moved to a team-owned doc during the Atlas experiment so Atlas execution packets can cite exact commands from it (see `docs/atlas-experiment.md`).
 
 ## Launch
 
