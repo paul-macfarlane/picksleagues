@@ -549,3 +549,7 @@ actually changes.
 
 Human gates outstanding: PR 1 review is itself the owner approval for the ADR and
 locked-doc amendments, and the `[x]` transitions on SIMP-1/2/3/17/21 are human-only.
+
+**PR:** https://github.com/paul-macfarlane/picksleagues/pull/27 (`picksleagues`, base
+`staging`). Tickets stay `[~]`; `[x]` is human-only after review
+(`docs/agents/issue-tracker.md`).
