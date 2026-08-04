@@ -112,6 +112,8 @@ The two things most likely to make or break it:
 
 Also worth measuring: whether Atlas's per-criterion verification map is genuinely better than the old "run the gates plus drive the flow" step, or just more ceremony; and how much the multi-repo apparatus costs in tokens on a single-repo project. `/atlas-improve` is built to answer the token question — run it after the first work package and compare against a `/task` run of similar size.
 
+**The baseline is the game-clock epic (PR #22, `9a0844b`), pinned 2026-08-03 before any Atlas work package ran.** Naming it in advance is the point: a comparator chosen after seeing Atlas's result is not a comparator. It is the most recent `/task` work and the closest in size to a `SIMP` package.
+
 ## 7. Next steps
 
 1. ~~Restart Claude Code~~ — done. Both plugins load; note that all five Atlas skills and `setup-matt-pocock-skills` carry `disable-model-invocation: true`, so **only a human can start them** by typing the slash command.
