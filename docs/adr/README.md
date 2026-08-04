@@ -24,6 +24,7 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0012](0012-simulated-provider-clock-projection.md) | Simulated data flows through real ingestion; fixtures project through the clock | Accepted |
 | [0013](0013-admin-role-in-database.md)        | Admin capability lives in `users.app_role` | Accepted |
 | [0014](0014-sim-enabled-env-toggle.md)        | `SIM_ENABLED` toggles the simulator; production overrides it | Accepted |
-| [0015](0015-pickem-pick-entry-semantics.md)   | Pick'em pick entry: whole-week replace, unplayable games unpickable, settings change resets picks | Accepted |
+| [0015](0015-pickem-pick-entry-semantics.md)   | Pick'em pick entry: whole-week replace, unplayable games unpickable, settings change resets picks | Accepted (rules 1–2 superseded in part by 0018/0019; rule 3 stands) |
 | [0016](0016-per-mode-result-and-standings-tables.md) | Results/standings are per-mode; mode-scoped naming repo-wide | Accepted |
-| [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted |
+| [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
+| [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |

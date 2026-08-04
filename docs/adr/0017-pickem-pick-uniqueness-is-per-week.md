@@ -1,6 +1,6 @@
 # ADR-0017: Pick'em pick uniqueness is per week, not per season
 
-- **Status:** Accepted
+- **Status:** Accepted — *motivation* superseded by ADR-0018 (the cross-week duplicate reasoned about here was reachable only through a provider week move, which ADR-0019 puts out of scope); the week-scoped **constraint stands** as the per-week uniqueness backstop
 - **Date:** 2026-07-30
 - **Supersedes part of:** the `pickem_picks` constraint set introduced with PKM-2
 - **Related:** ADR-0015 (pick entry semantics), ADR-0003 (migrations race the deploy)
