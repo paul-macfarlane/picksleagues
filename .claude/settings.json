@@ -1,54 +1,5 @@
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-destructive.sh",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" file",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "Read|Edit|Write|NotebookEdit|Grep|Glob"
-      },
-      {
-        "hooks": [
-          {
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" bash",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" mcp",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "mcp__.*"
-      }
-    ]
-  },
   "permissions": {
-    "ask": [
-      "Edit(CLAUDE.md)",
-      "Edit(**/.claude/settings.json)",
-      "Edit(**/.claude/hooks/**)",
-      "Bash(git worktree remove*)"
-    ],
     "deny": [
       "Bash(git push --force*)",
       "Bash(git push -f*)",
@@ -70,6 +21,58 @@
       "Bash(git push -u origin staging*)",
       "Bash(git push origin main*)",
       "Bash(git push -u origin main*)"
+    ],
+    "ask": [
+      "Edit(CLAUDE.md)",
+      "Edit(**/.claude/settings.json)",
+      "Edit(**/.claude/hooks/**)",
+      "Bash(git worktree remove*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-destructive.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" file",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" bash",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" mcp",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "playwright@claude-plugins-official": true
   }
 }
