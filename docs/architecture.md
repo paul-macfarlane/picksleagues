@@ -305,6 +305,7 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 | Buy-back, lives > 1, extension weeks | Deferred | `lives_remaining` default-1 column is the only trace |
 | MM upset / perfect-round bonuses | Deferred | Absent from `MarchMadnessSettings` schema |
 | Push/tie resolution config | Elimination only (ADR-0018) | Pick'em's push is the constant 0.5 inside its scoring function; Elimination keeps its advance-or-eliminate enum in its settings schema |
+| Custom Pick'em week ranges | **Removed** (ADR-0020) | The create/update input carries a season-range preset only; the resolved `startWeek`/`endWeek` refs are still stored and still what everything downstream computes on, so a later "Custom" option writes them directly rather than forking the stored shape |
 
 ## Locking Model
 
@@ -372,7 +373,7 @@ GET    /openapi.json                     generated spec
 
 Architecture v0.3 is reconciled against MVP Spec v0.3. Every spec requirement maps to a design element: environments and simulator (Environments, Simulator & Time, D12–D13), automated testing (Automated Testing, D14), operational data corrections (Manual Sports Data Overrides, D15), rule scope (MVP Rule Scope table), identity and caps (Domain Model notes), rules guide (static SPA content), and freshness expectations (Background Jobs). No open questions remain in either document.
 
-**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept) and **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy). Where either ADR and the v0.3 text disagree, the ADR is the decision and the text is the defect.
+**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), and **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on; Elimination keeps its explicit pair until its own build-out). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
 
 ## Mobile Path (later, zero rework)
 

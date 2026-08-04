@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker) and ADR-0019 (week moves out of scope, in both NFL modes) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), and ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; Elimination unchanged for now) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -61,6 +61,7 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 ### Membership
 - League size: **2 minimum, 100 maximum**.
 - Join cutoff: no joins once the league's first week has started (NFL modes) or once the first Round of 64 game has tipped (March Madness). Enforced automatically; not configurable.
+  - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
 - A league that never reaches 2 members by its start simply proceeds; standings with one member are valid but trivially uninteresting. No auto-cancellation.
 - Leaving: a member may leave a league **pre-start only** — once the league starts, membership is frozen and there is no mid-season leaving. The last commissioner of a league with other members must promote a replacement before leaving; a commissioner who is the only member deletes the league instead. (ADR-0004)
 
@@ -92,13 +93,14 @@ A browse page listing public leagues that have not passed their join cutoff, wit
 A season-long league where members compete to build the best record picking NFL games each week, on both a weekly and a cumulative season leaderboard.
 
 ### League Settings
-1. **Start Week** — NFL regular season week (1–18) or a playoff round (Wild Card, Divisional, Conference Championship, Super Bowl)
-2. **End Week** — regular season week (1–18) or a playoff round, at or after Start Week in season order (playoff rounds follow week 18)
-3. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
-4. **Picks Per Week** — 1–16 (default 5)
+1. **Season Range** — one of three presets: **Regular Season** (regular season weeks 1–18), **Postseason** (Wild Card, Divisional, Conference Championship, Super Bowl), or **Full Season** (regular season week 1 through the Super Bowl)
+2. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
+3. **Picks Per Week** — 1–16 (default 5)
+
+The chosen preset is resolved to a concrete start week and end week **when the league is created** — and again if a commissioner changes it while the league is still pre-start, since settings lock at league start (§Commissioner Powers). Once the league starts, the range it resolved to is fixed. A league created after the preset's first week has already begun starts instead at the next week whose first kickoff is still ahead — so a league is never born already-started. (ADR-0020)
 
 ### Core Rules
-- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose End Week extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
+- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose season range extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
 - **Playoff weeks have small slates** (Wild Card 6 games → Super Bowl 1); the fewer-games rule below applies naturally — in a week with fewer available games than Picks Per Week, everyone picks every available game.
 - Members choose their own games; overlap with other members is not required.
 - **Fewer games than Picks Per Week:** if the week's slate has fewer available games than the configured count, all members pick every available game that week.
@@ -118,7 +120,7 @@ A season-long league where members compete to build the best record picking NFL 
 ### Standings
 Two parallel leaderboards:
 - **Weekly** — that week's points only; resets each week.
-- **Season** — cumulative points from Start Week through End Week. A week with no submission counts as zero toward the season total. One week of participation is sufficient to appear.
+- **Season** — cumulative points from the league's start week through its end week. A week with no submission counts as zero toward the season total. One week of participation is sufficient to appear.
 
 **Ties (weekly and season):** members who tie on points **share the rank**. There is no tiebreaker, and nothing is shown behind the rank to separate tied members.
 
@@ -128,7 +130,7 @@ Two parallel leaderboards:
 
 ### Edge Cases
 - Identical pick sets between members are allowed and will tie on points, sharing the rank.
-- A member who joins after Start Week (but before the join cutoff) simply has zero-point weeks for weeks already completed.
+- A member who joins after the league's start week (but before the join cutoff) simply has zero-point weeks for weeks already completed.
 
 ---
 
@@ -141,6 +143,8 @@ A survivor pool. Each week, every member picks one team to win (SU or ATS per le
 2. **End Week** — regular season week (1–18), ≥ Start Week
 3. **Pick Type** — Straight Up or Against the Spread
 4. **Push/Tie Resolution** — on an ATS push or SU tie: member advances and the team is consumed (default), or member is eliminated
+
+Elimination keeps this explicit Start Week / End Week pair for now. The season-range presets Pick'em uses (ADR-0020) reach this mode at its own build-out, not before — until then the two NFL modes deliberately differ on how their range is chosen.
 
 ### Core Rules
 - Elimination is **regular-season only** — playoff weeks are not supported for this mode (weekly team-consumption doesn't fit 2–14-team playoff slates).
@@ -289,7 +293,7 @@ Acceptance bar: every scoring rule and edge case in this spec is reproducible in
 
 ## Explicitly Out of Scope (MVP)
 
-Confidence scoring · Money Pick · Elimination lives > 1 · Buy-back · Elimination extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value
+Confidence scoring · Money Pick · Elimination lives > 1 · Buy-back · Elimination extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges outside the three season-range presets
 
 ## Decisions Log
 
@@ -299,6 +303,7 @@ Confidence scoring · Money Pick · Elimination lives > 1 · Buy-back · Elimina
 | Cancellation re-picks | Shipped, then removed (ADR-0018); a cancelled game's pick pushes and the push stands |
 | Pick'em pick entry | One submission per week, confirmed and immutable (ADR-0018) |
 | Pick'em push value and ties | Fixed at +0.5, no setting; tied members share the rank with no tiebreaker (ADR-0018) |
+| Pick'em season range | Three presets — Regular Season, Postseason, Full Season — resolved to concrete weeks at league creation; custom ranges dropped (ADR-0020) |
 | Elimination lives | Fixed at 1; buy-back deferred |
 | Elimination end-of-league | Co-winners share rank; no extension weeks |
 | MM bonuses (upset, perfect round) | Deferred |

@@ -75,7 +75,12 @@ is written down.
 
 ### The mid-week resolution rule
 
-Resolution runs once, at league creation, reading the **injected Clock** only — never
+Resolution runs at league creation, and again if a commissioner changes the preset in the
+pre-start settings editor — the same path, against the clock as it stands at that moment. It
+never runs on a read, and it cannot run at all once the league has started, because settings
+lock at league start (spec §Commissioner Powers). "Resolved at creation" is therefore shorthand
+for "resolved when the setting is written, which is only ever pre-start". Resolution reads the
+**injected Clock** only — never
 `Date.now()`, never SQL `now()` (arch D13):
 
 - **Start** = the later of (a) the preset's nominal start week and (b) the next week whose first
