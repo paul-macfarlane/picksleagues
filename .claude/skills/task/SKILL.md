@@ -9,7 +9,7 @@ A "task" may be one backlog item, several related items, or a whole epic — sco
 
 ## Target & gates
 
-- **Target:** `next` = first `[ ]` in build order across `backlog/` whose `deps:` are all `[x]`. A task ID (e.g. `PKM-3`) = that item. An epic prefix (e.g. `PKM`) = that epic's open tasks in order. Nothing runnable → say so and stop.
+- **Target:** `next` = first `[ ]` whose `deps:` are all `[x]`, walking epics in the order given by **`backlog/README.md` §Build order** — not the order the files happen to sort in. File numbers record when an epic was written, not its priority, and one epic (`09-launch`) is deliberately split across two positions, so directory order is wrong and cannot be made right by renaming. A task ID (e.g. `PKM-3`) = that item. An epic prefix (e.g. `PKM`) = that epic's open tasks in order. Nothing runnable → say so and stop.
 - **Gates** (human checkpoints, skipped by `--auto`):
   - `plan-review` — human review of the plan before implementing. **Default OFF**: plan and proceed without stopping. `--plan` turns review ON (present the plan and wait for approval).
   - `test` — default `auto`; `--test=manual` stops for the human to test; `--test=skip` only when there is no runtime surface.

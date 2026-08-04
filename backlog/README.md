@@ -1,6 +1,8 @@
 # Backlog
 
-Work split by epic to keep context small. One file per epic, ordered by dependency structure and season timing: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027). All bracket/NCAAMB work — settings schema, ingestion, scoring, UI, and simulator fixtures — lives in `07-march-madness.md` and is sequenced after the NFL modes. The app is launchable for the NFL season after `06-elimination`, with none of it built.
+Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
+
+Pick'em ships today end-to-end (epics 00–05, 11). What stands between that and a launchable product is epic 12's rule simplification, epic 13's quality pass, and the visual/legal slice of `09-launch`. Elimination follows.
 
 ## Task format
 
@@ -33,6 +35,23 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `09-launch.md`         | `LNCH` | Rules guide, prod cron, mobile QA, launch                   |
 | `10-trust-safety.md`   | `TS`   | Post-MVP: public-league abuse resistance, member notifications |
 | `11-schema-foundations.md` | `SF` | Season/team schema scalability ahead of the picks epics    |
+| `12-simplification.md` | `SIMP` | Collapse the Pick'em rule surface: immutable weekly submissions, fixed push, no tiebreaker, no week moves |
+| `13-quality.md`        | `QLTY` | Non-functional: justify or cut each engineering rule, de-brittle the test suites |
+
+## Build order
+
+File numbers are historical, not priority — they record the order epics were
+written. The order work is actually taken (owner, 2026-08-03):
+
+1. **`12-simplification`** — the Pick'em rules the app ships on. Everything downstream is cheaper once the rule surface is smaller, and the deletions remove a large share of what epic 13 would otherwise have to fix.
+2. **`13-quality`** — justify or cut the standards, then de-brittle the tests. Deliberately after 12 (which deletes much of the brittle surface) and before the facelift (which those tests would otherwise veto).
+3. **`09-launch`, visual + legal slice** — LNCH-7 branding, LNCH-9 design pass, LNCH-10 ToS/privacy, LNCH-11 splash. This is what makes it look like a product rather than a project.
+4. **`06-elimination`** — the second game mode, on a rule surface and a UI that have both settled.
+5. **`09-launch`, remainder** — cron schedules, mobile QA, production cutover.
+6. **`07-march-madness`**, then **`10-trust-safety`** — not needed until Feb/March 2027 and post-MVP respectively.
+
+`ID-4` and `ADM-3` are the two open stragglers in otherwise-complete epics; take
+them when they block something rather than for tidiness.
 
 ## Working the backlog
 
