@@ -119,15 +119,34 @@ any phase and cleared when the impediment lifts — it does not follow `[x] done
 - When blocked, preserve work, record the exact reason and resume instructions,
   and follow the configured blocked-state behavior. On resume, reread the ticket
   and avoid duplicating claims, transitions, workers, commits, or comments.
-- Planning artifact storage: **repository**.
+- **Planning artifact storage: `repository` — and here that means a specific path,
+  not "somewhere in the repo".** A technical plan is written to
+  **`docs/plans/<work-package-id>.md`**, lowercased: `docs/plans/simp.md` for an
+  epic, `docs/plans/simp-3.md` for a single ticket. The epic file gets a short
+  pointer to it under a `## Technical plan` heading and **nothing more**.
+  Never inline a plan into a `backlog/` epic file.
+
+  This needs saying explicitly because the tracker is itself markdown in this
+  repository, so `repository` and `tracker` storage would otherwise be the same
+  physical medium and the setting would carry no instruction. The reason to keep
+  them apart: epic files are a thin contract of goal-shaped ticket lines, and a
+  400-line plan inlined among them destroys that. See `docs/plans/README.md`.
+
+- **Scope of the record convention below.** `[EXECUTION PLAN]` names a *section
+  inside the plan file*, not a record appended to the ticket. `[PROGRESS]`,
+  `[SCOPE CHANGE]`, `[BLOCKED]`, `[AI CODE REVIEW]`, and `[CLOSEOUT]` are
+  execution records and belong in the plan file too, appended as work proceeds.
+  The epic file receives only checkbox transitions and the plan pointer.
 - Drafts before approval: **true**.
 - Preview exact plan writes and transitions before publishing them. If drafts
   are not permitted, return the draft without presenting it as tracker state.
 - Preserve stable ticket/spec requirements. Record evolving execution in
   `[EXECUTION PLAN]`, `[PROGRESS]`, `[SCOPE CHANGE]`, `[BLOCKED]`,
   `[AI CODE REVIEW]`, and `[CLOSEOUT]` records rather than silently rewriting
-  the contract. Write the complete AI Code Review output to the work package's
-  records before requesting human review.
+  the contract. **All of those records live in the plan file at
+  `docs/plans/<work-package-id>.md`** (see the storage rule above), never
+  appended to the `backlog/` epic file. Write the complete AI Code Review output
+  there before requesting human review.
 
 Before creating, classifying, prioritizing, or decomposing tickets, also read
 and follow `docs/agents/triage-labels.md`. Do not infer labels or priority from

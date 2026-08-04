@@ -50,7 +50,11 @@ Red-team policy: Risk-gated rather than mandatory. Run /atlas-red-team on any pl
 Storage: **repository**. Drafts before approval:
 **true**. A repository spec uses
 the planning section of sibling `execution.md`; tracked work uses the configured
-storage. Exact file or tracker mutations are previewed before publication. Read
+storage — which in this repository means **`docs/plans/<work-package-id>.md`**,
+with only a pointer left in the `backlog/` epic file. That path is stated
+normatively in `docs/agents/issue-tracker.md` §Planning artifact storage; the
+sentence before this one is circular on its own and is not the rule.
+Exact file or tracker mutations are previewed before publication. Read
 `docs/agents/issue-tracker.md` for the authoritative approval and persistence
 rules, `docs/agents/triage-labels.md` for decomposition, `docs/agents/domain.md`
 for terminology, and `docs/agents/testing.md` for AC, DoD, fixture, and
