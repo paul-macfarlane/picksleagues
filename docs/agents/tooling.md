@@ -12,7 +12,7 @@ third-party library documentation.
 | Plugin | Status | Why it applies | Use when | Prerequisites | Install or state |
 |---|---|---|---|---|---|
 | `context7` | installed | The repository depends on many versioned third-party libraries (TanStack, Drizzle, Hono, Better Auth, Zod v4). | Checking current, version-specific library or framework behavior and examples. | none | active |
-| `playwright` | recommended | Playwright configuration and an e2e/ suite are present, and e2e is the merge gate. | Driving browser workflows and capturing UI evidence when the run surface requires it. | none | `/plugin install playwright@claude-plugins-official` |
+| `playwright` | installed | Playwright configuration and an e2e/ suite are present, and e2e is the merge gate. Installed 2026-08-03. | Driving browser workflows and capturing UI evidence when the run surface requires it. Prefer driving the season simulator for evidence where the flow allows it; a browser capture is for what the simulator transcript cannot show. | none | `/plugin install playwright@claude-plugins-official` |
 | `typescript-lsp` | unavailable | TypeScript source was detected, but the required typescript-language-server binary is not on PATH (verified by a read-only path check). | Would be used for language-server diagnostics while navigating and editing TypeScript. | typescript-language-server | `/plugin install typescript-lsp@claude-plugins-official` |
 | `github` | declined | The gh CLI is already on PATH and covers pull-request operations, and this repository does not use GitHub Issues -- work is tracked in backlog/. | Not applicable. | none | `/plugin install github@claude-plugins-official` |
 
