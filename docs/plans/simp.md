@@ -620,3 +620,185 @@ evidence survives in git history, per the plan header).
 
 Human gate: `pnpm test:e2e` deletes every league in the dev database, so each run needs
 explicit owner approval before it is launched (`docs/agents/testing.md`).
+
+### [AI CODE REVIEW] — PR 2, 2026-08-04
+
+Single formal review of the complete branch diff — 16 commits, 103 files, +9425/−5353,
+against `staging` at `589fac0`. Frontier orchestrator. Every finding below was resolved on
+the branch before this record was written; each deliverable's diff was also screened at
+acceptance, which is where the blocking finding was caught.
+
+**Axis 1 — technical implementation and contract conformity**
+
+1. _Resolved (blocking)._ **The full-set rule could deadlock an ATS week.**
+   `requiredPickemPickCount` counted a game whenever it was unlocked and pickable, but the
+   write path refuses a pick on a game with no line (`spread_unavailable`). On a week
+   holding one unpriced game there was therefore no set the server would accept — include
+   it and the request 409s, omit it and the same request 400s `pick_set_incomplete` — and
+   once the priced games kicked off the member was shut out of the week for good. That is
+   precisely the outcome ADR-0018 decision 2 was ruled to prevent; it simply arrived
+   through "unpriceable" rather than "locked", so the sizing rule never saw it coming.
+   Caught at D5's acceptance screen, where the worker had reported it as an accepted
+   trade-off rather than a defect. Fixed in `d49eeee`: the helper takes the league's
+   `pickType` and excludes unpriced games in ATS leagues only, which *implements* decision
+   2's stated principle ("a full set of what can still be picked") rather than amending it.
+   A named integration regression and five unit rows pin it. ADR-0018 gained the second
+   exclusion in `44a9a66` so the next reader does not have to rediscover it from code.
+2. _Resolved._ ADR-0018 listed "Picks Per Week **lowered**" among the settings changes that
+   clear submitted picks. True of the editable rules it replaced, false of the ones it
+   introduces: once a submission is immutable, a *raise* strands every member who already
+   submitted just as surely, since neither can go back and adjust. Red-team B2 had already
+   widened the predicate; `4e76cd5` corrects the ADR to match what ships.
+3. _Resolved._ Two comments were made stale by this PR's own deletions — the
+   `pickem_picks` uniqueness constraint justified itself by the batch endpoint's replace
+   semantics and by a week move, both now gone, and the web league query named
+   `pushTieResolution` as its example of a defaulted field. Fixed in `aca32a4` using
+   ADR-0018's own replacement reasoning. The one remaining stale section-ref
+   (`admin-overrides.test.ts:668`) stays for SIMP-15, where PR 1's review put it.
+
+Accepted without change, having been checked rather than assumed:
+
+- **`sync-odds` no longer nulls a spread when the provider drops a line.** Reported as a
+  deliberate departure; it is in fact exact preservation. The old append-only job wrote no
+  snapshot for an unpriced game, so `latestSpreadsForGames` kept returning the previous
+  number. Skipping the write reproduces that behaviour on a single-row table.
+- **The write-skip when the line has not moved** is an improvement, not a shortcut:
+  `updated_at` is served as the row's as-of instant (DATA-8), so restamping an unchanged
+  row would report a freshness the data does not have.
+- **`resolveGameOverrides` losing its `providerSpread` parameter.** All five call sites
+  were checked individually; the three that passed `null` never read the resolved spread,
+  so none changes behaviour.
+- **A required set of zero accepts an empty submission.** Reachable only when nothing in
+  the week is pickable. It inserts nothing and leaves the member holding no picks, so
+  `already_submitted` correctly does not fire and they can still submit once lines land.
+- **Settlement's `moved` synthesis sat below the override tier**, so deleting it cannot
+  change how any `override_status` resolves — the coalesce is now uniform across every
+  field, which is what arch D15 asked for in the first place.
+
+**Axis 2 — repository standards** (`.claude/rules/engineering.md`, `docs/architecture.md`)
+
+Conformant, with one recorded deviation.
+
+- **Time discipline** holds. `sync-odds` keeps one `clock.now()` per run bound as a
+  parameter; lock state stays derived and re-validated inside the submitting transaction;
+  the new sheet reads server-computed `locked` off the slate rather than a browser clock,
+  and says why in a comment — the simulator puts the browser at a different instant.
+  No new `Date.now()` or `new Date()` outside the two sanctioned homes.
+- **Contract & codegen.** `openapi/` was regenerated and committed in the same commit as
+  the schema and route changes (`596f490`); `pnpm contract:check` passes and
+  `git status --porcelain -- openapi` is empty. Regeneration could not happen earlier —
+  generation loads `routes/pickem.ts`, which imported the schema SIMP-5 deleted — which is
+  exactly the coupling the plan predicted. No `.nullable()`-on-a-registered-schema
+  violation was introduced; one such component (`NullablePickemMovedGame`) was deleted.
+- **Refusals.** `PICKEM_REFUSAL` still names reasons and never a status; the
+  `as const satisfies Record<PickemRefusal, …>` compile-coverage pattern is intact through
+  two additions and two retirements, so a future reason still fails to compile until it is
+  given a code, a message, and a status.
+- **One rule, one home.** `requiredPickemPickCount` lives in `packages/schemas` and is
+  called by both the write path and the sheet — the `pickemSettingsInvalidatePicks`
+  precedent, and the alternative (the UI re-deriving completeness) is the drift that rule
+  exists to prevent. Its docblock carries the proof that the two call sites' different caps
+  give the same answer.
+- **`packages/scoring` stays pure**; settlement remains a full recomputation (arch D10);
+  `sync-odds` is now genuinely idempotent rather than merely re-runnable.
+- **Testing rules.** Refusal and sizing matrices live in the API integration suite, not the
+  browser; the e2e journey keeps journeys. Deleted presentation helpers were not given
+  replacement web tests — the domain rule is tested where it lives. Standings assertions
+  moved off `td` indices onto three deliberate `data-testid`s, which is the sanctioned
+  escape when a cell has no accessible name.
+- **UI rules.** `QueryState` owns the loading/error/empty triad; the async-button rule is
+  followed (disabled in place, label never swapped); failed actions toast and failed
+  queries render inline; theme tokens only; the sheet was laid out phone-first and the
+  fixed action bar's `z-20` respects the documented layering. No `any`, `@ts-ignore`, or
+  `eslint-disable` was added anywhere in the branch.
+- **Guardrails.** Feature branch off `staging`; no protected branch touched; no
+  `--no-verify`; no non-localhost migration; `pnpm test:e2e` not run (see below); no
+  secrets in committed evidence.
+
+**Approved deviation — settings JSONB changed non-additively.** The engineering rules
+require a per-mode settings-schema change to be additive with a Zod `.default()` or to ship
+a data migration. `pushTieResolution` was removed outright with neither. This is the
+licence the epic grants explicitly (SIMP-18's ticket text: no production data, dev data
+disposable, **licence expires at launch**). It is safe in practice because Zod strips
+unknown keys, so `league_seasons` rows still carrying the key parse unchanged — pinned by a
+named case in `packages/schemas/src/league-settings.test.ts`. Recorded here rather than
+waved through.
+
+**Owed onward, not blocking**
+
+- `e2e/` is covered by **no standing typecheck gate**: `pnpm typecheck` is `pnpm -r` over
+  workspace packages and `e2e/` is not one, and eslint uses the non-type-aware preset. D6
+  typechecked the rewritten spec with a throwaway config. This is a real hole in the merge
+  gate's own safety net and wants its own ticket in epic 13.
+- SIMP-12 lost the simulator's only positive multi-week fixture-filter case when
+  `week-move` was deleted; the ordering assertion that replaced it is stronger but does not
+  cover the same thing.
+- SIMP-15's sweep still owes the comment section-refs PR 1 flagged.
+
+No unresolved blocking findings on either axis.
+
+### [CLOSEOUT] — PR 2, 2026-08-04
+
+Integrated candidate `aca32a4` on `feat/simp-pr2-rule-surface-collapse`, base `staging` at
+`589fac0`. 16 commits, 103 files, +9425/−5353. Aggregate gate evidence:
+`docs/evidence/test-results/simp-pr2-aggregate/report.md`; per-deliverable evidence in the
+sibling directories under the same root.
+
+| Deliverable | Tickets | Worker / model | Commits |
+|---|---|---|---|
+| D1 | SIMP-4 | `atlas-worker` / opus | `282ebb6` |
+| D2 | SIMP-5, SIMP-6 | `atlas-worker` / opus | `26c5108`, `60b3522` |
+| D3 | SIMP-7 | `atlas-worker` / opus | `7f62061` |
+| D4 | SIMP-8, SIMP-9 | `atlas-worker` / opus | `5d717aa`, `596f490` |
+| D5 | SIMP-10, SIMP-11, SIMP-12 | `atlas-worker` / opus (1 fix round) | `54d934c`, `7f420fd`, `2c08473`, `d49eeee` |
+| D6 | SIMP-14 | `atlas-worker` / opus | `23357e6` |
+| — | review + record | frontier orchestrator | `c45e68d`, `4e76cd5`, `44a9a66`, `d1ce23e`, `aca32a4` |
+
+**Verdicts.** Every check was run by the orchestrator on the integrated candidate, not
+taken from a worker report.
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| SIMP-4 push fixed 0.5 / no differential / shared ranks | **PASS** | `pnpm test` — 27 files, 501 tests. Push tables collapsed to the fixed value across all three sources (ATS exact number, tie game, cancelled); `rankStandings` sorts on points alone. |
+| SIMP-5 contract clean + any `picksPerWeek` change invalidates | **PASS** | `pnpm contract:check` exit 0 and `git status --porcelain -- openapi` empty. Generated client greps: no `PickemRepickRequest`, `movedGame`, Pick'em `differential`, `/repick`, or `"moved"` in `GameStatus`. Widened predicate pinned by a named unit case; the only surviving `pushTieResolution` in the spec is Elimination's own. |
+| SIMP-6/7 migrations apply | **PASS** | `0019` (drops both `differential` columns) and `0020` (`DROP TABLE odds_snapshots`, `games.spread` added) applied to local Postgres and re-applied as no-ops; `pnpm test:integration` 26 files / 474 tests green against the migrated database. |
+| SIMP-7 override precedence | **PASS** | Integration cases: an `override_spread` wins; cleared, the provider number shows through; a re-sync never clobbers an override. `resolveGameOverrides` is now the single home for all seven fields — its `providerSpread` parameter is gone. |
+| SIMP-7 sync-odds idempotent | **PASS** | Integration: two runs over one provider response leave whole `games` rows identical including `updated_at`; postponed-but-unstarted games still priced. |
+| SIMP-8 submit-once | **PASS** | Integration: second submit → `already_submitted` with the first set intact; over → `too_many_picks`; under → `pick_set_incomplete`; **post-first-kickoff submitter succeeds with a full set of what is still unlocked**; **`picksPerWeek` raised clears the week and lets the member resubmit**; settings-reset-then-resubmit end to end; **ATS week with one unpriced game submits successfully** (the deadlock regression). Handler mapping compiles exhaustively. |
+| SIMP-9 cancelled = push, stands | **PASS** | Integration: cancelled before and after kickoff both resolve as a push, each settled twice with identical state; the push holds with unstarted games still in the week. `/repick` absent from the contract. |
+| SIMP-11 standings | **PASS** (data) / **BLOCKED** (visual) | No `Diff` column, no `DIFFERENTIAL` sort member, ties share a rank server-side. The rendered-board assertion lives in the e2e journey, which is human-gated — see below. |
+| SIMP-12 scenarios | **PASS** | `week-move` deleted with its registry entry; `cancelled-game`, `push-ats` and `tie-game` reconciled to fixed-0.5 and green in `pnpm test:integration`. |
+| SIMP-10 confirm-and-freeze UI | **BLOCKED** | Static gates pass (`pnpm typecheck`, `pnpm --filter @picksleagues/web build`), but the flow itself is proved only by the e2e journey. **Not run — human gate.** |
+| SIMP-14 merge gate | **BLOCKED** | `pnpm test:e2e` **was not run**: it deletes every league in the dev database and repository policy requires explicit human approval for each run, which has not been given. The rewritten journey is therefore **unverified at runtime**. Every selector in it is instead traced to the markup that renders it in `docs/evidence/test-results/simp-pr2-d6-e2e/report.md` — traceability, which is not a substitute for a run. |
+| PR gates (format, lint, typecheck, test, integration, contract, web build) | **PASS** | All seven exit 0 on `aca32a4`; raw output committed under `simp-pr2-aggregate/`. |
+
+**The one outstanding human gate.**
+_Prerequisite:_ the local stack and Docker Postgres available (`pnpm db:up`), and the owner
+accepting that **every league in the dev database is deleted**.
+_Action:_ run `pnpm test:e2e` from the repository root.
+_Expected:_ 14 tests green, including the rewritten Pick'em journey — the submit control
+disabled until the sheet is full, the confirmation dialog on the submission path, a
+read-only week after it lands, `already_submitted` on a post-kickoff probe, and two tied
+members sharing `T-1` with no column behind them.
+_Post-check:_ commit the report under `docs/evidence/test-results/` and flip SIMP-10,
+SIMP-11 and SIMP-14 from BLOCKED to PASS. Until then those three criteria are **not**
+verified, and this PR should not merge on the strength of the other twelve.
+
+**Deviations, stated not buried.**
+1. Settings JSONB changed non-additively (`pushTieResolution` removed with no default and
+   no data migration) — the licence the epic grants explicitly, expiring at launch. Safe
+   because Zod strips unknown keys; pinned by a named case.
+2. Dropping `odds_snapshots` and the two `differential` columns are bare contracts with no
+   expand/contract dance. Accepted pre-launch under ADR-0003; the `odds_snapshots` drop is
+   briefly **user-facing** in the deploy race window (an ATS league would refuse picks with
+   `spread_unavailable` until the new deploy's first odds sync), which is stated rather
+   than left implicit.
+3. Two ADR-0018 amendments were made during execution (`4e76cd5`, `44a9a66`). Both correct
+   the record to match decisions already ruled or already approved in this plan; neither
+   makes a new product decision. They are the sentences an owner should read first.
+4. The admin odds-history surface was deleted deliberately — it was the one reader the
+   epic's "snapshot history has no reader" claim did not count.
+
+**Not in this PR, by design:** SIMP-13 (runbook), SIMP-15 (dead-code sweep), SIMP-16 (odds
+coverage) and SIMP-18–20 (presets) are PR 3. Tickets stay `[~]`; `[x]` is human-only after
+review (`docs/agents/issue-tracker.md`).
