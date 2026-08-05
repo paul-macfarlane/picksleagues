@@ -47,7 +47,7 @@ Ref: spec §Game Mode 1; arch §Spread strategy, §Locking Model, D10–D11, D15
 - [~] **SIMP-11** — League Picks + standings: drop the `Diff` column and the moved-pick rows; ties share a rank with nothing shown behind them. _(deps: SIMP-9)_
 - [~] **SIMP-12** — Simulator: delete the `week-move` scenario; keep `cancelled-game` (now proving a push that stands rather than a substitution); reconcile `push-ats`/`tie-game` with fixed-0.5 scoring. _(deps: SIMP-9)_
 - [ ] **SIMP-13** — Rewrite `docs/runbooks/pickem-regression.md` against the new rules: Pass 5 goes entirely, Pass 3 loses the substitute half, Pass 6 loses re-pricing, and a new pass covers the confirm-and-freeze submission. _(deps: SIMP-10, SIMP-12)_
-- [ ] **SIMP-14** — E2E merge-gate journey updated to the submit-once flow. _(deps: SIMP-10)_
+- [~] **SIMP-14** — E2E merge-gate journey updated to the submit-once flow. _(deps: SIMP-10)_
 - [ ] **SIMP-15** — Dead-code sweep across the repo once the above lands: unreferenced exports, helpers, fixtures, test setup, and wire codes left behind by the deletions. Run last, when the shape has settled. _(deps: SIMP-14)_
 - [ ] **SIMP-16** — Verify picks genuinely open on Tuesday. `sync-odds` targets the week satisfying `startsAt <= now < endsAt`, so if ESPN's week window closes after Tuesday, the coming week's games carry no spread and an ATS league refuses every pick on them (`spread_unavailable`). Establish the real boundaries and, if the gap is real, widen odds coverage to the next week. _(deps: SIMP-7)_
 
