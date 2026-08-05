@@ -38,16 +38,15 @@ export const pickemPicks = pgTable(
       .notNull()
       .references(() => leagueMembers.id, { onDelete: "cascade" }),
     /**
-     * The week the pick was *made in*, denormalized from the game deliberately.
-     * When a game moves to another week the game's own `week_id` follows it,
-     * and the divergence from this column is what identifies the spec's "moved
-     * to a different week → treated as a cancellation" case (ADR-0007 — no
-     * pick-flag state is stored).
+     * The week the pick was made in. Denormalized from the game so the two
+     * questions asked of it constantly — a member's picks for a week, and how
+     * many they hold against the week's cap — are answered without joining
+     * through `games`; it is also half of the per-week uniqueness constraint
+     * below.
      *
-     * The divergence is only data, not behavior: the settlement input loader
-     * (PKM-4) is responsible for turning it into `status: moved` before calling
-     * `settlePickemWeek`, which never sees a pick's week. See that function's
-     * caller-obligation note.
+     * It no longer diverges from the game's own `week_id` in any way the
+     * product acts on: week moves are out of scope (ADR-0019), and a real one
+     * is expressed as an admin `cancelled` override on the game.
      */
     weekId: uuid("week_id")
       .notNull()
@@ -103,8 +102,8 @@ export const pickemPicks = pgTable(
  * here may be written by any path that isn't recomputable.
  *
  * Per mode, not shared — ADR-0016 records the deviation from arch D9's shared
- * `pick_results`/`standings`. The shape here is Pick'em's: points, a margin
- * differential, and one ranked row per member per scope. Elimination's board is
+ * `pick_results`/`standings`. The shape here is Pick'em's: points and one
+ * ranked row per member per scope. Elimination's board is
  * a survivor ledger (`elimination_state`) and March Madness wants one row **per
  * bracket**, up to 10 per member — neither fits, and forcing them to would cost
  * the constraints that make this table's rules DB-enforced. The reuse the fork
@@ -135,8 +134,6 @@ export const pickemPickResults = pgTable(
       .references(() => weeks.id, { onDelete: "restrict" }),
     outcome: text("outcome").$type<PickOutcome>().notNull(),
     points: doublePrecision("points").notNull(),
-    /** Cumulative-margin tiebreaker input (spec §Tiebreakers); 0 on a push. */
-    differential: doublePrecision("differential").notNull(),
     settledAt: timestamp("settled_at", { withTimezone: true }).notNull(),
   },
   (table) => [
@@ -164,10 +161,9 @@ export const pickemStandings = pgTable(
      */
     weekId: uuid("week_id").references(() => weeks.id, { onDelete: "restrict" }),
     points: doublePrecision("points").notNull(),
-    differential: doublePrecision("differential").notNull(),
     /**
-     * The member's settled record over the row's period — display only, never a
-     * tiebreaker (the spec stops at points then differential). Counted from
+     * The member's settled record over the row's period — display only, never
+     * an ordering input (points alone rank the board, ADR-0018). Counted from
      * `pickem_pick_results.outcome` on every rebuild like everything else here,
      * so the board stays fully recomputable from (picks, results, settings):
      * no incremental counter path may write these.
@@ -181,7 +177,7 @@ export const pickemStandings = pgTable(
     wins: integer("wins").notNull().default(0),
     losses: integer("losses").notNull().default(0),
     pushes: integer("pushes").notNull().default(0),
-    /** Ties share a rank (spec §Tiebreakers), so this is not unique. */
+    /** Members level on points share a rank, so this is not unique. */
     rank: integer("rank").notNull(),
     /** Serves the "last updated" stamp the spec requires on standings views. */
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

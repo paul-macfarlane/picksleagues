@@ -65,7 +65,7 @@ const getStandings = createRoute({
   responses: {
     200: {
       description:
-        "Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board",
+        "Rows in rank order, with each member's record and the time settlement last wrote the board",
       content: { "application/json": { schema: PickemStandingsResponseSchema } },
     },
     400: errorResponse(

@@ -70,7 +70,6 @@ export async function getPickemStandings(
       displayName: users.display_name,
       image: users.image,
       points: pickemStandings.points,
-      differential: pickemStandings.differential,
       wins: pickemStandings.wins,
       losses: pickemStandings.losses,
       pushes: pickemStandings.pushes,
@@ -121,10 +120,6 @@ export async function getPickemStandings(
       image: row?.image ?? null,
       isViewer: row?.userId === userId,
       points: entry.points,
-      // SIMP-5 bridge: `PickemStandingsRow.differential` leaves the wire in the
-      // next commit; until then it is served straight from the stored column,
-      // which ranking no longer consults.
-      differential: row?.differential ?? 0,
       wins: entry.wins,
       losses: entry.losses,
       pushes: entry.pushes,

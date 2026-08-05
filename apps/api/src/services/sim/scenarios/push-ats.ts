@@ -4,15 +4,14 @@ import { SIM_LIBRARY_TEAMS } from "./teams";
 import { WEEK_1, kickoffOffsetMs } from "./timing";
 
 /**
- * Exercises all three ATS outcomes in one week (spec §Pick'em Modes: "Push
- * (ATS) | Per league Push/Tie Resolution setting" plus the cover/non-cover
- * split that drives margin-differential tiebreakers).
+ * Exercises all three ATS outcomes in one week: an exact push (a fixed 0.5 per
+ * ADR-0018), a clear cover, and a clear non-cover.
  */
 export const pushAtsScenario: SimScenarioDefinition = {
   slug: "push-ats",
   name: "ATS push, cover, and non-cover",
   description: "One week with an exact ATS push alongside a clear cover and a clear non-cover.",
-  covers: "ATS push/cover/non-cover outcomes and margin-differential tiebreakers",
+  covers: "ATS push/cover/non-cover outcomes and the fixed 0.5 push",
   sport: SPORT.NFL,
   teams: SIM_LIBRARY_TEAMS,
   weeks: [WEEK_1],

@@ -151,7 +151,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as PickemStandingsResponse;
     expect(body.rows).toHaveLength(users.length);
-    expect(body.rows.every((row) => row.points === 0 && row.differential === 0)).toBe(true);
+    expect(body.rows.every((row) => row.points === 0)).toBe(true);
     // The record zero-fills the same way — 0-0-0 is a real record, not a gap.
     expect(body.rows.every((row) => row.wins === 0 && row.losses === 0 && row.pushes === 0)).toBe(
       true,
@@ -198,7 +198,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
 
     const joinerRow = body.rows.find((row) => row.userId === joiner.user.id);
     expect(joinerRow).toBeDefined();
-    expect(joinerRow).toMatchObject({ points: 0, differential: 0 });
+    expect(joinerRow).toMatchObject({ points: 0 });
   });
 
   it("orders season rows by rank, shares a rank on a full tie and skips the next, and marks isViewer only on the caller's own row", async () => {
@@ -242,9 +242,11 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
       side: PICKEM_PICK_SIDE.HOME,
     });
 
-    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // alpha: correct, +10
-    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 25, awayScore: 15 }); // bravo: correct, +10 (ties alpha)
-    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 15 }); // charlie: correct, +5
+    // Alpha and Bravo win by different margins and still tie: points are the
+    // only ordering input (ADR-0018).
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // alpha: correct, 1pt
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 25, awayScore: 24 }); // bravo: correct, 1pt
+    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 15, awayScore: 20 }); // charlie: incorrect, 0pts
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
@@ -254,9 +256,9 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     const body = (await res.json()) as PickemStandingsResponse;
 
     expect(body.rows.map((row) => row.displayName)).toEqual(["Alpha", "Bravo", "Charlie"]);
-    expect(body.rows[0]).toMatchObject({ points: 1, differential: 10, rank: 1, isViewer: true });
-    expect(body.rows[1]).toMatchObject({ points: 1, differential: 10, rank: 1, isViewer: false });
-    expect(body.rows[2]).toMatchObject({ points: 1, differential: 5, rank: 3, isViewer: false }); // skips rank 2
+    expect(body.rows[0]).toMatchObject({ points: 1, rank: 1, isViewer: true });
+    expect(body.rows[1]).toMatchObject({ points: 1, rank: 1, isViewer: false });
+    expect(body.rows[2]).toMatchObject({ points: 0, rank: 3, isViewer: false }); // skips rank 2
   });
 
   it("serves each member's settled W/L/P, and 0-0-0 for one with nothing settled", async () => {
@@ -349,14 +351,14 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     expect(weeklyRes.status).toBe(200);
     const weeklyBody = (await weeklyRes.json()) as PickemStandingsResponse;
     const weeklyRow = weeklyBody.rows.find((row) => row.userId === users[0]!.user.id)!;
-    expect(weeklyRow).toMatchObject({ points: 1, differential: 14 });
+    expect(weeklyRow).toMatchObject({ points: 1 });
     expect(weeklyBody.weekId).toBe(week1Id);
 
     const seasonRes = await getStandings(users[0]!.cookie, league.id);
     expect(seasonRes.status).toBe(200);
     const seasonBody = (await seasonRes.json()) as PickemStandingsResponse;
     const seasonRow = seasonBody.rows.find((row) => row.userId === users[0]!.user.id)!;
-    expect(seasonRow).toMatchObject({ points: 1, differential: 10 }); // 14 - 4, summed across both weeks
+    expect(seasonRow).toMatchObject({ points: 1, wins: 1, losses: 1 }); // summed across both weeks
     expect(seasonBody.weekId).toBeNull();
   });
 
@@ -385,7 +387,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as PickemStandingsResponse;
     const row = body.rows.find((r) => r.userId === nonPicker.user.id)!;
-    expect(row).toMatchObject({ points: 0, differential: 0 });
+    expect(row).toMatchObject({ points: 0 });
   });
 
   it("lastUpdatedAt is an ISO timestamp once settlement has run", async () => {

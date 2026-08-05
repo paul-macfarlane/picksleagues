@@ -79,7 +79,6 @@ async function loadStandingsRows(
       username: users.username,
       displayName: users.display_name,
       points: pickemStandings.points,
-      differential: pickemStandings.differential,
       rank: pickemStandings.rank,
     })
     .from(pickemStandings)

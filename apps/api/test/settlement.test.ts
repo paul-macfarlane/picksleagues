@@ -62,7 +62,6 @@ function snapshotResults(rows: Awaited<ReturnType<typeof pickResultsFor>>) {
       weekId: row.weekId,
       outcome: row.outcome,
       points: row.points,
-      differential: row.differential,
     }));
 }
 
@@ -78,7 +77,6 @@ function snapshotStandings(rows: Awaited<ReturnType<typeof standingsFor>>) {
       leagueMemberId: row.leagueMemberId,
       weekId: row.weekId,
       points: row.points,
-      differential: row.differential,
       wins: row.wins,
       losses: row.losses,
       pushes: row.pushes,
@@ -208,21 +206,9 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       ).map((pick) => [pick.gameId, byGame.get(pick.id)!]),
     );
 
-    expect(byGameId.get(g1!)).toMatchObject({
-      outcome: PICK_OUTCOME.CORRECT,
-      points: 1,
-      differential: 14,
-    });
-    expect(byGameId.get(g2!)).toMatchObject({
-      outcome: PICK_OUTCOME.INCORRECT,
-      points: 0,
-      differential: -14,
-    });
-    expect(byGameId.get(g3!)).toMatchObject({
-      outcome: PICK_OUTCOME.PUSH,
-      points: 0.5,
-      differential: 0,
-    });
+    expect(byGameId.get(g1!)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, points: 1 });
+    expect(byGameId.get(g2!)).toMatchObject({ outcome: PICK_OUTCOME.INCORRECT, points: 0 });
+    expect(byGameId.get(g3!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
   });
 
   it("grades an ATS pick against spread_at_pick, not the latest odds snapshot", async () => {
@@ -261,7 +247,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, differential: 0.5 });
+    expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
   });
 
   it("resolves a cancelled game's pick as a push", async () => {
@@ -283,7 +269,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5, differential: 0 });
+    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
   });
 
   it("resolves a pick as a push when its game has moved to another week, even if that game is final with scores", async () => {
@@ -320,7 +306,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, differential: 0 });
+    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
   });
 
   it("an override_status of final outranks a synthesized week move, but an unoverridden moved game still resolves as a push", async () => {
@@ -384,8 +370,8 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       picks.map((pick) => [pick.gameId, results.find((row) => row.pickemPickId === pick.id)!]),
     );
 
-    expect(byGame.get(g1!)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, differential: 20 });
-    expect(byGame.get(g2!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH, differential: 0 });
+    expect(byGame.get(g1!)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
+    expect(byGame.get(g2!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
   });
 
   it("prefers override_home_score/override_away_score over the provider score", async () => {
@@ -414,7 +400,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, differential: 10 });
+    expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
   });
 
   it("an override_status of cancelled turns a final game's pick into a push", async () => {
@@ -441,7 +427,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, differential: 0 });
+    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
   });
 
   it("produces no pickem_pick_results row for a pick on a still-scheduled game", async () => {
@@ -516,8 +502,8 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     expect(season).toHaveLength(2);
     const weeklyWinner = weekly.find((row) => row.leagueMemberId === memberId)!;
     const seasonWinner = season.find((row) => row.leagueMemberId === memberId)!;
-    expect(weeklyWinner).toMatchObject({ points: 1, differential: 14 });
-    expect(seasonWinner).toMatchObject({ points: 1, differential: 14 });
+    expect(weeklyWinner).toMatchObject({ points: 1 });
+    expect(seasonWinner).toMatchObject({ points: 1 });
   });
 
   it("sums the season row across weeks", async () => {
@@ -558,10 +544,10 @@ describe("settleLeagueSeasonWeeks — standings", () => {
 
     const rows = await standingsFor(db, leagueSeasonId);
     const season = rows.find((row) => row.weekId === null && row.leagueMemberId === memberId)!;
-    expect(season).toMatchObject({ points: 1, differential: 10 });
+    expect(season).toMatchObject({ points: 1, wins: 1, losses: 1 });
   });
 
-  it("ranks by points then differential, and a full tie shares a rank", async () => {
+  it("ranks by points alone: members level on points share a rank, and the next rank skips", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
       memberCount: 3,
       weeks: [
@@ -603,18 +589,20 @@ describe("settleLeagueSeasonWeeks — standings", () => {
       side: PICKEM_PICK_SIDE.HOME,
     });
 
-    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // D: correct, +10
-    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 25, awayScore: 15 }); // E: correct, +10 (ties D)
-    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 15 }); // F: correct, +5
+    // D and E win by different margins, which used to separate them on the
+    // differential and now must not separate them at all (ADR-0018).
+    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 30, awayScore: 20 }); // D: correct, 1pt
+    await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 25, awayScore: 24 }); // E: correct, 1pt
+    await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 15, awayScore: 20 }); // F: incorrect, 0pts
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const season = (await standingsFor(db, leagueSeasonId)).filter((row) => row.weekId === null);
     const byMember = new Map(season.map((row) => [row.leagueMemberId, row]));
-    expect(byMember.get(memberD)).toMatchObject({ points: 1, differential: 10, rank: 1 });
-    expect(byMember.get(memberE)).toMatchObject({ points: 1, differential: 10, rank: 1 });
-    expect(byMember.get(memberF)).toMatchObject({ points: 1, differential: 5, rank: 3 }); // skips rank 2
+    expect(byMember.get(memberD)).toMatchObject({ points: 1, rank: 1 });
+    expect(byMember.get(memberE)).toMatchObject({ points: 1, rank: 1 });
+    expect(byMember.get(memberF)).toMatchObject({ points: 0, rank: 3 }); // skips rank 2
   });
 
   it("counts each member's wins, losses and pushes, zero-filling a member with no picks", async () => {
@@ -706,8 +694,8 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const seasonNonPicker = rows.find(
       (row) => row.weekId === null && row.leagueMemberId === nonPicker,
     )!;
-    expect(weeklyNonPicker).toMatchObject({ points: 0, differential: 0 });
-    expect(seasonNonPicker).toMatchObject({ points: 0, differential: 0 });
+    expect(weeklyNonPicker).toMatchObject({ points: 0 });
+    expect(seasonNonPicker).toMatchObject({ points: 0 });
   });
 
   it("a week whose picks are all still on scheduled games still gets a weekly board, every member at zero, alongside a settled week and the season row", async () => {
@@ -756,7 +744,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     expect(week2Rows).toHaveLength(2); // both members, even though week 2 has zero results yet
     expect(seasonRows).toHaveLength(2);
     for (const row of week2Rows) {
-      expect(row).toMatchObject({ points: 0, differential: 0 });
+      expect(row).toMatchObject({ points: 0 });
     }
   });
 
@@ -770,7 +758,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     expect(rows.every((row) => row.weekId === null)).toBe(true); // no weekly rows: no week has picks
     expect(rows).toHaveLength(members.size);
     for (const row of rows) {
-      expect(row).toMatchObject({ points: 0, differential: 0, rank: 1 });
+      expect(row).toMatchObject({ points: 0, rank: 1 });
     }
   });
 });
@@ -865,16 +853,12 @@ describe("settlement idempotency (arch D10)", () => {
 
     const after = await pickResultsFor(db, leagueSeasonId);
     expect(after).toHaveLength(1); // updated in place, not appended
-    expect(after[0]).toMatchObject({
-      outcome: PICK_OUTCOME.INCORRECT,
-      points: 0,
-      differential: -15,
-    });
+    expect(after[0]).toMatchObject({ outcome: PICK_OUTCOME.INCORRECT, points: 0 });
 
     const seasonRow = (await standingsFor(db, leagueSeasonId)).find(
       (row) => row.weekId === null && row.leagueMemberId === memberId,
     )!;
-    expect(seasonRow).toMatchObject({ points: 0, differential: -15 });
+    expect(seasonRow).toMatchObject({ points: 0 });
   });
 
   it("a pick that stops being settleable (game reverts to scheduled) loses its pickem_pick_results row on the next settle", async () => {
