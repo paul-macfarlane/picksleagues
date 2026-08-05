@@ -13,11 +13,21 @@ import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
 
 /**
  * Maintains the current spread on each unstarted game in the current NFL week
- * (arch §Spread strategy): one number per game, overwritten in place. No
- * history is kept — the audit that matters is what a member accepted, which is
- * denormalized onto the pick as `pickem_picks.spread_at_pick` (ADR-0018). Re-
- * running is a true no-op when the line hasn't moved: the same provider
- * response leaves identical row state.
+ * **and the week after it** (arch §Spread strategy): one number per game,
+ * overwritten in place. No history is kept — the audit that matters is what a
+ * member accepted, which is denormalized onto the pick as
+ * `pickem_picks.spread_at_pick` (ADR-0018). Re-running is a true no-op when the
+ * line hasn't moved: the same provider response leaves identical row state.
+ *
+ * Two weeks, not one (SIMP-16). Verified against the live ESPN core API on
+ * 2026-08-05: after the opening week, an ESPN week runs Wednesday ~07:00Z to
+ * the following Wednesday ~06:59Z and the windows are contiguous. So on a
+ * Tuesday the week matching `startsAt <= now < endsAt` is the one whose games
+ * were all played the preceding Thursday/Sunday/Monday — every one of them
+ * fails the `kickoff > now` filter, and a current-week-only target priced
+ * nothing at all. Locking is `kickoff > now`, so members can already pick the
+ * coming weekend; without a line an ATS league refuses every one of those picks
+ * with `spread_unavailable` until Wednesday ~3am ET.
  *
  * Never *creates* `games`/`weeks` (that is schedule-sync's job) and never
  * writes any `override_*` column (arch D15) — a correction outlives every
@@ -51,14 +61,15 @@ export async function syncNflOdds(
 
   // An explicit week defaults its type to REGULAR — a bare week number is the
   // regular-season case; postseason narrowing must name `weekType`.
-  const targetWeek = await resolveTargetWeek(
+  const targetWeeks = await resolveTargetWeeks(
     db,
     season.id,
     now,
     opts?.weekNumber,
     opts?.weekType ?? WEEK_TYPE.REGULAR,
   );
-  if (!targetWeek) {
+  const [anchorWeek] = targetWeeks;
+  if (!anchorWeek) {
     // An explicitly requested week that isn't synced is a distinct condition
     // from "no current week" on the derived path — surface the sibling jobs'
     // term (sync-scores/sync-schedule) so the two never blur together.
@@ -71,6 +82,39 @@ export async function syncNflOdds(
     };
   }
 
+  let unstartedGames = 0;
+  let spreadsUpdated = 0;
+  let gamesWithoutOdds = 0;
+  for (const week of targetWeeks) {
+    const counts = await priceUnstartedGames(db, provider, seasonYear, week, now);
+    unstartedGames += counts.unstartedGames;
+    spreadsUpdated += counts.spreadsUpdated;
+    gamesWithoutOdds += counts.gamesWithoutOdds;
+  }
+
+  return {
+    seasonYear,
+    // The anchor week the run resolved; the counters below span every week it
+    // covered, which `weeksTargeted` says how many of were.
+    weekType: anchorWeek.weekType,
+    weekNumber: anchorWeek.weekNumber,
+    weeksTargeted: targetWeeks.length,
+    unstartedGames,
+    // Rows actually written, matching `sync-scores`' `gamesUpdated`: a re-run
+    // over an unmoved line reports 0, which is the no-op saying so.
+    spreadsUpdated,
+    gamesWithoutOdds,
+  };
+}
+
+/** Prices one week's unstarted games in place, reporting what it touched. */
+async function priceUnstartedGames(
+  db: Db,
+  provider: GameDataProvider,
+  seasonYear: number,
+  week: TargetWeek,
+  now: Date,
+): Promise<{ unstartedGames: number; spreadsUpdated: number; gamesWithoutOdds: number }> {
   // Our tables are the source of truth for what's unstarted — lock state is
   // derived, never stored (arch D11): kickoff still in the future, and a status
   // that is neither started nor abandoned.
@@ -86,29 +130,23 @@ export async function syncNflOdds(
     .from(games)
     .where(
       and(
-        eq(games.weekId, targetWeek.id),
+        eq(games.weekId, week.id),
         gt(games.kickoffAt, now),
         inArray(games.status, [...UNSTARTED_GAME_STATUSES]),
       ),
     );
 
+  // Nothing to price is nothing to fetch — a spent week costs no provider call.
   if (unstartedGames.length === 0) {
-    return {
-      seasonYear,
-      weekType: targetWeek.weekType,
-      weekNumber: targetWeek.weekNumber,
-      unstartedGames: 0,
-      spreadsUpdated: 0,
-      gamesWithoutOdds: 0,
-    };
+    return { unstartedGames: 0, spreadsUpdated: 0, gamesWithoutOdds: 0 };
   }
 
   // Network read outside any transaction (engineering rules: never hold a
   // transaction open across a network call).
   const providerGames = await provider.fetchNflWeekGames(
     seasonYear,
-    targetWeek.weekType,
-    targetWeek.weekNumber,
+    week.weekType,
+    week.weekNumber,
   );
   const spreadByProviderId = new Map(
     providerGames.map((game) => [game.providerGameId, game.spread]),
@@ -142,33 +180,41 @@ export async function syncNflOdds(
     spreadsUpdated += 1;
   }
 
-  return {
-    seasonYear,
-    weekType: targetWeek.weekType,
-    weekNumber: targetWeek.weekNumber,
-    unstartedGames: unstartedGames.length,
-    // Rows actually written, matching `sync-scores`' `gamesUpdated`: a re-run
-    // over an unmoved line reports 0, which is the no-op saying so.
-    spreadsUpdated,
-    gamesWithoutOdds,
-  };
+  return { unstartedGames: unstartedGames.length, spreadsUpdated, gamesWithoutOdds };
 }
 
+type TargetWeek = { id: string; weekType: WeekType; weekNumber: number; startsAt: Date };
+
 /**
- * Resolves the week to snapshot from OUR `weeks` table (never the provider):
- * an explicit (type, number), else the week currently in progress
- * (`startsAt <= now < endsAt`), else the next upcoming week (pre-season odds).
+ * Resolves the weeks to price from OUR `weeks` table (never the provider).
+ *
+ * An explicit (type, number) targets that week **alone** — naming a week is the
+ * narrow manual/simulator path, and widening it would make a backfill of one
+ * week quietly rewrite another. Otherwise the anchor is the week currently in
+ * progress (`startsAt <= now < endsAt`), else the next upcoming week (pre-season
+ * odds) — and the week following the anchor comes with it, because ESPN's
+ * window rolls over on Wednesday while members can pick the coming weekend from
+ * the moment the previous one ends (see `syncNflOdds`).
+ *
  * The window-based paths need no type filter — regular and postseason windows
- * never overlap, so `startsAt <= now < endsAt` picks out exactly one week.
+ * never overlap, so `startsAt <= now < endsAt` picks out exactly one week. The
+ * follower is found by start time for the same reason: the week after regular
+ * 18 is postseason 1, and a type filter would leave the Wild Card slate
+ * unpriced through the last regular week.
  */
-async function resolveTargetWeek(
+async function resolveTargetWeeks(
   db: Db,
   seasonId: string,
   now: Date,
   weekNumber: number | undefined,
   weekType: WeekType,
-): Promise<{ id: string; weekType: WeekType; weekNumber: number } | null> {
-  const selection = { id: weeks.id, weekType: weeks.weekType, weekNumber: weeks.weekNumber };
+): Promise<TargetWeek[]> {
+  const selection = {
+    id: weeks.id,
+    weekType: weeks.weekType,
+    weekNumber: weeks.weekNumber,
+    startsAt: weeks.startsAt,
+  };
 
   if (weekNumber !== undefined) {
     const [week] = await db
@@ -181,7 +227,7 @@ async function resolveTargetWeek(
           eq(weeks.weekNumber, weekNumber),
         ),
       );
-    return week ?? null;
+    return week ? [week] : [];
   }
 
   const [current] = await db
@@ -192,15 +238,24 @@ async function resolveTargetWeek(
     // claim be load-bearing: pick the earliest-starting match deterministically.
     .orderBy(asc(weeks.startsAt))
     .limit(1);
-  if (current) {
-    return current;
-  }
 
-  const [next] = await db
+  let anchor: TargetWeek | undefined = current;
+  if (!anchor) {
+    [anchor] = await db
+      .select(selection)
+      .from(weeks)
+      .where(and(eq(weeks.seasonId, seasonId), gt(weeks.startsAt, now)))
+      .orderBy(asc(weeks.startsAt))
+      .limit(1);
+  }
+  if (!anchor) return [];
+
+  const [following] = await db
     .select(selection)
     .from(weeks)
-    .where(and(eq(weeks.seasonId, seasonId), gt(weeks.startsAt, now)))
+    .where(and(eq(weeks.seasonId, seasonId), gt(weeks.startsAt, anchor.startsAt)))
     .orderBy(asc(weeks.startsAt))
     .limit(1);
-  return next ?? null;
+
+  return following ? [anchor, following] : [anchor];
 }
