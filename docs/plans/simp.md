@@ -392,7 +392,7 @@ test:integration` → `pnpm contract:check` (any schema/route commit) → `pnpm
 | SIMP-15 sweep | `pnpm lint`/`typecheck` + orphan grep list in PR body | No unreferenced exports left by the epic | PR 3 | — |
 | SIMP-16 Tuesday picks | Clock-pinned integration test on week targeting; observed-boundary note | Coming week's games carry spreads when picks open | PR 3 | sync-odds edits |
 | SIMP-18/19 stored resolved range | Integration: create at boundary instants + games-less season; parse stored JSONB; **client-supplied range cannot override preset** | Preset + resolved refs stored server-side; never born already-started | PR 3 | Settings-schema edits |
-| SIMP-20 one select | e2e create-league + phone-width screenshot | Preset select only; save validates via `LEAGUE_SETTINGS_SCHEMAS` | PR 3 | Form edits |
+| SIMP-20 one select | e2e create-league + phone-width screenshot | Preset select only; save validates via `LEAGUE_SETTINGS_INPUT_SCHEMAS` | PR 3 | Form edits |
 
 Real-dependency posture: no external seam — request paths never call ESPN;
 integration tests run against real Postgres (`db:up` first); e2e runs the full
@@ -878,3 +878,10 @@ Earliest meaningful checkpoints, and what invalidates the evidence:
 at ports 5273/3100 and never touches the dev database (corrected and re-verified in
 PR 2). Evidence root `docs/evidence/test-results/` is cleared at PR 3 open — PR 2's
 evidence survives in git history at its merge commit.
+
+**Verification-map correction (2026-08-05, D2).** The SIMP-20 row above said the save
+validates through `LEAGUE_SETTINGS_SCHEMAS`. That was written before D1 split the wire
+and stored shapes into two dispatch maps; a preset-only payload cannot satisfy the
+stored schema, whose week refs are required. The row now names
+`LEAGUE_SETTINGS_INPUT_SCHEMAS`. This corrects a stale plan line to match an approved
+decision (ADR-0020 §The wire shape diverges from the stored shape) — it is not a new one.
