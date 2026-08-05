@@ -1,10 +1,11 @@
 import { z } from "@hono/zod-openapi";
 
 /**
- * Domain game status (arch §Overrides, §Domain Model). Provider ingestion only
- * ever writes the first five; `moved` exists solely for admin `override_status`
- * — a provider "week move" is expressed as the game's week FK changing, and the
- * spec's treat-as-cancelled pick handling derives from that at settlement time.
+ * Domain game status (arch §Overrides, §Domain Model). Provider ingestion
+ * writes all five, and admin `override_status` chooses among the same five —
+ * there is no admin-only status. A real provider week move is handled by an
+ * admin `cancelled` override (ADR-0019), which is the rule members already
+ * understand, rather than by a sixth status only settlement knew how to read.
  */
 export const GAME_STATUS = {
   SCHEDULED: "scheduled",
@@ -12,7 +13,6 @@ export const GAME_STATUS = {
   FINAL: "final",
   POSTPONED: "postponed",
   CANCELLED: "cancelled",
-  MOVED: "moved",
 } as const;
 
 export type GameStatus = (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
@@ -29,15 +29,15 @@ export const NullableGameStatusSchema = GameStatusSchema.nullable().openapi("Nul
 
 /**
  * Statuses meaning the game will never be played in this week — the spec's
- * cancellation rule and its "moved to a different week is treated as a
- * cancellation" twin (spec §Cancellations, Postponements & Re-picks).
+ * cancellation rule (spec §Cancellations & Postponements).
  *
- * One definition, because two rules key off it and they must agree: such a game
- * is not *pickable* (offering it would mint free push points), and an existing
- * pick on one *resolves as a push*. `postponed` is deliberately absent — a
- * postponement inside the week is played later and resolves normally.
+ * Still a set rather than a bare comparison, because two rules key off it and
+ * they must agree: such a game is not *pickable* (offering it would mint free
+ * push points), and an existing pick on one *resolves as a push*. `postponed`
+ * is deliberately absent — a postponement inside the week is played later and
+ * resolves normally.
  */
-const UNPLAYED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.CANCELLED, GAME_STATUS.MOVED];
+const UNPLAYED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.CANCELLED];
 
 export function isUnplayedStatus(status: GameStatus): boolean {
   return UNPLAYED_GAME_STATUSES.includes(status);

@@ -5,7 +5,6 @@ import {
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
   nflSeasonOrdinal,
-  PICKEM_PUSH_TIE_RESOLUTION,
   pickemSettingsInvalidatePicks,
   PickemSettingsSchema,
   type PickemSettings,
@@ -37,10 +36,9 @@ describe("PickemSettingsSchema", () => {
     pickType: "straight_up",
   };
 
-  it("applies defaults: 5 picks per week, half-point pushes", () => {
+  it("applies defaults: 5 picks per week", () => {
     const parsed = PickemSettingsSchema.parse(base);
     expect(parsed.picksPerWeek).toBe(5);
-    expect(parsed.pushTieResolution).toBe("half_point");
   });
 
   it.each([
@@ -57,17 +55,16 @@ describe("PickemSettingsSchema", () => {
       input: { ...base, startWeek: postseason(1), endWeek: postseason(4) },
     },
     {
-      label: "ATS with full-point pushes, 16 picks",
-      input: {
-        ...base,
-        pickType: "against_the_spread",
-        picksPerWeek: 16,
-        pushTieResolution: "full_point",
-      },
+      label: "ATS with 16 picks",
+      input: { ...base, pickType: "against_the_spread", picksPerWeek: 16 },
     },
+    { label: "1 pick per week", input: { ...base, picksPerWeek: 1 } },
     {
-      label: "1 pick per week, zero-point pushes",
-      input: { ...base, picksPerWeek: 1, pushTieResolution: "zero_points" },
+      // Push is fixed at 0.5 (ADR-0018) and the setting is gone; Zod strips
+      // unknown keys, so a league_seasons row stored before the removal still
+      // parses instead of failing every read path that touches it.
+      label: "a stored row still carrying the retired pushTieResolution key",
+      input: { ...base, pushTieResolution: "full_point" },
     },
   ])("accepts $label", ({ input }) => {
     expect(PickemSettingsSchema.safeParse(input).success).toBe(true);
@@ -88,7 +85,6 @@ describe("PickemSettingsSchema", () => {
     { label: "0 picks per week", input: { ...base, picksPerWeek: 0 } },
     { label: "17 picks per week", input: { ...base, picksPerWeek: 17 } },
     { label: "fractional picks per week", input: { ...base, picksPerWeek: 2.5 } },
-    { label: "unknown push resolution", input: { ...base, pushTieResolution: "quarter_point" } },
     { label: "unknown pick type", input: { ...base, pickType: "parlay" } },
   ])("rejects $label", ({ input }) => {
     expect(PickemSettingsSchema.safeParse(input).success).toBe(false);
@@ -101,7 +97,6 @@ describe("pickemSettingsInvalidatePicks", () => {
     endWeek: regular(18),
     pickType: "straight_up",
     picksPerWeek: 5,
-    pushTieResolution: "half_point",
   };
 
   it.each([
@@ -115,6 +110,10 @@ describe("pickemSettingsInvalidatePicks", () => {
       next: base,
     },
     { label: "picksPerWeek is lowered", next: { ...base, picksPerWeek: 4 } },
+    // A raise strands picks just as a lowering does, for the opposite reason:
+    // under submit-once (ADR-0018) the member has spent their one submission
+    // and would sit permanently under the new cap with no way to add picks.
+    { label: "picksPerWeek is raised", next: { ...base, picksPerWeek: 6 } },
     { label: "startWeek moves later in season order", next: { ...base, startWeek: regular(2) } },
     {
       label: "startWeek moves later across the regular/postseason boundary",
@@ -132,11 +131,6 @@ describe("pickemSettingsInvalidatePicks", () => {
 
   it.each([
     { label: "nothing changes", next: base },
-    { label: "picksPerWeek is raised", next: { ...base, picksPerWeek: 6 } },
-    {
-      label: "pushTieResolution changes alone",
-      next: { ...base, pushTieResolution: "zero_points" as const },
-    },
     {
       label: "startWeek moves earlier (widens the range)",
       previous: { ...base, startWeek: regular(2) },
@@ -256,11 +250,6 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
   it("pins the wire values other packages build on", () => {
     expect(Object.values(LEAGUE_MODE).sort()).toEqual(["elimination", "march_madness", "pickem"]);
     expect(Object.values(PICK_TYPE).sort()).toEqual(["against_the_spread", "straight_up"]);
-    expect(Object.values(PICKEM_PUSH_TIE_RESOLUTION).sort()).toEqual([
-      "full_point",
-      "half_point",
-      "zero_points",
-    ]);
     expect(Object.values(ELIMINATION_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
     expect(Object.values(WEEK_TYPE).sort()).toEqual(["postseason", "regular"]);
   });

@@ -173,7 +173,6 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
   picksPerWeek: 5,
-  pushTieResolution: "half_point",
 };
 
 /** Four unstarted games, spread an hour apart — enough room to hold several picks and still leave one unpicked as a repick target. */

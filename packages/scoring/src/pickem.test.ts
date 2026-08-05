@@ -280,13 +280,14 @@ describe("settlePickemWeek — pushes and ties", () => {
   });
 });
 
-describe("settlePickemWeek — cancellations, moves, postponements", () => {
-  const unplayedPushStatuses: GameStatus[] = [GAME_STATUS.CANCELLED, GAME_STATUS.MOVED];
-
-  it.each(unplayedPushStatuses)("a %s game resolves as a push worth 0.5", (status) => {
+describe("settlePickemWeek — cancellations and postponements", () => {
+  // Cancellation is the only way a game can end unplayed. A provider week move
+  // is no longer a status of its own (ADR-0019): an admin expresses it as a
+  // `cancelled` override, so it lands on exactly this path.
+  it("a cancelled game resolves as a push worth 0.5", () => {
     const { outcomes, unsettled } = settlePickemWeek(
       [pick()],
-      [result({ status, homeScore: null, awayScore: null })],
+      [result({ status: GAME_STATUS.CANCELLED, homeScore: null, awayScore: null })],
       settings(PICK_TYPE.STRAIGHT_UP),
     );
 

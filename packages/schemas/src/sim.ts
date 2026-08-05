@@ -339,7 +339,6 @@ export const SimSettlePickemStandingsRowSchema = z
     username: z.string().nullable(),
     displayName: z.string(),
     points: z.number(),
-    differential: z.number(),
     rank: z.number().int(),
   })
   .openapi("SimSettlePickemStandingsRow");

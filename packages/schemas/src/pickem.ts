@@ -2,7 +2,6 @@ import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
 import { PickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
-import { SlateTeamSchema } from "./slate";
 
 /**
  * Pick'em pick entry, its standings, and the shapes only this mode has (spec
@@ -29,20 +28,14 @@ export const PickemStandingsRowSchema = z
     isViewer: z.boolean(),
     points: z.number(),
     /**
-     * Cumulative margin differential over the period — the spec's only
-     * tiebreaker (§Tiebreakers). Serialized so the UI can show *why* two
-     * members on equal points are ordered as they are.
-     */
-    differential: z.number(),
-    /**
      * The member's settled record over the period — how many picks resolved
-     * correct, incorrect, and push. Display only: the spec's tiebreakers stop
-     * at the differential, so a better record never changes an ordering.
+     * correct, incorrect, and push. Display only: points are the sole ordering
+     * input (ADR-0018), so a better record never changes an ordering.
      */
     wins: z.number().int(),
     losses: z.number().int(),
     pushes: z.number().int(),
-    /** Members level on points and differential share a rank. */
+    /** Members level on points share a rank; the next rank skips. */
     rank: z.number().int(),
   })
   .openapi("PickemStandingsRow");
@@ -64,30 +57,6 @@ export const PickemStandingsResponseSchema = z
   .openapi("PickemStandingsResponse");
 
 export type PickemStandingsResponse = z.infer<typeof PickemStandingsResponseSchema>;
-
-/**
- * Substitutes one pick for another after its game was cancelled or moved out of
- * the week (spec §Cancellations, Postponements & Re-picks).
- *
- * Deliberately not a flag on the batch upsert: that endpoint re-prices *every*
- * unstarted pick on any change, and this rule is its exact inverse — only the
- * replacement accepts a spread, and the member's other picks keep theirs
- * (ADR-0015). One replaces the other rather than adding to it: the push is what
- * the member holds if they do *not* re-pick, so a substitute that stacked on top
- * would hand them more scoring chances than Picks Per Week allows.
- */
-export const PickemRepickRequestSchema = z
-  .object({
-    /** The pick being given up — its game must be cancelled or moved. */
-    replacePickId: z.uuid(),
-    gameId: z.uuid(),
-    side: PickemPickSideSchema,
-    /** Required in ATS leagues, and matched against the replacement's current spread only. */
-    spread: z.number().nullable().default(null),
-  })
-  .openapi("PickemRepickRequest");
-
-export type PickemRepickRequest = z.infer<typeof PickemRepickRequestSchema>;
 
 export const PickemPickSubmissionSchema = z
   .object({
@@ -126,35 +95,6 @@ export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSc
 // component and widen every other reference to it.
 const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
 
-/**
- * Enough of a game to name it, for a pick whose game has left the week the pick
- * was made in (a provider week move — ADR-0015).
- *
- * It exists because such a game is, by definition, absent from the week's own
- * slate: the read path returns picks by the week they were *made* in, while the
- * slate is the games currently *in* that week. Every other pick renders its
- * matchup by joining against the slate; this one has nothing to join to, and
- * without this carried it can only be described as "a game that moved" — which
- * tells a member their pick pushed but not which pick it was.
- *
- * `weekLabel` is where the game went, not where the pick lives.
- */
-export const PickemMovedGameSchema = z
-  .object({
-    homeTeam: SlateTeamSchema,
-    awayTeam: SlateTeamSchema,
-    weekLabel: z.string(),
-  })
-  .openapi("PickemMovedGame");
-
-export type PickemMovedGame = z.infer<typeof PickemMovedGameSchema>;
-
-// Registered under its own name rather than inlined as `.nullable()`: the
-// wrapper would inherit the registration and fold `null` into the shared
-// component, silently widening every other `$ref` to it (see NullableUsername).
-export const NullablePickemMovedGameSchema =
-  PickemMovedGameSchema.nullable().openapi("NullablePickemMovedGame");
-
 export const PickemPickSchema = z
   .object({
     id: z.string(),
@@ -169,11 +109,6 @@ export const PickemPickSchema = z
      * "settled as nothing", and the UI must not render it as an outcome.
      */
     outcome: NullablePickOutcomeSchema,
-    // Non-null only for a pick whose game left this week — see the schema above.
-    // Its presence *is* the "this pick moved out" signal; the UI needs no second
-    // flag, and can't derive it, since the slate it would check is exactly what
-    // no longer contains the game.
-    movedGame: NullablePickemMovedGameSchema,
     updatedAt: z.iso.datetime(),
   })
   .openapi("PickemPick");

@@ -13,7 +13,6 @@ import {
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
-  PICKEM_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -1262,6 +1261,10 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
       settings: settingsWith({ pickType: PICK_TYPE.AGAINST_THE_SPREAD }),
     },
     { label: "picksPerWeek is lowered", settings: settingsWith({ picksPerWeek: 2 }) },
+    // A raise strands picks too under submit-once (ADR-0018): the member has
+    // already spent their one submission and would be stuck under the new cap
+    // forever. Clearing is the only way back into the week.
+    { label: "picksPerWeek is raised", settings: settingsWith({ picksPerWeek: 8 }) },
     {
       label: "startWeek moves later",
       settings: settingsWith({ startWeek: { type: WEEK_TYPE.REGULAR, number: 2 } }),
@@ -1280,10 +1283,9 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
 
   it.each([
     {
-      label: "pushTieResolution changes alone",
-      settings: settingsWith({ pushTieResolution: PICKEM_PUSH_TIE_RESOLUTION.ZERO_POINTS }),
+      label: "endWeek moves later",
+      settings: settingsWith({ endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 } }),
     },
-    { label: "picksPerWeek is raised", settings: settingsWith({ picksPerWeek: 8 }) },
   ])("keeps picks when $label — nothing is stranded", async ({ settings }) => {
     const { league, memberA } = await seedWithOnePick();
 
@@ -1307,7 +1309,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
       startWeek: DEFAULT_PICKEM_SETTINGS.startWeek,
       endWeek: DEFAULT_PICKEM_SETTINGS.endWeek,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
-      pushTieResolution: DEFAULT_PICKEM_SETTINGS.pushTieResolution,
     };
     await db
       .update(leagueSeasons)

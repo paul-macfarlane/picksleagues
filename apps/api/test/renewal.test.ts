@@ -27,7 +27,6 @@ const CUSTOM_SETTINGS: LeagueSettings = {
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
   picksPerWeek: 3,
-  pushTieResolution: "half_point",
 };
 
 const Y2026_KICKOFF = new Date("2026-09-13T17:00:00.000Z");

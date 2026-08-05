@@ -12,13 +12,11 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  PICKEM_PUSH_TIE_RESOLUTION,
   type EliminationPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type PickType,
-  type PickemPushTieResolution,
 } from "@picksleagues/schemas";
 import { useCreateLeague } from "@/api/leagues";
 import { leagueModeLabel } from "@/lib/league";
@@ -60,9 +58,6 @@ function NewLeague() {
   const [pickemEndWeek, setPickemEndWeek] = useState(DEFAULT_PICKEM_END_WEEK);
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
-  const [pickemPushTie, setPickemPushTie] = useState<PickemPushTieResolution>(
-    PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT,
-  );
 
   const [eliminationStartWeek, setEliminationStartWeek] = useState(DEFAULT_PICKEM_START_WEEK);
   const [eliminationEndWeek, setEliminationEndWeek] = useState(DEFAULT_PICKEM_END_WEEK);
@@ -93,7 +88,6 @@ function NewLeague() {
           endWeek: decodeWeek(pickemEndWeek),
           pickType: pickemPickType,
           picksPerWeek: pickemPicksPerWeek,
-          pushTieResolution: pickemPushTie,
         };
       } else if (mode === LEAGUE_MODE.ELIMINATION) {
         settings = {
@@ -203,8 +197,6 @@ function NewLeague() {
                 onPickTypeChange={setPickemPickType}
                 picksPerWeek={pickemPicksPerWeek}
                 onPicksPerWeekChange={setPickemPicksPerWeek}
-                pushTie={pickemPushTie}
-                onPushTieChange={setPickemPushTie}
               />
             )}
 
