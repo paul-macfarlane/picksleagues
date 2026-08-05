@@ -140,6 +140,18 @@ any phase and cleared when the impediment lifts — it does not follow `[x] done
 - Drafts before approval: **true**.
 - Preview exact plan writes and transitions before publishing them. If drafts
   are not permitted, return the draft without presenting it as tracker state.
+- **Exception — Atlas execution.** Invoking `/atlas-implement` is itself the
+  approval to claim the tickets that work package names and to write its
+  execution records (`[EXECUTION PLAN]`, `[PROGRESS]`, `[AI CODE REVIEW]`,
+  `[CLOSEOUT]`). Those writes proceed without a preview — the human gate is the
+  PR review, and an autonomous run has nobody to preview them to. The preview
+  requirement still binds anything that changes a ticket's **text**, adds or
+  renumbers a ticket, or writes `[x]`.
+
+  This needs stating because the two rules otherwise contradict each other: the
+  skill treats invocation as approval to deliver, this document asks for a
+  preview first, and a run with no human watching resolves that conflict
+  arbitrarily.
 - Preserve stable ticket/spec requirements. Record evolving execution in
   `[EXECUTION PLAN]`, `[PROGRESS]`, `[SCOPE CHANGE]`, `[BLOCKED]`,
   `[AI CODE REVIEW]`, and `[CLOSEOUT]` records rather than silently rewriting
