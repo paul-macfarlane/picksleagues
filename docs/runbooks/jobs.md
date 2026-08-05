@@ -133,9 +133,9 @@ runs return `{ skipped: true, reason }` (`no_active_games`, `no_current_week`,
 
 `sync-odds` returns `{ seasonYear, weekType, weekNumber, weeksTargeted, unstartedGames,
 spreadsUpdated, gamesWithoutOdds }`. `weekType`/`weekNumber` name the **anchor** week;
-the three counters span every week the run covered, which `weeksTargeted` (2 on the
-derived path, 1 when a week is named or the season has no week after the anchor) says how
-many of were.
+the three counters are totals across every week the run covered. `weeksTargeted` says how
+many that was — 2 on the derived path, 1 when a week is named or the season has no week
+after the anchor.
 
 A bare (no-arg) sync-schedule run additionally carries the offseason self-heal outcome:
 `upcoming` (`"real"` | `"provisional"` | `"skipped_not_concluded"` | `"skipped_no_weeks"`)

@@ -94,8 +94,8 @@ export async function syncNflOdds(
 
   return {
     seasonYear,
-    // The anchor week the run resolved; the counters below span every week it
-    // covered, which `weeksTargeted` says how many of were.
+    // The anchor week the run resolved. The counters below are totals across
+    // every week the run covered — `weeksTargeted` says how many that was.
     weekType: anchorWeek.weekType,
     weekNumber: anchorWeek.weekNumber,
     weeksTargeted: targetWeeks.length,
