@@ -162,9 +162,9 @@ about (engineering rules §Quality).
 
 - **League** — that league's invites, members, seasons, and the league row. The
   clock is untouched.
-- **Environment** — every league's rows *plus* all ingested seasons, weeks, games,
-  and odds snapshots. `teams` are kept (ingestion re-links rather than recreates
-  them). Users, sessions, and accounts are never touched — a reset that signed the
+- **Environment** — every league's rows *plus* all ingested seasons, weeks, and
+  games (which carry the current spread directly since SIMP-7). `teams` are kept
+  (ingestion re-links rather than recreates them). Users, sessions, and accounts are never touched — a reset that signed the
   operator out would be unusable.
   - *Keep the active scenario* rewinds the clock to that scenario's start, so the
     wiped season re-ingests as unplayed. Without the rewind every game would come

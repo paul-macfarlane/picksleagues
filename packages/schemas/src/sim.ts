@@ -247,8 +247,8 @@ export type UpdateSimFixtureGameRequest = z.infer<typeof UpdateSimFixtureGameReq
  * How much a reset wipes (spec §Testing: "wipe a test league or the whole
  * environment"). `league` clears one league's own rows and nothing else.
  * `environment` clears all league data plus all ingested sports data — seasons,
- * weeks, games, and odds snapshots — keeping only `teams`, which ingestion
- * re-links rather than recreates. Neither scope touches users, sessions, or
+ * weeks, and games (which carry the current spread since SIMP-7) — keeping only
+ * `teams`, which ingestion re-links rather than recreates. Neither scope touches users, sessions, or
  * accounts: a reset that signed the operator out would be unusable.
  *
  * An environment reset also rewinds the simulated clock to the active scenario's

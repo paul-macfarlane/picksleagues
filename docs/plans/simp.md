@@ -1029,3 +1029,11 @@ editor* was not screenshotted separately at phone width. It renders the same com
 create form does, so the layout is identical by construction, but it was not observed.
 
 **Tickets stay `[~]`.** `[x]` is human-only after PR review (`docs/agents/issue-tracker.md`).
+
+**SIMP-15 correction (2026-08-05, post-closeout).** The sweep's orphan list was
+incomplete. Two further references to the dropped `odds_snapshots` table survived —
+`packages/schemas/src/sim.ts`'s `SIM_RESET_SCOPE` docblock and `docs/simulator-guide.md`
+§Reset scopes — both describing what an environment reset wipes. The sweep corrected the
+UI copy derived from that docblock (`sim-reset-card.tsx`) but not the docblock itself or
+the guide. Found by the orchestrator after closeout while checking reset mechanics; fixed
+in the same branch. The closeout's "nine stale references" is therefore eleven.
