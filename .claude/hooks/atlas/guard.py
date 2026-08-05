@@ -140,6 +140,22 @@ def human_only_states() -> set[str]:
         return defaults
 
 
+# Between `git` and its subcommand, only global options may appear. Without this
+# anchor a rule like `\bgit\b.*\breset\b.*--hard\b` matches any command that
+# merely MENTIONS the words later on — `git log && echo "reset --hard"`, or a
+# commit message describing the rule — and denies it outright. Every git rule in
+# `denied` therefore matches at the subcommand position and confines its argument
+# scan to a single shell segment via `[^;&|]*`.
+#
+# Residual, deliberate: a quoted payload that itself reads `git clean -fd` still
+# denies, because `shell_tokens` flattens wrapper payloads so that
+# `bash -c "git clean -fd"` cannot slip through. That is the safe direction.
+GIT_SUB = (
+    r"\bgit\b(?:\s+(?:-[cC]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path)=\S+"
+    r"|--no-pager|--paginate|--bare|--literal-pathspecs|--glob-pathspecs))*\s+"
+)
+
+
 def classify_command(command: str) -> tuple[str, str] | None:
     compact = " ".join(command.split())
     lowered = compact.lower()
@@ -156,6 +172,32 @@ def classify_command(command: str) -> tuple[str, str] | None:
         arguments = git_lower[1:]
         if subcommand == "reset" and "--hard" in arguments:
             return "deny", "git reset --hard destroys uncommitted work"
+        # Token-based, like `reset --hard` above, so `clean` is recognised as the
+        # SUBCOMMAND. The regex backstop below cannot tell the subcommand from a
+        # later mention of the word, which denied `git status && echo clean`.
+        if subcommand == "clean" and not any(
+            token == "--dry-run"
+            or (token.startswith("-") and not token.startswith("--") and "n" in token)
+            for token in arguments
+        ):
+            return "deny", "git clean can delete untracked work; use a dry run"
+        # `denied` patterns are matched against an already-lowercased string, so
+        # the regex alternative `\s-D\b` could never fire and `git branch -D` was
+        # not caught at all. The case-sensitive check belongs here, against the
+        # original-case tail.
+        if subcommand == "branch" and (
+            any(
+                argument == "-D"
+                or (
+                    argument.startswith("-")
+                    and not argument.startswith("--")
+                    and "D" in argument
+                )
+                for argument in git_tail[1:]
+            )
+            or ("--delete" in arguments and "--force" in arguments)
+        ):
+            return "deny", "force-deleting a branch can orphan work"
         if subcommand in {"commit", "push"} and "--no-verify" in arguments:
             return "deny", "--no-verify bypasses repository hooks"
         if subcommand == "push" and any(
@@ -188,41 +230,46 @@ def classify_command(command: str) -> tuple[str, str] | None:
                 )
 
     denied = (
-        (r"\bgit\b.*\breset\b.*--hard\b", "git reset --hard destroys uncommitted work"),
         (
-            r"\bgit\b.*\bclean\b(?![^;&|]*(?:--dry-run|\s-[a-z]*n))",
+            rf"{GIT_SUB}reset\b[^;&|]*--hard\b",
+            "git reset --hard destroys uncommitted work",
+        ),
+        (
+            rf"{GIT_SUB}clean\b(?![^;&|]*(?:--dry-run|\s-[a-z]*n))",
             "git clean can delete untracked work; use a dry run",
         ),
         (
-            r"\bgit\b.*\bcheckout\b\s+(?:head\s+)?--\s",
+            rf"{GIT_SUB}checkout\b\s+(?:head\s+)?--\s",
             "git checkout -- discards file changes",
         ),
         (
-            r"\bgit\b.*\brestore\b(?![^;&|]*(?:--staged|\s-[a-z]*s)(?![^;&|]*(?:--worktree|\s-[a-z]*w)))",
+            rf"{GIT_SUB}restore\b(?![^;&|]*(?:--staged|\s-[a-z]*s)(?![^;&|]*(?:--worktree|\s-[a-z]*w)))",
             "git restore can discard file changes",
         ),
         (
-            r"\bgit\b.*\bbranch\b.*(?:\s-D\b|--delete.*--force|--force.*--delete)",
+            # `-D` is handled case-sensitively in the token branch above; it
+            # cannot be expressed here, where matching is against lowered text.
+            rf"{GIT_SUB}branch\b[^;&|]*(?:--delete[^;&|]*--force|--force[^;&|]*--delete)",
             "force-deleting a branch can orphan work",
         ),
         (
-            r"\bgit\b.*\bstash\b\s+(?:drop|clear)\b",
+            rf"{GIT_SUB}stash\b\s+(?:drop|clear)\b",
             "dropping stashes destroys recoverable work",
         ),
         (
-            r"\bgit\b.*\b(?:commit|push)\b.*--no-verify\b",
+            rf"{GIT_SUB}(?:commit|push)\b[^;&|]*--no-verify\b",
             "--no-verify bypasses repository hooks",
         ),
         (
-            r"\bgit\b.*\bpush\b.*(?:--force(?:-with-lease)?|-f)\b",
+            rf"{GIT_SUB}push\b[^;&|]*(?:--force(?:-with-lease)?|-f)\b",
             "force-push is prohibited",
         ),
         (
-            r"\bgit\b.*\bremote\b\s+(?:add|remove|rename|set-url)\b",
+            rf"{GIT_SUB}remote\b\s+(?:add|remove|rename|set-url)\b",
             "remote changes require a human",
         ),
         (
-            r"\bgit\b.*\bconfig\b.*(?:credential|core\.hookspath|remote\.|url\.)",
+            rf"{GIT_SUB}config\b[^;&|]*(?:credential|core\.hookspath|remote\.|url\.)",
             "credential, hook-path, and remote configuration are guarded",
         ),
         (r"\b(?:gh\s+pr|glab\s+mr)\s+merge\b", "merging is a human action"),

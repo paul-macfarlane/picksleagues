@@ -28,6 +28,7 @@ pnpm workspaces monorepo · Vite + React + TanStack Router/Query/Form SPA · Hon
 - **Decisions get recorded.** Any non-obvious architectural choice → `/adr`. If a choice contradicts `docs/architecture.md`, update that doc too.
 - Both docs are **locked at v0.3** and mutually reconciled — deviate only with a recorded reason (ADR), and keep them reconciled with each other.
 - **Time discipline is the repo's most load-bearing convention:** no raw `Date.now()`, no `new Date()` for "now", no SQL `now()` in domain logic — everything reads the injected `Clock` (arch D13). A lint rule enforces it from FND-6 on.
+- **The shell is zsh.** Quote a glob meant for the *tool* rather than the shell (`grep --include='*.ts'`) — unquoted, zsh tries to expand it first and the command dies with `no matches found`. In a compound command that `cd`s, use absolute paths afterwards: relative ones resolve against the new directory and fail quietly, which is how a capture ends up half-empty rather than obviously broken.
 
 ## Agent skills
 
