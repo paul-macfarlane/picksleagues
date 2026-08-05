@@ -65,11 +65,17 @@ It also **supersedes ADR-0017's motivation** — but not its constraint, and bot
   check is checked against, and narrowing it back would be a migration bought with nothing.
 
 **ADR-0015 rule 3 survives, and becomes load-bearing in a new way.** A settings change that
-would strand picks (Pick Type changed, Picks Per Week lowered, week range narrowed) still
-clears the instance's picks inside the settings transaction, still refuses with `picks_locked`
-once any pick has locked. It is now **the only path by which a member re-submits a week** —
-the reset deletes the very picks whose existence makes the week immutable — and it is
-therefore also the only remedy for a submission a member regrets.
+would strand picks (Pick Type changed, Picks Per Week changed **in either direction**, week
+range narrowed) still clears the instance's picks inside the settings transaction, still
+refuses with `picks_locked` once any pick has locked. It is now **the only path by which a
+member re-submits a week** — the reset deletes the very picks whose existence makes the week
+immutable — and it is therefore also the only remedy for a submission a member regrets.
+
+That "either direction" is a consequence of decision 2 below, not an independent choice.
+Under the old editable rules a *raised* Picks Per Week stranded nobody: a member simply went
+back and added picks. Immutability removes that path, so a raise would leave everyone who had
+already submitted permanently below the new required size with no way to comply. Clearing is
+the only outcome every member can satisfy.
 
 **2. The required set is sized against the *unlocked* pickable slate at submission time.**
 (Ruled 2026-08-04.) A naive reading of "full set required" — `submissions.length` must equal
