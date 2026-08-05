@@ -12,18 +12,19 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  PICKEM_SEASON_RANGE_PRESET,
   type EliminationPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type PickType,
+  type PickemSeasonRangePreset,
 } from "@picksleagues/schemas";
 import { useCreateLeague } from "@/api/leagues";
 import { leagueModeLabel } from "@/lib/league";
 import {
-  DEFAULT_PICKEM_END_WEEK,
-  DEFAULT_PICKEM_START_WEEK,
+  DEFAULT_ELIMINATION_END_WEEK,
+  DEFAULT_ELIMINATION_START_WEEK,
+  DEFAULT_PICKEM_SEASON_RANGE,
   EliminationSettingsFields,
   MarchMadnessSettingsFields,
   PickemSettingsFields,
@@ -55,13 +56,14 @@ function NewLeague() {
   const [visibility, setVisibility] = useState<LeagueVisibility>(LEAGUE_VISIBILITY.PRIVATE);
   const [maxMembers, setMaxMembers] = useState(DEFAULT_MAX_MEMBERS);
 
-  const [pickemStartWeek, setPickemStartWeek] = useState(DEFAULT_PICKEM_START_WEEK);
-  const [pickemEndWeek, setPickemEndWeek] = useState(DEFAULT_PICKEM_END_WEEK);
+  const [pickemSeasonRange, setPickemSeasonRange] = useState<PickemSeasonRangePreset>(
+    DEFAULT_PICKEM_SEASON_RANGE,
+  );
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [eliminationStartWeek, setEliminationStartWeek] = useState(DEFAULT_PICKEM_START_WEEK);
-  const [eliminationEndWeek, setEliminationEndWeek] = useState(DEFAULT_PICKEM_END_WEEK);
+  const [eliminationStartWeek, setEliminationStartWeek] = useState(DEFAULT_ELIMINATION_START_WEEK);
+  const [eliminationEndWeek, setEliminationEndWeek] = useState(DEFAULT_ELIMINATION_END_WEEK);
   const [eliminationPickType, setEliminationPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [eliminationPushTie, setEliminationPushTie] = useState<EliminationPushTieResolution>(
     ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
@@ -84,16 +86,11 @@ function NewLeague() {
 
       let settings: unknown;
       if (mode === LEAGUE_MODE.PICKEM) {
+        // The preset is the whole range input (ADR-0020): the server resolves
+        // it against the bound season and the clock, so naming week refs here
+        // would be dropped by the request schema rather than honoured.
         settings = {
-          // Transitional (SIMP-18 → SIMP-20): the wire now carries a
-          // season-range preset and the server resolves the week refs
-          // (ADR-0020), but the preset select that replaces the two week
-          // dropdowns below arrives with SIMP-20. Until then this sends the
-          // preset those dropdowns' defaults describe, and the request schema
-          // drops the refs.
-          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
-          startWeek: decodeWeek(pickemStartWeek),
-          endWeek: decodeWeek(pickemEndWeek),
+          seasonRangePreset: pickemSeasonRange,
           pickType: pickemPickType,
           picksPerWeek: pickemPicksPerWeek,
         };
@@ -197,10 +194,8 @@ function NewLeague() {
 
             {mode === LEAGUE_MODE.PICKEM && (
               <PickemSettingsFields
-                startWeek={pickemStartWeek}
-                onStartWeekChange={setPickemStartWeek}
-                endWeek={pickemEndWeek}
-                onEndWeekChange={setPickemEndWeek}
+                seasonRange={pickemSeasonRange}
+                onSeasonRangeChange={setPickemSeasonRange}
                 pickType={pickemPickType}
                 onPickTypeChange={setPickemPickType}
                 picksPerWeek={pickemPicksPerWeek}

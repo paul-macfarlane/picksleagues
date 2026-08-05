@@ -68,6 +68,36 @@ export const PickemSeasonRangePresetSchema = z
   .enum(PICKEM_SEASON_RANGE_PRESET)
   .openapi("PickemSeasonRangePreset");
 
+/** The two week refs a preset resolves to — what the rest of the system computes on. */
+export type PickemSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
+
+/**
+ * Each preset's nominal range (ADR-0020 §The three presets), in the week
+ * vocabulary the spec already uses: regular-season weeks 1-18, then the four
+ * playoff rounds Wild Card through Super Bowl.
+ *
+ * It lives beside the preset because it *is* the preset's definition, not a
+ * detail of how the API resolves one. Two consumers read it: the server's
+ * resolver, which starts from the nominal range and may advance the start past
+ * a week already underway, and the web settings editor, which builds the draft
+ * range it warns about from it. A second copy in either place would be a rule
+ * able to disagree with itself about what "Regular Season" covers.
+ */
+export const PICKEM_NOMINAL_RANGE = {
+  [PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON]: {
+    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+    endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
+  },
+  [PICKEM_SEASON_RANGE_PRESET.POSTSEASON]: {
+    startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
+    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+  },
+  [PICKEM_SEASON_RANGE_PRESET.FULL_SEASON]: {
+    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+  },
+} as const satisfies Record<PickemSeasonRangePreset, PickemSeasonRange>;
+
 /**
  * Stored Pick'em settings: the commissioner's preset *and* the concrete week
  * refs it resolved to at the moment the setting was written (ADR-0020 §The

@@ -4,11 +4,11 @@ import { toast } from "sonner";
 import {
   ELIMINATION_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
-  LEAGUE_SETTINGS_SCHEMAS,
+  LEAGUE_SETTINGS_INPUT_SCHEMAS,
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  PICKEM_SEASON_RANGE_PRESET,
+  PICKEM_NOMINAL_RANGE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
   type EliminationPushTieResolution,
@@ -16,12 +16,15 @@ import {
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type PickType,
+  type PickemSeasonRangePreset,
   type PickemSettings,
+  type PickemSettingsInput,
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
 import {
-  DEFAULT_PICKEM_END_WEEK,
-  DEFAULT_PICKEM_START_WEEK,
+  DEFAULT_ELIMINATION_END_WEEK,
+  DEFAULT_ELIMINATION_START_WEEK,
+  DEFAULT_PICKEM_SEASON_RANGE,
   EliminationSettingsFields,
   MarchMadnessSettingsFields,
   PickemSettingsFields,
@@ -128,11 +131,8 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
   // branching the hooks themselves on it would violate rules-of-hooks.
-  const [pickemStartWeek, setPickemStartWeek] = useState(
-    pickemSettings ? encodeWeek(pickemSettings.startWeek) : DEFAULT_PICKEM_START_WEEK,
-  );
-  const [pickemEndWeek, setPickemEndWeek] = useState(
-    pickemSettings ? encodeWeek(pickemSettings.endWeek) : DEFAULT_PICKEM_END_WEEK,
+  const [pickemSeasonRange, setPickemSeasonRange] = useState<PickemSeasonRangePreset>(
+    pickemSettings?.seasonRangePreset ?? DEFAULT_PICKEM_SEASON_RANGE,
   );
   const [pickemPickType, setPickemPickType] = useState<PickType>(
     pickemSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
@@ -140,10 +140,12 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
   const [eliminationStartWeek, setEliminationStartWeek] = useState(
-    eliminationSettings ? encodeWeek(eliminationSettings.startWeek) : DEFAULT_PICKEM_START_WEEK,
+    eliminationSettings
+      ? encodeWeek(eliminationSettings.startWeek)
+      : DEFAULT_ELIMINATION_START_WEEK,
   );
   const [eliminationEndWeek, setEliminationEndWeek] = useState(
-    eliminationSettings ? encodeWeek(eliminationSettings.endWeek) : DEFAULT_PICKEM_END_WEEK,
+    eliminationSettings ? encodeWeek(eliminationSettings.endWeek) : DEFAULT_ELIMINATION_END_WEEK,
   );
   const [eliminationPickType, setEliminationPickType] = useState<PickType>(
     eliminationSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
@@ -190,27 +192,38 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // value only ever governs whether the client shows a warning first.
   let wouldInvalidatePicks = false;
   if (isPickem) {
+    // The draft's range is the *chosen preset's nominal* range, never the
+    // stored refs: a save re-resolves the preset server-side (ADR-0020), so
+    // carrying the stored refs through would answer "nothing strands" while the
+    // server narrows the range and clears every pick — the exact silent
+    // destructive save this warning exists to prevent.
+    //
+    // Nominal is exact here, not an approximation, because settings only edit
+    // pre-start: the stored start week's first kickoff is by definition still
+    // ahead, so the server's resolved start can only be the stored start or the
+    // nominal one, never some week in between that this would miss.
+    const nominal = PICKEM_NOMINAL_RANGE[pickemSeasonRange];
     const draft: PickemSettings = {
-      // Transitional (SIMP-18 → SIMP-20): the preset select that replaces the
-      // two week dropdowns below arrives with SIMP-20, so the draft carries
-      // the league's stored preset unchanged — a settings save can edit Pick
-      // Type and Picks Per Week, and the range moves only when the preset
-      // does (ADR-0020).
-      seasonRangePreset:
-        pickemSettings?.seasonRangePreset ?? PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
-      startWeek: decodeWeek(pickemStartWeek),
-      endWeek: decodeWeek(pickemEndWeek),
+      seasonRangePreset: pickemSeasonRange,
+      startWeek: nominal.startWeek,
+      endWeek: nominal.endWeek,
       pickType: pickemPickType,
       picksPerWeek: pickemPicksPerWeek,
     };
-    assembledSettings = draft;
+    // What actually goes on the wire carries no week refs (ADR-0020 §The wire
+    // shape diverges from the stored shape) — the draft's refs exist only to
+    // ask the invalidation question above.
+    assembledSettings = {
+      seasonRangePreset: pickemSeasonRange,
+      pickType: pickemPickType,
+      picksPerWeek: pickemPicksPerWeek,
+    } satisfies PickemSettingsInput;
     // Both sides of every comparison below come from the same parse the server
     // compares against (services/pickem/settings-reset.ts), so a `.default()`
     // is materialized identically here and there — no `??` fallback restating
     // one, which is what would silently drift the day a default changes.
     settingsDirty = pickemSettings
-      ? pickemStartWeek !== encodeWeek(pickemSettings.startWeek) ||
-        pickemEndWeek !== encodeWeek(pickemSettings.endWeek) ||
+      ? pickemSeasonRange !== pickemSettings.seasonRangePreset ||
         pickemPickType !== pickemSettings.pickType ||
         pickemPicksPerWeek !== pickemSettings.picksPerWeek
       : true;
@@ -313,7 +326,11 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
     if (visibilityDirty) body.visibility = visibility;
     if (maxMembersDirty) body.maxMembers = maxMembers;
     if (settingsDirty) {
-      const parsedSettings = LEAGUE_SETTINGS_SCHEMAS[league.mode].safeParse(assembledSettings);
+      // The *input* map, not the stored one: Pick'em's request shape is the
+      // preset without the week refs the server resolves (ADR-0020), and the
+      // two other modes map to the same schema in both.
+      const parsedSettings =
+        LEAGUE_SETTINGS_INPUT_SCHEMAS[league.mode].safeParse(assembledSettings);
       if (!parsedSettings.success) {
         toast.error(parsedSettings.error.issues[0]?.message ?? "Check your league settings.");
         return;
@@ -367,10 +384,8 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
 
         {isPickem && (
           <PickemSettingsFields
-            startWeek={pickemStartWeek}
-            onStartWeekChange={setPickemStartWeek}
-            endWeek={pickemEndWeek}
-            onEndWeekChange={setPickemEndWeek}
+            seasonRange={pickemSeasonRange}
+            onSeasonRangeChange={setPickemSeasonRange}
             pickType={pickemPickType}
             onPickTypeChange={setPickemPickType}
             picksPerWeek={pickemPicksPerWeek}

@@ -6,10 +6,12 @@ import {
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
   nflSeasonOrdinal,
+  PICKEM_NOMINAL_RANGE,
   PICKEM_SEASON_RANGE_PRESET,
   pickemSettingsInvalidatePicks,
   PickemSettingsInputSchema,
   PickemSettingsSchema,
+  type PickemSeasonRangePreset,
   type PickemSettings,
 } from "./league-settings";
 import { LEAGUE_MODE } from "./league-mode";
@@ -208,6 +210,105 @@ describe("pickemSettingsInvalidatePicks", () => {
     },
   ])("does not invalidate when $label", ({ next, previous = base }) => {
     expect(pickemSettingsInvalidatePicks(previous, next)).toBe(false);
+  });
+});
+
+describe("PICKEM_NOMINAL_RANGE", () => {
+  it("pins each preset's nominal range", () => {
+    expect(PICKEM_NOMINAL_RANGE).toEqual({
+      regular_season: { startWeek: regular(1), endWeek: regular(18) },
+      postseason: { startWeek: postseason(1), endWeek: postseason(4) },
+      full_season: { startWeek: regular(1), endWeek: postseason(4) },
+    });
+  });
+
+  // Resolution starts from these and the settings editor builds its draft from
+  // them, so a nominal range that violates the stored schema's ordering rule
+  // would surface as a thrown parse on a real save rather than here.
+  it.each(Object.values(PICKEM_SEASON_RANGE_PRESET))(
+    "%s's nominal range satisfies the stored schema",
+    (preset) => {
+      const parsed = PickemSettingsSchema.safeParse({
+        seasonRangePreset: preset,
+        ...PICKEM_NOMINAL_RANGE[preset],
+        pickType: "straight_up",
+      });
+      expect(parsed.success).toBe(true);
+    },
+  );
+});
+
+/**
+ * The question the pre-start settings editor actually asks before a save:
+ * switching from one preset to another re-resolves the range server-side, so
+ * "would this change strand already-submitted picks?" has to be answered from
+ * the *new* preset's nominal range, not from the refs the league currently
+ * stores. These cases are that answer, mode-level and copy-free — the warning's
+ * wording and placement are presentation policy and deliberately untested.
+ */
+describe("changing the season-range preset", () => {
+  function settingsFor(
+    preset: PickemSeasonRangePreset,
+    overrides: Partial<PickemSettings> = {},
+  ): PickemSettings {
+    return {
+      seasonRangePreset: preset,
+      startWeek: PICKEM_NOMINAL_RANGE[preset].startWeek,
+      endWeek: PICKEM_NOMINAL_RANGE[preset].endWeek,
+      pickType: "straight_up",
+      picksPerWeek: 5,
+      ...overrides,
+    };
+  }
+
+  it.each([
+    {
+      label: "regular season → postseason skips every week already picked",
+      from: "regular_season",
+      to: "postseason",
+    },
+    {
+      label: "full season → regular season drops the playoff weeks",
+      from: "full_season",
+      to: "regular_season",
+    },
+    {
+      label: "full season → postseason drops the regular-season weeks",
+      from: "full_season",
+      to: "postseason",
+    },
+    {
+      label: "postseason → regular season drops the playoff weeks",
+      from: "postseason",
+      to: "regular_season",
+    },
+  ] as const)("strands picks: $label", ({ from, to }) => {
+    expect(pickemSettingsInvalidatePicks(settingsFor(from), settingsFor(to))).toBe(true);
+  });
+
+  it.each([
+    {
+      label: "regular season → full season only adds playoff weeks",
+      from: "regular_season",
+      to: "full_season",
+    },
+    {
+      label: "postseason → full season only adds regular-season weeks",
+      from: "postseason",
+      to: "full_season",
+    },
+  ] as const)("strands nothing: $label", ({ from, to }) => {
+    expect(pickemSettingsInvalidatePicks(settingsFor(from), settingsFor(to))).toBe(false);
+  });
+
+  // The case a nominal draft could get wrong and doesn't: a league created
+  // mid-week stores a start *later* than its preset's nominal one (ADR-0020's
+  // mid-week rule). Editing pick type alone must not read as narrowing the
+  // range back to week 1 — nominal-vs-stored is a widening, which strands
+  // nothing.
+  it("does not strand picks when a mid-week-resolved league keeps its preset", () => {
+    const stored = settingsFor("regular_season", { startWeek: regular(5) });
+    expect(pickemSettingsInvalidatePicks(stored, settingsFor("regular_season"))).toBe(false);
   });
 });
 

@@ -4,39 +4,18 @@ import { games, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
-  PICKEM_SEASON_RANGE_PRESET,
+  PICKEM_NOMINAL_RANGE,
   PickemSettingsSchema,
   WEEK_TYPE,
   nflSeasonOrdinal,
   type LeagueMode,
   type LeagueSettings,
   type NflWeekRef,
+  type PickemSeasonRange,
   type PickemSeasonRangePreset,
   type WeekType,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql } from "../games";
-
-export type PickemSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
-
-/**
- * Each preset's nominal range (ADR-0020 §The three presets), in the week
- * vocabulary the spec already uses: regular-season weeks 1-18, then the four
- * playoff rounds Wild Card through Super Bowl.
- */
-const NOMINAL_RANGE = {
-  [PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON]: {
-    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
-    endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-  },
-  [PICKEM_SEASON_RANGE_PRESET.POSTSEASON]: {
-    startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
-    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
-  },
-  [PICKEM_SEASON_RANGE_PRESET.FULL_SEASON]: {
-    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
-    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
-  },
-} as const satisfies Record<PickemSeasonRangePreset, PickemSeasonRange>;
 
 function weekRefOf(type: WeekType, number: number): NflWeekRef {
   return type === WEEK_TYPE.REGULAR
@@ -72,7 +51,7 @@ export async function resolvePickemSeasonRange(
   preset: PickemSeasonRangePreset,
   clock: Clock,
 ): Promise<PickemSeasonRange> {
-  const nominal = NOMINAL_RANGE[preset];
+  const nominal = PICKEM_NOMINAL_RANGE[preset];
   const startOrdinal = nflSeasonOrdinal(nominal.startWeek);
   const endOrdinal = nflSeasonOrdinal(nominal.endWeek);
 
