@@ -1037,3 +1037,12 @@ incomplete. Two further references to the dropped `odds_snapshots` table survive
 UI copy derived from that docblock (`sim-reset-card.tsx`) but not the docblock itself or
 the guide. Found by the orchestrator after closeout while checking reset mechanics; fixed
 in the same branch. The closeout's "nine stale references" is therefore eleven.
+
+**SIMP-20 follow-up (2026-08-05, owner manual testing).** The `start_week_passed` refusal
+read "That start week has already begun — **choose a later start**", copy written for the
+two week dropdowns SIMP-20 deleted. A Pick'em commissioner has no week control to act on,
+so the message named a thing that is not on their screen. Reworded to name the season
+range rather than a control, since Elimination still picks weeks and the refusal is shared.
+This is interim: the owner's preferred fix is that a preset whose range has wholly passed
+should not be offerable at all, which needs the create form to know which presets the bound
+season still supports — a new ticket, not a copy change.
