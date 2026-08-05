@@ -3,12 +3,10 @@ import {
   GAME_STATUS,
   PICK_TYPE,
   PICKEM_PICK_SIDE,
-  PICKEM_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
   type PickemPickSide,
   type PickType,
-  type PickemPushTieResolution,
 } from "@picksleagues/schemas";
 import {
   PICKEM_UNSETTLED_REASON,
@@ -19,7 +17,7 @@ import {
 } from "./pickem";
 
 /**
- * The spec §Game Mode 1 scoring/tiebreaker/cancellation matrix is this file's
+ * The spec §Game Mode 1 scoring/standings/cancellation matrix is this file's
  * test plan (arch §Automated Testing — "a spec rule without a test case is a
  * review failure"). Raw literals are asserted deliberately: they pin the wire
  * contract, so editing a constant's value fails here loudly.
@@ -48,11 +46,8 @@ function result(overrides: Partial<PickemGameResult> = {}): PickemGameResult {
   };
 }
 
-function settings(
-  pickType: PickType,
-  pushTieResolution: PickemPushTieResolution = PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT,
-) {
-  return { pickType, pushTieResolution };
+function settings(pickType: PickType) {
+  return { pickType };
 }
 
 describe("settlePickemWeek — straight up", () => {
@@ -63,56 +58,50 @@ describe("settlePickemWeek — straight up", () => {
     awayScore: number;
     outcome: PickOutcome;
     points: number;
-    differential: number;
   }> = [
     {
-      name: "home pick, home wins by 7 → correct, +7 differential",
+      name: "home pick, home wins by 7 → correct",
       side: PICKEM_PICK_SIDE.HOME,
       homeScore: 24,
       awayScore: 17,
       outcome: "correct",
       points: 1,
-      differential: 7,
     },
     {
-      name: "away pick, home wins by 7 → incorrect, -7 differential",
+      name: "away pick, home wins by 7 → incorrect",
       side: PICKEM_PICK_SIDE.AWAY,
       homeScore: 24,
       awayScore: 17,
       outcome: "incorrect",
       points: 0,
-      differential: -7,
     },
     {
-      name: "away pick, away wins by 10 → correct, +10 differential",
+      name: "away pick, away wins by 10 → correct",
       side: PICKEM_PICK_SIDE.AWAY,
       homeScore: 13,
       awayScore: 23,
       outcome: "correct",
       points: 1,
-      differential: 10,
     },
     {
-      name: "home pick, away wins by 10 → incorrect, -10 differential",
+      name: "home pick, away wins by 10 → incorrect",
       side: PICKEM_PICK_SIDE.HOME,
       homeScore: 13,
       awayScore: 23,
       outcome: "incorrect",
       points: 0,
-      differential: -10,
     },
     {
-      name: "home pick, one-point win → correct, +1 differential",
+      name: "home pick, one-point win → correct",
       side: PICKEM_PICK_SIDE.HOME,
       homeScore: 21,
       awayScore: 20,
       outcome: "correct",
       points: 1,
-      differential: 1,
     },
   ];
 
-  it.each(cases)("$name", ({ side, homeScore, awayScore, outcome, points, differential }) => {
+  it.each(cases)("$name", ({ side, homeScore, awayScore, outcome, points }) => {
     const { outcomes, unsettled } = settlePickemWeek(
       [pick({ side })],
       [result({ homeScore, awayScore })],
@@ -121,7 +110,7 @@ describe("settlePickemWeek — straight up", () => {
 
     expect(unsettled).toEqual([]);
     expect(outcomes).toEqual([
-      { pickId: "pick-1", memberId: "member-1", gameId: GAME_ID, outcome, points, differential },
+      { pickId: "pick-1", memberId: "member-1", gameId: GAME_ID, outcome, points },
     ]);
   });
 
@@ -134,7 +123,7 @@ describe("settlePickemWeek — straight up", () => {
       settings(PICK_TYPE.STRAIGHT_UP),
     );
 
-    expect(outcomes[0]).toMatchObject({ outcome: "correct", points: 1, differential: 7 });
+    expect(outcomes[0]).toMatchObject({ outcome: "correct", points: 1 });
   });
 });
 
@@ -148,57 +137,51 @@ describe("settlePickemWeek — against the spread", () => {
     awayScore: number;
     outcome: PickOutcome;
     points: number;
-    differential: number;
   }> = [
     {
-      name: "home favored by 6, wins by 14 → covers, +8 differential",
+      name: "home favored by 6, wins by 14 → covers",
       side: PICKEM_PICK_SIDE.HOME,
       spread: -6,
       homeScore: 27,
       awayScore: 13,
       outcome: "correct",
       points: 1,
-      differential: 8,
     },
     {
-      name: "home favored by 10, wins by 3 → fails to cover, -7 differential",
+      name: "home favored by 10, wins by 3 → fails to cover",
       side: PICKEM_PICK_SIDE.HOME,
       spread: -10,
       homeScore: 20,
       awayScore: 17,
       outcome: "incorrect",
       points: 0,
-      differential: -7,
     },
     {
-      name: "away pick against a 10-point favorite that wins by 3 → covers, +7 differential",
+      name: "away pick against a 10-point favorite that wins by 3 → covers",
       side: PICKEM_PICK_SIDE.AWAY,
       spread: -10,
       homeScore: 20,
       awayScore: 17,
       outcome: "correct",
       points: 1,
-      differential: 7,
     },
     {
-      name: "home underdog by 3 loses by 1 → covers, +2 differential",
+      name: "home underdog by 3 loses by 1 → covers",
       side: PICKEM_PICK_SIDE.HOME,
       spread: 3,
       homeScore: 20,
       awayScore: 21,
       outcome: "correct",
       points: 1,
-      differential: 2,
     },
     {
-      name: "away pick laying 3 wins by 1 → fails to cover, -2 differential",
+      name: "away pick laying 3 wins by 1 → fails to cover",
       side: PICKEM_PICK_SIDE.AWAY,
       spread: 3,
       homeScore: 20,
       awayScore: 21,
       outcome: "incorrect",
       points: 0,
-      differential: -2,
     },
     {
       name: "half-point spread can never push — home favored by 3.5, wins by 3",
@@ -208,7 +191,6 @@ describe("settlePickemWeek — against the spread", () => {
       awayScore: 21,
       outcome: "incorrect",
       points: 0,
-      differential: -0.5,
     },
     {
       name: "half-point spread, away side of the same game covers by 0.5",
@@ -218,17 +200,15 @@ describe("settlePickemWeek — against the spread", () => {
       awayScore: 21,
       outcome: "correct",
       points: 1,
-      differential: 0.5,
     },
     {
-      name: "pick'em line (spread 0), home wins → covers by the margin",
+      name: "pick'em line (spread 0), home wins → covers",
       side: PICKEM_PICK_SIDE.HOME,
       spread: 0,
       homeScore: 24,
       awayScore: 17,
       outcome: "correct",
       points: 1,
-      differential: 7,
     },
     {
       name: "pick'em line (spread 0), tied score → push",
@@ -238,57 +218,55 @@ describe("settlePickemWeek — against the spread", () => {
       awayScore: 17,
       outcome: "push",
       points: 0.5,
-      differential: 0,
     },
   ];
 
-  it.each(cases)(
-    "$name",
-    ({ side, spread, homeScore, awayScore, outcome, points, differential }) => {
-      const { outcomes, unsettled } = settlePickemWeek(
-        [pick({ side, spreadAtPick: spread })],
-        [result({ homeScore, awayScore })],
-        settings(PICK_TYPE.AGAINST_THE_SPREAD),
-      );
-
-      expect(unsettled).toEqual([]);
-      expect(outcomes).toEqual([
-        { pickId: "pick-1", memberId: "member-1", gameId: GAME_ID, outcome, points, differential },
-      ]);
-    },
-  );
-});
-
-/** Every push/tie resolution and the points it awards (spec §Pick'em Scoring). */
-const PUSH_RESOLUTIONS: Array<{ resolution: PickemPushTieResolution; points: number }> = [
-  { resolution: PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT, points: 0.5 },
-  { resolution: PICKEM_PUSH_TIE_RESOLUTION.ZERO_POINTS, points: 0 },
-  { resolution: PICKEM_PUSH_TIE_RESOLUTION.FULL_POINT, points: 1 },
-];
-
-describe("settlePickemWeek — pushes and ties", () => {
-  it.each(PUSH_RESOLUTIONS)(
-    "ATS exact push awards $points under $resolution",
-    ({ resolution, points }) => {
-      // Home favored by 3 and wins by exactly 3.
-      const { outcomes } = settlePickemWeek(
-        [pick({ side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -3 })],
-        [result({ homeScore: 24, awayScore: 21 })],
-        settings(PICK_TYPE.AGAINST_THE_SPREAD, resolution),
-      );
-
-      expect(outcomes[0]).toMatchObject({ outcome: "push", points, differential: 0 });
-    },
-  );
-
-  it.each(PUSH_RESOLUTIONS)("SU tie awards $points under $resolution", ({ resolution, points }) => {
-    const { outcomes } = settlePickemWeek(
-      [pick({ side: PICKEM_PICK_SIDE.HOME })],
-      [result({ homeScore: 20, awayScore: 20 })],
-      settings(PICK_TYPE.STRAIGHT_UP, resolution),
+  it.each(cases)("$name", ({ side, spread, homeScore, awayScore, outcome, points }) => {
+    const { outcomes, unsettled } = settlePickemWeek(
+      [pick({ side, spreadAtPick: spread })],
+      [result({ homeScore, awayScore })],
+      settings(PICK_TYPE.AGAINST_THE_SPREAD),
     );
 
-    expect(outcomes[0]).toMatchObject({ outcome: "push", points, differential: 0 });
+    expect(unsettled).toEqual([]);
+    expect(outcomes).toEqual([
+      { pickId: "pick-1", memberId: "member-1", gameId: GAME_ID, outcome, points },
+    ]);
+  });
+});
+
+/**
+ * A push is worth a fixed half point (spec §Game Mode 1 — Scoring; ADR-0018
+ * removed the configurable resolution), and the three ways one can arise are
+ * three separate spec rules: an ATS pick landing exactly on the number, a tied
+ * SU game, and a cancelled game that was never played at all.
+ */
+describe("settlePickemWeek — pushes and ties", () => {
+  it.each([
+    {
+      name: "an ATS pick landing exactly on the number",
+      // Home favored by 3 and wins by exactly 3.
+      pickInput: pick({ side: PICKEM_PICK_SIDE.HOME, spreadAtPick: -3 }),
+      gameResult: result({ homeScore: 24, awayScore: 21 }),
+      pickType: PICK_TYPE.AGAINST_THE_SPREAD,
+    },
+    {
+      name: "a tied straight-up game",
+      pickInput: pick({ side: PICKEM_PICK_SIDE.HOME }),
+      gameResult: result({ homeScore: 20, awayScore: 20 }),
+      pickType: PICK_TYPE.STRAIGHT_UP,
+    },
+    {
+      name: "a cancelled game that was never played",
+      pickInput: pick({ side: PICKEM_PICK_SIDE.HOME }),
+      gameResult: result({ status: GAME_STATUS.CANCELLED, homeScore: null, awayScore: null }),
+      pickType: PICK_TYPE.STRAIGHT_UP,
+    },
+  ])("a push from $name scores 0.5", ({ pickInput, gameResult, pickType }) => {
+    const { outcomes, unsettled } = settlePickemWeek([pickInput], [gameResult], settings(pickType));
+
+    expect(unsettled).toEqual([]);
+    expect(outcomes[0]).toMatchObject({ outcome: "push", points: 0.5 });
   });
 
   it("pushes the away side of the same ATS push", () => {
@@ -298,33 +276,23 @@ describe("settlePickemWeek — pushes and ties", () => {
       settings(PICK_TYPE.AGAINST_THE_SPREAD),
     );
 
-    expect(outcomes[0]).toMatchObject({ outcome: "push", differential: 0 });
+    expect(outcomes[0]).toMatchObject({ outcome: "push", points: 0.5 });
   });
 });
 
 describe("settlePickemWeek — cancellations, moves, postponements", () => {
   const unplayedPushStatuses: GameStatus[] = [GAME_STATUS.CANCELLED, GAME_STATUS.MOVED];
 
-  // `full_point` is the resolution that made the cancelled-game write-path bug
-  // (freely pickable, minting guaranteed points) maximally exploitable — a
-  // member could lock in a cancelled game for a full point with zero risk.
-  it.each(
-    unplayedPushStatuses.flatMap((status) =>
-      PUSH_RESOLUTIONS.map(({ resolution, points }) => ({ status, resolution, points })),
-    ),
-  )(
-    "a $status game resolves as a push worth $points under $resolution",
-    ({ status, resolution, points }) => {
-      const { outcomes, unsettled } = settlePickemWeek(
-        [pick()],
-        [result({ status, homeScore: null, awayScore: null })],
-        settings(PICK_TYPE.STRAIGHT_UP, resolution),
-      );
+  it.each(unplayedPushStatuses)("a %s game resolves as a push worth 0.5", (status) => {
+    const { outcomes, unsettled } = settlePickemWeek(
+      [pick()],
+      [result({ status, homeScore: null, awayScore: null })],
+      settings(PICK_TYPE.STRAIGHT_UP),
+    );
 
-      expect(unsettled).toEqual([]);
-      expect(outcomes[0]).toMatchObject({ outcome: "push", points, differential: 0 });
-    },
-  );
+    expect(unsettled).toEqual([]);
+    expect(outcomes[0]).toMatchObject({ outcome: "push", points: 0.5 });
+  });
 
   it("a cancelled ATS game pushes without needing a spread", () => {
     const { outcomes } = settlePickemWeek(
@@ -410,10 +378,11 @@ describe("settlePickemWeek — provider data faults", () => {
 
   it("throws when an ATS pick carries no spread", () => {
     expect(() =>
-      settlePickemWeek([pick({ spreadAtPick: null })], [result()], {
-        pickType: PICK_TYPE.AGAINST_THE_SPREAD,
-        pushTieResolution: PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT,
-      }),
+      settlePickemWeek(
+        [pick({ spreadAtPick: null })],
+        [result()],
+        settings(PICK_TYPE.AGAINST_THE_SPREAD),
+      ),
     ).toThrow(/no spread/);
   });
 });
@@ -463,7 +432,6 @@ describe("settlePickemWeek — week shapes", () => {
         gameId: "sb",
         outcome: "correct",
         points: 1,
-        differential: 3,
       },
       {
         pickId: "p2",
@@ -471,7 +439,6 @@ describe("settlePickemWeek — week shapes", () => {
         gameId: "sb",
         outcome: "incorrect",
         points: 0,
-        differential: -3,
       },
     ]);
   });
@@ -493,21 +460,21 @@ describe("settlePickemWeek — week shapes", () => {
 
     const { outcomes, unsettled } = settlePickemWeek(picks, games, settings(PICK_TYPE.STRAIGHT_UP));
 
-    expect(outcomes.map((o) => [o.pickId, o.outcome, o.points, o.differential])).toEqual([
-      ["p1", "correct", 1, 14],
-      ["p2", "push", 0.5, 0],
-      ["p3", "push", 0.5, 0],
-      ["p5", "incorrect", 0, -14],
+    expect(outcomes.map((o) => [o.pickId, o.outcome, o.points])).toEqual([
+      ["p1", "correct", 1],
+      ["p2", "push", 0.5],
+      ["p3", "push", 0.5],
+      ["p5", "incorrect", 0],
     ]);
     expect(unsettled).toEqual([
       { pickId: "p4", gameId: "later", reason: PICKEM_UNSETTLED_REASON.NOT_YET_PLAYED },
     ]);
   });
 
-  it("identical pick sets across two members tie completely — same points and same differential", () => {
+  it("identical pick sets across two members score identically", () => {
     // Spec §Edge Cases: two members who picked exactly alike across a mixed
-    // week (a win, a loss, a push) must land on identical totals, not merely
-    // identical outcomes per game.
+    // week (a win, a loss, a push) must land on the same total, which is what
+    // puts them on the same rank with nothing drawn between them.
     const games: PickemGameResult[] = [
       { gameId: "win", status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 },
       { gameId: "loss", status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 30 },
@@ -525,19 +492,11 @@ describe("settlePickemWeek — week shapes", () => {
       settings(PICK_TYPE.STRAIGHT_UP),
     );
 
-    const totalsFor = (memberId: string) =>
-      outcomes
-        .filter((o) => o.memberId === memberId)
-        .reduce(
-          (acc, o) => ({
-            points: acc.points + o.points,
-            differential: acc.differential + o.differential,
-          }),
-          { points: 0, differential: 0 },
-        );
+    const pointsFor = (memberId: string) =>
+      outcomes.filter((o) => o.memberId === memberId).reduce((total, o) => total + o.points, 0);
 
-    expect(totalsFor("m1")).toEqual(totalsFor("m2"));
-    expect(totalsFor("m1")).toEqual({ points: 1.5, differential: -13 });
+    expect(pointsFor("m1")).toBe(pointsFor("m2"));
+    expect(pointsFor("m1")).toBe(1.5);
   });
 
   it("is a pure derivation — settling the same inputs twice is identical", () => {
@@ -653,6 +612,19 @@ describe("pickMargin", () => {
     },
   ])("$name", ({ side, spreadAtPick, homeScore, awayScore, pickType, expected }) => {
     expect(pickMargin({ side, spreadAtPick }, homeScore, awayScore, pickType)).toBe(expected);
+  });
+
+  // A `-0` reads as "-0" once formatted and is not `Object.is`-equal to zero,
+  // so the sign must never survive a level margin.
+  it("normalises a negated zero to a positive zero", () => {
+    const margin = pickMargin(
+      { side: PICKEM_PICK_SIDE.AWAY, spreadAtPick: null },
+      17,
+      17,
+      PICK_TYPE.STRAIGHT_UP,
+    );
+
+    expect(Object.is(margin, 0)).toBe(true);
   });
 
   // Nothing to compare against. Settlement treats this as a loader bug and

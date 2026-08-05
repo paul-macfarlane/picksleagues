@@ -181,7 +181,6 @@ async function settleWeekResults(
 
   const settlement = settlePickemWeek(picks, results, {
     pickType: season.settings.pickType,
-    pushTieResolution: season.settings.pushTieResolution,
   });
 
   // Delete-then-insert, not upsert: a pick that stopped being settleable (its
@@ -206,7 +205,8 @@ async function settleWeekResults(
         weekId,
         outcome: outcome.outcome,
         points: outcome.points,
-        differential: outcome.differential,
+        // SIMP-6 bridge: differential columns are dropped in the next commit.
+        differential: 0,
         settledAt,
       })),
     );
@@ -247,6 +247,8 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
       weekId: pickemPickResults.weekId,
       outcome: pickemPickResults.outcome,
       points: pickemPickResults.points,
+      // SIMP-6 bridge: differential columns are dropped in the next commit, and
+      // nothing downstream of this select reads the value any more.
       differential: pickemPickResults.differential,
     })
     .from(pickemPickResults)
@@ -265,7 +267,6 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
       memberId: result.leagueMemberId,
       outcome: result.outcome,
       points: result.points,
-      differential: result.differential,
     };
     seasonOutcomes.push(outcome);
     const bucket = byWeek.get(result.weekId);
@@ -281,7 +282,8 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
         leagueMemberId: entry.memberId,
         weekId,
         points: entry.points,
-        differential: entry.differential,
+        // SIMP-6 bridge: differential columns are dropped in the next commit.
+        differential: 0,
         // Recounted from the stored results on every rebuild, never
         // incremented — the W/L/P counts are part of the same pure derivation
         // as points and rank (arch D10).
@@ -302,7 +304,8 @@ async function rebuildStandings(tx: Db, clock: Clock, season: SettleableSeason):
       leagueMemberId: entry.memberId,
       weekId: null,
       points: entry.points,
-      differential: entry.differential,
+      // SIMP-6 bridge: differential columns are dropped in the next commit.
+      differential: 0,
       wins: entry.wins,
       losses: entry.losses,
       pushes: entry.pushes,

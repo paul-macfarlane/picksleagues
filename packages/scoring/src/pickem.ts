@@ -4,16 +4,14 @@ import {
   PICK_OUTCOME,
   PICK_TYPE,
   PICKEM_PICK_SIDE,
-  PICKEM_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
   type PickemPickSide,
   type PickType,
-  type PickemPushTieResolution,
 } from "@picksleagues/schemas";
 
 /**
- * Pick'em settlement (spec §Game Mode 1 — Scoring, Tiebreakers, Cancellations).
+ * Pick'em settlement (spec §Game Mode 1 — Scoring, Standings, Cancellations).
  *
  * Pure by rule: plain data in, plain data out, no clock and no I/O. Everything
  * time-derived (has this game kicked off, is this week over) is already
@@ -46,7 +44,6 @@ export interface PickemGameResult {
 /** The slice of `PickemSettings` that scoring actually consumes. */
 export interface PickemScoringSettings {
   pickType: PickType;
-  pushTieResolution: PickemPushTieResolution;
 }
 
 export interface PickemPickOutcome {
@@ -55,12 +52,6 @@ export interface PickemPickOutcome {
   gameId: string;
   outcome: PickOutcome;
   points: number;
-  /**
-   * Cumulative-margin tiebreaker input (spec §Tiebreakers): the picked side's
-   * margin of victory/defeat in SU, or its margin relative to the spread in
-   * ATS. Pushes contribute zero.
-   */
-  differential: number;
 }
 
 /**
@@ -89,11 +80,12 @@ export interface PickemWeekSettlement {
   unsettled: PickemUnsettledPick[];
 }
 
-const PUSH_POINTS: Record<PickemPushTieResolution, number> = {
-  [PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT]: 0.5,
-  [PICKEM_PUSH_TIE_RESOLUTION.ZERO_POINTS]: 0,
-  [PICKEM_PUSH_TIE_RESOLUTION.FULL_POINT]: 1,
-};
+/**
+ * What a push is worth, always (spec §Game Mode 1 — Scoring). Half a point is
+ * the rule rather than a league setting: ADR-0018 removed the configurable
+ * resolution, so there is nothing here for a commissioner to choose.
+ */
+export const PICKEM_PUSH_POINTS = 0.5;
 
 const CORRECT_POINTS = 1;
 const INCORRECT_POINTS = 0;
@@ -106,14 +98,6 @@ const INCORRECT_POINTS = 0;
  * validation (PKM-2), not scoring — enforcing them again here would silently
  * mask a write-path bug instead of surfacing it. Unpicked slots simply have no
  * pick row and therefore score nothing (spec §Missed/partial weeks).
- *
- * **Caller obligation — week moves.** A provider week move is expressed as the
- * game's `week_id` changing, not as a status (see `GAME_STATUS.moved`, which is
- * admin-override-only). The input loader MUST therefore pass `status: moved`
- * for any pick whose `pickem_picks.week_id` no longer matches its game's
- * `week_id`; otherwise a moved game grades on its real result instead of
- * pushing, silently violating the spec. This function cannot detect it — it
- * never sees the pick's week.
  *
  * @throws if a pick references a game absent from `results`, or an ATS pick
  * carries no spread. Both are loader/write-path bugs: the pick endpoint refuses
@@ -138,7 +122,7 @@ export function settlePickemWeek(
     }
 
     if (isUnplayedStatus(result.status)) {
-      outcomes.push(pushOutcome(pick, settings));
+      outcomes.push(pushOutcome(pick));
       continue;
     }
 
@@ -161,7 +145,7 @@ export function settlePickemWeek(
     }
 
     const margin = marginForPick(pick, result.homeScore, result.awayScore, settings.pickType);
-    outcomes.push(gradedOutcome(pick, margin, settings));
+    outcomes.push(gradedOutcome(pick, margin));
   }
 
   return { outcomes, unsettled };
@@ -171,7 +155,7 @@ export function settlePickemWeek(
  * The picked side's margin, on the scale the league's pick type scores against:
  * raw points in SU, points relative to the spread in ATS. Positive means the
  * pick won, zero means push/tie, negative means it lost — one number that
- * carries both the outcome and the tiebreaker differential.
+ * carries both the grade and how far it landed either way.
  *
  * Exported because the UI shows a member where an *unfinished* pick currently
  * stands (spec §Data Freshness — a provisional reading of the last sync, never a
@@ -206,9 +190,9 @@ export function pickMargin(
   }
 
   // Negating a zero margin yields `-0` — numerically zero, but not
-  // `Object.is`-equal to it. This value is persisted as a tiebreaker
-  // `differential` and formatted for display, so a tie must never leave here
-  // carrying a sign that a strict comparison or a snapshot could trip over.
+  // `Object.is`-equal to it, and formatted as "-0" for the member. A level
+  // margin must never leave here carrying a sign a display or a strict
+  // comparison could trip over.
   return margin === 0 ? 0 : margin;
 }
 
@@ -227,13 +211,9 @@ function marginForPick(
   return margin;
 }
 
-function gradedOutcome(
-  pick: PickemPickInput,
-  margin: number,
-  settings: PickemScoringSettings,
-): PickemPickOutcome {
+function gradedOutcome(pick: PickemPickInput, margin: number): PickemPickOutcome {
   if (margin === 0) {
-    return pushOutcome(pick, settings);
+    return pushOutcome(pick);
   }
 
   return {
@@ -242,20 +222,17 @@ function gradedOutcome(
     gameId: pick.gameId,
     outcome: margin > 0 ? PICK_OUTCOME.CORRECT : PICK_OUTCOME.INCORRECT,
     points: margin > 0 ? CORRECT_POINTS : INCORRECT_POINTS,
-    differential: margin,
   };
 }
 
-// Pushes contribute zero to the tiebreaker regardless of how they arose (spec
-// §Tiebreakers) — an exact-number ATS push and a cancelled game are the same
-// zero here, even though only the former has a margin to speak of.
-function pushOutcome(pick: PickemPickInput, settings: PickemScoringSettings): PickemPickOutcome {
+// Every push scores the same half point however it arose — an exact-number ATS
+// push, a tied SU game, and a cancelled game are indistinguishable here.
+function pushOutcome(pick: PickemPickInput): PickemPickOutcome {
   return {
     pickId: pick.pickId,
     memberId: pick.memberId,
     gameId: pick.gameId,
     outcome: PICK_OUTCOME.PUSH,
-    points: PUSH_POINTS[settings.pushTieResolution],
-    differential: 0,
+    points: PICKEM_PUSH_POINTS,
   };
 }
