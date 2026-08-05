@@ -21,7 +21,8 @@ Readiness: `curl -s http://localhost:3000/api/health` → `{"status":"ok"}`. The
 ```sh
 pnpm test               # unit (vitest, packages/*/src/**/*.test.ts) — no DB needed
 pnpm test:integration   # in-process Hono + real Postgres; auto-creates + migrates picksleagues_test on :5433 (override with TEST_DATABASE_URL)
-pnpm test:e2e           # Playwright chromium against the full local stack; starts (or reuses) both dev servers itself
+pnpm test:e2e           # Playwright chromium against its OWN stack — picksleagues_e2e on :5273/:3100, never the dev DB or dev ports (override with E2E_DATABASE_URL)
+pnpm typecheck          # every workspace package, then e2e/tsconfig.json (e2e/ is in no workspace)
 pnpm typecheck && pnpm lint && pnpm contract:check   # static gates; contract:check fails if openapi/ is stale
 ```
 
