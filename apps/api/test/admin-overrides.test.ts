@@ -665,7 +665,7 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
  * should already have been closed — always allowed. Moving it *later* re-opens
  * picks, which on a started game hands every member an edit against a known
  * outcome; the spec is explicit that even a real postponement doesn't re-open
- * picks (§Cancellations, Postponements & Re-picks).
+ * picks (§Cancellations & Postponements).
  *
  * The guard is stated on the *resulting* state, never on the before/after pair
  * of one request — a transition test is escapable by splitting the edit across
@@ -705,7 +705,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
     // The likeliest real action on the override form: its status select
     // defaults to "No override — use provider", so correcting a score on a game
     // whose provider kickoff is wrongly in the future sends exactly this. The
-    // slate serializes scores for every status, and only cancelled/moved are
+    // slate serializes scores for every status, and only cancelled games are
     // unpickable — so without the guard the week's slate would serve an
     // unlocked, pickable game with its final score on it.
     const res = await putOverride(app, cookie, futureGameId, { homeScore: 24, awayScore: 10 });

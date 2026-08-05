@@ -238,8 +238,8 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
 
 // Home-relative spread, flipped for the away side (spec §ATS) — the sign a
 // member reads next to the team they'd be picking, not the raw stored number.
-// Shared by the pick entry grid, the substitute-pick dialog, and the week/pick
-// detail view so the three surfaces never drift on how a spread reads.
+// Shared by the pick entry grid and the week/pick detail view so the two
+// surfaces never drift on how a spread reads.
 export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
   if (spread === null) return null;
   const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;

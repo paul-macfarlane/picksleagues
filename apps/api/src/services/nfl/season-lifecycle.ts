@@ -54,7 +54,7 @@ export async function nflSeasonConclusion(
  * points at a season whose last week is already over while next season's games
  * — already ingested by schedule-sync's ensure step (ADR-0009) — sit unsynced.
  * That is not a cosmetic no-op: an against-the-spread league can take no picks
- * at all until odds snapshots exist for its upcoming games, and locking is
+ * at all until spreads exist for its upcoming games, and locking is
  * `kickoff > now`, so members can be picking months before the label flips.
  *
  * Resolution: the derived default, unless it has nothing left to sync — every

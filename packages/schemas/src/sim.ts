@@ -31,9 +31,8 @@ export const SimScenarioSourceSchema = z.enum(SIM_SCENARIO_SOURCE).openapi("SimS
  * The statuses a fixture can *end* in — a strict subset of `GAME_STATUS`,
  * derived from it so the two can't drift. `scheduled`/`in_progress` are excluded
  * because they are transient states the provider derives from the simulated
- * clock, never a terminal outcome; `moved` is excluded because it exists only
- * for admin overrides (a provider week move is a game changing weeks, which a
- * fixture expresses by its `weekNumber`).
+ * clock, never a terminal outcome. A game changing weeks is expressed by the
+ * fixture's `weekNumber`, not by a status (ADR-0019).
  */
 export const SIM_FINAL_STATUS = {
   FINAL: GAME_STATUS.FINAL,

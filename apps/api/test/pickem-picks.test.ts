@@ -270,7 +270,7 @@ describe("GET /api/weeks/:weekId/games", () => {
     expect(game?.stateAsOf).toBe(SEED_AT.toISOString());
   });
 
-  it("reflects the seeded odds snapshot's spread, and null when none was seeded", async () => {
+  it("reflects the seeded game's spread, and null when none was seeded", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedSeason(db, {
       year: 2026,
