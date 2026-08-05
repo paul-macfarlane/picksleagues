@@ -8,19 +8,11 @@ import { cn } from "@/lib/utils";
 import { QueryState } from "@/components/query-state";
 import { UserIdentity } from "@/components/user-identity";
 
-// Signed so a viewer can tell a favorable differential from an unfavorable one
-// at a glance — zero renders plain, matching the pick entry card's spread label.
-function formatSigned(value: number): string {
-  if (value === 0) return "0";
-  return value > 0 ? `+${value}` : `${value}`;
-}
-
 export const STANDINGS_SORT_COLUMN = {
   RANK: "rank",
   MEMBER: "member",
   RECORD: "record",
   POINTS: "points",
-  DIFFERENTIAL: "differential",
 } as const;
 
 export type StandingsSortColumn =
@@ -53,7 +45,6 @@ const INITIAL_DIRECTION: Record<StandingsSortColumn, SortDirection> = {
   [STANDINGS_SORT_COLUMN.MEMBER]: SORT_DIRECTION.ASCENDING,
   [STANDINGS_SORT_COLUMN.RECORD]: SORT_DIRECTION.DESCENDING,
   [STANDINGS_SORT_COLUMN.POINTS]: SORT_DIRECTION.DESCENDING,
-  [STANDINGS_SORT_COLUMN.DIFFERENTIAL]: SORT_DIRECTION.DESCENDING,
 };
 
 /** Clicking the sorted column reverses it; clicking another one adopts its default. */
@@ -88,8 +79,6 @@ function compareAscending(
       return a.wins - b.wins;
     case STANDINGS_SORT_COLUMN.POINTS:
       return a.points - b.points;
-    case STANDINGS_SORT_COLUMN.DIFFERENTIAL:
-      return a.differential - b.differential;
   }
 }
 
@@ -97,7 +86,7 @@ function compareAscending(
  * Reorders the rows the server already ranked. Deliberately *only* a reordering:
  * `rank` is competition ranking computed server-side (ties share a rank), so it
  * travels with its row untouched — a member sorted to the top of a
- * differential-sorted board is still whatever rank the league says they are.
+ * record-sorted board is still whatever rank the league says they are.
  *
  * Stable by construction (`Array#sort` is), so rows the comparator calls equal
  * keep the server's display-name order rather than shuffling between renders.
@@ -173,19 +162,18 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
           </p>
         ) : (
           // `table-fixed` with explicit widths on the narrow columns (rather
-          // than a wider table inside an `overflow-x-auto` wrapper) so Pts/Diff
-          // — required alongside points (spec) — stay on-screen at phone width
-          // instead of sitting past an unscrolled edge. The record column is a
-          // single "W-L-P" cell for the same reason: three more numeric columns
-          // would not fit, and the widths here are sized for the sorted
-          // column's arrow as well as the label.
+          // than a wider table inside an `overflow-x-auto` wrapper) so the
+          // numbers stay on-screen at phone width instead of sitting past an
+          // unscrolled edge. The record column is a single "W-L-P" cell for the
+          // same reason: three more numeric columns would not fit, and the
+          // widths here are sized for the sorted column's arrow as well as the
+          // label.
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full table-fixed text-sm">
               <colgroup>
                 <col className="w-14" />
                 <col />
                 <col className="w-16" />
-                <col className="w-12" />
                 <col className="w-14" />
               </colgroup>
               <thead>
@@ -209,16 +197,13 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                     onSort={setSort}
                     align="right"
                   />
+                  {/* Points is the last column by design. Ties share a rank and
+                      nothing is shown behind it (ADR-0018 decision 4), so there
+                      is deliberately no further number to separate two members
+                      level on points. */}
                   <SortableHeader
                     label="Pts"
                     column={STANDINGS_SORT_COLUMN.POINTS}
-                    sort={sort}
-                    onSort={setSort}
-                    align="right"
-                  />
-                  <SortableHeader
-                    label="Diff"
-                    column={STANDINGS_SORT_COLUMN.DIFFERENTIAL}
                     sort={sort}
                     onSort={setSort}
                     align="right"
@@ -254,9 +239,6 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                       {row.wins}-{row.losses}-{row.pushes}
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">{row.points}</td>
-                    <td className="px-2 py-2 text-right text-xs tabular-nums">
-                      {formatSigned(row.differential)}
-                    </td>
                   </tr>
                 ))}
               </tbody>

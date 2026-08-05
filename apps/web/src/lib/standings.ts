@@ -1,6 +1,7 @@
-// How a shared rank renders, in one place. Members level on points *and*
-// differential share a rank (spec §Tiebreakers), and every surface that shows a
-// rank has to say so rather than silently renumbering them 1, 2, 3.
+// How a shared rank renders, in one place. Members level on points share a rank
+// and there is no tiebreaker behind it (spec §Standings, ADR-0018 decision 4),
+// so every surface that shows a rank has to say the rank is shared rather than
+// silently renumbering tied members 1, 2, 3.
 //
 // Homed here rather than in the standings table because two surfaces render the
 // same rank — the board itself and the week/pick detail's member headers — and

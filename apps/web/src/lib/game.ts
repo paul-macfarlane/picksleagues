@@ -180,9 +180,11 @@ export function pickStandingLabel(
  *
  * Tense is what keeps it from becoming a second verdict beside the badge:
  * "covering by 7.5" becomes "covered by 7.5", so a member watching a game
- * settle sees one sentence resolve rather than a new vocabulary appear. It also
- * stays the number the standings' "Diff" column sums (spec §Tiebreakers), so a
- * disputed tiebreaker can be audited against the week that produced it.
+ * settle sees one sentence resolve rather than a new vocabulary appear.
+ *
+ * It describes this one pick and nothing else. Nothing aggregates it — ADR-0018
+ * decision 4 removed the standings differential it used to feed — and it
+ * survives on its own merits, as that ADR says.
  *
  * Null on a push, which is not an oversight: the ambiguity above is a property
  * of *numbers* without units, and a push has no number to qualify — so "pushed"
