@@ -219,7 +219,16 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                       row.isViewer && "bg-accent/40",
                     )}
                   >
-                    <td className="px-2 py-2 text-xs font-medium tabular-nums">
+                    {/* The three value cells carry testids because a table cell
+                        has no accessible name of its own: without them the only
+                        way to address one is by column index, which is exactly
+                        the binding a re-ordered or re-labelled board is allowed
+                        to break. The merge-gate journey reads all three to prove
+                        two tied members share a rank with nothing behind it. */}
+                    <td
+                      data-testid="standings-rank"
+                      className="px-2 py-2 text-xs font-medium tabular-nums"
+                    >
                       {rankLabel(row.rank, sharedCounts)}
                     </td>
                     <td className="px-2 py-2">
@@ -235,10 +244,18 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                         avatarSize="sm"
                       />
                     </td>
-                    <td className="px-2 py-2 text-right text-xs tabular-nums">
+                    <td
+                      data-testid="standings-record"
+                      className="px-2 py-2 text-right text-xs tabular-nums"
+                    >
                       {row.wins}-{row.losses}-{row.pushes}
                     </td>
-                    <td className="px-2 py-2 text-right text-xs tabular-nums">{row.points}</td>
+                    <td
+                      data-testid="standings-points"
+                      className="px-2 py-2 text-right text-xs tabular-nums"
+                    >
+                      {row.points}
+                    </td>
                   </tr>
                 ))}
               </tbody>
