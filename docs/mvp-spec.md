@@ -2,6 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), and ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; Elimination unchanged for now) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -60,6 +61,7 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 ### Membership
 - League size: **2 minimum, 100 maximum**.
 - Join cutoff: no joins once the league's first week has started (NFL modes) or once the first Round of 64 game has tipped (March Madness). Enforced automatically; not configurable.
+  - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
 - A league that never reaches 2 members by its start simply proceeds; standings with one member are valid but trivially uninteresting. No auto-cancellation.
 - Leaving: a member may leave a league **pre-start only** — once the league starts, membership is frozen and there is no mid-season leaving. The last commissioner of a league with other members must promote a replacement before leaving; a commissioner who is the only member deletes the league instead. (ADR-0004)
 
@@ -91,53 +93,44 @@ A browse page listing public leagues that have not passed their join cutoff, wit
 A season-long league where members compete to build the best record picking NFL games each week, on both a weekly and a cumulative season leaderboard.
 
 ### League Settings
-1. **Start Week** — NFL regular season week (1–18) or a playoff round (Wild Card, Divisional, Conference Championship, Super Bowl)
-2. **End Week** — regular season week (1–18) or a playoff round, at or after Start Week in season order (playoff rounds follow week 18)
-3. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
-4. **Picks Per Week** — 1–16 (default 5)
-5. **Push/Tie Resolution** — value awarded on an ATS push or SU tie: +0.5 (default), 0, or +1
+1. **Season Range** — one of three presets: **Regular Season** (regular season weeks 1–18), **Postseason** (Wild Card, Divisional, Conference Championship, Super Bowl), or **Full Season** (regular season week 1 through the Super Bowl)
+2. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
+3. **Picks Per Week** — 1–16 (default 5)
+
+The chosen preset is resolved to a concrete start week and end week **when the league is created** — and again if a commissioner changes it while the league is still pre-start, since settings lock at league start (§Commissioner Powers). Once the league starts, the range it resolved to is fixed. A league created after the preset's first week has already begun starts instead at the next week whose first kickoff is still ahead — so a league is never born already-started. (ADR-0020)
 
 ### Core Rules
-- Each week, every member submits up to Picks Per Week picks from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose End Week extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
+- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose season range extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
 - **Playoff weeks have small slates** (Wild Card 6 games → Super Bowl 1); the fewer-games rule below applies naturally — in a week with fewer available games than Picks Per Week, everyone picks every available game.
 - Members choose their own games; overlap with other members is not required.
 - **Fewer games than Picks Per Week:** if the week's slate has fewer available games than the configured count, all members pick every available game that week.
-- Picks may be submitted individually or in batches, any time before each game's kickoff.
-- **Locking:** each pick locks independently at its game's kickoff. Unstarted picks can be added or changed freely until their kickoff.
-- **ATS spread acceptance:** in ATS leagues, changing any pick requires accepting the latest spreads on **all** of that member's unstarted picks — spreads cannot be selectively frozen. SU leagues have no spread dependency.
-- **Missed/partial weeks:** unpicked slots score zero. There is no auto-submission or default entry. Submitting fewer than Picks Per Week is allowed; only submitted picks can score.
+- **One submission per week, and it is final.** A week's picks go in together, in one submission, behind a confirmation stating that it cannot be undone. Once it lands, no pick in that week can be changed, replaced, or removed — there is no second submission and no editing. A misclick is permanent for that week.
+- **Locking:** each pick locks independently at its game's kickoff — the moment it becomes visible to the rest of the league and, for a member who has not submitted yet, the moment its game drops out of what they can still pick.
+- **ATS spread acceptance:** in ATS leagues, the member accepts the spreads shown at submission time, on the whole set, in the one write that creates it. Spreads cannot be selectively frozen, because there is only ever one write. SU leagues have no spread dependency.
+- **Missed/partial weeks:** a submission must be the **full required set** for the week, which is Picks Per Week or the number of games still unlocked and pickable at the moment of submission, whichever is smaller. A member who submits after some of the week's games have kicked off submits a full set of what can still be picked; the games that already locked are forgone and score nothing. A member who never submits scores zero for the week — there is no auto-submission and no default entry. This is deliberately **not** a weekly deadline: locking stays per game, and submitting late costs picks rather than the week.
 
 ### Scoring
 | Outcome | Points |
 | --- | --- |
 | Correct | +1 |
 | Incorrect | 0 |
-| Push (ATS) / Tie (SU) | Per league Push/Tie Resolution setting |
-| Game cancelled, no re-pick made | Treated as push |
+| Push (ATS) / Tie (SU) | +0.5 |
+| Game cancelled | Treated as push |
 
 ### Standings
 Two parallel leaderboards:
 - **Weekly** — that week's points only; resets each week.
-- **Season** — cumulative points from Start Week through End Week. A week with no submission counts as zero toward the season total. One week of participation is sufficient to appear.
+- **Season** — cumulative points from the league's start week through its end week. A week with no submission counts as zero toward the season total. One week of participation is sufficient to appear.
 
-### Tiebreakers (weekly and season)
-When members tie on points, rank by **cumulative margin differential** across all their picks in the period:
-- **SU:** sum of each picked team's actual margin of victory (positive) or defeat (negative).
-- **ATS:** sum of each pick's margin relative to the spread — covers positive, non-covers negative.
-- Pushes/ties contribute zero. All picks weigh equally.
-- Still tied → members share the rank. No further tiebreaker.
+**Ties (weekly and season):** members who tie on points **share the rank**. There is no tiebreaker, and nothing is shown behind the rank to separate tied members.
 
-### Cancellations, Postponements & Re-picks
-- **Cancelled game:** the pick resolves as a push. The member may **re-pick** by substituting any unstarted game from the same week:
-  - SU: no spread acceptance required.
-  - ATS: the member accepts the latest spread on the **replacement pick only** (other unstarted picks keep their spreads).
-  - If no unstarted games remain, the push stands; no re-pick.
-- **Postponed within the same week:** pick resolves normally when played. No re-pick.
-- **Moved to a different week:** treated as a cancellation; re-pick rules apply.
+### Cancellations & Postponements
+- **Cancelled game:** the pick resolves as a push, and the push **stands** — there is no substitute pick, whether or not unstarted games remain in the week.
+- **Postponed within the same week:** pick resolves normally when played.
 
 ### Edge Cases
-- Identical pick sets between members are allowed and will tie on points and differential.
-- A member who joins after Start Week (but before the join cutoff) simply has zero-point weeks for weeks already completed.
+- Identical pick sets between members are allowed and will tie on points, sharing the rank.
+- A member who joins after the league's start week (but before the join cutoff) simply has zero-point weeks for weeks already completed.
 
 ---
 
@@ -151,6 +144,8 @@ A survivor pool. Each week, every member picks one team to win (SU or ATS per le
 3. **Pick Type** — Straight Up or Against the Spread
 4. **Push/Tie Resolution** — on an ATS push or SU tie: member advances and the team is consumed (default), or member is eliminated
 
+Elimination keeps this explicit Start Week / End Week pair for now. The season-range presets Pick'em uses (ADR-0020) reach this mode at its own build-out, not before — until then the two NFL modes deliberately differ on how their range is chosen.
+
 ### Core Rules
 - Elimination is **regular-season only** — playoff weeks are not supported for this mode (weekly team-consumption doesn't fit 2–14-team playoff slates).
 - One pick per week per member. Each member has exactly **one life** — a single incorrect pick eliminates.
@@ -158,7 +153,7 @@ A survivor pool. Each week, every member picks one team to win (SU or ATS per le
 - Picks can be made or changed until the picked game's kickoff, and become visible to the league at kickoff.
 - **Missed pick:** the member is eliminated (resolved at settlement after the week completes).
 - **Everyone eliminated in the same week:** all members eliminated that week are revived and continue. (Applies regardless of elimination cause — wrong picks, missed picks, or a mix.)
-- **Cancelled game or game moved to a future week:** pick resolves as a push — the member survives and the team is **not** consumed (available for future use).
+- **Cancelled game:** pick resolves as a push — the member survives and the team is **not** consumed (available for future use). A game the provider moves to another week is not a modelled event in either NFL mode (ADR-0019); an admin corrects it with a `cancelled` status override, which lands here.
 - **Postponed within the same week:** pick resolves normally when the game is played.
 - Eliminated members remain league members with full pick visibility.
 
@@ -228,7 +223,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 1. **Sign up / sign in** — OAuth (Google/Discord) → username claim (first time) → dashboard
 2. **Create a league** — mode → name → visibility → settings → share invite link (blocked past 10-active-commissioner cap)
 3. **Join a league** — invite link or public discovery → confirm → member
-4. **Make picks** — league page → weekly slate (NFL modes) or bracket builder (MM) → submit; edit until per-game lock; ATS spread-acceptance prompt on changes
+4. **Make picks** — league page → weekly slate (NFL modes) or bracket builder (MM) → submit. Pick'em: the week's full set goes in one confirmed, irreversible submission, which is also where ATS spreads are accepted. Elimination: the week's pick can be changed until its game kicks off. March Madness: a bracket can be revised until the first Round of 64 tip, then freezes.
 5. **Check results** — scores and standings refresh every ~5 minutes on game days
 6. **Commission** — settings pre-start, invite management, kick/delete pre-start, promote/demote commissioners anytime
 
@@ -242,9 +237,9 @@ When brackets tie on points: closest **absolute difference** between the Champio
 
 Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "League Picks"). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
 
-**Pick entry shows only what the member can act on or already holds.** A game they picked stays for the rest of the week; a game they did *not* pick disappears once it is out of reach, so the week in review is their picks rather than a slate to scan past. "Out of reach" is the same condition that governs the save control — a game they could still switch into must remain visible, because replacing a pick means picking a *different* game — so unpicked games survive exactly as long as anything on the screen can still be operated. A member who picked nothing sees a stated empty result, never a blank card.
+**Pick entry has two states, and shows what each one is for.** An unsubmitted week is an editable sheet the member assembles: the games they can still pick, a save control that stays inactive until the sheet holds the week's full required set, and an explicit confirmation that submitting is irreversible before anything lands. A submitted week is **read-only** — their picks, with the spreads they accepted, which is the week in review rather than a slate to scan past. A member who picked nothing sees a stated empty result, never a blank card.
 
-**Week/pick detail is ordered by the week's standing, best first,** with each member's weekly and season record beside their name and their picks collapsed beneath it — including the viewer's own, whose picks have their own screen. The page therefore opens as a weekly leaderboard and expands into detail on request. The order is the standings' own rank (§Tiebreakers), never a second ranking invented for this screen. Ordering by settled results cannot disclose a hidden pick: points come only from graded picks, and a graded pick's game is final and therefore already revealed.
+**Week/pick detail is ordered by the week's standing, best first,** with each member's weekly and season record beside their name and their picks collapsed beneath it — including the viewer's own, whose picks have their own screen. The page therefore opens as a weekly leaderboard and expands into detail on request. The order is the standings' own rank (§Standings), where members tied on points share it and nothing is drawn between them, never a second ranking invented for this screen. Ordering by settled results cannot disclose a hidden pick: points come only from graded picks, and a graded pick's game is final and therefore already revealed.
 - **League create/settings** — mode-specific settings forms
 - **Profile** — username, display name
 - **Join** — invite link landing + confirmation
@@ -271,7 +266,7 @@ This is not a live feed and does not change the freshness model below: it is a d
 
 - A **push shows no margin.** There is no number to qualify, so the badge carries it alone — this is the one case where the words would be pure duplication.
 - A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a reading with no badge beside it to confirm it is worse than silence.
-- The number is the **same per-pick value the standings' `Diff` column sums** (§Tiebreakers), so a member who disputes a tiebreaker can audit it against the week that produced it instead of taking the total on faith.
+- The number is the **same measurement the in-progress reading showed**, now taken over a final score — which is what lets the tense do the work: one sentence resolving, not a new one appearing. It states the size of the result this member just got on this pick, and nothing more: it is never summed, and standings are points alone.
 
 No standalone stats pages, head-to-head views, or historical archives.
 
@@ -280,7 +275,7 @@ No standalone stats pages, head-to-head views, or historical archives.
 - Game scores refresh approximately every **5 minutes** during game days; pick outcomes, eliminations, and standings update on the same cadence as games go final.
 - The app is not real-time within those 5-minute windows — the UI shows a "last updated" timestamp and users refresh/reload to see the latest, with no live push.
 - Spreads refresh several times daily; the spread shown and accepted at pick time is the spread of record for that pick.
-- Schedule changes (cancellations, moves, postponements) are reflected by the next daily schedule sync; affected picks show push/re-pick status shortly after.
+- Schedule changes (cancellations, postponements) are reflected by the next daily schedule sync; a cancelled game's picks show as pushes shortly after.
 - A nightly reconciliation pass re-verifies all results and standings, so any late stat corrections are reflected by the next morning.
 
 ## Testing & Internal Tooling (non-production)
@@ -289,7 +284,7 @@ No standalone stats pages, head-to-head views, or historical archives.
 
 Capabilities:
 - **Simulated clock:** advance app time week by week (or to arbitrary timestamps) so kickoff-derived locking, join cutoffs, and deadlines behave as they would live
-- **Fixture results:** load or hand-edit game outcomes (scores, spreads, finals) for any simulated week, including edge-case fixtures: pushes, ties, cancellations, postponements, week moves, all-eliminated weeks, vacated bracket slots
+- **Fixture results:** load or hand-edit game outcomes (scores, spreads, finals) for any simulated week, including edge-case fixtures: pushes, ties, cancellations, postponements, all-eliminated weeks, vacated bracket slots
 - **Step-through settlement:** trigger settlement per simulated week and inspect resulting pick outcomes and standings at each step
 - **Real-data mode:** alternatively run ingestion against real ESPN data (historical or live) to validate the integration itself
 - **Reset:** wipe a test league or the whole environment to a known state
@@ -298,14 +293,17 @@ Acceptance bar: every scoring rule and edge case in this spec is reproducible in
 
 ## Explicitly Out of Scope (MVP)
 
-Confidence scoring · Money Pick · Elimination lives > 1 · Buy-back · Elimination extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates
+Confidence scoring · Money Pick · Elimination lives > 1 · Buy-back · Elimination extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges outside the three season-range presets
 
 ## Decisions Log
 
 | Decision | Outcome |
 | --- | --- |
 | Pick'em scoring | Standard only; Confidence + Money Pick deferred |
-| Cancellation re-picks | In MVP (standard-scoring rules) |
+| Cancellation re-picks | Shipped, then removed (ADR-0018); a cancelled game's pick pushes and the push stands |
+| Pick'em pick entry | One submission per week, confirmed and immutable (ADR-0018) |
+| Pick'em push value and ties | Fixed at +0.5, no setting; tied members share the rank with no tiebreaker (ADR-0018) |
+| Pick'em season range | Three presets — Regular Season, Postseason, Full Season — resolved to concrete weeks at league creation; custom ranges dropped (ADR-0020) |
 | Elimination lives | Fixed at 1; buy-back deferred |
 | Elimination end-of-league | Co-winners share rank; no extension weeks |
 | MM bonuses (upset, perfect round) | Deferred |

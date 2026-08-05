@@ -1,6 +1,6 @@
 # 0015. Pick'em pick entry: whole-week replace, unplayable games are unpickable, and a settings change resets picks
 
-- **Status:** Accepted
+- **Status:** Accepted — rules 1 and 2 superseded in part by ADR-0018 (a week's picks are one atomic, immutable submission; the substitute path rule 1 required goes with it) and ADR-0019 (`moved` ceases to be a game status, so rule 2's unplayable set is `cancelled` alone); **rule 3 survives** and is now the only path by which a member re-submits a week
 - **Date:** 2026-07-27
 - **Related:** `docs/mvp-spec.md` §Game Mode 1 (Core Rules, Locking, ATS spread acceptance, Cancellations, Pick Visibility); `docs/architecture.md` §Locking Model, D9–D11, D15; backlog PKM-2, PKM-7
 
