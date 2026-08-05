@@ -802,3 +802,7 @@ verified, and this PR should not merge on the strength of the other twelve.
 **Not in this PR, by design:** SIMP-13 (runbook), SIMP-15 (dead-code sweep), SIMP-16 (odds
 coverage) and SIMP-18–20 (presets) are PR 3. Tickets stay `[~]`; `[x]` is human-only after
 review (`docs/agents/issue-tracker.md`).
+
+**PR:** https://github.com/paul-macfarlane/picksleagues/pull/28 (`picksleagues`, base
+`staging`). Opened with the e2e human gate stated in the PR body, so it is the first thing
+a reviewer reads rather than a footnote.
