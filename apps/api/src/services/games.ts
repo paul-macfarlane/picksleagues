@@ -17,6 +17,7 @@ export type GameOverrideFields = {
   status: GameStatus;
   homeScore: number | null;
   awayScore: number | null;
+  spread: number | null;
   period: number | null;
   clockSeconds: number | null;
   overrideKickoffAt: Date | null;
@@ -41,22 +42,13 @@ export type ResolvedGame = {
   clockSeconds: number | null;
 };
 
-/**
- * `providerSpread` is passed in rather than read off the game because the
- * provider's spread lives in `odds_snapshots`, not on `games` — which snapshot
- * counts (latest vs. the one current at lock time) is the caller's decision,
- * while the override's precedence over it is not.
- */
-export function resolveGameOverrides(
-  game: GameOverrideFields,
-  providerSpread: number | null,
-): ResolvedGame {
+export function resolveGameOverrides(game: GameOverrideFields): ResolvedGame {
   return {
     kickoffAt: game.overrideKickoffAt ?? game.kickoffAt,
     status: game.overrideStatus ?? game.status,
     homeScore: game.overrideHomeScore ?? game.homeScore,
     awayScore: game.overrideAwayScore ?? game.awayScore,
-    spread: game.overrideSpread ?? providerSpread,
+    spread: game.overrideSpread ?? game.spread,
     period: game.overridePeriod ?? game.period,
     clockSeconds: game.overrideClockSeconds ?? game.clockSeconds,
   };

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
+import { createDb, games, sportSeasons, weeks } from "@picksleagues/db";
 import {
   FixedClock,
   type GameDataProvider,
@@ -17,6 +17,7 @@ import {
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { resolveGameOverrides } from "../src/services/games";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
@@ -68,6 +69,14 @@ const app = createApp({
   provider: async () => provider,
 });
 
+/** Current spread per provider game id — the state a re-run must leave alone. */
+async function spreadsByProviderId(): Promise<Map<string, number | null>> {
+  const rows = await db
+    .select({ providerGameId: games.providerGameId, spread: games.spread })
+    .from(games);
+  return new Map(rows.map((row) => [row.providerGameId, row.spread]));
+}
+
 /** Seeds one season + the given week with its games via the real schedule sync. */
 async function seedSchedule(
   weekGames: ProviderGame[],
@@ -89,7 +98,7 @@ afterAll(async () => {
 });
 
 describe("syncNflOdds", () => {
-  it("snapshots only unstarted games (a game past its kickoff is excluded)", async () => {
+  it("prices only unstarted games (a game past its kickoff is excluded)", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "g1",
@@ -110,19 +119,23 @@ describe("syncNflOdds", () => {
       seasonYear: SEASON_YEAR,
       weekNumber: 1,
       unstartedGames: 1,
-      snapshotsInserted: 1,
+      spreadsUpdated: 1,
       gamesWithoutOdds: 0,
     });
 
-    const snapshots = await db.select().from(oddsSnapshots);
-    expect(snapshots).toHaveLength(1);
-    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
-    expect(snapshots[0]).toMatchObject({ gameId: g2?.id, spread: 2.5 });
+    // g1 already kicked off, so its line is never touched — the provider's -3.5
+    // for it must not land.
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["g1", null],
+        ["g2", 2.5],
+      ]),
+    );
   });
 
   /**
    * Found by manual regression testing (runbook Pass 4, ATS variant). Keying on
-   * `status = scheduled` denied a postponed game any snapshot, so an ATS league
+   * `status = scheduled` denied a postponed game any spread, so an ATS league
    * refused every pick on it with `spread_unavailable` — permanently, since a
    * postponement is announced ahead of time and never becomes `scheduled` again.
    *
@@ -131,7 +144,7 @@ describe("syncNflOdds", () => {
    * cancelled one not, so the odds sync has to draw the line in the same place
    * or the app offers a pick it will always reject.
    */
-  it("snapshots a postponed game whose kickoff is still ahead, but never a cancelled one", async () => {
+  it("prices a postponed game whose kickoff is still ahead, but never a cancelled one", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "postponed",
@@ -150,15 +163,17 @@ describe("syncNflOdds", () => {
     ]);
 
     const details = await syncNflOdds(db, oddsClock, provider, {});
-    expect(details).toMatchObject({ unstartedGames: 1, snapshotsInserted: 1 });
+    expect(details).toMatchObject({ unstartedGames: 1, spreadsUpdated: 1 });
 
-    const snapshots = await db.select().from(oddsSnapshots);
-    expect(snapshots).toHaveLength(1);
-    const [postponed] = await db.select().from(games).where(eq(games.providerGameId, "postponed"));
-    expect(snapshots[0]).toMatchObject({ gameId: postponed?.id, spread: -3.5 });
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["postponed", -3.5],
+        ["cancelled", null],
+      ]),
+    );
   });
 
-  it("stamps capturedAt from the injected clock, not the DB clock", async () => {
+  it("stamps updated_at from the injected clock, not the DB clock", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "g2",
@@ -170,12 +185,12 @@ describe("syncNflOdds", () => {
 
     await syncNflOdds(db, oddsClock, provider, {});
 
-    const [snapshot] = await db.select().from(oddsSnapshots);
-    expect(snapshot?.capturedAt).toEqual(ODDS_NOW);
-    expect(snapshot?.createdAt).toEqual(ODDS_NOW);
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+    expect(g2?.spread).toBe(2.5);
+    expect(g2?.updatedAt).toEqual(ODDS_NOW);
   });
 
-  it("counts unstarted games without a provider line and inserts no snapshot for them", async () => {
+  it("counts unstarted games without a provider line and leaves their spread alone", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "g2",
@@ -192,11 +207,46 @@ describe("syncNflOdds", () => {
     ]);
 
     const details = await syncNflOdds(db, oddsClock, provider, {});
-    expect(details).toMatchObject({ unstartedGames: 2, snapshotsInserted: 1, gamesWithoutOdds: 1 });
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+    expect(details).toMatchObject({ unstartedGames: 2, spreadsUpdated: 1, gamesWithoutOdds: 1 });
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["g2", 2.5],
+        ["g3", null],
+      ]),
+    );
   });
 
-  it("appends a fresh snapshot per game on every run (odds history is intentional)", async () => {
+  // The point of the collapse (ADR-0018): one current number per game, no
+  // history. `updated_at` is compared too — it is served as the row's as-of
+  // instant, so a re-run that restamped it would be a visible change even
+  // though the line never moved.
+  it("re-running against the same provider response leaves row state identical", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
+      providerGame({
+        providerGameId: "g3",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T20:00:00.000Z"),
+        spread: null,
+      }),
+    ]);
+
+    const first = await syncNflOdds(db, oddsClock, provider, {});
+    expect(first).toMatchObject({ unstartedGames: 2, spreadsUpdated: 1, gamesWithoutOdds: 1 });
+    const afterFirst = await db.select().from(games).orderBy(games.providerGameId);
+
+    const second = await syncNflOdds(db, oddsClock, provider, {});
+    expect(second).toMatchObject({ unstartedGames: 2, spreadsUpdated: 0, gamesWithoutOdds: 1 });
+
+    expect(await db.select().from(games).orderBy(games.providerGameId)).toEqual(afterFirst);
+  });
+
+  it("writes the new number when the line moves, and only then", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "g2",
@@ -205,14 +255,43 @@ describe("syncNflOdds", () => {
         spread: 2.5,
       }),
     ]);
-
-    await syncNflOdds(db, oddsClock, provider, {});
     await syncNflOdds(db, oddsClock, provider, {});
 
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(2);
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: -1.5,
+      }),
+    ]);
+
+    const details = await syncNflOdds(db, oddsClock, provider, {});
+    expect(details).toMatchObject({ spreadsUpdated: 1 });
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", -1.5]]));
   });
 
-  it("pre-season: with no in-progress week, falls back to the next upcoming week and snapshots it", async () => {
+  // Arch D15: ingestion writes provider columns only, so a correction outlives
+  // every re-sync — and the resolved number an operator sees stays theirs.
+  it("never clobbers an override_spread, and the override still wins after the re-sync", async () => {
+    await seedSchedule([
+      providerGame({
+        providerGameId: "g2",
+        weekNumber: 1,
+        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+        spread: 2.5,
+      }),
+    ]);
+    await db.update(games).set({ overrideSpread: -7 });
+
+    await syncNflOdds(db, oddsClock, provider, {});
+
+    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+    expect(g2).toMatchObject({ spread: 2.5, overrideSpread: -7 });
+    expect(resolveGameOverrides(g2!).spread).toBe(-7);
+  });
+
+  it("pre-season: with no in-progress week, falls back to the next upcoming week and prices it", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "g2",
@@ -226,8 +305,8 @@ describe("syncNflOdds", () => {
     // week — the next-upcoming-week fallback resolves week 1.
     const preSeasonClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
     const details = await syncNflOdds(db, preSeasonClock, provider, {});
-    expect(details).toMatchObject({ weekNumber: 1, unstartedGames: 1, snapshotsInserted: 1 });
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+    expect(details).toMatchObject({ weekNumber: 1, unstartedGames: 1, spreadsUpdated: 1 });
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", 2.5]]));
   });
 
   it("off-season: after every week has ended with no explicit week, no_current_week and writes nothing", async () => {
@@ -244,10 +323,10 @@ describe("syncNflOdds", () => {
     const offSeasonClock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     const details = await syncNflOdds(db, offSeasonClock, provider, {});
     expect(details).toMatchObject({ skipped: true, reason: "no_current_week" });
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", null]]));
   });
 
-  it("explicit week: snapshots the requested week's unstarted games", async () => {
+  it("explicit week: prices the requested week's unstarted games", async () => {
     await seedSchedule([
       providerGame({
         providerGameId: "g2",
@@ -258,11 +337,11 @@ describe("syncNflOdds", () => {
     ]);
 
     const details = await syncNflOdds(db, oddsClock, provider, { weekNumber: 1 });
-    expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, snapshotsInserted: 1 });
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+    expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, spreadsUpdated: 1 });
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", 2.5]]));
   });
 
-  it("explicit postseason week: snapshots that week's unstarted postseason games", async () => {
+  it("explicit postseason week: prices that week's unstarted postseason games", async () => {
     await seedSchedule(
       [
         providerGame({
@@ -286,12 +365,9 @@ describe("syncNflOdds", () => {
       weekType: WEEK_TYPE.POSTSEASON,
       weekNumber: 1,
     });
-    expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, snapshotsInserted: 1 });
+    expect(details).toMatchObject({ seasonYear: SEASON_YEAR, weekNumber: 1, spreadsUpdated: 1 });
 
-    const snapshots = await db.select().from(oddsSnapshots);
-    expect(snapshots).toHaveLength(1);
-    const [post1] = await db.select().from(games).where(eq(games.providerGameId, "post1"));
-    expect(snapshots[0]).toMatchObject({ gameId: post1?.id, spread: -4.5 });
+    expect(await spreadsByProviderId()).toEqual(new Map([["post1", -4.5]]));
   });
 
   it("explicit week that isn't synced returns week_not_synced (distinct from the derived no_current_week)", async () => {
@@ -306,7 +382,7 @@ describe("syncNflOdds", () => {
 
     const details = await syncNflOdds(db, oddsClock, provider, { weekNumber: 5 });
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", null]]));
   });
 
   it("no-ops when the season has not been synced and writes nothing", async () => {
@@ -314,7 +390,7 @@ describe("syncNflOdds", () => {
     expect(details).toMatchObject({ skipped: true, reason: "season_not_synced" });
     expect(await db.select().from(sportSeasons)).toHaveLength(0);
     expect(await db.select().from(weeks)).toHaveLength(0);
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+    expect(await spreadsByProviderId()).toEqual(new Map());
   });
 
   it("ignores a provider game that isn't in our tables (never creates games/weeks)", async () => {
@@ -344,10 +420,10 @@ describe("syncNflOdds", () => {
     ]);
 
     const details = await syncNflOdds(db, oddsClock, provider, {});
-    expect(details).toMatchObject({ unstartedGames: 1, snapshotsInserted: 1 });
+    expect(details).toMatchObject({ unstartedGames: 1, spreadsUpdated: 1 });
     expect(await db.select().from(games)).toHaveLength(1);
     expect(await db.select().from(weeks)).toHaveLength(1);
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(1);
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", 2.5]]));
   });
 });
 
@@ -401,7 +477,7 @@ describe("syncNflOdds: offseason season roll-forward", () => {
     );
   }
 
-  it("default season concluded + next season synced: a bare run snapshots the NEXT season's first week", async () => {
+  it("default season concluded + next season synced: a bare run prices the NEXT season's first week", async () => {
     await seedConcludedDefaultSeason();
     await seedUpcomingSeason();
 
@@ -410,13 +486,15 @@ describe("syncNflOdds: offseason season roll-forward", () => {
       seasonYear: NEXT_SEASON_YEAR,
       weekNumber: 1,
       unstartedGames: 1,
-      snapshotsInserted: 1,
+      spreadsUpdated: 1,
     });
 
-    const snapshots = await db.select().from(oddsSnapshots);
-    expect(snapshots).toHaveLength(1);
-    const [n1] = await db.select().from(games).where(eq(games.providerGameId, "n1"));
-    expect(snapshots[0]).toMatchObject({ gameId: n1?.id, spread: -6.5 });
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["g2", null],
+        ["n1", -6.5],
+      ]),
+    );
   });
 
   it("default season concluded + NO next season row: no-ops and never creates one", async () => {
@@ -429,10 +507,10 @@ describe("syncNflOdds: offseason season roll-forward", () => {
     // Creating next year's season is schedule-sync's job — recurring syncs only
     // ever query reference data.
     expect(await db.select().from(sportSeasons)).toEqual(seasonsBefore);
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+    expect(await spreadsByProviderId()).toEqual(new Map([["g2", null]]));
   });
 
-  it("derived season never synced + next season synced: a bare run snapshots the NEXT season", async () => {
+  it("derived season never synced + next season synced: a bare run prices the NEXT season", async () => {
     // The routine pre-launch shape: a wipe-and-reseed during the offseason
     // seeds only the season about to start, so the derived label points at a
     // season with no rows at all. Rolling forward only on CONCLUDED read that
@@ -444,7 +522,7 @@ describe("syncNflOdds: offseason season roll-forward", () => {
       seasonYear: NEXT_SEASON_YEAR,
       weekNumber: 1,
       unstartedGames: 1,
-      snapshotsInserted: 1,
+      spreadsUpdated: 1,
     });
   });
 
@@ -465,7 +543,7 @@ describe("syncNflOdds: offseason season roll-forward", () => {
     expect(details).toMatchObject({ skipped: true, reason: "season_not_synced" });
 
     expect(await db.select().from(sportSeasons)).toEqual(seasonsBefore);
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+    expect(await spreadsByProviderId()).toEqual(new Map());
   });
 
   it("an explicit season/week still wins over the roll-forward", async () => {
@@ -477,14 +555,19 @@ describe("syncNflOdds: offseason season roll-forward", () => {
       weekNumber: 1,
     });
     // The concluded season's games are all past kickoff, so targeting it writes
-    // nothing — the roll-forward would have reported 2027 and one snapshot.
+    // nothing — the roll-forward would have reported 2027 and one update.
     expect(details).toMatchObject({
       seasonYear: SEASON_YEAR,
       weekNumber: 1,
       unstartedGames: 0,
-      snapshotsInserted: 0,
+      spreadsUpdated: 0,
     });
-    expect(await db.select().from(oddsSnapshots)).toHaveLength(0);
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["g2", null],
+        ["n1", null],
+      ]),
+    );
   });
 
   it("an explicit week with a derived season rolls forward with it", async () => {
@@ -492,7 +575,7 @@ describe("syncNflOdds: offseason season roll-forward", () => {
     await seedUpcomingSeason();
 
     const details = await syncNflOdds(db, offseasonClock, provider, { weekNumber: 1 });
-    expect(details).toMatchObject({ seasonYear: NEXT_SEASON_YEAR, snapshotsInserted: 1 });
+    expect(details).toMatchObject({ seasonYear: NEXT_SEASON_YEAR, spreadsUpdated: 1 });
   });
 });
 
@@ -520,6 +603,6 @@ describe("POST /api/jobs/nfl/sync-odds", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as JobRunResponse;
     expect(body.status).toBe("ok");
-    expect(body.details).toMatchObject({ weekNumber: 1, snapshotsInserted: 1 });
+    expect(body.details).toMatchObject({ weekNumber: 1, spreadsUpdated: 1 });
   });
 });

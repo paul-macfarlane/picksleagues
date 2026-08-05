@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, oddsSnapshots, sportSeasons, teams, weeks } from "@picksleagues/db";
+import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   FixedClock,
   type GameDataProvider,
@@ -11,7 +11,6 @@ import {
   GAME_STATUS,
   SPORT,
   WEEK_TYPE,
-  type AdminGameOddsResponse,
   type AdminGamesResponse,
   type AdminSeasonsResponse,
   type AdminTeamsResponse,
@@ -207,6 +206,7 @@ async function seed(overriddenBy: string) {
         status: GAME_STATUS.SCHEDULED,
         homeScore: null,
         awayScore: null,
+        spread: -2.5,
         createdAt: SEEDED_AT,
         updatedAt: SEEDED_AT,
       },
@@ -233,23 +233,6 @@ async function seed(overriddenBy: string) {
     .returning();
   if (!gameA || !gameB) throw new Error("game insert returned no row");
 
-  // Two snapshots on A (the later one is what "current spread" means) and none
-  // on B, whose spread therefore comes entirely from its override.
-  await db.insert(oddsSnapshots).values([
-    {
-      gameId: gameA.id,
-      spread: -3.5,
-      capturedAt: new Date("2026-09-10T12:00:00.000Z"),
-      createdAt: SEEDED_AT,
-    },
-    {
-      gameId: gameA.id,
-      spread: -2.5,
-      capturedAt: new Date("2026-09-12T12:00:00.000Z"),
-      createdAt: SEEDED_AT,
-    },
-  ]);
-
   return { season2026, season2025, week1, week2, gameA, gameB };
 }
 
@@ -266,7 +249,6 @@ describe("admin reference-data browsers", () => {
     "/api/admin/teams?sport=nfl",
     "/api/admin/seasons?sport=nfl",
     "/api/admin/games?weekId=00000000-0000-4000-8000-000000000000",
-    "/api/admin/games/00000000-0000-4000-8000-000000000000/odds",
   ];
 
   it.each(paths)("401s with no session cookie: %s", async (path) => {
@@ -401,15 +383,15 @@ describe("GET /api/admin/games", () => {
       effectiveHomeScore: 24,
       effectiveAwayScore: 21,
       effectiveSpread: 7.5,
-      // No snapshot exists — the effective spread came from the override alone.
-      latestSpread: null,
-      latestSpreadCapturedAt: null,
+      // The provider never priced this game — the effective spread came from
+      // the override alone.
+      spread: null,
       homeTeam: { abbreviation: "NE", name: "Patriots" },
       awayTeam: { abbreviation: "MIA", name: "Dolphins" },
     });
   });
 
-  it("falls back to provider values and the latest snapshot when nothing is overridden", async () => {
+  it("falls back to provider values when nothing is overridden", async () => {
     const { app, cookie, userId } = await adminCaller();
     const seeded = await seed(userId);
 
@@ -429,93 +411,11 @@ describe("GET /api/admin/games", () => {
       effectiveStatus: "scheduled",
       effectiveHomeScore: null,
       effectiveAwayScore: null,
-      // Newest snapshot wins, and with no override it is also the effective spread.
-      latestSpread: -2.5,
-      latestSpreadCapturedAt: "2026-09-12T12:00:00.000Z",
+      // With no override the provider spread is also the effective spread.
+      spread: -2.5,
       effectiveSpread: -2.5,
       homeTeam: { abbreviation: "BUF", name: "Bills" },
       awayTeam: { abbreviation: "NYJ", name: "Jets" },
     });
-  });
-});
-
-describe("GET /api/admin/games/{gameId}/odds", () => {
-  it("404s for an unknown game", async () => {
-    const { app, cookie } = await adminCaller();
-
-    const res = await get(
-      app,
-      "/api/admin/games/00000000-0000-4000-8000-000000000000/odds",
-      cookie,
-    );
-
-    expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "game_not_found" });
-  });
-
-  it("returns snapshots newest-first", async () => {
-    const { app, cookie, userId } = await adminCaller();
-    const seeded = await seed(userId);
-
-    const res = await get(app, `/api/admin/games/${seeded.gameA.id}/odds`, cookie);
-
-    expect(res.status).toBe(200);
-    const { snapshots } = (await res.json()) as AdminGameOddsResponse;
-    expect(snapshots.map((snapshot) => snapshot.spread)).toEqual([-2.5, -3.5]);
-    expect(snapshots[0]?.capturedAt).toBe("2026-09-12T12:00:00.000Z");
-  });
-
-  it("distinguishes a game with no snapshots from a missing game", async () => {
-    const { app, cookie, userId } = await adminCaller();
-    const seeded = await seed(userId);
-
-    const res = await get(app, `/api/admin/games/${seeded.gameB.id}/odds`, cookie);
-
-    expect(res.status).toBe(200);
-    expect((await res.json()) as AdminGameOddsResponse).toEqual({ snapshots: [] });
-  });
-});
-
-describe("snapshots captured at the same instant", () => {
-  /**
-   * A sync run stamps every row it inserts with one `clock.now()`, so equal
-   * `captured_at` values are ordinary — and under the simulator's fixed clock
-   * they are the norm. Both snapshot reads must still be deterministic.
-   */
-  async function seedTiedSnapshots(userId: string) {
-    const seeded = await seed(userId);
-    const tiedAt = new Date("2026-09-13T12:00:00.000Z");
-    const rows = await db
-      .insert(oddsSnapshots)
-      .values([
-        { gameId: seeded.gameA.id, spread: 1.5, capturedAt: tiedAt, createdAt: SEEDED_AT },
-        { gameId: seeded.gameA.id, spread: 2.5, capturedAt: tiedAt, createdAt: SEEDED_AT },
-      ])
-      .returning();
-    const winner = [...rows].sort((a, b) => (a.id < b.id ? 1 : -1))[0];
-    if (!winner) throw new Error("snapshot insert returned no row");
-    return { seeded, winner };
-  }
-
-  it("resolves the latest spread deterministically", async () => {
-    const { app, cookie, userId } = await adminCaller();
-    const { seeded, winner } = await seedTiedSnapshots(userId);
-
-    const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);
-
-    const { games: rows } = (await res.json()) as AdminGamesResponse;
-    const gameA = rows.find((game) => game.providerGameId === "evt-a");
-    expect(gameA?.latestSpread).toBe(winner.spread);
-    expect(gameA?.effectiveSpread).toBe(winner.spread);
-  });
-
-  it("orders the snapshot history deterministically", async () => {
-    const { app, cookie, userId } = await adminCaller();
-    const { seeded, winner } = await seedTiedSnapshots(userId);
-
-    const res = await get(app, `/api/admin/games/${seeded.gameA.id}/odds`, cookie);
-
-    const { snapshots } = (await res.json()) as AdminGameOddsResponse;
-    expect(snapshots[0]?.id).toBe(winner.id);
   });
 });

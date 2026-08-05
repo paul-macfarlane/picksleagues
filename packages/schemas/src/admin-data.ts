@@ -6,8 +6,8 @@ import { WeekTypeSchema } from "./week-type";
 /**
  * Read-only projections of the provider-synced reference tables for the admin
  * page's data browsers (arch §Manual Sports Data Overrides: "read-only
- * browsers over reference data — teams, seasons/weeks, games, odds
- * snapshots"). These are inspection surfaces whose whole point is showing the
+ * browsers over reference data — teams, seasons/weeks, games"). These are
+ * inspection surfaces whose whole point is showing the
  * raw stored truth, so DB columns are serialized flat rather than reshaped;
  * `AdminGame` is the exception and carries provider, override, and resolved
  * values side by side so an operator can see what ingestion wrote, what a human
@@ -96,9 +96,9 @@ export const AdminGameSchema = z
     // left in it. Null unless the game is in progress.
     period: z.number().int().nullable(),
     clockSeconds: z.number().int().nullable(),
-    // Latest odds snapshot for this game; null until the odds sync captures one.
-    latestSpread: z.number().nullable(),
-    latestSpreadCapturedAt: z.iso.datetime().nullable(),
+    // Home-team-relative; negative = home favored. Null until the odds sync
+    // finds a line for this game.
+    spread: z.number().nullable(),
     // Override block — admin corrections only (written by PUT /admin/games/{id}/override).
     overrideKickoffAt: z.iso.datetime().nullable(),
     overrideStatus: NullableGameStatusSchema,
@@ -129,32 +129,10 @@ export const AdminGamesResponseSchema = z
 
 export type AdminGamesResponse = z.infer<typeof AdminGamesResponseSchema>;
 
-export const AdminOddsSnapshotSchema = z
-  .object({
-    id: z.string(),
-    // Home-team-relative; negative = home favored (odds_snapshots.spread).
-    spread: z.number(),
-    capturedAt: z.iso.datetime(),
-  })
-  .openapi("AdminOddsSnapshot");
-
-export type AdminOddsSnapshot = z.infer<typeof AdminOddsSnapshotSchema>;
-
-// Snapshot history is unbounded over a season of 5-minute odds syncs, so the
-// browser reads the most recent page only — enough to see whether the spread is
-// moving and when it was last captured.
-export const ADMIN_ODDS_SNAPSHOT_LIMIT = 50;
-
-export const AdminGameOddsResponseSchema = z
-  .object({ snapshots: z.array(AdminOddsSnapshotSchema) })
-  .openapi("AdminGameOddsResponse");
-
-export type AdminGameOddsResponse = z.infer<typeof AdminGameOddsResponseSchema>;
-
 // Same bound as the simulator's fixture editor: high enough that no real
 // football score is rejected, low enough that a fat-fingered digit is.
 const MAX_GAME_SCORE = 200;
-// Home-relative points, matching `odds_snapshots.spread`. No real line comes
+// Home-relative points, matching `games.spread`. No real line comes
 // near this; the bound exists so a mis-typed or mis-scaled number is refused
 // rather than silently regrading every pick on the game.
 const MAX_SPREAD = 100;

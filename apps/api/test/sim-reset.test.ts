@@ -1,15 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import {
-  games,
-  leagues,
-  oddsSnapshots,
-  simScenarios,
-  sportSeasons,
-  teams,
-  users,
-  weeks,
-} from "@picksleagues/db";
+import { games, leagues, simScenarios, sportSeasons, teams, users, weeks } from "@picksleagues/db";
 import { nflSeasonYearFor } from "@picksleagues/core";
 import { GAME_STATUS, type SimResetResponse } from "@picksleagues/schemas";
 import {
@@ -128,7 +119,7 @@ describe("POST /api/sim/reset", () => {
   // Regression: without dropScenario, environment reset rebases the clock to
   // the active scenario's own `startsAt` (reset.ts) — otherwise the wiped
   // season re-ingests with every game already past kickoff, and sync-odds
-  // only snapshots unstarted games, so the spreads ATS scoring needs would be
+  // only prices unstarted games, so the spreads ATS scoring needs would be
   // gone for good. This is the full odds-recoverability cycle the fix exists
   // for: sync, go final, reset, re-sync, and prove odds come back.
   it("environment reset without dropScenario rewinds the clock so odds are recoverable after a sync+final cycle", async () => {
@@ -138,8 +129,8 @@ describe("POST /api/sim/reset", () => {
 
     expect((await runScheduleSyncJob(app, scheduleQuery)).status).toBe(200);
     expect((await runOddsSyncJob(app, scheduleQuery)).status).toBe(200);
-    const firstSnapshots = await db.select().from(oddsSnapshots);
-    expect(firstSnapshots.length).toBeGreaterThan(0);
+    const firstPriced = await db.select().from(games).where(isNotNull(games.spread));
+    expect(firstPriced.length).toBeGreaterThan(0);
 
     const [week] = await db.select().from(weeks);
     const clockRes = await postJson(
@@ -160,13 +151,13 @@ describe("POST /api/sim/reset", () => {
     expect(resetRes.status).toBe(200);
     const resetBody = (await resetRes.json()) as SimResetResponse;
     // The regression: before the fix, the clock was left wherever it had
-    // drifted to (past every game), so this re-sync captured zero snapshots.
+    // drifted to (past every game), so this re-sync priced zero games.
     expectCloseTo(resetBody.state.clock.now, new Date(scenario.startsAt));
 
     expect((await runScheduleSyncJob(app, scheduleQuery)).status).toBe(200);
     expect((await runOddsSyncJob(app, scheduleQuery)).status).toBe(200);
-    const secondSnapshots = await db.select().from(oddsSnapshots);
-    expect(secondSnapshots.length).toBeGreaterThan(0);
+    const secondPriced = await db.select().from(games).where(isNotNull(games.spread));
+    expect(secondPriced.length).toBeGreaterThan(0);
   });
 
   // Regression: `dropScenario` must delete only the loaded scenario's row —

@@ -7,7 +7,6 @@ import {
   leagueMembers,
   leagueSeasons,
   leagues,
-  oddsSnapshots,
   pickemPickResults,
   pickemPicks,
   pickemStandings,
@@ -127,7 +126,6 @@ async function deleteLeagueOwnedData(
  */
 async function deleteIngestedSportsData(tx: Db): Promise<Record<string, number>> {
   return {
-    odds_snapshots: await deleteAndCount(tx, oddsSnapshots),
     games: await deleteAndCount(tx, games),
     weeks: await deleteAndCount(tx, weeks),
     sport_seasons: await deleteAndCount(tx, sportSeasons),
@@ -183,7 +181,7 @@ export async function resetSimEnvironment(
 
     // Keeping the scenario but leaving the clock where it is would be a broken
     // "known state": the wiped season re-ingests with every game already past
-    // kickoff, and `sync-odds` only snapshots unstarted games — so the spreads
+    // kickoff, and `sync-odds` only prices unstarted games — so the spreads
     // ATS scoring needs would be gone for good. Rewinding to the scenario's own
     // start is what makes the reset actually reproducible.
     let nextOffsetMs = offsetMs;

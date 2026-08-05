@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueSeasons, oddsSnapshots, pickemPicks } from "@picksleagues/db";
+import { leagueSeasons, pickemPicks } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   GAME_STATUS,
@@ -211,7 +211,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     expect(byGameId.get(g3!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
   });
 
-  it("grades an ATS pick against spread_at_pick, not the latest odds snapshot", async () => {
+  it("grades an ATS pick against spread_at_pick, not the game's current spread", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
       settings: { ...DEFAULT_PICKEM_SETTINGS, pickType: PICK_TYPE.AGAINST_THE_SPREAD },
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF, spread: -3.5 }] }],
@@ -230,18 +230,16 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       spreadAtPick: -3.5,
     });
 
-    // A later, materially different snapshot lands after the pick — settlement
-    // must not re-read it (loadWeekInputs never queries odds_snapshots at all;
-    // this snapshot proves it structurally can't, not just that it happens not
-    // to). Home wins by 4: against -3.5 that's a 0.5-point cover (correct);
-    // against the newer -9 it would be a loss.
-    await db.insert(oddsSnapshots).values({
-      gameId: g1!,
+    // The line moves materially after the pick — settlement must grade against
+    // the pick's own number, never the game's current one. Home wins by 4:
+    // against -3.5 that's a 0.5-point cover (correct); against the newer -9 it
+    // would be a loss.
+    await setGame(db, g1!, {
       spread: -9,
-      capturedAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 1000),
-      createdAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 1000),
+      status: GAME_STATUS.FINAL,
+      homeScore: 24,
+      awayScore: 20,
     });
-    await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 20 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);

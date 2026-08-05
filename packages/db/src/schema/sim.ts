@@ -20,9 +20,9 @@ import type { SimFinalStatus, SimScenarioSource, Sport, WeekType } from "@picksl
  * These are the `SimulatedProvider`'s backing store, standing in for ESPN's API
  * rather than for our own synced tables: fixtures hold *provider-shaped* rows
  * (team abbreviations, a provider game id, a week type + number), and the normal
- * sync jobs ingest from the provider into `sport_seasons`/`weeks`/`games`/
- * `odds_snapshots` exactly as they do from ESPN. Nothing downstream of ingestion
- * knows the simulator exists.
+ * sync jobs ingest from the provider into `sport_seasons`/`weeks`/`games`
+ * exactly as they do from ESPN. Nothing downstream of ingestion knows the
+ * simulator exists.
  *
  * All timestamps are supplied by app code from the injected Clock (arch D13) —
  * no `.defaultNow()`.
@@ -102,7 +102,7 @@ export const simFixtureGames = pgTable(
     awayTeamName: text("away_team_name").notNull(),
     awayTeamProviderId: text("away_team_provider_id").notNull(),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
-    // Home-team-relative, matching `odds_snapshots.spread` (negative = home
+    // Home-team-relative, matching `games.spread` (negative = home
     // favored). Nullable: a fixture can deliberately have no spread, which is how
     // a straight-up-only week is expressed.
     spread: doublePrecision("spread"),

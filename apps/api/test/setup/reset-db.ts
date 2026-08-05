@@ -8,7 +8,6 @@ import {
   leagueMembers,
   leagueSeasons,
   leagues,
-  oddsSnapshots,
   pickemPicks,
   pickemPickResults,
   sessions,
@@ -37,7 +36,6 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(leagueMembers);
   await db.delete(leagueSeasons);
   await db.delete(leagues);
-  await db.delete(oddsSnapshots);
   await db.delete(games);
   await db.delete(weeks);
   await db.delete(sportSeasons);

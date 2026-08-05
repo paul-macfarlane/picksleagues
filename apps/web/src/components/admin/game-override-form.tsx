@@ -171,7 +171,7 @@ function GameOverrideEditor({ game }: { game: AdminGame }) {
           </form.Field>
         </ProviderHint>
 
-        <ProviderHint provider={game.latestSpread === null ? "no line" : String(game.latestSpread)}>
+        <ProviderHint provider={game.spread === null ? "no line" : String(game.spread)}>
           <form.Field name="spread">
             {(field) => (
               <FormTextField

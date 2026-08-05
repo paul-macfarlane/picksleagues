@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers, oddsSnapshots, pickemPicks } from "@picksleagues/db";
+import { leagueMembers, pickemPicks } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ELIMINATION_PUSH_TIE_RESOLUTION,
@@ -1136,20 +1136,8 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
       // The line moves under g2 and g3 while they are still unstarted — the
       // exact scenario the batch endpoint would re-price on any edit. The
       // repick endpoint must not: it prices the replacement only.
-      await db.insert(oddsSnapshots).values([
-        {
-          gameId: g2!,
-          spread: -10,
-          capturedAt: new Date(WEEK1_KICKOFF.getTime() + 4 * 60 * 60 * 1000),
-          createdAt: new Date(WEEK1_KICKOFF.getTime() + 4 * 60 * 60 * 1000),
-        },
-        {
-          gameId: g3!,
-          spread: -11,
-          capturedAt: new Date(WEEK1_KICKOFF.getTime() + 4 * 60 * 60 * 1000),
-          createdAt: new Date(WEEK1_KICKOFF.getTime() + 4 * 60 * 60 * 1000),
-        },
-      ]);
+      await setGame(db, g2!, { spread: -10 });
+      await setGame(db, g3!, { spread: -11 });
 
       const res = await postRepick(memberA.cookie, league.id, weekId, {
         replacePickId: g1PickId,
@@ -1198,7 +1186,7 @@ describe("POST /api/leagues/:leagueId/pickem/weeks/:weekId/repick", () => {
       expect(await res.json()).toMatchObject({ error: "spread_stale" });
     });
 
-    it("409s spread_unavailable when the replacement has no odds snapshot at all", async () => {
+    it("409s spread_unavailable when the replacement has no spread at all", async () => {
       const { league, weekIds, gameIds, memberA } = await seedRepickLeague({
         settings: ATS_SETTINGS,
         weeks: [

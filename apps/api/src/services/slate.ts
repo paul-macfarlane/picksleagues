@@ -10,7 +10,6 @@ import {
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
-import { latestSpreadsForGames } from "./odds";
 
 /**
  * The weekly slate every *request* surface reads from — the pick page and the
@@ -97,14 +96,10 @@ export async function loadResolvedWeekGames(
     .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId));
   if (rows.length === 0) return [];
 
-  const latestByGame = await latestSpreadsForGames(
-    db,
-    rows.map((row) => row.game.id),
-  );
   const now = clock.now();
 
   return rows.map(({ game, homeTeam, awayTeam }) => {
-    const effective = resolveGameOverrides(game, latestByGame.get(game.id)?.spread ?? null);
+    const effective = resolveGameOverrides(game);
     return {
       id: game.id,
       weekId: game.weekId,
@@ -156,9 +151,7 @@ export async function resolveLockStates(
 
   // Precedence resolved through the one home for it (arch D15) rather than
   // restated here — this and `loadResolvedWeekGames` must not drift.
-  return new Map(
-    rows.map((row) => [row.id, isLocked(resolveGameOverrides(row, null).kickoffAt, now)]),
-  );
+  return new Map(rows.map((row) => [row.id, isLocked(resolveGameOverrides(row).kickoffAt, now)]));
 }
 
 /**

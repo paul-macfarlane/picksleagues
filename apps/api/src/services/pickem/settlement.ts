@@ -137,7 +137,7 @@ async function loadWeekInputs(
     .where(inArray(games.id, [...new Set(picks.map((pick) => pick.gameId))]));
 
   const results: PickemGameResult[] = gameRows.map((game) => {
-    const effective = resolveGameOverrides(game, null);
+    const effective = resolveGameOverrides(game);
     // A game that has left this week resolves as a push here — the pick was
     // made in this week, and the spec treats a move as a cancellation, even if
     // the game went on to be played in its new week.

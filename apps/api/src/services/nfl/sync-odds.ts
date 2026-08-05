@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
+import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
 import {
   JOB_SKIP_REASON,
@@ -12,14 +12,16 @@ import {
 import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
 
 /**
- * Captures a point-in-time odds snapshot for each unstarted game in the
- * current NFL week (arch §External Data). Each run appends a new snapshot per
- * game — history is intentional (the spread a pick locked against is the
- * latest snapshot at kickoff), so this is not idempotent in row count but is
- * safe to re-run: nothing else is mutated.
+ * Maintains the current spread on each unstarted game in the current NFL week
+ * (arch §Spread strategy): one number per game, overwritten in place. No
+ * history is kept — the audit that matters is what a member accepted, which is
+ * denormalized onto the pick as `pickem_picks.spread_at_pick` (ADR-0018). Re-
+ * running is a true no-op when the line hasn't moved: the same provider
+ * response leaves identical row state.
  *
- * Never inserts or updates `games`/`weeks` (that is schedule-sync's job) and
- * never writes any `override_*` column (arch D15).
+ * Never *creates* `games`/`weeks` (that is schedule-sync's job) and never
+ * writes any `override_*` column (arch D15) — a correction outlives every
+ * re-sync.
  */
 export async function syncNflOdds(
   db: Db,
@@ -27,13 +29,13 @@ export async function syncNflOdds(
   provider: GameDataProvider,
   opts?: { seasonYear?: number; weekType?: WeekType; weekNumber?: number },
 ): Promise<Record<string, string | number | boolean>> {
-  // One `now` per run: season derivation, every comparison, and capturedAt all
-  // share one instant, reaching SQL as a bound parameter (arch D13).
+  // One `now` per run: season derivation, every comparison, and every
+  // `updated_at` share one instant, reaching SQL as a bound parameter (arch D13).
   const now = clock.now();
   // An explicit `?season=` always wins; otherwise the derived label rolls
   // forward to next season once this one's weeks are all behind us, so
-  // offseason runs snapshot the games members can already pick against
-  // (an ATS league refuses picks with no snapshot).
+  // offseason runs price the games members can already pick against
+  // (an ATS league refuses picks on a game with no spread).
   const seasonYear =
     opts?.seasonYear ?? (await resolveRecurringSyncSeasonYear(db, nflSeasonYearFor(now), now));
 
@@ -75,12 +77,12 @@ export async function syncNflOdds(
   //
   // `UNSTARTED_GAME_STATUSES`, not `= scheduled`. A postponed game is announced
   // ahead of time and played later, so picks on it are legitimate — but keying
-  // on `scheduled` alone gave it no snapshot, and an ATS league then refused
+  // on `scheduled` alone left it with no spread, and an ATS league then refused
   // every pick on it with `spread_unavailable`, permanently. The slate calls
   // such a game pickable; this must agree, or the app offers a pick it will
   // always reject.
   const unstartedGames = await db
-    .select({ id: games.id, providerGameId: games.providerGameId })
+    .select({ id: games.id, providerGameId: games.providerGameId, spread: games.spread })
     .from(games)
     .where(
       and(
@@ -96,7 +98,7 @@ export async function syncNflOdds(
       weekType: targetWeek.weekType,
       weekNumber: targetWeek.weekNumber,
       unstartedGames: 0,
-      snapshotsInserted: 0,
+      spreadsUpdated: 0,
       gamesWithoutOdds: 0,
     };
   }
@@ -113,20 +115,31 @@ export async function syncNflOdds(
   );
 
   let gamesWithoutOdds = 0;
-  const snapshotRows = [];
+  let spreadsUpdated = 0;
   for (const game of unstartedGames) {
     const spread = spreadByProviderId.get(game.providerGameId);
     // Missing from the provider response (undefined) or no line yet (null /
-    // non-finite) both count as "no odds" — no snapshot, never a games write.
-    if (typeof spread === "number" && Number.isFinite(spread)) {
-      snapshotRows.push({ gameId: game.id, spread, capturedAt: now, createdAt: now });
-    } else {
+    // non-finite) both count as "no odds". A game we can't price is left
+    // exactly as it was rather than nulled: the provider dropping a line for one
+    // response is a blip, and clearing the number would refuse every ATS pick on
+    // that game until the next run put it back.
+    if (typeof spread !== "number" || !Number.isFinite(spread)) {
       gamesWithoutOdds += 1;
+      continue;
     }
-  }
+    // Skip the write when the line hasn't moved — this is what makes a re-run a
+    // true no-op rather than one that merely lands the same number. `updated_at`
+    // is served as the row's as-of instant (DATA-8), so rewriting an unchanged
+    // row would restamp it with nothing to show for it.
+    if (game.spread === spread) continue;
 
-  if (snapshotRows.length > 0) {
-    await db.insert(oddsSnapshots).values(snapshotRows);
+    await db
+      // Provider field only — every `override_*` column is deliberately absent
+      // (arch D15), so a correction survives every re-sync.
+      .update(games)
+      .set({ spread, updatedAt: now })
+      .where(eq(games.id, game.id));
+    spreadsUpdated += 1;
   }
 
   return {
@@ -134,7 +147,9 @@ export async function syncNflOdds(
     weekType: targetWeek.weekType,
     weekNumber: targetWeek.weekNumber,
     unstartedGames: unstartedGames.length,
-    snapshotsInserted: snapshotRows.length,
+    // Rows actually written, matching `sync-scores`' `gamesUpdated`: a re-run
+    // over an unmoved line reports 0, which is the no-op saying so.
+    spreadsUpdated,
     gamesWithoutOdds,
   };
 }

@@ -1,6 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
-  AdminGameOddsResponseSchema,
   AdminGamesResponseSchema,
   AdminSeasonsResponseSchema,
   AdminTeamsResponseSchema,
@@ -34,7 +33,7 @@ import {
   type DepsVariables,
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
-import { listGameOdds, listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import { listSeasons, listTeams, listWeekGames } from "../services/admin-data";
 import { setGameOverride } from "../services/admin-overrides";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
@@ -143,22 +142,6 @@ const listAdminGamesRoute = createRoute({
       content: { "application/json": { schema: AdminGamesResponseSchema } },
     },
     ...browserResponses,
-  },
-});
-
-const listAdminGameOddsRoute = createRoute({
-  method: "get",
-  path: "/admin/games/{gameId}/odds",
-  operationId: "listAdminGameOdds",
-  summary: "Browse a game's most recent odds snapshots",
-  request: { params: z.object({ gameId: z.uuid() }) },
-  responses: {
-    200: {
-      description: "The game's most recent spread snapshots, newest first",
-      content: { "application/json": { schema: AdminGameOddsResponseSchema } },
-    },
-    ...browserResponses,
-    404: errorResponse("No such game"),
   },
 });
 
@@ -271,18 +254,6 @@ export function adminRoutes(deps: AppDeps) {
   app.openapi(listAdminGamesRoute, async (c) => {
     const { weekId } = c.req.valid("query");
     return c.json({ games: await listWeekGames(c.get("db"), weekId) }, 200);
-  });
-
-  app.openapi(listAdminGameOddsRoute, async (c) => {
-    const { gameId } = c.req.valid("param");
-    const snapshots = await listGameOdds(c.get("db"), gameId);
-    if (!snapshots) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: ERROR_CODE.GAME_NOT_FOUND, message: "Game not found." }),
-        404,
-      );
-    }
-    return c.json({ snapshots }, 200);
   });
 
   app.openapi(setAdminGameOverrideRoute, async (c) => {

@@ -123,27 +123,6 @@ export function useAdminGames(weekId: string | undefined) {
   });
 }
 
-export function adminGameOddsQueryKey(gameId: string) {
-  return [...ADMIN_QUERY_KEY_PREFIX, "games", gameId, "odds"];
-}
-
-// Odds history is expensive relative to the other browsers (a query per
-// game) so it's opt-in: the games browser only enables this once a game's
-// disclosure is opened.
-export function useAdminGameOdds(gameId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: adminGameOddsQueryKey(gameId),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/admin/games/{gameId}/odds", {
-        params: { path: { gameId } },
-      });
-      if (error) throw error;
-      return data;
-    },
-    enabled,
-  });
-}
-
 /**
  * The one write on the admin surface (ADM-2, arch §Manual Sports Data
  * Overrides). Variables carry the game id so a row scopes its pending state off

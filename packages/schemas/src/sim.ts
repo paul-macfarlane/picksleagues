@@ -196,7 +196,7 @@ export const SimFixtureGameSchema = z
     awayTeamAbbr: z.string(),
     awayTeamName: z.string(),
     kickoffAt: z.iso.datetime(),
-    // Home-team-relative, matching `odds_snapshots.spread` (negative = home favored).
+    // Home-team-relative, matching `games.spread` (negative = home favored).
     spread: z.number().nullable(),
     // The fixture's terminal truth. The provider reports `scheduled`/`in_progress`
     // instead until the simulated clock passes this game (ADR-0012), so these are

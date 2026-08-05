@@ -241,7 +241,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
       status: GAME_STATUS.SCHEDULED,
       homeScore: null,
       awayScore: null,
-      latestSpread: null,
+      spread: null,
       // Override block as written, attributed to the caller.
       overrideKickoffAt: PAST_KICKOFF.toISOString(),
       overrideStatus: GAME_STATUS.FINAL,
@@ -293,7 +293,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
     const read = await readGame(app, cookie, pastWeekId, pastGameId);
     expect(read).toMatchObject({
       overrideSpread: null,
-      // Back to the provider's latest snapshot, not to null.
+      // Back to the provider's spread, not to null.
       effectiveSpread: -3.5,
       overrideHomeScore: 24,
       effectiveHomeScore: 24,
