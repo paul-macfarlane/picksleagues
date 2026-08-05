@@ -66,18 +66,21 @@ export const pickemPicks = pgTable(
   },
   (table) => [
     /**
-     * A member picks a given game at most once **per week** — the batch
-     * endpoint's replace semantics rely on this holding.
+     * A member picks a given game at most once **per week** — the database
+     * backstop the write path's duplicate check is checked against.
      *
-     * Scoped to the week deliberately (ADR-0017). Spanning every week enforced
-     * a rule Pick'em's spec does not have: its Core Rules say only that each
-     * week a member picks from *that week's* slate, and the once-per rule in
-     * the spec belongs to Elimination, where it is a *team* ledger ("a member
-     * may pick each NFL team at most once per league"). The cross-week reach
-     * was a side effect of not scoping the constraint, and it had a cost: a
-     * member whose pick's game moved to a later week could never pick that game
-     * there, which at a full slate left them one pick short of everyone else
-     * and contradicted "all members pick every available game that week".
+     * Scoped to the week deliberately (ADR-0017, kept by ADR-0018). Spanning
+     * every week would enforce a rule Pick'em's spec does not have: its Core
+     * Rules say only that each week a member picks from *that week's* slate,
+     * and the once-per rule in the spec belongs to Elimination, where it is a
+     * *team* ledger ("a member may pick each NFL team at most once per
+     * league").
+     *
+     * ADR-0017's original motivation — a member whose pick's game moved to a
+     * later week being unable to pick it there — is superseded: week moves are
+     * out of scope (ADR-0019), so that situation is unreachable. The shape
+     * stays anyway, because narrowing it back would be a migration bought with
+     * nothing.
      */
     unique("pickem_picks_member_game_week_unique").on(
       table.leagueMemberId,
