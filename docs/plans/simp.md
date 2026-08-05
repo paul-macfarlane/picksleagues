@@ -809,3 +809,72 @@ review (`docs/agents/issue-tracker.md`).
 **PR:** https://github.com/paul-macfarlane/picksleagues/pull/28 (`picksleagues`, base
 `staging`). Opened with the e2e human gate stated in the PR body, so it is the first thing
 a reviewer reads rather than a footnote.
+
+## [PROGRESS] — PR 3 (SIMP-18, 19, 20, 16, 13, 15)
+
+_Opened 2026-08-05 by `/atlas-implement`. Branch `feat/simp-pr3-presets-and-closeout`,
+base `staging` at `9f80131`. Work package: `simp-pr3`. Tickets claimed `[~]` at open._
+
+### Isolation decision — direct checkout, no worktrees
+
+Same call as PR 2, on a firmer reason: the deliverables below are ordered by real
+couplings (schema → resolution → forms), and the two that *look* parallelizable
+(SIMP-16, SIMP-13) cannot both hold the integration seam — `pnpm test:integration`
+auto-creates and migrates a **single shared** `picksleagues_test` database, so two
+concurrent workers running it would corrupt each other's fixtures. SIMP-13 is
+docs-only and could have run isolated, but a worktree buys ~8 minutes against a real
+risk of a tangled commit, so it stays in line. One branch, one commit per ticket.
+
+### Execution structure — sequential, five deliverables
+
+| Deliverable | Tickets | Why grouped / ordered here |
+|---|---|---|
+| D1 | SIMP-18, SIMP-19 | Splitting them means shipping a schema whose own consumer (`createLeague`) cannot compile against it: the stored shape gains a required `seasonRangePreset` while the wire shape *loses* `startWeek`/`endWeek`, so the resolver is what makes the schema usable at all. One worker, two commits. |
+| D2 | SIMP-20 | Forms consume the new wire shape; needs D1 landed. |
+| D3 | SIMP-16 | Independent of the preset work (touches `sync-odds` only). Ordered after the forms so the sweep sees a settled shape. |
+| D4 | SIMP-13 | Runbook is written against **shipped** behavior; its deps (SIMP-10, SIMP-12) merged in PR 2, but writing it last avoids describing a surface D1–D3 then change. |
+| D5 | SIMP-15 | Sweep runs last by ticket text — it can only be honest once every deletion above has landed. |
+
+### Resolved technical decisions (derived from ADR-0020; not new product decisions)
+
+1. **Two dispatch maps.** `LEAGUE_SETTINGS_SCHEMAS` keeps validating the **stored**
+   shape (`seasonRangePreset` + resolved `startWeek`/`endWeek`). A new
+   `LEAGUE_SETTINGS_INPUT_SCHEMAS` validates the **wire** shape; Elimination and
+   March Madness map to their existing schemas unchanged, Pick'em maps to a new
+   input schema carrying the preset and no week refs. This is what makes ADR-0020's
+   "the client never supplies `startWeek`/`endWeek`" true by construction rather than
+   by a stripping step someone can forget.
+2. **Resolution is constrained to the preset's nominal range.** ADR-0020's rule (b)
+   — "the next week whose first kickoff is still in the future" — searches only weeks
+   **within the preset's nominal span**. Without that constraint a Regular Season
+   league created during the playoffs would resolve its start to Wild Card, which is
+   after its own nominal end and fails `PickemSettingsSchema`'s own ordering refine.
+   With it, such a create finds no future week, falls back to the nominal start, and
+   is refused by the existing `start_week_passed` check — which is the correct
+   offseason behavior `createLeague` already documents.
+3. **`start_week_passed` stays reachable and stays meaningful.** Resolution makes a
+   league never *born* already-started in the normal case; it does not delete the
+   refusal, because a whole-season-in-the-past create must still be refused.
+4. **Renewal is unchanged and out of scope.** `renewLeagueSeason` copies settings
+   verbatim (ADR-0009); week refs are `(type, number)` pairs that stay valid in the
+   new season, and the preset rides along as another stored field. No re-resolution
+   at renewal — that would be a new decision, and nothing in ADR-0020 asks for one.
+
+### Criterion-level verification map for this PR
+
+Inherits the epic map's rows for SIMP-13, 15, 16, 18/19, 20 (§Verification map).
+Earliest meaningful checkpoints, and what invalidates the evidence:
+
+| Criterion | Check | Earliest checkpoint | Invalidated by |
+|---|---|---|---|
+| SIMP-18/19 stored resolved range; client cannot override it | `pnpm test:integration` (create at boundary instants, games-less season, client-supplied refs ignored) + `pnpm contract:check` | D1 | Any settings-schema or `createLeague` edit |
+| SIMP-20 one preset select | `pnpm --filter @picksleagues/web build` + `pnpm test:e2e` create-league journey + phone-width screenshot | D2 | Any form edit |
+| SIMP-16 coming week carries spreads | Clock-pinned `pnpm test:integration` on the week boundary + a recorded note of the observed real ESPN week windows | D3 | Any `sync-odds` edit |
+| SIMP-13 runbook matches shipped behavior | Read-through vs the code; boxes reset; operator week-move note present | D4 | Later UI changes |
+| SIMP-15 no orphans | `pnpm lint` + `pnpm typecheck` + the orphan grep list recorded in the PR body | D5 | — |
+| PR gates | format, lint, typecheck, test, integration, contract, web build, e2e | aggregate | Anything |
+
+`pnpm test:e2e` is **not** a human gate: it runs its own stack on `picksleagues_e2e`
+at ports 5273/3100 and never touches the dev database (corrected and re-verified in
+PR 2). Evidence root `docs/evidence/test-results/` is cleared at PR 3 open — PR 2's
+evidence survives in git history at its merge commit.
