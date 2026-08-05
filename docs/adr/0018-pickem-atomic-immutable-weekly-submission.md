@@ -93,6 +93,14 @@ Games that locked before the member submitted are forgone; they were never picks
 scores, consistent with the existing rule that unpicked slots score zero. Per-game locking is
 untouched.
 
+"What can still be picked" means what the write path would actually accept, and a lock is not
+the only thing that stops it. **In an ATS league a game carrying no line is refused on sight**
+(`spread_unavailable`), so it is excluded from the required set on exactly the same footing as
+a locked one. Counting it would deadlock the week — include it and the submission is refused
+for the missing line, omit it and the same submission is refused as incomplete — which is this
+decision's own failure mode reached through a different door. Straight-up leagues have no
+spread dependency, so nothing is excluded there.
+
 This is not exploitable. Fewer picks means fewer possible points, so submitting late is
 self-penalizing rather than an advantage worth engineering against.
 
