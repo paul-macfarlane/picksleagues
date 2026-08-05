@@ -79,8 +79,8 @@ export async function setGameOverride(
      * is one every member can still pick against an outcome the app is already
      * serving them — the pick mutation's `kickoff_at > now` check passes and
      * settlement grades it a guaranteed win. The spec is explicit that even a
-     * genuine postponement does not re-open picks (§Cancellations,
-     * Postponements & Re-picks: "resolves normally when played. No re-pick.").
+     * genuine postponement does not re-open picks (§Cancellations &
+     * Postponements: "pick resolves normally when played").
      *
      * "Knowable" is a started status OR a resolved score, and the score disjunct
      * is not redundant with the status one. `postponed` is legitimately not a

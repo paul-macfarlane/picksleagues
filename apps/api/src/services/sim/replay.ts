@@ -26,12 +26,11 @@ const STARTS_AT_MARGIN_MS = 60 * 60 * 1000;
 
 /**
  * Historical ESPN feeds should carry only terminal statuses — `final`,
- * `cancelled`, or `postponed`. `scheduled`/`in_progress`/`moved` are
- * defensive fallbacks for a season the provider hasn't fully settled
- * (treated as FINAL when both scores are present, POSTPONED otherwise) —
- * never a reason to fail the whole import. Exhaustive switch over
- * `GAME_STATUS` so a future status value fails typechecking here rather than
- * silently falling through.
+ * `cancelled`, or `postponed`. `scheduled`/`in_progress` are defensive
+ * fallbacks for a season the provider hasn't fully settled (treated as FINAL
+ * when both scores are present, POSTPONED otherwise) — never a reason to fail
+ * the whole import. Exhaustive switch over `GAME_STATUS` so a future status
+ * value fails typechecking here rather than silently falling through.
  */
 function mapFinalStatus(
   status: GameStatus,
@@ -47,7 +46,6 @@ function mapFinalStatus(
       return { finalStatus: SIM_FINAL_STATUS.POSTPONED, unexpectedStatus: false };
     case GAME_STATUS.SCHEDULED:
     case GAME_STATUS.IN_PROGRESS:
-    case GAME_STATUS.MOVED:
       return {
         finalStatus:
           homeScore !== null && awayScore !== null

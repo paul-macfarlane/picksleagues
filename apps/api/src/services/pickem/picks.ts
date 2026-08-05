@@ -25,7 +25,6 @@ import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import {
   getWeek,
-  loadMovedGameSummaries,
   loadResolvedWeekGames,
   resolveLockStates,
   type ResolvedSlateGame,
@@ -231,11 +230,11 @@ export async function getPickemWeekPicks(
     .where(and(eq(pickemPicks.leagueSeasonId, leagueSeasonId), eq(pickemPicks.weekId, weekId)));
   const picks = pickRows.map((row) => ({ ...row.pick, outcome: row.outcome }));
 
-  const pickedGameIds = picks.map((pick) => pick.gameId);
-  const lockedByGame = await resolveLockStates(db, clock, pickedGameIds);
-  // Only the picks whose game has left this week come back — everything else
-  // renders from the slate the client already has.
-  const movedGames = await loadMovedGameSummaries(db, pickedGameIds, weekId);
+  const lockedByGame = await resolveLockStates(
+    db,
+    clock,
+    picks.map((pick) => pick.gameId),
+  );
 
   const picksByMember = new Map<string, typeof picks>();
   for (const pick of picks) {
@@ -268,7 +267,6 @@ export async function getPickemWeekPicks(
         // reached a terminal status, which is strictly later than the kickoff
         // the filter above already gates another member's picks on.
         outcome: pick.outcome,
-        movedGame: movedGames.get(pick.gameId) ?? null,
         updatedAt: pick.updatedAt.toISOString(),
       })),
       hiddenPickCount: own.length - visible.length,

@@ -270,44 +270,85 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
   });
 
-  it("resolves a pick as a push when its game has moved to another week, even if that game is final with scores", async () => {
-    const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
-      weeks: [
-        { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
-        {
-          weekNumber: 2,
-          kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000) }],
-        },
-      ],
-    });
-    const week1Id = weekIds.get("regular:1")!;
-    const week2Id = weekIds.get("regular:2")!;
-    const [g1] = gameIds.get("regular:1")!;
-    const memberId = members.get(users[0]!.user.id)!;
+  /**
+   * ADR-0018 decision 3: a cancellation is a push, full stop. The push stands
+   * whether or not unstarted games remain in the week, and there is no
+   * substitute path — so neither the cancellation's timing relative to kickoff
+   * nor the state of the rest of the slate may change the outcome.
+   */
+  it.each([
+    { label: "before the game's kickoff", clockAt: "2026-09-12T00:00:00.000Z" },
+    { label: "after the game's kickoff", clockAt: "2026-09-20T00:00:00.000Z" },
+  ])(
+    "a cancelled game's pick pushes and the push stands — cancelled $label, with the rest of the week still unplayed",
+    async ({ clockAt }) => {
+      const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
+        weeks: [
+          {
+            weekNumber: 1,
+            kickoffs: [
+              { kickoffAt: WEEK1_KICKOFF },
+              { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000) },
+            ],
+          },
+        ],
+      });
+      const weekId = weekIds.get("regular:1")!;
+      const [g1, g2] = gameIds.get("regular:1")!;
+      const memberId = members.get(users[0]!.user.id)!;
 
-    // The pick keeps week 1 (the week it was made in); the game itself moves.
-    await insertPick(db, {
-      leagueSeasonId,
-      leagueMemberId: memberId,
-      weekId: week1Id,
-      gameId: g1!,
-      side: PICKEM_PICK_SIDE.HOME,
-    });
-    await setGame(db, g1!, {
-      status: GAME_STATUS.FINAL,
-      homeScore: 30,
-      awayScore: 10,
-      weekId: week2Id,
-    });
+      await insertPick(db, {
+        leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId,
+        gameId: g1!,
+        side: PICKEM_PICK_SIDE.HOME,
+      });
+      await insertPick(db, {
+        leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId,
+        gameId: g2!,
+        side: PICKEM_PICK_SIDE.HOME,
+      });
+      // g1 cancelled; g2 is still scheduled, so the week has unstarted games
+      // left — under the old rule that was the branch that offered a
+      // substitute instead of letting the push stand.
+      await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
 
-    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id]);
+      const clock = new FixedClock(new Date(clockAt));
+      await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
-    const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
-  });
+      const picks = await db
+        .select()
+        .from(pickemPicks)
+        .where(eq(pickemPicks.leagueSeasonId, leagueSeasonId));
+      const results = await pickResultsFor(db, leagueSeasonId);
+      const byGame = new Map(
+        picks.map((pick) => [pick.gameId, results.find((row) => row.pickemPickId === pick.id)]),
+      );
+      expect(byGame.get(g1!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
+      // The unplayed game has no result row at all (arch D10) — nothing about
+      // the cancellation reaches it.
+      expect(byGame.get(g2!)).toBeUndefined();
 
-  it("an override_status of final outranks a synthesized week move, but an unoverridden moved game still resolves as a push", async () => {
+      // Settling again lands on identical state: the push isn't provisional.
+      await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+      expect(snapshotResults(await pickResultsFor(db, leagueSeasonId))).toEqual(
+        snapshotResults(results),
+      );
+    },
+  );
+
+  /**
+   * ADR-0019 put week moves out of scope, and this is the accepted failure
+   * mode stated as a test rather than left to be rediscovered: a pick whose
+   * game left the week grades against that game's own result, from whatever
+   * week it now sits in, with nothing to announce the divergence. The remedy
+   * is the admin `cancelled` override in the second case, which is the only
+   * correction the product offers and the reason the trade was accepted.
+   */
+  it("grades a pick whose game was repointed to another week against that game's own result, and an admin cancelled override turns it into a push", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
       weeks: [
         {
@@ -325,35 +366,29 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     const [g1, g2] = gameIds.get("regular:1")!;
     const memberId = members.get(users[0]!.user.id)!;
 
-    // Both picks were made in week 1; both games have since been repointed to
-    // week 2 — g1 carries an admin override that must outrank the synthesized
-    // `moved` status (arch D15: override_* ?? provider_*), g2 doesn't.
-    await insertPick(db, {
-      leagueSeasonId,
-      leagueMemberId: memberId,
-      weekId: week1Id,
-      gameId: g1!,
-      side: PICKEM_PICK_SIDE.HOME,
-    });
-    await insertPick(db, {
-      leagueSeasonId,
-      leagueMemberId: memberId,
-      weekId: week1Id,
-      gameId: g2!,
-      side: PICKEM_PICK_SIDE.HOME,
-    });
+    for (const gameId of [g1!, g2!]) {
+      await insertPick(db, {
+        leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId: week1Id,
+        gameId,
+        side: PICKEM_PICK_SIDE.HOME,
+      });
+    }
+    // Both games were repointed to week 2 and played there; g2 carries the
+    // admin's `cancelled` correction, g1 does not.
     await setGame(db, g1!, {
-      status: GAME_STATUS.SCHEDULED,
+      status: GAME_STATUS.FINAL,
+      homeScore: 30,
+      awayScore: 10,
       weekId: week2Id,
-      overrideStatus: GAME_STATUS.FINAL,
-      overrideHomeScore: 30,
-      overrideAwayScore: 10,
     });
     await setGame(db, g2!, {
       status: GAME_STATUS.FINAL,
       homeScore: 30,
       awayScore: 10,
       weekId: week2Id,
+      overrideStatus: GAME_STATUS.CANCELLED,
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
@@ -369,7 +404,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     );
 
     expect(byGame.get(g1!)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
-    expect(byGame.get(g2!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
+    expect(byGame.get(g2!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
   });
 
   it("prefers override_home_score/override_away_score over the provider score", async () => {

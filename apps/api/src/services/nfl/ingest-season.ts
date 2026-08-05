@@ -416,11 +416,13 @@ export async function ingestSeasonSnapshot(
         weekMoves += 1;
         logInfo("nfl-sync-schedule.week-move", { providerGameId: game.providerGameId });
       }
-      // A status or week change alters how existing picks on this game settle
-      // (cancelled and moved both resolve as a push, spec §Cancellations), so
-      // the caller re-settles them rather than leaving the push invisible until
-      // the nightly sweep. A kickoff change does not: locking is derived at
-      // read time, never stored.
+      // A status change alters how existing picks on this game settle (a
+      // cancellation resolves them as a push, spec §Cancellations), so the
+      // caller re-settles them rather than leaving the push invisible until the
+      // nightly sweep. A week change is re-settled for the same reason even
+      // though nothing synthesizes an outcome from it any more (ADR-0019): the
+      // game's own status still decides, and it may have changed in the same
+      // run. A kickoff change does not: locking is derived at read time.
       if (existing.status !== game.status || existing.weekId !== weekId) {
         settlementAffectedGameIds.push(existing.id);
       }

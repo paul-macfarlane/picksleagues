@@ -11,7 +11,6 @@ import {
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
-  GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
@@ -110,15 +109,14 @@ async function loadSettleableSeason(
 }
 
 /**
- * Builds the pure functions' inputs for one league-week, resolving the two
- * things only this layer knows about:
+ * Builds the pure functions' inputs for one league-week, resolving the one
+ * thing only this layer knows about: **override precedence**
+ * (`override_* ?? provider_*`, arch D15), via the one home for it.
  *
- * - **override precedence** (`override_* ?? provider_*`, arch D15), via the one
- *   home for it; and
- * - **week moves**. A provider week move repoints `games.week_id` while the
- *   pick keeps its own, so a game that has left this week is reported to
- *   scoring as `moved` — the spec's "treated as a cancellation". `settlePickemWeek`
- *   cannot detect this itself; it never sees a pick's week.
+ * Games are loaded by `pick.gameId`, never by week. A pick's game therefore
+ * always grades by its own status, with no week comparison — week moves are out
+ * of scope (ADR-0019) and a real one is corrected by an admin `cancelled`
+ * override, which this coalesce already honours.
  */
 async function loadWeekInputs(
   tx: Db,
@@ -138,21 +136,9 @@ async function loadWeekInputs(
 
   const results: PickemGameResult[] = gameRows.map((game) => {
     const effective = resolveGameOverrides(game);
-    // A game that has left this week resolves as a push here — the pick was
-    // made in this week, and the spec treats a move as a cancellation, even if
-    // the game went on to be played in its new week.
-    //
-    // The synthesized `moved` sits at the *provider* tier, below an explicit
-    // `override_status`, so the coalesce stays `override_* ?? provider_*`
-    // (arch D15). It has to: a week move is inferred from provider data, there
-    // is no `override_week_id`, and `sync-schedule` rewrites `games.week_id` on
-    // every run — so if a persistent provider error put a game in the wrong
-    // week, letting the move win would make those picks permanently
-    // uncorrectable by any admin action.
-    const providerStatus = game.weekId === weekId ? game.status : GAME_STATUS.MOVED;
     return {
       gameId: game.id,
-      status: game.overrideStatus ?? providerStatus,
+      status: effective.status,
       homeScore: effective.homeScore,
       awayScore: effective.awayScore,
     };
@@ -363,8 +349,7 @@ export async function rebuildLeagueSeason(
 /**
  * Settles every league-week holding a pick on one of the named games. Both
  * ingestion jobs call it: `sync-scores` when a game goes final, `sync-schedule`
- * when one is cancelled or moved to another week — all three change how
- * existing picks resolve.
+ * when one is cancelled — both change how existing picks resolve.
  *
  * Scoped to the affected weeks rather than whole seasons so the 5-minute path
  * stays cheap; the nightly sweep catches anything this missed (arch D10).

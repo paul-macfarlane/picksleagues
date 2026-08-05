@@ -293,19 +293,27 @@ describe("GET /api/weeks/:weekId/games", () => {
     expect(byId.get(withoutSpread)?.spread).toBeNull();
   });
 
-  describe("cancelled and moved games are not pickable", () => {
-    /** g1 cancelled, g2 moved (override), g3 postponed — one league, one week. */
+  describe("cancelled games are not pickable", () => {
+    /**
+     * g1 cancelled by the provider, g2 cancelled by an admin override, g3
+     * postponed — one league, one week. Both cancellation tiers matter: the
+     * override is the remedy ADR-0019 leaves for a genuine provider week move,
+     * now that `moved` is not a status.
+     */
     async function seedUnplayableSlate() {
       const { league, weekIds, gameIds, memberA } = await seedPickemLeague();
       const weekId = weekIds.get("regular:1")!;
       const [g1, g2, g3] = gameIds.get("regular:1")!;
       await db.update(games).set({ status: GAME_STATUS.CANCELLED }).where(eq(games.id, g1!));
-      await db.update(games).set({ overrideStatus: GAME_STATUS.MOVED }).where(eq(games.id, g2!));
+      await db
+        .update(games)
+        .set({ overrideStatus: GAME_STATUS.CANCELLED })
+        .where(eq(games.id, g2!));
       await db.update(games).set({ status: GAME_STATUS.POSTPONED }).where(eq(games.id, g3!));
       return { league, weekId, g1: g1!, g2: g2!, g3: g3!, memberA };
     }
 
-    it("marks cancelled and moved games unpickable, but leaves a postponed game pickable", async () => {
+    it("marks cancelled games unpickable, but leaves a postponed game pickable", async () => {
       const { memberA, weekId, g1, g2, g3 } = await seedUnplayableSlate();
       const res = await getSlate(memberA.cookie, weekId);
       expect(res.status).toBe(200);
@@ -317,8 +325,8 @@ describe("GET /api/weeks/:weekId/games", () => {
     });
 
     it.each([
-      { label: "cancelled", pickGame: "g1" as const },
-      { label: "moved", pickGame: "g2" as const },
+      { label: "provider-cancelled", pickGame: "g1" as const },
+      { label: "override-cancelled", pickGame: "g2" as const },
     ])("409s game_not_pickable submitting a $label game", async ({ pickGame }) => {
       const { memberA, league, weekId, g1, g2 } = await seedUnplayableSlate();
       const gameId = pickGame === "g1" ? g1 : g2;
@@ -330,7 +338,7 @@ describe("GET /api/weeks/:weekId/games", () => {
       expect(await res.json()).toMatchObject({ error: "game_not_pickable" });
     });
 
-    it("accepts a pick on a postponed game — it is not swept up by the cancelled/moved rule", async () => {
+    it("accepts a pick on a postponed game — it is not swept up by the cancellation rule", async () => {
       const { memberA, league, weekId, g3 } = await seedUnplayableSlate();
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
@@ -585,7 +593,7 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(((await res.json()) as PickemWeekPicksResponse).picksAllowed).toBe(1);
   });
 
-  it("excludes a cancelled/moved game from picksAllowed — a 3-game week with 1 cancelled caps at 2", async () => {
+  it("excludes a cancelled game from picksAllowed — a 3-game week with 1 cancelled caps at 2", async () => {
     const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
       settings: { ...DEFAULT_PICKEM_SETTINGS, picksPerWeek: 5 },
     });
@@ -805,51 +813,6 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     )!;
     expect(own.picks).toHaveLength(3);
     expect(own.picks.every((p) => p.side === PICKEM_PICK_SIDE.AWAY)).toBe(true);
-  });
-
-  /**
-   * The pick's game is absent from the week's slate by construction, so the
-   * client has nothing to join against to name it — every other pick renders
-   * its matchup from the slate. Without `movedGame` on the wire the only
-   * honest thing the UI could say was "a game moved", which tells a member
-   * their pick pushed but not which pick it was (manual regression, Pass 5).
-   */
-  it("carries a moved game's matchup and destination week on the pick, and null for picks still in the week", async () => {
-    const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
-      weeks: [
-        ...THREE_GAME_WEEK,
-        {
-          weekNumber: 2,
-          kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000) }],
-        },
-      ],
-    });
-    const week1Id = weekIds.get("regular:1")!;
-    const week2Id = weekIds.get("regular:2")!;
-    const [g1, g2, g3] = gameIds.get("regular:1")!;
-
-    await putPicks(memberA.cookie, league.id, week1Id, {
-      picks: [
-        { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: null },
-        { gameId: g2, side: PICKEM_PICK_SIDE.HOME, spread: null },
-        { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: null },
-      ],
-    });
-    await db.update(games).set({ weekId: week2Id }).where(eq(games.id, g1!));
-
-    const res = await getPicks(memberA.cookie, league.id, week1Id);
-    const own = ((await res.json()) as PickemWeekPicksResponse).members.find(
-      (m) => m.userId === memberA.user.id,
-    )!;
-
-    const moved = own.picks.find((p) => p.gameId === g1)!;
-    expect(moved.movedGame).toMatchObject({ weekLabel: expect.any(String) });
-    expect(moved.movedGame?.homeTeam.abbreviation).toEqual(expect.any(String));
-    expect(moved.movedGame?.awayTeam.abbreviation).toEqual(expect.any(String));
-
-    // The pick that stayed put renders from the slate and must not carry it —
-    // a non-null here would make "did this move?" ambiguous.
-    expect(own.picks.find((p) => p.gameId === g2)!.movedGame).toBeNull();
   });
 
   it("rolls back the whole submission when one entry is refused — no partial write", async () => {

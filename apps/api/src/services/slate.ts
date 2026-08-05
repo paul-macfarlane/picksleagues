@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import { games, teams, weeks } from "@picksleagues/db";
@@ -19,9 +19,8 @@ import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
  *
  * Settlement deliberately does NOT read through here (see
  * `services/pickem/settlement.ts`): it grades against the spread stored on the
- * pick, not the current one, and it has to synthesize `moved` from a pick's own
- * week — neither of which this loader knows about. Sharing it would mean
- * teaching the read path about settlement's concerns for no benefit.
+ * pick, not the current one, which this loader knows nothing about. Sharing it
+ * would mean teaching the read path about settlement's concerns for no benefit.
  *
  * Lock state is derived here from the injected Clock against the *effective*
  * kickoff (arch D11, D15): an admin kickoff correction moves the lock with it.
@@ -44,10 +43,10 @@ export interface ResolvedSlateGame {
   stateAsOf: Date;
   locked: boolean;
   /**
-   * Whether a new pick may be placed on this game. A cancelled or moved game is
-   * still shown (the member needs to see why a pick pushed, and the re-pick
-   * flow starts there) but must not be pickable — an unplayed game settles as a
-   * push, so accepting a fresh pick on one would mint guaranteed points.
+   * Whether a new pick may be placed on this game. A cancelled game is still
+   * shown — the member needs to see why a pick pushed — but must not be
+   * pickable: an unplayed game settles as a push, so accepting a fresh pick on
+   * one would mint guaranteed points (ADR-0015 rule 2).
    */
   pickable: boolean;
 }
@@ -131,10 +130,9 @@ export function isLocked(effectiveKickoffAt: Date, now: Date): boolean {
 }
 
 /**
- * Lock state for an arbitrary set of games, by id. The read path needs this
- * rather than the slate map because a pick can outlive its game's membership in
- * the week it was made in — a game moved to another week still has to reveal
- * that pick at its own kickoff.
+ * Lock state for an arbitrary set of games, by id — the visibility gate on the
+ * pick read path, which holds picks rather than a slate and must resolve each
+ * one's kickoff without assuming the week's slate still contains it.
  */
 export async function resolveLockStates(
   db: Db,
@@ -152,47 +150,6 @@ export async function resolveLockStates(
   // Precedence resolved through the one home for it (arch D15) rather than
   // restated here — this and `loadResolvedWeekGames` must not drift.
   return new Map(rows.map((row) => [row.id, isLocked(resolveGameOverrides(row).kickoffAt, now)]));
-}
-
-/**
- * Matchup and destination week for games that have left `weekId`, keyed by game
- * id. The pick read path's only source of identity for a pick whose game moved
- * (ADR-0015): such a game is absent from that week's slate by construction, so
- * there is nothing for the usual slate join to find.
- *
- * Filtered in SQL rather than by loading every referenced game and discarding
- * the in-week ones — the in-week case is the overwhelming majority, and it is
- * already served by the slate.
- */
-export async function loadMovedGameSummaries(
-  db: Db,
-  gameIds: readonly string[],
-  weekId: string,
-): Promise<Map<string, { homeTeam: SlateTeam; awayTeam: SlateTeam; weekLabel: string }>> {
-  if (gameIds.length === 0) return new Map();
-
-  const homeTeams = alias(teams, "moved_home_teams");
-  const awayTeams = alias(teams, "moved_away_teams");
-
-  const rows = await db
-    .select({
-      gameId: games.id,
-      homeTeam: teamColumns(homeTeams),
-      awayTeam: teamColumns(awayTeams),
-      weekLabel: weeks.label,
-    })
-    .from(games)
-    .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
-    .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-    .innerJoin(weeks, eq(weeks.id, games.weekId))
-    .where(and(inArray(games.id, [...gameIds]), ne(games.weekId, weekId)));
-
-  return new Map(
-    rows.map((row) => [
-      row.gameId,
-      { homeTeam: row.homeTeam, awayTeam: row.awayTeam, weekLabel: row.weekLabel },
-    ]),
-  );
 }
 
 function serializeSlateGame(game: ResolvedSlateGame) {

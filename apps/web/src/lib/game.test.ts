@@ -21,7 +21,7 @@ describe("isClosedToPicks", () => {
     },
     { name: "kickoff closes it", game: { locked: true, pickable: true }, expected: true },
     {
-      name: "a cancelled/moved game closes it",
+      name: "a cancelled game closes it",
       game: { locked: false, pickable: false },
       expected: true,
     },
@@ -371,7 +371,7 @@ describe("pickStandingLabel", () => {
       expected: null,
     },
     {
-      // Cancelled/moved games push with no score at all (spec §Cancellations).
+      // A cancelled game pushes with no score at all (spec §Cancellations).
       name: "a cancelled game's push states no magnitude",
       game: { status: GAME_STATUS.CANCELLED, awayScore: null, homeScore: null },
       pick: { ...HOME_PICK, outcome: PICK_OUTCOME.PUSH },

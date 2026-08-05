@@ -22,7 +22,6 @@ const GAME_STATUS_LABELS: Record<GameStatus, string> = {
   [GAME_STATUS.FINAL]: "Final",
   [GAME_STATUS.POSTPONED]: "Postponed",
   [GAME_STATUS.CANCELLED]: "Cancelled",
-  [GAME_STATUS.MOVED]: "Moved",
 };
 
 export function gameStatusLabel(status: GameStatus): string {
