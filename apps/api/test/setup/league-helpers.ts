@@ -166,7 +166,7 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
   picksPerWeek: 5,
 };
 
-/** Four unstarted games, spread an hour apart — enough room to hold several picks and still leave one unpicked as a repick target. */
+/** Four unstarted games, spread an hour apart — a slate long enough to exceed a modest Picks Per Week cap. */
 export const FOUR_GAME_WEEK: SeededWeek[] = [
   {
     weekNumber: 1,

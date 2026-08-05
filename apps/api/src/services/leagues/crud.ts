@@ -246,6 +246,13 @@ export async function updateLeague(
       // no pick has locked, since a locked pick is already revealed and possibly
       // settled.
       //
+      // Under submit-once (ADR-0018) this reset carries a second job: it is the
+      // ONLY path by which a member re-submits a week, because it deletes the
+      // very picks `already_submitted` keys on. It is therefore also the only
+      // remedy for a submission a member regrets — deliberately narrow, since it
+      // is a commissioner action, pre-start-only, and refused once anything has
+      // locked.
+      //
       // Ordered BEFORE the settings write on purpose: every refusal in this
       // transaction *returns* rather than throws, and Drizzle commits whenever
       // the callback resolves normally. A refusal after a write would therefore

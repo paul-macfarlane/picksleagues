@@ -75,10 +75,43 @@ export const PickemPickSubmissionSchema = z
 export type PickemPickSubmission = z.infer<typeof PickemPickSubmissionSchema>;
 
 /**
- * Replaces the member's *unstarted* picks for the week wholesale. Picks whose
- * game has already kicked off are immutable and must be omitted — submitting
- * one is a `pick_locked` (409), not a silent no-op, so a stale client learns
- * its slate moved rather than believing an edit landed.
+ * How many picks a week's submission must contain: a full set of what can
+ * **still** be picked (ADR-0018 decision 2). Shared by the API's write path,
+ * which sizes the submission it accepts, and the web sheet, which enables Save
+ * on the same number — one rule, so the two surfaces can never disagree about
+ * what "complete" means (the `pickemSettingsInvalidatePicks` precedent).
+ *
+ * Locked games are excluded deliberately. `picksAllowed` is
+ * `min(picksPerWeek, pickable games)` and `pickable` does not exclude a game
+ * that has already kicked off, so requiring `picksAllowed` would ask a member
+ * who arrives after the week's first kickoff for more picks than the slate can
+ * still supply and lock them out of the week permanently — an implicit weekly
+ * deadline, which ADR-0018 refuses. Games that locked before the member
+ * submitted are forgone; they were never picks, so nothing scores.
+ *
+ * **Why the two call sites pass different caps and still agree.** The API
+ * passes `settings.picksPerWeek`; the web passes the wire's `picksAllowed`,
+ * which is itself `min(picksPerWeek, pickable)`. The unlocked-pickable count
+ * filtered here is never larger than the pickable count, so
+ * `min(min(p, pickable), unlockedPickable) === min(p, unlockedPickable)` — the
+ * extra `pickable` clamp the web's cap carries can never bind first. Neither
+ * call site is wrong.
+ */
+export function requiredPickemPickCount(
+  cap: number,
+  games: readonly { locked: boolean; pickable: boolean }[],
+): number {
+  return Math.min(cap, games.filter((game) => !game.locked && game.pickable).length);
+}
+
+/**
+ * The member's one submission for the week (ADR-0018 decision 1). It must be
+ * the full required set — `requiredPickemPickCount` above — and it can never be
+ * edited, replaced, or added to: a second call is `already_submitted` (409),
+ * a short set `pick_set_incomplete` (400), a long one `too_many_picks` (400).
+ * A game that has already kicked off is `pick_locked` (409) rather than a
+ * silent no-op, so a stale client learns its slate moved instead of believing
+ * its sheet landed.
  */
 export const SubmitPickemPicksRequestSchema = z
   .object({
@@ -156,7 +189,9 @@ export const PickemWeekPicksResponseSchema = z
     weekId: z.string(),
     // The effective cap for this week: min(picksPerWeek, games in the slate) —
     // the spec's "fewer games than Picks Per Week" rule, resolved server-side
-    // so the UI never re-derives it.
+    // so the UI never re-derives it. It is the *cap*, not the size a submission
+    // must be: that is `requiredPickemPickCount(picksAllowed, slate)`, which
+    // also excludes games that have since kicked off.
     picksAllowed: z.number().int(),
     members: z.array(PickemMemberPicksSchema),
   })

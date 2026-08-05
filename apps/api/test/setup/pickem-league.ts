@@ -38,7 +38,7 @@ export interface SeededPickemLeague {
 /**
  * Shared arrange step for the Pick'em integration suites: a season + league +
  * N members, bypassing the API. Every per-file seed helper across
- * pickem-picks/settlement/standings-repick/sim-settle.test.ts is a thin
+ * pickem-picks/settlement/pickem-standings/sim-settle.test.ts is a thin
  * parameterization of this shape (custom settings/weeks/status/year/member
  * naming) — settings/status/year left undefined fall through to
  * `insertLeague`/`seedSeason`'s own defaults.

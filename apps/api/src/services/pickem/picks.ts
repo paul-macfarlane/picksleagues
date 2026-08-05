@@ -1,4 +1,4 @@
-import { and, count, countDistinct, eq, inArray } from "drizzle-orm";
+import { and, count, countDistinct, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, pickemPickResults, pickemPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
@@ -9,10 +9,10 @@ import {
   LEAGUE_STATUS,
   PICK_TYPE,
   nflSeasonOrdinal,
+  requiredPickemPickCount,
   type PickemMemberPicks,
   type PickemPickSubmission,
   type PickemPickSummary,
-  type PickemRepickRequest,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -30,17 +30,20 @@ import {
   resolveLockStates,
   type ResolvedSlateGame,
 } from "../slate";
-import { settleLeagueSeasonWeeks } from "./settlement";
-import { logError } from "../../lib/logger";
 
 /**
  * Pick'em pick entry (spec §Game Mode 1 — Core Rules, Locking, ATS spread
  * acceptance) and the kickoff-gated read path (spec §Pick Visibility).
  *
- * Two invariants carry this module and are re-validated inside the write
+ * A week is **one atomic, immutable submission** (ADR-0018): the member sends
+ * the full required set once, and no pick in that week can afterwards be
+ * changed, replaced, or removed. There is no second write path.
+ *
+ * Three invariants carry this module and are re-validated inside the write
  * transaction rather than trusted from the pre-flight read (arch §Locking
- * Model): a pick may only be written while its game is unstarted, and in ATS
- * leagues the spread written must be the spread current at that instant.
+ * Model): the member must not already hold picks for the week, a pick may only
+ * be written while its game is unstarted, and in ATS leagues the spread written
+ * must be the spread current at that instant.
  */
 
 export const PICKEM_REFUSAL = {
@@ -51,12 +54,14 @@ export const PICKEM_REFUSAL = {
   GAME_NOT_IN_WEEK: "game_not_in_week",
   GAME_NOT_PICKABLE: "game_not_pickable",
   DUPLICATE_PICK: "duplicate_pick",
+  // The two size refusals are mirrors of each other; ALREADY_SUBMITTED is the
+  // different one — a set of any size from a member whose week is closed.
   TOO_MANY_PICKS: "too_many_picks",
+  PICK_SET_INCOMPLETE: "pick_set_incomplete",
+  ALREADY_SUBMITTED: "already_submitted",
   PICK_LOCKED: "pick_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
-  PICK_NOT_FOUND: "pick_not_found",
-  PICK_NOT_REPLACEABLE: "pick_not_replaceable",
   // Only the pick-summary read (commissioner-gated, see below) can produce
   // this — every other refusal in this file comes from the member-only
   // `loadContext` gate, which has no role axis.
@@ -145,8 +150,12 @@ async function loadContext(
 
 /**
  * Spec §Fewer games than Picks Per Week: a short slate caps everyone at the
- * games actually available. Cancelled and moved games are not available, so
- * they don't raise the cap.
+ * games actually available. A cancelled game is not available, so it doesn't
+ * raise the cap.
+ *
+ * This is the week's *cap*, which the read path serves as `picksAllowed`. The
+ * size a submission must actually be is `requiredPickemPickCount`, which also
+ * excludes games that have already kicked off (ADR-0018 decision 2).
  */
 function picksAllowedFor(picksPerWeek: number, slate: readonly ResolvedSlateGame[]): number {
   return Math.min(picksPerWeek, slate.filter((game) => game.pickable).length);
@@ -171,8 +180,10 @@ function isDuplicatePickViolation(error: unknown): boolean {
 }
 
 /**
- * The ATS spread-acceptance rule (spec §ATS spread acceptance), in one place —
- * both write paths enforce it and a change to the semantics must reach both.
+ * The ATS spread-acceptance rule (spec §ATS spread acceptance). Immutability
+ * removed the *second* submission, not the first one's handshake: the line
+ * still moves between page load and submit, so a submission still states the
+ * spreads it accepted and is still refused when they have moved.
  *
  * The two refusals are deliberately distinct because the member's next move
  * differs: no line has been captured yet (wait for the odds sync — there is
@@ -318,6 +329,16 @@ export async function getPickemPickSummary(
   };
 }
 
+/**
+ * The member's one submission for the week (ADR-0018 decision 1). Everything
+ * about it is validated inside the transaction, against a slate re-read there:
+ * a week the member has already submitted is closed for good, and the set must
+ * be exactly what `requiredPickemPickCount` says is still pickable.
+ *
+ * There is no delete path here. The only way a member re-submits a week is a
+ * commissioner settings change that invalidates picks
+ * (`resetPicksInvalidatedBySettings`, ADR-0015 rule 3).
+ */
 export async function submitPickemPicks(
   db: Db,
   clock: Clock,
@@ -343,8 +364,10 @@ export async function submitPickemPicks(
   }
 
   const refusal = await db.transaction(async (tx): Promise<PickemWriteRefusal | null> => {
-    // Serializes this member's own concurrent submissions so the cap check
-    // below can't be passed twice against the same pre-write state.
+    // Serializes this member's own concurrent submissions. More load-bearing
+    // under submit-once than it was under editing: it is what makes "one
+    // submission" true, since two requests racing on an empty week would
+    // otherwise both read no existing picks and both insert a full set.
     await lockLeagueMemberRow(tx, membershipId);
 
     // Re-read the slate inside the transaction: kickoffs and spreads are the
@@ -353,69 +376,35 @@ export async function submitPickemPicks(
     // re-validates `kickoff_at > clock.now()` inside its transaction).
     const slate = await loadResolvedWeekGames(tx, clock, weekId);
     const byGameId = new Map(slate.map((game) => [game.id, game]));
-    const picksAllowed = picksAllowedFor(settings.picksPerWeek, slate);
+
+    const [existing] = await tx
+      .select({ held: count() })
+      .from(pickemPicks)
+      .where(and(eq(pickemPicks.leagueMemberId, membershipId), eq(pickemPicks.weekId, weekId)));
+
+    // Checked ahead of everything per-game so a member whose week is already
+    // closed gets the honest reason, rather than a stale-spread or lock
+    // complaint about a sheet that was never going to be accepted.
+    if ((existing?.held ?? 0) > 0) return PICKEM_REFUSAL.ALREADY_SUBMITTED;
+
+    // A full set of what can *still* be picked (ADR-0018 decision 2): sizing
+    // against `picksAllowed` instead would ask a member arriving after the
+    // week's first kickoff for picks the slate can no longer supply.
+    const required = requiredPickemPickCount(settings.picksPerWeek, slate);
+    if (submissions.length > required) return PICKEM_REFUSAL.TOO_MANY_PICKS;
+    if (submissions.length < required) return PICKEM_REFUSAL.PICK_SET_INCOMPLETE;
 
     for (const submission of submissions) {
       const game = byGameId.get(submission.gameId);
       if (!game) return PICKEM_REFUSAL.GAME_NOT_IN_WEEK;
       if (game.locked) return PICKEM_REFUSAL.PICK_LOCKED;
-      // A cancelled or moved game settles as a push, so a fresh pick on one
-      // would be free points (spec §Cancellations — the push is what a member
-      // is left holding, never something they may newly choose).
+      // A cancelled game settles as a push, so a fresh pick on one would be
+      // free points (spec §Cancellations — the push is what a member is left
+      // holding, never something they may newly choose).
       if (!game.pickable) return PICKEM_REFUSAL.GAME_NOT_PICKABLE;
 
       const spreadRefusal = checkSpreadAccepted(settings, game, submission.spread);
       if (spreadRefusal) return spreadRefusal;
-    }
-
-    const existing = await tx
-      .select({ id: pickemPicks.id, gameId: pickemPicks.gameId })
-      .from(pickemPicks)
-      .where(and(eq(pickemPicks.leagueMemberId, membershipId), eq(pickemPicks.weekId, weekId)));
-
-    /**
-     * The submission governs the member's *replaceable* picks only — those on a
-     * game still in this week's slate, still unstarted, and still playable.
-     * Everything else is retained, because the member is entitled to what it
-     * will settle as and no edit of theirs asked to give it up:
-     * - a **locked** pick is immutable (spec §Locking);
-     * - a pick whose game **left this week** (a provider week move repoints
-     *   `games.week_id` while the pick keeps its own) is not addressable from
-     *   this slate at all;
-     * - a pick on a **cancelled or moved** game resolves as a push that the
-     *   spec says stands (§Cancellations: "If no unstarted games remain, the
-     *   push stands"). Keying retention on `locked` alone would destroy it
-     *   whenever the cancellation landed before the scheduled kickoff — the
-     *   same spec situation as a post-kickoff cancellation, but the opposite
-     *   outcome, decided by a timestamp that means nothing for a game that will
-     *   never be played.
-     *
-     * So absence from `byGameId`, a lock, or an unplayable status all mean
-     * "retain" — never "drop".
-     */
-    const replaceable = existing.filter((pick) => {
-      const game = byGameId.get(pick.gameId);
-      return game !== undefined && !game.locked && game.pickable;
-    });
-    const retainedCount = existing.length - replaceable.length;
-
-    // The cap bounds what this submission may *add*, not what the member ended
-    // up holding: retained picks are not something they chose to keep, and a
-    // slate that shrank (a cancellation) can put `retainedCount` over the cap on
-    // its own. Framed this way an empty submission — which only ever deletes —
-    // can never be refused.
-    const remainingSlots = Math.max(0, picksAllowed - retainedCount);
-    if (submissions.length > remainingSlots) {
-      return PICKEM_REFUSAL.TOO_MANY_PICKS;
-    }
-
-    if (replaceable.length > 0) {
-      await tx.delete(pickemPicks).where(
-        inArray(
-          pickemPicks.id,
-          replaceable.map((pick) => pick.id),
-        ),
-      );
     }
 
     if (submissions.length > 0) {
@@ -452,136 +441,13 @@ export async function submitPickemPicks(
 
   if (refusal) return { ok: false, reason: refusal };
 
-  // Deliberately no settlement call here, unlike `repickPickemPick`. This path
-  // only ever deletes picks that are `replaceable` — in the slate, unlocked, and
-  // pickable — and such a game is `scheduled`, which settlement records no
-  // result for. There is therefore nothing stale to rebuild. (The one way that
-  // could stop holding is the ADM-3 hole: an override moving a kickoff later,
-  // then ingestion writing a final score off the provider kickoff, leaving a
-  // scored game unlocked. The nightly sweep repairs it; adding a settlement
-  // round trip to the app's hottest write path to cover it would not pay.)
-  return getPickemWeekPicks(db, clock, leagueId, weekId, userId);
-}
-
-/**
- * Substitutes one pick for another after its game was cancelled or moved out of
- * the week (spec §Cancellations, Postponements & Re-picks).
- *
- * This is the one operation where ATS acceptance applies to the **replacement
- * pick only** — the member's other unstarted picks keep the spreads they were
- * made against. That is the exact inverse of `submitPickemPicks`, whose
- * invariant is that any change re-prices everything, which is why the two are
- * separate endpoints rather than one with a flag (ADR-0015).
- *
- * It is also the only way to give up a retained pick: the batch endpoint
- * deliberately can't, so without this the spec's "substitute any unstarted
- * game" would be unreachable and a member holding a cancelled game would be
- * capped for the week.
- */
-export async function repickPickemPick(
-  db: Db,
-  clock: Clock,
-  leagueId: string,
-  weekId: string,
-  userId: string,
-  request: PickemRepickRequest,
-): Promise<PickemResult<PickemWeekPicksResponse, PickemWriteRefusal>> {
-  const preflight = await loadContext(db, leagueId, weekId, userId);
-  if (!preflight.ok) return preflight;
-  const { leagueSeasonId, membershipId, settings, status } = preflight.value;
-
-  if (status === LEAGUE_STATUS.CONCLUDED) {
-    return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_CONCLUDED };
-  }
-
-  const refusal = await db.transaction(async (tx): Promise<PickemWriteRefusal | null> => {
-    await lockLeagueMemberRow(tx, membershipId);
-
-    const slate = await loadResolvedWeekGames(tx, clock, weekId);
-    const byGameId = new Map(slate.map((game) => [game.id, game]));
-
-    const existing = await tx
-      .select()
-      .from(pickemPicks)
-      .where(and(eq(pickemPicks.leagueMemberId, membershipId), eq(pickemPicks.weekId, weekId)));
-
-    const replaced = existing.find((pick) => pick.id === request.replacePickId);
-    if (!replaced) return PICKEM_REFUSAL.PICK_NOT_FOUND;
-
-    // A re-pick is earned only by a game that will never be played in this
-    // week. A pick on a live game is changed through the batch endpoint, which
-    // re-prices every unstarted pick — routing that change through here would
-    // let a member freeze the rest of their spreads, which the spec forbids.
-    const replacedGame = byGameId.get(replaced.gameId);
-    const replacedIsUnplayable = replacedGame === undefined || !replacedGame.pickable;
-    if (!replacedIsUnplayable) return PICKEM_REFUSAL.PICK_NOT_REPLACEABLE;
-
-    const replacement = byGameId.get(request.gameId);
-    if (!replacement) return PICKEM_REFUSAL.GAME_NOT_IN_WEEK;
-    if (replacement.locked) return PICKEM_REFUSAL.PICK_LOCKED;
-    if (!replacement.pickable) return PICKEM_REFUSAL.GAME_NOT_PICKABLE;
-
-    // "Substituting any unstarted game from the same week" means one the member
-    // doesn't already hold — otherwise the substitution would collapse two
-    // picks into one and quietly cost them a slot.
-    const alreadyPicked = existing.some(
-      (pick) => pick.gameId === request.gameId && pick.id !== replaced.id,
-    );
-    if (alreadyPicked) return PICKEM_REFUSAL.DUPLICATE_PICK;
-
-    const spreadRefusal = checkSpreadAccepted(settings, replacement, request.spread);
-    if (spreadRefusal) return spreadRefusal;
-
-    const now = clock.now();
-    // Replace rather than add: the push is what the member holds if they don't
-    // re-pick, so stacking a substitute on top would give them more scoring
-    // chances than Picks Per Week allows.
-    await tx.delete(pickemPicks).where(eq(pickemPicks.id, replaced.id));
-    try {
-      await tx.insert(pickemPicks).values({
-        leagueSeasonId,
-        leagueMemberId: membershipId,
-        weekId,
-        gameId: request.gameId,
-        side: request.side,
-        spreadAtPick: settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD ? request.spread : null,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } catch (error) {
-      // Same backstop as the batch path.
-      if (isDuplicatePickViolation(error)) {
-        return PICKEM_REFUSAL.DUPLICATE_PICK;
-      }
-      throw error;
-    }
-
-    return null;
-  });
-
-  if (refusal) return { ok: false, reason: refusal };
-
-  /**
-   * Re-settle, because this is the one write path that can give up an
-   * **already-graded** pick. The pick it replaces has pushed — that is the
-   * precondition for the whole operation — so a `pickem_pick_results` row for it
-   * may already exist, and deleting the pick cascades that row away while
-   * `pickem_standings` keeps counting the points it contributed. Without this,
-   * the board credits a member for a pick they no longer hold until something
-   * else happens to settle that season (arch D10: standings must be what a full
-   * recompute would produce, at any time — not eventually).
-   *
-   * Outside the transaction and non-fatal, for the same reasons as the admin
-   * override's recompute: settlement takes a per-league-season lock, and the
-   * substitution is already committed, so a failure here must not roll it back
-   * or report the member's pick change as failed. The nightly sweep repairs the
-   * derivation; the log is how anyone learns it had to.
-   */
-  try {
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-  } catch (error) {
-    logError("pickem-repick.settlement-failed", { leagueId, weekId, leagueSeasonId, error });
-  }
-
+  // Deliberately no settlement call: this path only ever inserts picks on games
+  // it has just verified are unlocked and pickable, and settlement records no
+  // result for a game in that state. There is nothing stale for it to rebuild.
+  // (The one way that could stop holding is the ADM-3 hole: an override moving
+  // a kickoff later, then ingestion writing a final score off the provider
+  // kickoff, leaving a scored game unlocked. The nightly sweep repairs it;
+  // adding a settlement round trip to the app's hottest write path to cover it
+  // would not pay.)
   return getPickemWeekPicks(db, clock, leagueId, weekId, userId);
 }

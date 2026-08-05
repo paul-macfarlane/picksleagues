@@ -22,12 +22,14 @@ const REFUSAL_STATUS = {
   game_not_in_week: 400,
   game_not_pickable: 409,
   duplicate_pick: 400,
+  // The two size refusals are malformed requests; already_submitted is a
+  // conflict with state the member cannot change, like pick_locked.
   too_many_picks: 400,
+  pick_set_incomplete: 400,
+  already_submitted: 409,
   pick_locked: 409,
   spread_stale: 409,
   spread_unavailable: 409,
-  pick_not_found: 404,
-  pick_not_replaceable: 409,
   not_commissioner: 403,
 } as const satisfies Record<PickemRefusal, 400 | 403 | 404 | 409>;
 
@@ -51,7 +53,7 @@ const REFUSAL_BODY = {
   },
   game_not_pickable: {
     error: ERROR_CODE.GAME_NOT_PICKABLE,
-    message: "That game was cancelled or moved — it can't be picked.",
+    message: "That game was cancelled — it can't be picked.",
   },
   duplicate_pick: {
     error: ERROR_CODE.DUPLICATE_PICK,
@@ -60,6 +62,14 @@ const REFUSAL_BODY = {
   too_many_picks: {
     error: ERROR_CODE.TOO_MANY_PICKS,
     message: "That's more picks than this league allows for the week.",
+  },
+  pick_set_incomplete: {
+    error: ERROR_CODE.PICK_SET_INCOMPLETE,
+    message: "Pick every game you still can for this week, then submit again.",
+  },
+  already_submitted: {
+    error: ERROR_CODE.ALREADY_SUBMITTED,
+    message: "You've already submitted this week — picks are final once they're in.",
   },
   pick_locked: {
     error: ERROR_CODE.PICK_LOCKED,
@@ -72,15 +82,6 @@ const REFUSAL_BODY = {
   spread_unavailable: {
     error: ERROR_CODE.SPREAD_UNAVAILABLE,
     message: "That game has no spread yet — it can't be picked until the line is posted.",
-  },
-  pick_not_found: {
-    error: ERROR_CODE.PICK_NOT_FOUND,
-    message: "That pick no longer exists.",
-  },
-  pick_not_replaceable: {
-    error: ERROR_CODE.PICK_NOT_REPLACEABLE,
-    message:
-      "That game wasn't cancelled or moved, so it can't be substituted — edit your picks instead.",
   },
   not_commissioner: {
     error: ERROR_CODE.NOT_COMMISSIONER,

@@ -2,7 +2,6 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ErrorResponseSchema,
   PickemPickSummarySchema,
-  PickemRepickRequestSchema,
   PickemStandingsResponseSchema,
   PickemWeekPicksResponseSchema,
   SubmitPickemPicksRequestSchema,
@@ -22,7 +21,6 @@ import type { SessionVariables } from "../middleware/session";
 import {
   getPickemPickSummary,
   getPickemWeekPicks,
-  repickPickemPick,
   submitPickemPicks,
 } from "../services/pickem/picks";
 import { getPickemStandings } from "../services/pickem/standings";
@@ -102,7 +100,7 @@ const putLeagueWeekPicks = createRoute({
   method: "put",
   path: "/leagues/{leagueId}/pickem/weeks/{weekId}/picks",
   operationId: "submitPickemPicks",
-  summary: "Replace the caller's unstarted picks for a week",
+  summary: "Submit the caller's picks for a week — once, in full, and for good",
   request: {
     params: LeagueWeekParamsSchema,
     body: { content: { "application/json": { schema: SubmitPickemPicksRequestSchema } } },
@@ -114,41 +112,12 @@ const putLeagueWeekPicks = createRoute({
       content: { "application/json": { schema: PickemWeekPicksResponseSchema } },
     },
     400: errorResponse(
-      "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), a game not in this week's slate (game_not_in_week), the same game picked twice (duplicate_pick), or more picks than the week allows (too_many_picks)",
+      "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), a game not in this week's slate (game_not_in_week), the same game picked twice (duplicate_pick), or the set isn't the week's required size — min(picksPerWeek, games still unlocked and pickable) — either over it (too_many_picks) or under it (pick_set_incomplete)",
     ),
     401: UNAUTHENTICATED_401,
     404: LEAGUE_NOT_FOUND_404,
     409: errorResponse(
-      "A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
-    ),
-    500: MISCONFIGURED_500,
-  },
-});
-
-const postRepick = createRoute({
-  method: "post",
-  path: "/leagues/{leagueId}/pickem/weeks/{weekId}/repick",
-  operationId: "repickPickemPick",
-  summary: "Substitute a pick whose game was cancelled or moved out of the week",
-  request: {
-    params: LeagueWeekParamsSchema,
-    body: { content: { "application/json": { schema: PickemRepickRequestSchema } } },
-  },
-  responses: {
-    200: {
-      description:
-        "Substitution saved; the week's picks are returned as the read endpoint serves them",
-      content: { "application/json": { schema: PickemWeekPicksResponseSchema } },
-    },
-    400: errorResponse(
-      "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), the replacement isn't in this week's slate (game_not_in_week), or the caller already holds it (duplicate_pick)",
-    ),
-    401: UNAUTHENTICATED_401,
-    404: errorResponse(
-      "No such league or the caller isn't a member (league_not_found), or the pick being replaced doesn't exist (pick_not_found)",
-    ),
-    409: errorResponse(
-      "The replaced pick's game is still playable, so it earns no substitution (pick_not_replaceable), the replacement already kicked off (pick_locked) or is itself unplayable (game_not_pickable), its spread moved (spread_stale) or is not posted yet (spread_unavailable), or the season has concluded (league_concluded)",
+      "The caller already submitted this week and a week is one immutable submission (already_submitted), a submitted game has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -201,22 +170,6 @@ export function pickemRoutes(deps: AppDeps) {
     const { leagueId, weekId } = c.req.valid("param");
 
     const result = await getPickemWeekPicks(db, clock, leagueId, weekId, sessionUser.id);
-    if (!result.ok) {
-      const { body, status } = pickemRefusal(result.reason);
-      return c.json(ErrorResponseSchema.parse(body), status);
-    }
-
-    return c.json(result.value, 200);
-  });
-
-  app.openapi(postRepick, async (c) => {
-    const db = c.get("db");
-    const clock = c.get("clock");
-    const sessionUser = c.get("sessionUser");
-    const { leagueId, weekId } = c.req.valid("param");
-    const request = c.req.valid("json");
-
-    const result = await repickPickemPick(db, clock, leagueId, weekId, sessionUser.id, request);
     if (!result.ok) {
       const { body, status } = pickemRefusal(result.reason);
       return c.json(ErrorResponseSchema.parse(body), status);

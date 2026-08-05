@@ -63,8 +63,6 @@ export const ERROR_CODE = {
   PICKS_LOCKED: "picks_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
-  PICK_NOT_FOUND: "pick_not_found",
-  PICK_NOT_REPLACEABLE: "pick_not_replaceable",
   OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
 } as const;
 
