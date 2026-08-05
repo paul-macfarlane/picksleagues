@@ -84,7 +84,7 @@ repository keeps its own base SHA, branch, verification result, and pull request
 - Lock state is derived, never stored: reads compute locked = kickoff_at <= clock.now(), and every pick mutation re-validates kickoff_at > clock.now() inside its transaction.
 - The SPA consumes only the generated OpenAPI client. Changing a Zod schema or route means regenerating and committing openapi/ in the same change; pnpm contract:check fails otherwise.
 - Postgres runs locally in Docker on port 5433 via pnpm db:up.
-- Never run pnpm test:e2e without explicit human approval: it deletes every league in the dev database.
+- pnpm test:e2e is safe to run unattended: it brings up its own stack on its own database (picksleagues_e2e) and its own ports (5273/3100), created and migrated by e2e/setup/global-setup.ts. It never touches the dev database, which is why the Pick'em journey may reset the simulator with scope: "environment".
 - The season simulator is the repo's primary verification harness. Driving it is usually stronger proof than a screenshot; mechanics live in docs/agents/verification-runbook.md.
 
 ## Atlas repository workflow

@@ -120,7 +120,6 @@ describe("PATCH /api/leagues/:leagueId", () => {
         endWeek: { type: "regular", number: 10 },
         pickType: "against_the_spread",
         picksPerWeek: 3,
-        pushTieResolution: "zero_points",
       },
     });
     expect(res.status).toBe(200);
@@ -501,7 +500,6 @@ describe("PATCH settings cannot move the start into the past", () => {
         endWeek: { type: "regular", number: 18 },
         pickType: "straight_up",
         picksPerWeek: 5,
-        pushTieResolution: "half_point",
       },
       members: [{ userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -515,7 +513,6 @@ describe("PATCH settings cannot move the start into the past", () => {
           endWeek: { type: "regular", number: 18 },
           pickType: "straight_up",
           picksPerWeek: 5,
-          pushTieResolution: "half_point",
         },
       },
       appAfterKickoff,

@@ -50,7 +50,7 @@ export type SimGameDef = {
   homeTeamAbbr: string;
   awayTeamAbbr: string;
   kickoffAtOffsetMs: number;
-  // Home-relative (negative = home favored), matching `odds_snapshots.spread`.
+  // Home-relative (negative = home favored), matching `games.spread`.
   spread: number | null;
   finalStatus: SimFinalStatus;
   finalHomeScore: number | null;

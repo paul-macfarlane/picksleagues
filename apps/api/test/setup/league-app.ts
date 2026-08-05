@@ -67,20 +67,6 @@ export function makeLeagueTestHarness() {
     });
   }
 
-  function postRepick(
-    cookie: string | undefined,
-    leagueId: string,
-    weekId: string,
-    body: unknown,
-    on: App = app,
-  ) {
-    return on.request(`/api/leagues/${leagueId}/pickem/weeks/${weekId}/repick`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...withCookie(cookie) },
-      body: JSON.stringify(body),
-    });
-  }
-
   function getStandings(cookie: string | undefined, leagueId: string, query = "", on: App = app) {
     return on.request(`/api/leagues/${leagueId}/pickem/standings${query}`, {
       headers: withCookie(cookie),
@@ -102,7 +88,6 @@ export function makeLeagueTestHarness() {
     getSlate,
     getPicks,
     putPicks,
-    postRepick,
     getStandings,
     getPickSummary,
   };

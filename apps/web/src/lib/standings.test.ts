@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { rankLabel, sharedRankCounts } from "./standings";
 
 /**
- * Spec §Tiebreakers: members level on points *and* differential share a rank,
- * and the board must say so rather than silently renumbering them 1, 2, 3.
+ * Spec §Standings: members level on points share a rank, with no tiebreaker
+ * behind it, and the board must say so rather than silently renumbering them
+ * 1, 2, 3.
  */
 describe("rankLabel", () => {
   it("renders a rank held by one member plainly", () => {

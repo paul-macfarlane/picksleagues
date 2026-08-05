@@ -70,8 +70,8 @@ export async function setGameOverride(
     // Precedence resolved through its one home (arch D15) rather than restated,
     // both before and after, so the guard below reasons about exactly the
     // kickoff, status and scores the rest of the app will.
-    const before = resolveGameOverrides(game, null);
-    const after = resolveGameOverrides({ ...game, ...next }, null);
+    const before = resolveGameOverrides(game);
+    const after = resolveGameOverrides({ ...game, ...next });
 
     /**
      * The invariant: a game is never left unlocked while its outcome is already
@@ -79,8 +79,8 @@ export async function setGameOverride(
      * is one every member can still pick against an outcome the app is already
      * serving them — the pick mutation's `kickoff_at > now` check passes and
      * settlement grades it a guaranteed win. The spec is explicit that even a
-     * genuine postponement does not re-open picks (§Cancellations,
-     * Postponements & Re-picks: "resolves normally when played. No re-pick.").
+     * genuine postponement does not re-open picks (§Cancellations &
+     * Postponements: "pick resolves normally when played").
      *
      * "Knowable" is a started status OR a resolved score, and the score disjunct
      * is not redundant with the status one. `postponed` is legitimately not a

@@ -8,7 +8,6 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  PICKEM_PUSH_TIE_RESOLUTION,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
   type EliminationPushTieResolution,
@@ -16,7 +15,6 @@ import {
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type PickType,
-  type PickemPushTieResolution,
   type PickemSettings,
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
@@ -139,9 +137,6 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
     pickemSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
-  const [pickemPushTie, setPickemPushTie] = useState<PickemPushTieResolution>(
-    pickemSettings?.pushTieResolution ?? PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT,
-  );
 
   const [eliminationStartWeek, setEliminationStartWeek] = useState(
     eliminationSettings ? encodeWeek(eliminationSettings.startWeek) : DEFAULT_PICKEM_START_WEEK,
@@ -199,7 +194,6 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
       endWeek: decodeWeek(pickemEndWeek),
       pickType: pickemPickType,
       picksPerWeek: pickemPicksPerWeek,
-      pushTieResolution: pickemPushTie,
     };
     assembledSettings = draft;
     // Both sides of every comparison below come from the same parse the server
@@ -210,8 +204,7 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
       ? pickemStartWeek !== encodeWeek(pickemSettings.startWeek) ||
         pickemEndWeek !== encodeWeek(pickemSettings.endWeek) ||
         pickemPickType !== pickemSettings.pickType ||
-        pickemPicksPerWeek !== pickemSettings.picksPerWeek ||
-        pickemPushTie !== pickemSettings.pushTieResolution
+        pickemPicksPerWeek !== pickemSettings.picksPerWeek
       : true;
     wouldInvalidatePicks = pickemSettings
       ? pickemSettingsInvalidatePicks(pickemSettings, draft)
@@ -374,8 +367,6 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
             onPickTypeChange={setPickemPickType}
             picksPerWeek={pickemPicksPerWeek}
             onPicksPerWeekChange={setPickemPicksPerWeek}
-            pushTie={pickemPushTie}
-            onPushTieChange={setPickemPushTie}
           />
         )}
 

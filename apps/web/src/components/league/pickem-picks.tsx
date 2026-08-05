@@ -1,37 +1,48 @@
 import { useState } from "react";
 import {
-  PICKEM_PICK_SIDE,
   PICK_TYPE,
-  type PickemPickSide,
-  type PickType,
+  requiredPickemPickCount,
   type PickemPick,
+  type PickemPickSide,
   type PickemPickSubmission,
+  type PickType,
   type SlateGame,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { isClosedToPicks, spreadLabel } from "@/lib/game";
+import { isClosedToPicks } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryState } from "@/components/query-state";
-import { StatusPill } from "@/components/status-pill";
-import { TeamLogo } from "@/components/team-logo";
-import { GameRow } from "@/components/league/pickem-game-row";
-import { PickemSubstituteDialog } from "@/components/league/pickem-substitute-dialog";
+import { SheetGameRow, SubmittedPickRow } from "@/components/league/pickem-game-row";
 
 /**
- * Narrows a selection map to the games this editor may still submit
- * (spec/ADR-0015: unlocked and pickable) — a locked, cancelled/moved, or
- * week-moved pick is retained server-side and must never be re-submitted.
+ * Narrows a selection map to the games the sheet may still submit — unlocked
+ * and pickable.
  *
  * Applied on **every** render, not only when seeding at mount. Games lock one
  * at a time through a Sunday and a background slate refetch brings that in
- * without remounting the editor, so a selection made while a game was open
- * outlives the game's own editability. Leaving it in place counted the pick in
- * both this map and the retained one ("8 of 5 picks") and would have submitted
- * it into the write path's lock guard on the next save.
+ * without remounting the sheet, so a selection made while a game was open
+ * outlives the game's own pickability. Leaving it in place would submit a
+ * locked game into the write path's lock guard — and under ADR-0018 that refusal
+ * costs the member the whole week's submission, not one pick.
+ *
+ * The required set shrinks by the same rule at the same moment
+ * (`requiredPickemPickCount`), so a sheet that was complete before a kickoff is
+ * still complete after it.
  */
 export function openSelections(
   games: Pick<SlateGame, "id" | "locked" | "pickable">[],
@@ -46,144 +57,6 @@ export function openSelections(
   return open;
 }
 
-/**
- * Whether any side button on the screen can still be operated — the honest
- * condition for showing the save bar, since the bar exists to save changes and
- * a change needs a control the member can actually press.
- *
- * Mirrors a row's own two gates exactly: the game must still be open, and
- * adding a *new* pick is refused at the cap (`buttonsDisabled` below). So a
- * held pick on an open game always stays operable — it can be given up, which
- * is what frees a slot — while an unpicked open game is dead weight once the
- * cap is reached.
- *
- * "Is any game still open" is the near-miss this replaces (feedback round 4):
- * a member at their cap whose every pick has locked can act on nothing, yet a
- * week with later kickoffs still has open games, so the bar stayed pinned with
- * a Save that could never enable.
- */
-export function hasOperableControl(
-  games: Pick<SlateGame, "id" | "locked" | "pickable">[],
-  selections: Map<string, PickemPickSide>,
-  atCap: boolean,
-): boolean {
-  return games.some((game) => !isClosedToPicks(game) && (selections.has(game.id) || !atCap));
-}
-
-/**
- * The games worth putting on a member's *own* pick screen: ones they hold a
- * pick on, plus — while anything on the page can still be operated — every game
- * still open. A game that kicked off without their pick is gone, so the week in
- * review is their picks rather than a slate they must scan past.
- *
- * `canEditPicks` (i.e. `hasOperableControl`) rather than "is this game open" is
- * what makes the second clause correct in both directions, and neither half is
- * obvious:
- *
- * - **The cap alone must not hide a game.** At the cap with *unlocked* picks a
- *   member can still switch into an unpicked game — ADR-0015 replaces the whole
- *   week, so changing your mind usually means picking a *different* game — and
- *   hiding the target would trap them. This is the objection that defeated the
- *   two earlier "show only my picks" proposals; gating on the week's operability
- *   rather than the game's answers it.
- * - **Openness alone must not show one.** At the cap with every pick locked,
- *   there is no slot to free, so an unstarted game is unreachable however open
- *   it looks. Those are the dead rows this is meant to remove.
- *
- * Sharing the predicate with the save bar is the point: unpicked open games
- * exist to be changed into, so they live and die with the control that saves
- * changes. The screen becomes the week in review in the same render the bar
- * retires in.
- */
-export function visibleGames<T extends { id: string; locked: boolean; pickable: boolean }>(
-  games: readonly T[],
-  heldGameIds: ReadonlySet<string>,
-  canEditPicks: boolean,
-): T[] {
-  return games.filter(
-    (game) => heldGameIds.has(game.id) || (!isClosedToPicks(game) && canEditPicks),
-  );
-}
-
-/**
- * How many of the member's already-committed picks a save would re-price.
- *
- * ATS submissions are all-or-nothing by rule: the payload carries *every*
- * selected game at its current line, so changing one pick accepts the latest
- * spread on all the others too (spec §ATS spread acceptance, ADR-0015 —
- * "spreads cannot be selectively frozen"). Lines move through the week, so a
- * member who picked on Tuesday and edits on Saturday is the ordinary case, not
- * an edge one, and the count is what makes the consequence legible before they
- * commit rather than after.
- *
- * Counts only *committed* picks whose stored number differs from the live one.
- * A brand-new selection isn't being re-priced — it has no prior price — and an
- * unchanged line isn't either, even though it is resubmitted.
- */
-export function repricedPickCount(
-  games: readonly Pick<SlateGame, "id" | "spread">[],
-  selections: ReadonlyMap<string, PickemPickSide>,
-  committedSpreadByGameId: ReadonlyMap<string, number | null>,
-): number {
-  let count = 0;
-  for (const game of games) {
-    if (!selections.has(game.id)) continue;
-    if (!committedSpreadByGameId.has(game.id)) continue;
-    if (committedSpreadByGameId.get(game.id) !== game.spread) count += 1;
-  }
-  return count;
-}
-
-/**
- * Whether this week's screen has nothing at all to render.
- *
- * Deliberately not "is the slate empty". A pick whose game moved to another
- * week is retained (ADR-0015) and is *by definition* absent from this week's
- * slate — so a week can hold zero games and still owe the member the pushed
- * pick they carry, its explanation, and its substitute control. Gating the
- * editor on the slate alone hid exactly that, behind a "no games synced"
- * message that additionally blamed ingestion for something the provider did on
- * purpose.
- */
-export function weekHasNothingToShow(slateGameCount: number, viewerPickCount: number): boolean {
-  return slateGameCount === 0 && viewerPickCount === 0;
-}
-
-/**
- * The team a moved-out pick was on, rendered the same way a slate row renders
- * one — logo, abbreviation, and the spread of record in an ATS league. Falls
- * back to nothing renderable only if the API sent no `movedGame`, which it does
- * for exactly the picks that are still in the slate (and so never reach here).
- */
-function MovedPickTeam({ pick, pickType }: { pick: PickemPick; pickType: PickType }) {
-  if (!pick.movedGame) return <>Pick moved out of this week</>;
-
-  const picked =
-    pick.side === PICKEM_PICK_SIDE.HOME ? pick.movedGame.homeTeam : pick.movedGame.awayTeam;
-  const spread =
-    pickType === PICK_TYPE.AGAINST_THE_SPREAD ? spreadLabel(pick.spread, pick.side) : null;
-
-  return (
-    <>
-      <TeamLogo logoLightUrl={picked.logoLightUrl} logoDarkUrl={picked.logoDarkUrl} size="sm" />
-      {picked.abbreviation}
-      {spread && ` ${spread}`}
-    </>
-  );
-}
-
-function hydrateSelections(slate: WeekSlateResponse, viewerPicks: PickemPick[]) {
-  return openSelections(slate.games, new Map(viewerPicks.map((pick) => [pick.gameId, pick.side])));
-}
-
-function selectionsEqual(a: Map<string, PickemPickSide>, b: Map<string, PickemPickSide>): boolean {
-  if (a.size !== b.size) return false;
-  for (const [gameId, side] of a) {
-    if (b.get(gameId) !== side) return false;
-  }
-  return true;
-}
-
 // The sticky action bar's progress copy (feedback: submitting a 16-game
 // slate shouldn't require scrolling to find the count) — a pure formatter so
 // the exact phrasing is pinned by a test rather than re-typed at the call
@@ -192,6 +65,14 @@ export function pickProgressLabel(heldCount: number, picksAllowed: number): stri
   return `${heldCount} of ${picksAllowed} picks`;
 }
 
+/**
+ * The member's own week (spec §Screens: pick entry has two states).
+ *
+ * Which state it is in is a fact about the server, not this component: under
+ * ADR-0018 a member holds either no picks for a week or the whole submission,
+ * so holding any pick *is* having submitted. There is no third state and no
+ * partial sheet to resume.
+ */
 export function PickemPicks({
   leagueId,
   weekId,
@@ -215,139 +96,127 @@ export function PickemPicks({
         void picks.refetch();
       }}
       errorMessage="Couldn't load this week."
-      isEmpty={weekHasNothingToShow(slate.data?.games.length ?? 0, viewerPicks.length)}
+      isEmpty={(slate.data?.games.length ?? 0) === 0}
       emptyMessage="No games synced for this week yet."
     >
-      {slate.data && picks.data && (
-        <PickemWeekEditor
-          // Remounted per week (and dropped/re-seeded on any other week
-          // change) so a stale in-progress selection from a previously
-          // viewed week can never bleed into this one.
-          key={weekId}
-          leagueId={leagueId}
-          weekId={weekId}
-          pickType={pickType}
-          slate={slate.data}
-          picksAllowed={picks.data.picksAllowed}
-          viewerPicks={viewerPicks}
-        />
-      )}
+      {slate.data &&
+        picks.data &&
+        (viewerPicks.length > 0 ? (
+          <SubmittedWeek slate={slate.data} pickType={pickType} viewerPicks={viewerPicks} />
+        ) : (
+          <PickSheet
+            // Remounted per week (and dropped/re-seeded on any other week
+            // change) so a stale in-progress selection from a previously
+            // viewed week can never bleed into this one.
+            key={weekId}
+            leagueId={leagueId}
+            weekId={weekId}
+            pickType={pickType}
+            slate={slate.data}
+            picksAllowed={picks.data.picksAllowed}
+          />
+        ))}
     </QueryState>
   );
 }
 
-function PickemWeekEditor({
+/**
+ * The week in review: the member's submission, read-only and final.
+ *
+ * Ordered by the slate rather than by the picks array so the rows read in
+ * kickoff order like the sheet they were assembled in. Only the games they
+ * picked are shown — the rest of the slate is not theirs to scan past
+ * (spec §Screens).
+ */
+function SubmittedWeek({
+  slate,
+  pickType,
+  viewerPicks,
+}: {
+  slate: WeekSlateResponse;
+  pickType: PickType;
+  viewerPicks: PickemPick[];
+}) {
+  const pickByGameId = new Map(viewerPicks.map((pick) => [pick.gameId, pick]));
+  const picked = slate.games.flatMap((game) => {
+    const pick = pickByGameId.get(game.id);
+    return pick ? [{ game, pick }] : [];
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{slate.label}</CardTitle>
+        <CardDescription>
+          {`${picked.length} ${picked.length === 1 ? "pick" : "picks"} in. This week is submitted — picks can't be changed.`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-3">
+          {picked.map(({ game, pick }) => (
+            <SubmittedPickRow key={pick.id} game={game} pick={pick} pickType={pickType} />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * The unsubmitted week: a local sheet the member assembles, then commits once.
+ *
+ * Nothing here reaches the server until Submit, and Submit is confirmed, because
+ * the submission is irreversible (ADR-0018 decision 1) — there is no draft to
+ * save and no second attempt to correct one.
+ */
+function PickSheet({
   leagueId,
   weekId,
   pickType,
   slate,
   picksAllowed,
-  viewerPicks,
 }: {
   leagueId: string;
   weekId: string;
   pickType: PickType;
   slate: WeekSlateResponse;
   picksAllowed: number;
-  viewerPicks: PickemPick[];
 }) {
   const submit = useSubmitPicks(leagueId, weekId);
-
-  // Seeded once at mount (per-week remount above) — a background refetch
-  // (e.g. the spread_stale recovery path re-pulling this same slate) must
-  // not silently discard picks the member is still deciding on, same
-  // non-re-seeding rationale as the sim fixture editor.
-  const [storedSeed, setStoredSeed] = useState(() => hydrateSelections(slate, viewerPicks));
   const [storedSelections, setStoredSelections] = useState<Map<string, PickemPickSide>>(
-    () => new Map(storedSeed),
+    () => new Map(),
   );
-  /**
-   * The member has explicitly taken the latest spreads on their unstarted picks.
-   *
-   * An explicit act rather than an implied one, because the alternative is
-   * worse in both directions: leaving the live number on a *highlighted* button
-   * reads as "you picked this" no matter what copy sits beside it, and without
-   * an accept control the only way to take a moved line was to toggle a pick
-   * off and back on to make the form dirty — a workaround the member has to
-   * invent.
-   *
-   * Week-scoped, not per row, because that is the rule's own scope: accepting
-   * re-prices every unstarted pick (spec §ATS spread acceptance). A per-row
-   * control would state the opposite of what it does.
-   */
-  const [spreadsAccepted, setSpreadsAccepted] = useState(false);
 
-  // Both maps are re-narrowed against the *current* slate on every render
-  // rather than trusted to have stayed valid since mount — see openSelections.
-  // Filtering both keeps the dirty check honest: a game locking under the
-  // member drops the same entry from each side, so it can't read as an edit
-  // they didn't make.
-  const seed = openSelections(slate.games, storedSeed);
+  // Re-narrowed against the *current* slate on every render rather than trusted
+  // to have stayed valid since it was made — see `openSelections`.
   const selections = openSelections(slate.games, storedSelections);
 
-  // Retained picks (locked, or on a now-unpickable/moved-out game) count
-  // against the member's cap but can never be edited from this endpoint
-  // (ADR-0015) — shown read-only rather than omitted, so "5 picks in"
-  // matches what the member actually holds. `pushed` marks the subset the
-  // repick endpoint can act on (the game left the week, or is cancelled/moved
-  // within it) — a plain locked pick (its game simply kicked off) is retained
-  // too but offers no substitution.
-  const gameById = new Map(slate.games.map((game) => [game.id, game]));
-  const retainedPickByGameId = new Map<string, { pick: PickemPick; pushed: boolean }>();
-  for (const pick of viewerPicks) {
-    const game = gameById.get(pick.gameId);
-    const pushed = !game || !game.pickable;
-    if (!game || isClosedToPicks(game)) {
-      retainedPickByGameId.set(pick.gameId, { pick, pushed });
-    }
-  }
+  // The same rule the API validates the submission with, from the same function
+  // in `packages/schemas` — the sheet must never disagree with the write path
+  // about what "complete" means, including on which games are excluded from the
+  // set. `locked` arrives server-computed on the slate (arch D11), so this is
+  // not a browser-clock derivation: under the simulator the browser sits at a
+  // different instant entirely.
+  const required = requiredPickemPickCount(picksAllowed, slate.games, pickType);
+  const complete = required > 0 && selections.size === required;
 
-  // Exactly complementary to the retained map by construction — both sides key
-  // off `isClosedToPicks`, so no pick can land in both (the miscount) or
-  // neither (an undercount).
-  const heldCount = retainedPickByGameId.size + selections.size;
-  const atCap = heldCount >= picksAllowed;
-  // Accepting moved spreads is itself a change worth saving even when no
-  // selection moved — it is the whole point of the control, and without it the
-  // member would have to fake a change to submit at the new numbers.
-  const selectionsChanged = !selectionsEqual(seed, selections);
-
-  // A pushed pick may be substituted for any of the week's currently
-  // available games (spec §Cancellations) — unstarted, pickable, and not
-  // already held. "Held" includes both committed picks and anything the
-  // member has tentatively toggled in this editor but not yet saved, so the
-  // substitute flow can never offer a game the batch save would also submit.
-  const heldGameIds = new Set<string>([
-    ...viewerPicks.map((pick) => pick.gameId),
-    ...selections.keys(),
-  ]);
-  const eligibleReplacementGames = slate.games.filter(
-    (game) => !isClosedToPicks(game) && !heldGameIds.has(game.id),
-  );
-
-  // Every committed pick by game, retained or not — the row needs the number
-  // the member actually holds, which `retainedPickByGameId` only carries for
-  // picks that have stopped being editable.
-  const committedPickByGameId = new Map(viewerPicks.map((pick) => [pick.gameId, pick]));
-  const committedSpreadByGameId = new Map(
-    viewerPicks.map((pick) => [pick.gameId, pick.spread] as const),
-  );
-  const repriced =
+  // Only what the member can still pick (spec §Screens). A game that kicked off
+  // without them is forgone and scores nothing (ADR-0018 decision 2), so it is
+  // not a row on a sheet they are assembling.
+  const openGames = slate.games.filter((game) => !isClosedToPicks(game));
+  // An ATS game with no posted line is shown but not pickable, and is not part
+  // of the required set either — so the sheet is completable without it. Saying
+  // so is a courtesy, not an obstacle: without it the member counts more rows
+  // than the target and reads the difference as a bug.
+  const noLineCount =
     pickType === PICK_TYPE.AGAINST_THE_SPREAD
-      ? repricedPickCount(slate.games, selections, committedSpreadByGameId)
+      ? openGames.filter((game) => game.spread === null).length
       : 0;
-  const dirty = selectionsChanged || (spreadsAccepted && repriced > 0);
-
-  const anyOpenGames = slate.games.some((game) => !isClosedToPicks(game));
-  const canEditPicks = hasOperableControl(slate.games, selections, atCap);
-  const shownGames = visibleGames(slate.games, heldGameIds, canEditPicks);
-
-  // Pushed picks whose game moved to a different week entirely aren't in this
-  // slate at all (ADR-0015), so they never render via the games list below —
-  // they get their own row here instead.
-  const pushedOutOfWeekPicks = [...retainedPickByGameId.entries()]
-    .filter(([gameId, retained]) => retained.pushed && !gameById.has(gameId))
-    .map(([, retained]) => retained.pick);
+  // Reachable only in an ATS week where *every* open game is still unpriced: a
+  // required set of zero with games on screen means the odds sync hasn't landed
+  // yet, not that the member did anything. The action bar stays off rather than
+  // offering a Submit that could never enable.
+  const awaitingLines = openGames.length > 0 && required === 0;
 
   function toggle(gameId: string, side: PickemPickSide) {
     setStoredSelections((prev) => {
@@ -359,16 +228,6 @@ function PickemWeekEditor({
       }
       return next;
     });
-  }
-
-  // A substitution writes a new pick server-side without going through this
-  // editor's own save — sync both maps so the replacement shows as held
-  // immediately (heldCount, the "N / M picked" count, and the game's row)
-  // rather than waiting on a remount. Written into `seed` too so the editor
-  // doesn't read as dirty for a pick the member didn't touch.
-  function handleSubstituted(gameId: string, side: PickemPickSide) {
-    setStoredSelections((prev) => new Map(prev).set(gameId, side));
-    setStoredSeed((prev) => new Map(prev).set(gameId, side));
   }
 
   function handleSubmit() {
@@ -383,23 +242,14 @@ function PickemWeekEditor({
         {
           gameId: game.id,
           side,
-          // Every submitted pick carries the spread currently shown for that
-          // game — the write path re-prices every unstarted pick on every
-          // edit (ADR-0015); SU leagues send null (spec §Pick Type).
+          // The one moment ATS spreads are accepted, on the whole set at once
+          // (spec §ATS spread acceptance) — there is no second write in which
+          // any of them could be re-priced. SU leagues send null.
           spread: pickType === PICK_TYPE.AGAINST_THE_SPREAD ? game.spread : null,
         },
       ];
     });
-    submit.mutate(payload, {
-      onSuccess: (data) => {
-        if (!data) return;
-        setStoredSeed(new Map(storedSelections));
-        // The refetched picks come back carrying the numbers just accepted, so
-        // `repriced` returns to 0 on its own — clearing the flag keeps the two
-        // from disagreeing for the render in between.
-        setSpreadsAccepted(false);
-      },
-    });
+    submit.mutate(payload);
   }
 
   return (
@@ -407,171 +257,109 @@ function PickemWeekEditor({
       <Card>
         <CardHeader>
           <CardTitle>{slate.label}</CardTitle>
-          {/* Progress normally lives in the action bar, which is always on
-              screen — repeating the count here in a second phrasing would only
-              give it somewhere to drift. Once the bar retires it has nowhere
-              else to go, so the same formatter renders it here instead. */}
-          {/* The two reasons the bar can be gone read differently to a member
-              and are worth separating: the week itself is over, or later games
-              remain but they are out of picks and every one they made has
-              locked. Exhaustive by construction — an open game is always
-              operable below the cap, so the bar only ever retires in these
-              two states. */}
           <CardDescription>
-            {canEditPicks
-              ? "Each pick locks at its own kickoff."
-              : slate.games.length === 0
-                ? // Reachable only when every game left the week and the member is
-                  // holding picks on them — otherwise the screen is the empty
-                  // state above. The progress phrasing is actively wrong here:
-                  // `picksAllowed` counts *available* games, so a member holding
-                  // one pick reads "1 of 0 picks", and "this week is locked" names
-                  // the wrong reason. The rows below carry the real explanation.
-                  "No games remain in this week."
-                : `${pickProgressLabel(heldCount, picksAllowed)} · ${
-                    anyOpenGames ? "every pick you made is locked." : "this week is locked."
-                  }`}
+            {openGames.length === 0
+              ? "This week is closed."
+              : awaitingLines
+                ? "No spreads are posted for this week yet — picks open as soon as the lines are up."
+                : `Pick ${required} ${required === 1 ? "game" : "games"}, then submit. Your picks are final once submitted, and each locks at its own kickoff.`}
           </CardDescription>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom
             (verified at 375px) — and is dropped with the bar, since the
             reserved gap reads as a broken layout with nothing in it. */}
-        <CardContent className={cn("flex flex-col gap-4", canEditPicks && "pb-24")}>
-          {pushedOutOfWeekPicks.length > 0 && (
-            <ul className="flex flex-col gap-3">
-              {pushedOutOfWeekPicks.map((pick) => (
-                <li
-                  key={pick.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    {/* Name the pick, not just its fate. Without the matchup a
-                        member holding several picks can't tell which one this
-                        row is about — the game is absent from the slate, so
-                        the API carries the teams on the pick itself. */}
-                    <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
-                      <MovedPickTeam pick={pick} pickType={pickType} />
-                    </p>
-                    <StatusPill>Push</StatusPill>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {pick.movedGame
-                      ? `${pick.movedGame.awayTeam.abbreviation} @ ${pick.movedGame.homeTeam.abbreviation} moved to ${pick.movedGame.weekLabel}, so this pick resolved as a push.`
-                      : "That game moved to a different week, so this pick resolved as a push."}
-                  </p>
-                  <PickemSubstituteDialog
-                    leagueId={leagueId}
-                    weekId={weekId}
-                    pickType={pickType}
-                    replacePickId={pick.id}
-                    eligibleGames={eligibleReplacementGames}
-                    onSubstituted={handleSubstituted}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Reachable only once the week has closed around a member who
-              picked nothing: every other state either shows their picks or
-              still has an open game to offer. Without it the card renders as an
-              empty box, which reads as a load failure rather than an answer. */}
-          {shownGames.length === 0 && pushedOutOfWeekPicks.length === 0 && (
+        <CardContent
+          className={cn("flex flex-col gap-4", openGames.length > 0 && !awaitingLines && "pb-24")}
+        >
+          {/* Reachable once the week has closed around a member who submitted
+              nothing. Without it the card renders as an empty box, which reads
+              as a load failure rather than an answer (spec §Screens). */}
+          {openGames.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               You didn&apos;t make any picks this week.
             </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {openGames.map((game) => {
+                const selectedSide = selections.get(game.id);
+                return (
+                  <SheetGameRow
+                    key={game.id}
+                    game={game}
+                    pickType={pickType}
+                    selectedSide={selectedSide}
+                    buttonsDisabled={selectedSide === undefined && selections.size >= required}
+                    onToggle={(side) => toggle(game.id, side)}
+                  />
+                );
+              })}
+            </ul>
           )}
-
-          <ul className="flex flex-col gap-3">
-            {shownGames.map((game) => {
-              const currentSelection = selections.get(game.id);
-              const wouldAddNew = currentSelection === undefined;
-              return (
-                <GameRow
-                  key={game.id}
-                  leagueId={leagueId}
-                  weekId={weekId}
-                  game={game}
-                  pickType={pickType}
-                  selectedSide={currentSelection}
-                  retained={retainedPickByGameId.get(game.id)}
-                  committedPick={committedPickByGameId.get(game.id)}
-                  spreadsAccepted={spreadsAccepted}
-                  eligibleReplacementGames={eligibleReplacementGames}
-                  buttonsDisabled={wouldAddNew && atCap}
-                  onToggle={(side) => toggle(game.id, side)}
-                  onSubstituted={handleSubstituted}
-                />
-              );
-            })}
-          </ul>
         </CardContent>
       </Card>
 
       {/* Sticky action bar (feedback: submitting a 16-game slate shouldn't
-          require scrolling to the bottom to find the button). Mounted only
-          while a control on this page can still be operated — see
-          hasOperableControl. `fixed`, not
-          CSS `sticky` — Card sets `overflow-hidden` for its rounded corners,
-          and any ancestor with overflow other than visible clips/breaks a
-          sticky descendant, whereas `fixed` escapes ancestor layout
-          entirely and anchors straight to the viewport, which is exactly
-          what we want since the document is the app's only scroll container
-          (no ancestor here sets a transform/filter that would trap it).
-          z-20 stays under the tab bar (z-30) and header (z-40) per
-          routes/_authed.tsx's layering comment, and well under overlay
-          portals (z-50). */}
-      {canEditPicks && (
+          require scrolling to the bottom to find the button). `fixed`, not CSS
+          `sticky` — Card sets `overflow-hidden` for its rounded corners, and any
+          ancestor with overflow other than visible clips/breaks a sticky
+          descendant, whereas `fixed` escapes ancestor layout entirely and
+          anchors straight to the viewport, which is exactly what we want since
+          the document is the app's only scroll container (no ancestor here sets
+          a transform/filter that would trap it). z-20 stays under the tab bar
+          (z-30) and header (z-40) per routes/_authed.tsx's layering comment, and
+          well under overlay portals (z-50). */}
+      {openGames.length > 0 && !awaitingLines && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
-          {/* Stacks at phone width: the accept control makes this row two
-              buttons wide, which crowds the count beside it at 375px. Above
-              `sm` there is room for the original single line. */}
+          {/* Stacks at phone width: the no-line explanation needs a line of its
+              own at 375px. Above `sm` there is room for the original single
+              line. */}
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-col">
               <p className="text-sm text-muted-foreground">
-                {pickProgressLabel(heldCount, picksAllowed)}
-                {dirty && <span className="text-foreground"> · unsaved</span>}
+                {pickProgressLabel(selections.size, required)}
               </p>
-              {/* Stated before the save, not after: the all-or-nothing rule
-                  means editing one game moves the number on every other
-                  unstarted pick too, which is invisible from the row being
-                  edited. Muted and factual rather than a warning — lines drift
-                  all week, so this is the normal case and reads as information,
-                  not a problem.
-
-                  The two phrasings are the same fact at different moments:
-                  before accepting it is an offer with its scope named, after it
-                  is what the pending save will do. */}
-              {repriced > 0 && (
+              {/* Reconciles the count with the rows: the member can see more
+                  games on screen than the target asks for, and this names the
+                  difference. Deliberately not a warning — the sheet is
+                  completable without them, so this reports a fact rather than an
+                  obstacle. */}
+              {noLineCount > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {spreadsAccepted || selectionsChanged
-                    ? `Saving updates ${repriced} ${repriced === 1 ? "pick" : "picks"} to the latest spreads.`
-                    : `${repriced} ${repriced === 1 ? "pick is" : "picks are"} at spreads that have moved.`}
+                  {noLineCount === 1
+                    ? "One game has no spread posted yet, so it isn't part of this week's set."
+                    : `${noLineCount} games have no spread posted yet, so they aren't part of this week's set.`}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center justify-end gap-2">
-              {/* Week-scoped by design — see `spreadsAccepted`. Hidden once
-                  accepted (or once an edit has already committed the member to
-                  re-pricing), because at that point the bar's own line already
-                  says what the save will do and a second control would imply
-                  there is more to opt into. */}
-              {repriced > 0 && !spreadsAccepted && !selectionsChanged && (
-                <Button
-                  variant="outline"
-                  disabled={submit.isPending}
-                  onClick={() => setSpreadsAccepted(true)}
-                >
-                  Accept latest spreads
-                </Button>
-              )}
-              {/* Async-button rule: disabled in place while pending, label never
-                  changes — outcome feedback is the toast the mutation already
-                  raises on success/error. */}
-              <Button disabled={submit.isPending || !dirty} onClick={handleSubmit}>
-                Save picks
-              </Button>
+              {/* The irreversibility confirmation ADR-0018 decision 1 requires,
+                  in the same AlertDialog idiom as the settings-reset warning.
+                  Async-button rule: disabled in place while pending, label never
+                  changes — outcome feedback is the toast the mutation raises. */}
+              <AlertDialog>
+                <AlertDialogTrigger render={<Button disabled={!complete || submit.isPending} />}>
+                  Submit picks
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {`Submit ${required} ${required === 1 ? "pick" : "picks"} for ${slate.label}?`}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {pickType === PICK_TYPE.AGAINST_THE_SPREAD
+                        ? "These picks are final for the week, at the spreads shown. Once they're in they can't be changed, replaced, or removed."
+                        : "These picks are final for the week. Once they're in they can't be changed, replaced, or removed."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={submit.isPending}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction disabled={submit.isPending} onClick={handleSubmit}>
+                      Submit picks
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>

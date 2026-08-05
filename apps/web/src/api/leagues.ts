@@ -51,9 +51,9 @@ export function useLeague(leagueId: string) {
         throw error;
       }
       // The generated openapi types mark defaulted settings fields (e.g.
-      // pushTieResolution) as optional even though the server always
-      // serializes them — LeagueResponseSchema (packages/schemas) is the
-      // real source of truth for the response shape.
+      // picksPerWeek) as optional even though the server always serializes
+      // them — LeagueResponseSchema (packages/schemas) is the real source of
+      // truth for the response shape.
       return data as LeagueResponse;
     },
   });

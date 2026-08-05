@@ -48,7 +48,14 @@ export const ERROR_CODE = {
   GAME_NOT_IN_WEEK: "game_not_in_week",
   GAME_NOT_PICKABLE: "game_not_pickable",
   DUPLICATE_PICK: "duplicate_pick",
+  // A submission must be exactly the week's required size, so these two are
+  // exact mirrors: TOO_MANY_PICKS refuses a set larger than the week allows,
+  // PICK_SET_INCOMPLETE one smaller. ALREADY_SUBMITTED is the different
+  // refusal — a set of any size, from a member who already holds picks for the
+  // week and gets only one submission (ADR-0018).
   TOO_MANY_PICKS: "too_many_picks",
+  PICK_SET_INCOMPLETE: "pick_set_incomplete",
+  ALREADY_SUBMITTED: "already_submitted",
   // Adjacent and easy to confuse: PICK_LOCKED refuses a *pick mutation* whose
   // game has kicked off; PICKS_LOCKED refuses a *settings change* that would
   // discard picks which have already locked.
@@ -56,8 +63,6 @@ export const ERROR_CODE = {
   PICKS_LOCKED: "picks_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
-  PICK_NOT_FOUND: "pick_not_found",
-  PICK_NOT_REPLACEABLE: "pick_not_replaceable",
   OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
 } as const;
 

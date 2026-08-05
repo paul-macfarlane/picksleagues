@@ -134,6 +134,20 @@
       "when": 1785467475678,
       "tag": "0018_heavy_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785890027044,
+      "tag": "0019_curly_vin_gonzales",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785890955775,
+      "tag": "0020_eminent_rocket_raccoon",
+      "breakpoints": true
     }
   ]
 }

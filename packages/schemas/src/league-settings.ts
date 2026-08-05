@@ -44,24 +44,6 @@ export function nflSeasonOrdinal(week: NflWeekRef): number {
 }
 
 /**
- * Value awarded on an ATS push or SU tie in Pick'em (spec §Pick'em Scoring):
- * +0.5 (default), 0, or +1. Kept symbolic rather than numeric so scoring owns
- * the point mapping and the set can't silently admit arbitrary values.
- */
-export const PICKEM_PUSH_TIE_RESOLUTION = {
-  HALF_POINT: "half_point",
-  ZERO_POINTS: "zero_points",
-  FULL_POINT: "full_point",
-} as const;
-
-export type PickemPushTieResolution =
-  (typeof PICKEM_PUSH_TIE_RESOLUTION)[keyof typeof PICKEM_PUSH_TIE_RESOLUTION];
-
-export const PickemPushTieResolutionSchema = z
-  .enum(PICKEM_PUSH_TIE_RESOLUTION)
-  .openapi("PickemPushTieResolution");
-
-/**
  * Ceiling on Picks Per Week (spec §Pick'em League Settings) — also the most
  * games any NFL week can offer, which is why the batch pick endpoint bounds its
  * array by the same number.
@@ -74,7 +56,6 @@ export const PickemSettingsSchema = z
     endWeek: NflWeekRefSchema,
     pickType: PickTypeSchema,
     picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
-    pushTieResolution: PickemPushTieResolutionSchema.default(PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT),
   })
   .refine((s) => nflSeasonOrdinal(s.endWeek) >= nflSeasonOrdinal(s.startWeek), {
     message: "End week must be at or after the start week in season order.",
@@ -95,11 +76,16 @@ export type PickemSettings = z.infer<typeof PickemSettingsSchema>;
  * the old settings:
  * - switching Pick Type to ATS leaves picks with no spread, which settlement
  *   cannot grade at all (it throws by design rather than guess);
- * - lowering Picks Per Week leaves members over the cap;
+ * - *any* change to Picks Per Week leaves already-submitted members the wrong
+ *   size. Lowering it puts them over the cap; raising it leaves them under —
+ *   and under submit-once (ADR-0018) a member submits exactly `picksAllowed`
+ *   picks and can never submit again, so a raise would strand them permanently
+ *   undersized with no re-submit path. Clearing their picks re-opens the week,
+ *   which is the only outcome that leaves every member able to comply;
  * - narrowing the week range orphans picks in weeks no longer in the league.
  *
- * A change that cannot strand a pick (Push/Tie Resolution, which scoring
- * reads at settlement time; Picks Per Week *raised*) invalidates nothing.
+ * Widening the week range is the one edit that strands nothing: every existing
+ * pick still sits in a week the league plays.
  */
 export function pickemSettingsInvalidatePicks(
   previous: PickemSettings,
@@ -107,7 +93,7 @@ export function pickemSettingsInvalidatePicks(
 ): boolean {
   return (
     previous.pickType !== next.pickType ||
-    next.picksPerWeek < previous.picksPerWeek ||
+    next.picksPerWeek !== previous.picksPerWeek ||
     nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek) ||
     nflSeasonOrdinal(next.endWeek) < nflSeasonOrdinal(previous.endWeek)
   );

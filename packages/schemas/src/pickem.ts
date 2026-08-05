@@ -1,8 +1,8 @@
 import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
+import { PICK_TYPE, type PickType } from "./pick-type";
 import { PickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
-import { SlateTeamSchema } from "./slate";
 
 /**
  * Pick'em pick entry, its standings, and the shapes only this mode has (spec
@@ -29,20 +29,14 @@ export const PickemStandingsRowSchema = z
     isViewer: z.boolean(),
     points: z.number(),
     /**
-     * Cumulative margin differential over the period — the spec's only
-     * tiebreaker (§Tiebreakers). Serialized so the UI can show *why* two
-     * members on equal points are ordered as they are.
-     */
-    differential: z.number(),
-    /**
      * The member's settled record over the period — how many picks resolved
-     * correct, incorrect, and push. Display only: the spec's tiebreakers stop
-     * at the differential, so a better record never changes an ordering.
+     * correct, incorrect, and push. Display only: points are the sole ordering
+     * input (ADR-0018), so a better record never changes an ordering.
      */
     wins: z.number().int(),
     losses: z.number().int(),
     pushes: z.number().int(),
-    /** Members level on points and differential share a rank. */
+    /** Members level on points share a rank; the next rank skips. */
     rank: z.number().int(),
   })
   .openapi("PickemStandingsRow");
@@ -65,30 +59,6 @@ export const PickemStandingsResponseSchema = z
 
 export type PickemStandingsResponse = z.infer<typeof PickemStandingsResponseSchema>;
 
-/**
- * Substitutes one pick for another after its game was cancelled or moved out of
- * the week (spec §Cancellations, Postponements & Re-picks).
- *
- * Deliberately not a flag on the batch upsert: that endpoint re-prices *every*
- * unstarted pick on any change, and this rule is its exact inverse — only the
- * replacement accepts a spread, and the member's other picks keep theirs
- * (ADR-0015). One replaces the other rather than adding to it: the push is what
- * the member holds if they do *not* re-pick, so a substitute that stacked on top
- * would hand them more scoring chances than Picks Per Week allows.
- */
-export const PickemRepickRequestSchema = z
-  .object({
-    /** The pick being given up — its game must be cancelled or moved. */
-    replacePickId: z.uuid(),
-    gameId: z.uuid(),
-    side: PickemPickSideSchema,
-    /** Required in ATS leagues, and matched against the replacement's current spread only. */
-    spread: z.number().nullable().default(null),
-  })
-  .openapi("PickemRepickRequest");
-
-export type PickemRepickRequest = z.infer<typeof PickemRepickRequestSchema>;
-
 export const PickemPickSubmissionSchema = z
   .object({
     gameId: z.uuid(),
@@ -106,10 +76,63 @@ export const PickemPickSubmissionSchema = z
 export type PickemPickSubmission = z.infer<typeof PickemPickSubmissionSchema>;
 
 /**
- * Replaces the member's *unstarted* picks for the week wholesale. Picks whose
- * game has already kicked off are immutable and must be omitted — submitting
- * one is a `pick_locked` (409), not a silent no-op, so a stale client learns
- * its slate moved rather than believing an edit landed.
+ * How many picks a week's submission must contain: a full set of what can
+ * **still** be picked (ADR-0018 decision 2). Shared by the API's write path,
+ * which sizes the submission it accepts, and the web sheet, which enables
+ * Submit on the same number — one rule, so the two surfaces can never disagree
+ * about what "complete" means (the `pickemSettingsInvalidatePicks` precedent).
+ *
+ * **The required set is exactly what the write path would accept.** Anything it
+ * refuses on sight is not part of the set, because a set containing a refusable
+ * pick is a set no member can ever submit. Two things make a game refusable
+ * before it is even chosen, and they are the same rule wearing two faces:
+ *
+ * - **It has kicked off.** `picksAllowed` is `min(picksPerWeek, pickable games)`
+ *   and `pickable` does not exclude a game that has already started, so
+ *   requiring `picksAllowed` would ask a member arriving after the week's first
+ *   kickoff for more picks than the slate can still supply. Games that locked
+ *   before they submitted are forgone; they were never picks, so nothing scores.
+ * - **It has no line, in an ATS league.** `checkSpreadAccepted` refuses a pick
+ *   on an unpriced game with `spread_unavailable`, so counting it would demand a
+ *   pick the same request then rejects: submit the full set and it is refused
+ *   for the unpriced game, submit the rest and it is `pick_set_incomplete`.
+ *   Straight-up leagues have no spread dependency, so `spread` is ignored there
+ *   and an unpriced game counts normally.
+ *
+ * Both exclusions serve one purpose: **a member must never be unable to submit
+ * a week at all.** That is the outcome ADR-0018 decision 2 was ruled to prevent,
+ * and it does not care whether the games it cannot supply are missing because
+ * they started or because they carry no number yet.
+ *
+ * **Why the two call sites pass different caps and still agree.** The API
+ * passes `settings.picksPerWeek`; the web passes the wire's `picksAllowed`,
+ * which is itself `min(picksPerWeek, pickable)`. The count filtered here is
+ * never larger than the pickable count — it is that count with rows removed —
+ * so `min(min(p, pickable), submittable) === min(p, submittable)`, and the extra
+ * `pickable` clamp the web's cap carries can never bind first. Neither call site
+ * is wrong. Adding the spread filter does not disturb this: it only removes more
+ * rows.
+ */
+export function requiredPickemPickCount(
+  cap: number,
+  games: readonly { locked: boolean; pickable: boolean; spread: number | null }[],
+  pickType: PickType,
+): number {
+  const needsSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
+  const submittable = games.filter(
+    (game) => !game.locked && game.pickable && (!needsSpread || game.spread !== null),
+  );
+  return Math.min(cap, submittable.length);
+}
+
+/**
+ * The member's one submission for the week (ADR-0018 decision 1). It must be
+ * the full required set — `requiredPickemPickCount` above — and it can never be
+ * edited, replaced, or added to: a second call is `already_submitted` (409),
+ * a short set `pick_set_incomplete` (400), a long one `too_many_picks` (400).
+ * A game that has already kicked off is `pick_locked` (409) rather than a
+ * silent no-op, so a stale client learns its slate moved instead of believing
+ * its sheet landed.
  */
 export const SubmitPickemPicksRequestSchema = z
   .object({
@@ -126,35 +149,6 @@ export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSc
 // component and widen every other reference to it.
 const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
 
-/**
- * Enough of a game to name it, for a pick whose game has left the week the pick
- * was made in (a provider week move — ADR-0015).
- *
- * It exists because such a game is, by definition, absent from the week's own
- * slate: the read path returns picks by the week they were *made* in, while the
- * slate is the games currently *in* that week. Every other pick renders its
- * matchup by joining against the slate; this one has nothing to join to, and
- * without this carried it can only be described as "a game that moved" — which
- * tells a member their pick pushed but not which pick it was.
- *
- * `weekLabel` is where the game went, not where the pick lives.
- */
-export const PickemMovedGameSchema = z
-  .object({
-    homeTeam: SlateTeamSchema,
-    awayTeam: SlateTeamSchema,
-    weekLabel: z.string(),
-  })
-  .openapi("PickemMovedGame");
-
-export type PickemMovedGame = z.infer<typeof PickemMovedGameSchema>;
-
-// Registered under its own name rather than inlined as `.nullable()`: the
-// wrapper would inherit the registration and fold `null` into the shared
-// component, silently widening every other `$ref` to it (see NullableUsername).
-export const NullablePickemMovedGameSchema =
-  PickemMovedGameSchema.nullable().openapi("NullablePickemMovedGame");
-
 export const PickemPickSchema = z
   .object({
     id: z.string(),
@@ -169,11 +163,6 @@ export const PickemPickSchema = z
      * "settled as nothing", and the UI must not render it as an outcome.
      */
     outcome: NullablePickOutcomeSchema,
-    // Non-null only for a pick whose game left this week — see the schema above.
-    // Its presence *is* the "this pick moved out" signal; the UI needs no second
-    // flag, and can't derive it, since the slate it would check is exactly what
-    // no longer contains the game.
-    movedGame: NullablePickemMovedGameSchema,
     updatedAt: z.iso.datetime(),
   })
   .openapi("PickemPick");
@@ -221,7 +210,9 @@ export const PickemWeekPicksResponseSchema = z
     weekId: z.string(),
     // The effective cap for this week: min(picksPerWeek, games in the slate) —
     // the spec's "fewer games than Picks Per Week" rule, resolved server-side
-    // so the UI never re-derives it.
+    // so the UI never re-derives it. It is the *cap*, not the size a submission
+    // must be: that is `requiredPickemPickCount(picksAllowed, slate)`, which
+    // also excludes games that have since kicked off.
     picksAllowed: z.number().int(),
     members: z.array(PickemMemberPicksSchema),
   })

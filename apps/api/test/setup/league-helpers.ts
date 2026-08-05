@@ -6,7 +6,6 @@ import {
   leagueMembers,
   leagueSeasons,
   leagues,
-  oddsSnapshots,
   pickemPicks,
   pickemPickResults,
   sportSeasons,
@@ -47,8 +46,8 @@ export interface SeededWeek {
     kickoffAt: Date;
     overrideKickoffAt?: Date;
     /**
-     * Seeds one `odds_snapshots` row for the game — the current spread every
-     * ATS path resolves. Omit for straight-up fixtures, where no spread exists.
+     * The game's current spread — the number every ATS path resolves. Omit for
+     * straight-up fixtures, where no spread exists.
      */
     spread?: number;
   }>;
@@ -145,6 +144,7 @@ export async function seedSeason(
           awayTeamId: awayTeam.id,
           kickoffAt: game.kickoffAt,
           overrideKickoffAt: game.overrideKickoffAt ?? null,
+          spread: game.spread ?? null,
           status: GAME_STATUS.SCHEDULED,
           createdAt: SEED_AT,
           updatedAt: SEED_AT,
@@ -152,15 +152,6 @@ export async function seedSeason(
         .returning();
       if (!inserted) throw new Error("game insert returned no row");
       weekGameIds.push(inserted.id);
-
-      if (game.spread !== undefined) {
-        await db.insert(oddsSnapshots).values({
-          gameId: inserted.id,
-          spread: game.spread,
-          capturedAt: SEED_AT,
-          createdAt: SEED_AT,
-        });
-      }
     }
     gameIds.set(key, weekGameIds);
   }
@@ -173,10 +164,9 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
   picksPerWeek: 5,
-  pushTieResolution: "half_point",
 };
 
-/** Four unstarted games, spread an hour apart — enough room to hold several picks and still leave one unpicked as a repick target. */
+/** Four unstarted games, spread an hour apart — a slate long enough to exceed a modest Picks Per Week cap. */
 export const FOUR_GAME_WEEK: SeededWeek[] = [
   {
     weekNumber: 1,
@@ -303,6 +293,7 @@ export type GameUpdate = Partial<{
   status: (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
   homeScore: number | null;
   awayScore: number | null;
+  spread: number | null;
   period: number | null;
   clockSeconds: number | null;
   overrideStatus: (typeof GAME_STATUS)[keyof typeof GAME_STATUS] | null;

@@ -319,9 +319,6 @@
             "minimum": 1,
             "maximum": 16,
             "default": 5
-          },
-          "pushTieResolution": {
-            "$ref": "#/components/schemas/PickemPushTieResolution"
           }
         },
         "required": [
@@ -380,15 +377,6 @@
           "straight_up",
           "against_the_spread"
         ]
-      },
-      "PickemPushTieResolution": {
-        "type": "string",
-        "enum": [
-          "half_point",
-          "zero_points",
-          "full_point"
-        ],
-        "default": "half_point"
       },
       "EliminationSettings": {
         "type": "object",
@@ -1140,8 +1128,7 @@
           "in_progress",
           "final",
           "postponed",
-          "cancelled",
-          "moved"
+          "cancelled"
         ]
       },
       "LeagueWeeksResponse": {
@@ -1276,9 +1263,6 @@
           "points": {
             "type": "number"
           },
-          "differential": {
-            "type": "number"
-          },
           "wins": {
             "type": "integer"
           },
@@ -1300,7 +1284,6 @@
           "image",
           "isViewer",
           "points",
-          "differential",
           "wins",
           "losses",
           "pushes",
@@ -1398,9 +1381,6 @@
           "outcome": {
             "$ref": "#/components/schemas/NullablePickOutcome"
           },
-          "movedGame": {
-            "$ref": "#/components/schemas/NullablePickemMovedGame"
-          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -1412,7 +1392,6 @@
           "side",
           "spread",
           "outcome",
-          "movedGame",
           "updatedAt"
         ]
       },
@@ -1433,56 +1412,6 @@
           "incorrect",
           "push",
           null
-        ]
-      },
-      "NullablePickemMovedGame": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "homeTeam": {
-            "$ref": "#/components/schemas/SlateTeam"
-          },
-          "awayTeam": {
-            "$ref": "#/components/schemas/SlateTeam"
-          },
-          "weekLabel": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "homeTeam",
-          "awayTeam",
-          "weekLabel"
-        ]
-      },
-      "PickemRepickRequest": {
-        "type": "object",
-        "properties": {
-          "replacePickId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "gameId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "side": {
-            "$ref": "#/components/schemas/PickemPickSide"
-          },
-          "spread": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "default": null
-          }
-        },
-        "required": [
-          "replacePickId",
-          "gameId",
-          "side"
         ]
       },
       "SubmitPickemPicksRequest": {
@@ -1752,18 +1681,11 @@
               "null"
             ]
           },
-          "latestSpread": {
+          "spread": {
             "type": [
               "number",
               "null"
             ]
-          },
-          "latestSpreadCapturedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
           },
           "overrideKickoffAt": {
             "type": [
@@ -1868,8 +1790,7 @@
           "awayScore",
           "period",
           "clockSeconds",
-          "latestSpread",
-          "latestSpreadCapturedAt",
+          "spread",
           "overrideKickoffAt",
           "overrideStatus",
           "overrideHomeScore",
@@ -1918,42 +1839,7 @@
           "final",
           "postponed",
           "cancelled",
-          "moved",
           null
-        ]
-      },
-      "AdminGameOddsResponse": {
-        "type": "object",
-        "properties": {
-          "snapshots": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminOddsSnapshot"
-            }
-          }
-        },
-        "required": [
-          "snapshots"
-        ]
-      },
-      "AdminOddsSnapshot": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "spread": {
-            "type": "number"
-          },
-          "capturedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "spread",
-          "capturedAt"
         ]
       },
       "GameOverrideResponse": {
@@ -2639,9 +2525,6 @@
           "points": {
             "type": "number"
           },
-          "differential": {
-            "type": "number"
-          },
           "rank": {
             "type": "integer"
           }
@@ -2651,7 +2534,6 @@
           "username",
           "displayName",
           "points",
-          "differential",
           "rank"
         ]
       },
@@ -4485,7 +4367,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Rows in rank order, with the tiebreaker differential and the time settlement last wrote the board",
+            "description": "Rows in rank order, with each member's record and the time settlement last wrote the board",
             "content": {
               "application/json": {
                 "schema": {
@@ -4616,7 +4498,7 @@
       },
       "put": {
         "operationId": "submitPickemPicks",
-        "summary": "Replace the caller's unstarted picks for a week",
+        "summary": "Submit the caller's picks for a week — once, in full, and for good",
         "parameters": [
           {
             "schema": {
@@ -4658,7 +4540,7 @@
             }
           },
           "400": {
-            "description": "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), a game not in this week's slate (game_not_in_week), the same game picked twice (duplicate_pick), or more picks than the week allows (too_many_picks)",
+            "description": "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), a game not in this week's slate (game_not_in_week), the same game picked twice (duplicate_pick), or the set isn't the week's required size — min(picksPerWeek, games still unlocked and pickable) — either over it (too_many_picks) or under it (pick_set_incomplete)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4688,104 +4570,7 @@
             }
           },
           "409": {
-            "description": "A submitted game has already kicked off (pick_locked — locked picks are immutable and must be omitted), the game was cancelled or moved out of the week (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/leagues/{leagueId}/pickem/weeks/{weekId}/repick": {
-      "post": {
-        "operationId": "repickPickemPick",
-        "summary": "Substitute a pick whose game was cancelled or moved out of the week",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "leagueId",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "weekId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PickemRepickRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Substitution saved; the week's picks are returned as the read endpoint serves them",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PickemWeekPicksResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Not a Pick'em league (wrong_league_mode), week outside the league's range (week_out_of_range), the replacement isn't in this week's slate (game_not_in_week), or the caller already holds it (duplicate_pick)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such league or the caller isn't a member (league_not_found), or the pick being replaced doesn't exist (pick_not_found)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The replaced pick's game is still playable, so it earns no substitution (pick_not_replaceable), the replacement already kicked off (pick_locked) or is itself unplayable (game_not_pickable), its spread moved (spread_stale) or is not posted yet (spread_unavailable), or the season has concluded (league_concluded)",
+            "description": "The caller already submitted this week and a week is one immutable submission (already_submitted), a submitted game has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5214,85 +4999,6 @@
           },
           "403": {
             "description": "The caller is signed in but does not hold the admin role",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/games/{gameId}/odds": {
-      "get": {
-        "operationId": "listAdminGameOdds",
-        "summary": "Browse a game's most recent odds snapshots",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "gameId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The game's most recent spread snapshots, newest first",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminGameOddsResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A request param failed its format rule",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is signed in but does not hold the admin role",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such game",
             "content": {
               "application/json": {
                 "schema": {

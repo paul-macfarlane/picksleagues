@@ -24,7 +24,6 @@ function standing(id: string, rank: number): PickemStandingsRow {
     image: null,
     isViewer: false,
     points: 0,
-    differential: 0,
     wins: 0,
     losses: 0,
     pushes: 0,
@@ -34,7 +33,7 @@ function standing(id: string, rank: number): PickemStandingsRow {
 
 /**
  * The order the league's picks are read in. It defers entirely to the server's
- * rank (spec §Tiebreakers) — the cases here pin *which* board wins and where
+ * rank (spec §Standings) — the cases here pin *which* board wins and where
  * the unranked land, not the ranking rule itself, which lives in
  * `packages/scoring`.
  */
@@ -72,9 +71,10 @@ describe("orderMembersByWeek", () => {
     expect(names(ordered)).toEqual(["Bo", "Cy", "Ana"]);
   });
 
-  // Members level on points *and* differential share a rank server-side, so the
-  // order between them has to come from somewhere stable — otherwise the two
-  // swap places between renders of the same data.
+  // Members level on points share a rank server-side and nothing is shown
+  // behind it (ADR-0018 decision 4), so the order between them has to come
+  // from somewhere stable — otherwise the two swap places between renders of
+  // the same data.
   it("breaks a shared rank by display name", () => {
     const ordered = orderMembersByWeek([cy, ana, bo], [standing("a", 1), standing("b", 1)], []);
     expect(names(ordered)).toEqual(["Ana", "Bo", "Cy"]);

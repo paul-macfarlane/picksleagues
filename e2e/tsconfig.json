@@ -1,0 +1,20 @@
+{
+  // `e2e/` is not a workspace package, so `pnpm -r typecheck` never reaches it
+  // and eslint runs the non-type-aware preset here. Without this the merge
+  // gate's own specs were the one body of TypeScript in the repo with no type
+  // gate at all — a selector could reference a deleted wire field and only be
+  // discovered by a red Playwright run. The root `typecheck` script runs this
+  // project explicitly after the recursive pass.
+  //
+  // `playwright.config.ts` is included deliberately: it imports from
+  // `e2e/setup/` and is exactly as able to break as a spec is.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // The specs run in Node but address a browser through Playwright's page
+    // API, which types callbacks passed to `evaluate` against real DOM lib
+    // types. Node alone leaves those as errors.
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}

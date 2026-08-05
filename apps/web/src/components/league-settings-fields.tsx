@@ -3,14 +3,12 @@ import {
   LEAGUE_VISIBILITY,
   MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
-  PICKEM_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type EliminationPushTieResolution,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type NflWeekRef,
   type PickType,
-  type PickemPushTieResolution,
 } from "@picksleagues/schemas";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -41,12 +39,6 @@ export const VISIBILITY_OPTIONS: { value: LeagueVisibility; label: string; descr
 export const PICK_TYPE_OPTIONS: { value: PickType; label: string }[] = [
   { value: PICK_TYPE.STRAIGHT_UP, label: "Straight Up" },
   { value: PICK_TYPE.AGAINST_THE_SPREAD, label: "Against the Spread" },
-];
-
-export const PICKEM_PUSH_TIE_OPTIONS: { value: PickemPushTieResolution; label: string }[] = [
-  { value: PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT, label: "+0.5 (default)" },
-  { value: PICKEM_PUSH_TIE_RESOLUTION.ZERO_POINTS, label: "0" },
-  { value: PICKEM_PUSH_TIE_RESOLUTION.FULL_POINT, label: "+1" },
 ];
 
 export const ELIMINATION_PUSH_TIE_OPTIONS: {
@@ -109,7 +101,7 @@ export const DEFAULT_PICKEM_END_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, num
 
 // Shared radio-group wiring: a legend, then one Radio + Label pair per
 // option (with optional helper text) — used for mode, visibility, pick
-// type, and both modes' push/tie settings.
+// type, and Elimination's push/tie setting.
 export function RadioField<Value extends string>({
   legend,
   name,
@@ -157,8 +149,6 @@ export function PickemSettingsFields({
   onPickTypeChange,
   picksPerWeek,
   onPicksPerWeekChange,
-  pushTie,
-  onPushTieChange,
 }: {
   startWeek: string;
   onStartWeekChange: (value: string) => void;
@@ -168,8 +158,6 @@ export function PickemSettingsFields({
   onPickTypeChange: (value: PickType) => void;
   picksPerWeek: number;
   onPicksPerWeekChange: (value: number) => void;
-  pushTie: PickemPushTieResolution;
-  onPushTieChange: (value: PickemPushTieResolution) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -204,13 +192,6 @@ export function PickemSettingsFields({
         max={16}
         value={picksPerWeek}
         onValueChange={onPicksPerWeekChange}
-      />
-      <LabeledSelect
-        id="pickem-push-tie"
-        label="Push / tie value"
-        value={pushTie}
-        onValueChange={onPushTieChange}
-        options={PICKEM_PUSH_TIE_OPTIONS}
       />
     </div>
   );

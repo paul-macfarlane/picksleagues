@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ADMIN_ODDS_SNAPSHOT_LIMIT, SPORT, type AdminGame } from "@picksleagues/schemas";
-import { useAdminGameOdds, useAdminGames, useAdminSeasons } from "@/api/admin";
+import { SPORT, type AdminGame } from "@picksleagues/schemas";
+import { useAdminGames, useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
 import { GameOverrideForm } from "@/components/admin/game-override-form";
@@ -150,9 +150,7 @@ function ResolvedField({
 
 function GameRow({ game }: { game: AdminGame }) {
   const overridden = isOverridden(game);
-  const [oddsOpen, setOddsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const odds = useAdminGameOdds(game.id, oddsOpen);
 
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
@@ -193,51 +191,12 @@ function GameRow({ game }: { game: AdminGame }) {
         <ResolvedField
           label="Spread"
           resolved={game.effectiveSpread === null ? "no line" : String(game.effectiveSpread)}
-          provider={game.latestSpread === null ? "no line" : String(game.latestSpread)}
+          provider={game.spread === null ? "no line" : String(game.spread)}
           showProvider={game.overrideSpread !== null}
         />
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Spread captured{" "}
-        {game.latestSpreadCapturedAt ? formatDateTime(game.latestSpreadCapturedAt) : "never"} ·
-        provider game id {game.providerGameId}
-      </p>
-
-      <details open={oddsOpen} onToggle={(event) => setOddsOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-          Odds history
-        </summary>
-        {oddsOpen && (
-          <div className="mt-2">
-            <QueryState
-              isPending={odds.isPending}
-              isError={odds.isError}
-              onRetry={() => odds.refetch()}
-              errorMessage="Couldn't load odds history."
-              isEmpty={odds.data?.snapshots.length === 0}
-              emptyMessage="No odds captured yet."
-            >
-              <ul className="flex flex-col gap-1">
-                {odds.data?.snapshots.map((snapshot) => (
-                  <li
-                    key={snapshot.id}
-                    className="flex justify-between gap-2 text-xs text-muted-foreground"
-                  >
-                    <span>{snapshot.spread}</span>
-                    <span>{formatDateTime(snapshot.capturedAt)}</span>
-                  </li>
-                ))}
-              </ul>
-              {odds.data?.snapshots.length === ADMIN_ODDS_SNAPSHOT_LIMIT && (
-                <p className="mt-1 text-xs text-muted-foreground/70">
-                  Only the most recent {ADMIN_ODDS_SNAPSHOT_LIMIT} snapshots are shown.
-                </p>
-              )}
-            </QueryState>
-          </div>
-        )}
-      </details>
+      <p className="text-xs text-muted-foreground">provider game id {game.providerGameId}</p>
 
       {/* Never rendered hidden, so opening always mounts against the current
           `game` prop. `GameOverrideForm` itself now re-seeds on every

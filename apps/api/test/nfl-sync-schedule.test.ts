@@ -38,6 +38,7 @@ import {
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
+import { settlePicksForGames } from "../src/services/pickem/settlement";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
@@ -823,7 +824,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
   });
 });
 
-describe("sync-schedule settles cancellations and week moves immediately (no separate settle call)", () => {
+describe("sync-schedule re-settles affected weeks immediately (no separate settle call)", () => {
   it("a cancelled game's pick becomes a push immediately after the sync", async () => {
     seedBaselineProvider();
     await runOk();
@@ -858,7 +859,15 @@ describe("sync-schedule settles cancellations and week moves immediately (no sep
     expect(await pickResultFor(pickId)).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
   });
 
-  it("a week move settles the pick as a push in its original week, immediately after the sync", async () => {
+  /**
+   * ADR-0019: a week move is no longer an event the product models. The sync
+   * still notices the repoint and re-settles the affected week, but there is
+   * no synthesized status behind it, so the pick simply grades by its game's
+   * own state — here, still unplayed, hence no result row. This is the
+   * accepted failure mode written down, not an oversight: the remedy is an
+   * admin `cancelled` override, and nothing in code detects the move.
+   */
+  it("a week move re-settles the original week but no longer synthesizes a push", async () => {
     seedBaselineProvider();
     await runOk();
     const [season] = await db.select().from(sportSeasons);
@@ -879,8 +888,20 @@ describe("sync-schedule settles cancellations and week moves immediately (no sep
     expect(details).toMatchObject({ weekMoves: 1 });
     expect(details.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
 
-    const result = await pickResultFor(pickId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, weekId: week1!.id });
+    expect(await pickResultFor(pickId)).toBeUndefined();
+
+    // An admin correcting the move the only way the product offers — a
+    // `cancelled` status override — makes the member whole on the next settle.
+    await db
+      .update(games)
+      .set({ overrideStatus: GAME_STATUS.CANCELLED })
+      .where(eq(games.id, g1!.id));
+    await settlePicksForGames(db, new FixedClock(FIXED_NOW), [g1!.id]);
+
+    expect(await pickResultFor(pickId)).toMatchObject({
+      outcome: PICK_OUTCOME.PUSH,
+      weekId: week1!.id,
+    });
   });
 
   it("a pure kickoff-time change does not resettle anything — settledLeagueSeasons stays 0", async () => {

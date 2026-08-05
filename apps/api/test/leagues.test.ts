@@ -104,7 +104,7 @@ describe("POST /api/leagues", () => {
       startsAt: WEEK1_KICKOFF.toISOString(),
     });
     // Defaults applied by the settings schema, not the client.
-    expect(body.settings).toMatchObject({ picksPerWeek: 5, pushTieResolution: "half_point" });
+    expect(body.settings).toMatchObject({ picksPerWeek: 5 });
     expect(body.members).toHaveLength(1);
     expect(body.members[0]).toMatchObject({ userId: user.id, role: "commissioner" });
 

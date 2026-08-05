@@ -37,37 +37,52 @@ afterAll(async () => {
 describe("GET /api/sim/fixtures/games", () => {
   it("lists a scenario's fixtures ordered by kickoff and filters by weekType/weekNumber", async () => {
     const { app, cookie } = await adminCaller();
-    const loadRes = await postJson(app, "/api/sim/scenarios/week-move/load", undefined, cookie);
+    const loadRes = await postJson(app, "/api/sim/scenarios/mixed-week/load", undefined, cookie);
     const loadBody = (await loadRes.json()) as SimStateResponse;
     const scenarioId = loadBody.activeScenario!.id;
+    const listGames = async (query = "") => {
+      const res = await get(
+        app,
+        `/api/sim/fixtures/games?scenarioId=${scenarioId}${query}`,
+        cookie,
+      );
+      expect(res.status).toBe(200);
+      return ((await res.json()) as SimFixtureGamesResponse).games;
+    };
 
-    const allRes = await get(app, `/api/sim/fixtures/games?scenarioId=${scenarioId}`, cookie);
-    expect(allRes.status).toBe(200);
-    const all = (await allRes.json()) as SimFixtureGamesResponse;
-    // week-move-3 is declared week 2 but kicks off before week-move-2 — order
-    // is by kickoff, not by declared week.
-    expect(all.games.map((g) => g.providerGameId)).toEqual([
-      "week-move-1",
-      "week-move-3",
-      "week-move-4",
-      "week-move-2",
+    const all = await listGames();
+    expect(all.map((g) => g.providerGameId)).toEqual([
+      "mixed-week-1",
+      "mixed-week-2",
+      "mixed-week-3",
+      "mixed-week-4",
     ]);
 
-    const week2Res = await get(
+    // Kickoff, not declaration or insertion order — proved by moving one. The
+    // library used to carry a scenario whose declared order already disagreed
+    // with its kickoffs (`week-move`, deleted with ADR-0019), so the divergence
+    // is manufactured here instead of borrowed from a fixture's quirk.
+    const first = all[0]!;
+    const last = all[3]!;
+    await patchJson(
       app,
-      `/api/sim/fixtures/games?scenarioId=${scenarioId}&weekNumber=2`,
+      `/api/sim/fixtures/games/${first.id}`,
+      { kickoffAt: new Date(new Date(last.kickoffAt).getTime() + 3_600_000).toISOString() },
       cookie,
     );
-    const week2 = (await week2Res.json()) as SimFixtureGamesResponse;
-    expect(week2.games.map((g) => g.providerGameId)).toEqual(["week-move-3", "week-move-2"]);
+    expect((await listGames()).map((g) => g.providerGameId)).toEqual([
+      "mixed-week-2",
+      "mixed-week-3",
+      "mixed-week-4",
+      "mixed-week-1",
+    ]);
 
-    const postseasonRes = await get(
-      app,
-      `/api/sim/fixtures/games?scenarioId=${scenarioId}&weekType=postseason`,
-      cookie,
-    );
-    const postseason = (await postseasonRes.json()) as SimFixtureGamesResponse;
-    expect(postseason.games).toEqual([]);
+    // Every library scenario now declares one regular-season week, so the
+    // filters are pinned by what they include and what they exclude rather than
+    // by splitting a scenario across two weeks.
+    expect((await listGames("&weekNumber=1")).map((g) => g.providerGameId)).toHaveLength(4);
+    expect(await listGames("&weekNumber=2")).toEqual([]);
+    expect(await listGames("&weekType=postseason")).toEqual([]);
   });
 
   it("projects scheduled before kickoff and final (with scores) after the game window", async () => {

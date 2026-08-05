@@ -37,11 +37,10 @@ function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStan
 /**
  * Orders members by how they did *this week*, best first (feedback round 5).
  *
- * The rank is the server's own (`pickem_standings`, spec §Tiebreakers: points
- * then differential, ties sharing a rank) rather than a comparison invented
- * here — two surfaces disagreeing about who is first is worse than either
- * order, and a naive client sort would renumber ties the server deliberately
- * shares.
+ * The rank is the server's own (`pickem_standings`, spec §Standings: points
+ * alone, ties sharing a rank) rather than a comparison invented here — two
+ * surfaces disagreeing about who is first is worse than either order, and a
+ * naive client sort would renumber ties the server deliberately shares.
  *
  * Nothing settled yet means no weekly rows at all, so unranked members fall
  * back to their season standing and finally to name, which keeps the order
@@ -174,6 +173,16 @@ function MemberPicksSection({
   weekShared: Map<number, number>;
   seasonShared: Map<number, number>;
 }) {
+  // Joined here rather than inside the row so a pick without a game in this
+  // week's slate is impossible by type below. Week moves are out of scope
+  // (ADR-0019), so the join is total; were the provider to repoint a game
+  // anyway, the pick still grades against that game's own result from wherever
+  // it now sits and this view simply has no matchup to draw for it.
+  const picked = member.picks.flatMap((pick) => {
+    const game = gameById.get(pick.gameId);
+    return game ? [{ pick, game }] : [];
+  });
+
   return (
     // Native `<details>` rather than a disclosure component: collapsible,
     // keyboard-operable and screen-reader-announced with no state to own, and
@@ -222,19 +231,14 @@ function MemberPicksSection({
       </summary>
 
       <div className="flex flex-col gap-2 pb-3">
-        {member.picks.length === 0 && member.hiddenPickCount === 0 && (
+        {picked.length === 0 && member.hiddenPickCount === 0 && (
           <p className="pl-9 text-xs text-muted-foreground">No picks submitted.</p>
         )}
 
-        {member.picks.length > 0 && (
+        {picked.length > 0 && (
           <ul className="flex flex-col gap-1.5 pl-9">
-            {member.picks.map((pick) => (
-              <PickRow
-                key={pick.id}
-                pick={pick}
-                game={gameById.get(pick.gameId)}
-                pickType={pickType}
-              />
+            {picked.map(({ pick, game }) => (
+              <PickRow key={pick.id} pick={pick} game={game} pickType={pickType} />
             ))}
           </ul>
         )}
@@ -258,54 +262,10 @@ function PickRow({
   pickType,
 }: {
   pick: PickemPick;
-  game: SlateGame | undefined;
+  game: SlateGame;
   pickType: PickType;
 }) {
   const now = useAppNow();
-  // A miss here is expected, not a disagreement between the endpoints: picks
-  // are read by the week they were *made* in, while the slate is the games
-  // currently *in* that week. A provider week move repoints the game and leaves
-  // the pick behind (ADR-0015), and the server still reveals that pick at the
-  // game's own kickoff — so dropping the row would hide a revealed pick from
-  // both this week's view and the week it moved to. The matchup isn't
-  // renderable without the game, but the outcome is the point: it pushes.
-  if (!game) {
-    const moved = pick.movedGame;
-    const movedPick = moved
-      ? pick.side === PICKEM_PICK_SIDE.HOME
-        ? moved.homeTeam
-        : moved.awayTeam
-      : null;
-    return (
-      <li className={PICK_ROW_CLASS_NAME}>
-        {/* Named, not just described. The matchup rides on the pick because the
-            game is absent from this week's slate by definition — without it a
-            reader sees "a game moved" with no way to tell which. */}
-        <span className="flex flex-wrap items-center gap-1.5 text-foreground">
-          {movedPick && moved ? (
-            <>
-              <TeamLogo
-                logoLightUrl={movedPick.logoLightUrl}
-                logoDarkUrl={movedPick.logoDarkUrl}
-                size="sm"
-              />
-              {movedPick.abbreviation}
-              <span className="text-muted-foreground">
-                ({moved.awayTeam.abbreviation} @ {moved.homeTeam.abbreviation} — moved to{" "}
-                {moved.weekLabel})
-              </span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">
-              Pick on a game that moved out of this week
-            </span>
-          )}
-        </span>
-        <span className="text-muted-foreground">Push</span>
-      </li>
-    );
-  }
-
   const pickedTeam = pick.side === PICKEM_PICK_SIDE.HOME ? game.homeTeam : game.awayTeam;
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
   const spread = showSpread ? spreadLabel(pick.spread, pick.side) : null;

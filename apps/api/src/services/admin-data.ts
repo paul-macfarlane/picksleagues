@@ -1,28 +1,19 @@
 import { asc, count, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
-import { games, oddsSnapshots, sportSeasons, teams, weeks } from "@picksleagues/db";
-import {
-  ADMIN_ODDS_SNAPSHOT_LIMIT,
-  type AdminGame,
-  type AdminOddsSnapshot,
-  type AdminSeason,
-  type AdminTeam,
-  type Sport,
-} from "@picksleagues/schemas";
+import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import type { AdminGame, AdminSeason, AdminTeam, Sport } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
-import { latestSpreadsForGames } from "./odds";
 
 /**
  * Queries behind the admin page's read-only reference-data browsers (arch
  * §Manual Sports Data Overrides). Read-only by construction: nothing here
  * writes, and the browsers double as the verification surface for the sync jobs
- * (a week with zero games, a game with no odds snapshot, an override that
- * survived a re-sync are all visible here).
+ * (a week with zero games, a game with no spread, an override that survived a
+ * re-sync are all visible here).
  *
  * Every list is bounded by its own domain (one sport's teams, one sport's
- * seasons, one week's games, one game's latest snapshots), so none of these
- * paginate.
+ * seasons, one week's games), so none of these paginate.
  */
 
 export async function listTeams(db: Db, sport: Sport): Promise<AdminTeam[]> {
@@ -125,11 +116,8 @@ function selectAdminGameRows(db: Db, where: SQL | undefined) {
 
 type AdminGameRow = Awaited<ReturnType<typeof selectAdminGameRows>>[number];
 
-function serializeAdminGame(
-  { game, homeTeam, awayTeam }: AdminGameRow,
-  latest: { spread: number; capturedAt: Date } | null,
-): AdminGame {
-  const effective = resolveGameOverrides(game, latest?.spread ?? null);
+function serializeAdminGame({ game, homeTeam, awayTeam }: AdminGameRow): AdminGame {
+  const effective = resolveGameOverrides(game);
   return {
     id: game.id,
     weekId: game.weekId,
@@ -142,8 +130,7 @@ function serializeAdminGame(
     awayScore: game.awayScore,
     period: game.period,
     clockSeconds: game.clockSeconds,
-    latestSpread: latest?.spread ?? null,
-    latestSpreadCapturedAt: latest?.capturedAt.toISOString() ?? null,
+    spread: game.spread,
     overrideKickoffAt: game.overrideKickoffAt?.toISOString() ?? null,
     overrideStatus: game.overrideStatus,
     overrideHomeScore: game.overrideHomeScore,
@@ -165,16 +152,7 @@ function serializeAdminGame(
 
 export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]> {
   const rows = await selectAdminGameRows(db, eq(games.weekId, weekId));
-  if (rows.length === 0) return [];
-
-  // The latest snapshot is what a browser means by "current spread" —
-  // the same resolution the pick slate and pick-time validation use.
-  const latestByGame = await latestSpreadsForGames(
-    db,
-    rows.map((row) => row.game.id),
-  );
-
-  return rows.map((row) => serializeAdminGame(row, latestByGame.get(row.game.id) ?? null));
+  return rows.map(serializeAdminGame);
 }
 
 /**
@@ -186,27 +164,5 @@ export async function loadAdminGame(db: Db, gameId: string): Promise<AdminGame |
   const [row] = await selectAdminGameRows(db, eq(games.id, gameId));
   if (!row) return null;
 
-  const latestByGame = await latestSpreadsForGames(db, [row.game.id]);
-  return serializeAdminGame(row, latestByGame.get(row.game.id) ?? null);
-}
-
-/** Null when the game doesn't exist — distinct from a game with no snapshots yet. */
-export async function listGameOdds(db: Db, gameId: string): Promise<AdminOddsSnapshot[] | null> {
-  const [game] = await db.select({ id: games.id }).from(games).where(eq(games.id, gameId));
-  if (!game) return null;
-
-  const rows = await db
-    .select()
-    .from(oddsSnapshots)
-    .where(eq(oddsSnapshots.gameId, gameId))
-    // Same tiebreak as the latest-snapshot query above — without it, which rows
-    // survive the LIMIT boundary is arbitrary among equal `captured_at`.
-    .orderBy(desc(oddsSnapshots.capturedAt), desc(oddsSnapshots.id))
-    .limit(ADMIN_ODDS_SNAPSHOT_LIMIT);
-
-  return rows.map((snapshot) => ({
-    id: snapshot.id,
-    spread: snapshot.spread,
-    capturedAt: snapshot.capturedAt.toISOString(),
-  }));
+  return serializeAdminGame(row);
 }

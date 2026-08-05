@@ -70,7 +70,6 @@ export async function getPickemStandings(
       displayName: users.display_name,
       image: users.image,
       points: pickemStandings.points,
-      differential: pickemStandings.differential,
       wins: pickemStandings.wins,
       losses: pickemStandings.losses,
       pushes: pickemStandings.pushes,
@@ -87,9 +86,10 @@ export async function getPickemStandings(
       ),
     )
     .where(eq(leagueMembers.leagueId, leagueId))
-    // Name order is the tiebreak: `rankStandings` sorts stably, so members
-    // level on points AND differential (who share a rank, spec §Tiebreakers)
-    // come out alphabetically instead of in whatever order Postgres returned.
+    // Name order is the display order within a shared rank: `rankStandings`
+    // sorts stably, so members level on points (who share a rank, spec
+    // §Standings — Ties) come out alphabetically instead of in whatever order
+    // Postgres returned.
     .orderBy(asc(users.display_name));
 
   const byMemberId = new Map(rows.map((row) => [row.leagueMemberId, row]));
@@ -102,7 +102,6 @@ export async function getPickemStandings(
     rows.map((row) => ({
       memberId: row.leagueMemberId,
       points: row.points ?? 0,
-      differential: row.differential ?? 0,
       // Same zero-fill as points: the left join misses for a member with no
       // settled row, and their record is genuinely 0-0-0 rather than unknown.
       wins: row.wins ?? 0,
@@ -121,7 +120,6 @@ export async function getPickemStandings(
       image: row?.image ?? null,
       isViewer: row?.userId === userId,
       points: entry.points,
-      differential: entry.differential,
       wins: entry.wins,
       losses: entry.losses,
       pushes: entry.pushes,

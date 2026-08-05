@@ -16,7 +16,7 @@ rereading this guide.
 
 | Check | Command | Coverage | When | Status |
 |---|---|---|---|---|
-| typecheck | `pnpm typecheck` | tsc across every workspace package | Every change, before PR | verified |
+| typecheck | `pnpm typecheck` | tsc across every workspace package, then `e2e/tsconfig.json` — `e2e/` and `playwright.config.ts` are not in any workspace, so `pnpm -r` alone left the merge gate's own specs with no type gate | Every change, before PR | verified |
 | lint | `pnpm lint` | ESLint across the repo, including the Clock discipline rule and max-lines warnings | Every change, before PR | verified |
 | test | `pnpm test` | Vitest unit suite, no database required (27 files, 528 tests). Includes the exhaustive packages/scoring spec tests. | Every change, before PR | verified |
 | test:integration | `pnpm test:integration` | In-process Hono against real Postgres (26 files, 505 tests): transactional lock validation, spread-staleness 409s, pick visibility filtering, join cutoffs and caps, settlement idempotency, override precedence. Auto-creates and migrates picksleagues_test. | Any API, DB, service, or schema change. Requires pnpm db:up first. | verified |
@@ -24,7 +24,7 @@ rereading this guide.
 | format:check | `pnpm format:check` | Prettier check across the repo | Before PR | verified |
 | format | `pnpm format` | Prettier write across the repo | After edits, before lint; rerun affected tests after automatic fixes | verified |
 | build | `pnpm --filter @picksleagues/web build` | tsc -b plus vite build for the SPA. This is the ONLY build in the repository: there is no root build script, and apps/api and all four packages have none. Never record or run 'pnpm build'. | Any apps/web change | verified |
-| test:e2e | `pnpm test:e2e` | Playwright against the full local stack with the SimulatedProvider and simulated clock, no network mocks (14 tests). The merge gate. | Before PR, and only with explicit human approval each time: this command DELETES EVERY LEAGUE in the dev database. Last verified 2026-08-03 on this branch. | verified |
+| test:e2e | `pnpm test:e2e` | Playwright against a full local stack with the SimulatedProvider and simulated clock, no network mocks (14 tests). The merge gate. | Before PR. Safe to run unattended: it starts its own stack on its own database (`picksleagues_e2e`) and ports (5273/3100), created and migrated by `e2e/setup/global-setup.ts`, and never touches the dev database — which is what lets its Pick'em journey reset the simulator with `scope: "environment"`. Needs `pnpm db:up` for the Postgres server. Last verified 2026-08-04 on `feat/simp-pr2-rule-surface-collapse`. | verified |
 | db:up | `pnpm db:up` | Starts and waits for the Docker Postgres container on port 5433 | Before any integration or e2e run | verified |
 | db:migrate | `pnpm db:migrate` | Applies packages/db/migrations to the local database | After pulling or writing a migration | verified |
 | dev | `pnpm dev` | Runs the web and api dev servers in parallel. The SPA is the origin at :5173 and proxies the API; OAuth and session cookies are scoped there. | Driving the app or the season simulator locally to produce evidence | verified |

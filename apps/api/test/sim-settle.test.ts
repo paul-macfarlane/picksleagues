@@ -216,12 +216,14 @@ describe("POST /api/sim/settle", () => {
     const scopedBody = (await scopedRes.json()) as SimSettleResponse;
     expect(scopedBody.leagues).toHaveLength(1);
     expect(scopedBody.leagues[0]!.leagueId).toBe(a.league.id);
-    // Member A no longer sweeps g1 (home lost 3-30) — now tied 1-1 on points,
-    // with member B ranked ahead on the differential tiebreaker.
+    // Member A no longer sweeps g1 (home lost 3-30), so the two are level on
+    // points and share the rank — points are the only ordering input
+    // (ADR-0018). The assertion that matters here is that league B's stored
+    // board did not move at all.
     const byMember = new Map(
       scopedBody.leagues[0]!.seasonStandings.map((row) => [row.leagueMemberId, row]),
     );
-    expect(byMember.get(a.memberARow.id)).toMatchObject({ points: 1, rank: 2 });
+    expect(byMember.get(a.memberARow.id)).toMatchObject({ points: 1, rank: 1 });
     expect(byMember.get(a.memberBRow.id)).toMatchObject({ points: 1, rank: 1 });
 
     const bStandingsAfter = await db
@@ -262,7 +264,6 @@ describe("POST /api/sim/settle", () => {
     expect(result.seasonStandings).toHaveLength(2);
     for (const row of result.seasonStandings) {
       expect(row.points).toBe(0);
-      expect(row.differential).toBe(0);
       expect(row.rank).toBe(1);
     }
   });

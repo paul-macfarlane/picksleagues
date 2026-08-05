@@ -47,7 +47,7 @@ function clamp(value: number, limit: number): number {
 
 /**
  * A plausible pre-game line for a game whose result is already known.
- * Home-team-relative, matching `odds_snapshots.spread`: negative means the home
+ * Home-team-relative, matching `games.spread`: negative means the home
  * team is favored, so a home team winning by more than `-spread` covers.
  *
  * Returns null when the game has no result to derive from (a cancelled or
