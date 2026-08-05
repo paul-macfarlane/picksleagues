@@ -977,6 +977,8 @@ than transcribing worker claims.
 
 ### [CLOSEOUT] — PR 3, 2026-08-05
 
+**PR:** https://github.com/paul-macfarlane/picksleagues/pull/30 (`picksleagues`, base `staging`).
+
 Integrated candidate `2988dde` on `feat/simp-pr3-presets-and-closeout`, base `staging` at
 `9f80131`. 12 commits, 53 files, +2146/−2426. Aggregate gate evidence:
 `docs/evidence/test-results/simp-pr3-aggregate/report.md`; per-deliverable evidence in the
