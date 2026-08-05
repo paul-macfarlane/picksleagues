@@ -340,9 +340,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
         mode: "pickem",
         name: `E2E Cap2 ${commishName.slice(-8)}`,
         visibility: "private",
+        // The wire shape carries the preset only (ADR-0020): the server
+        // resolves the week refs it stores, so naming them here would be
+        // ignored rather than honoured.
         settings: {
-          startWeek: { type: "regular", number: 1 },
-          endWeek: { type: "regular", number: 18 },
+          seasonRangePreset: "regular_season",
           pickType: "straight_up",
           picksPerWeek: 2,
         },

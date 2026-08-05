@@ -9,13 +9,14 @@ import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app, appAfterKickoff } = makeLeagueTestHarness();
 
+// The Pick'em wire shape names a season-range preset and no week refs
+// (ADR-0020); the server resolves the range it stores.
 const VALID_PICKEM_BODY = {
   mode: "pickem",
   name: "The Gridiron Gang",
   visibility: "private",
   settings: {
-    startWeek: { type: "regular", number: 1 },
-    endWeek: { type: "regular", number: 18 },
+    seasonRangePreset: "regular_season",
     pickType: "straight_up",
   },
 };
@@ -154,12 +155,12 @@ describe("POST /api/leagues", () => {
 
   it.each([
     {
-      label: "end week before start week",
-      settings: {
-        startWeek: { type: "regular", number: 5 },
-        endWeek: { type: "regular", number: 4 },
-        pickType: "straight_up",
-      },
+      label: "unknown season range preset",
+      settings: { seasonRangePreset: "weeks_4_to_15", pickType: "straight_up" },
+    },
+    {
+      label: "no season range preset",
+      settings: { pickType: "straight_up" },
     },
     {
       label: "unknown pick type",

@@ -702,12 +702,15 @@ export interface components {
             roundValues: number[];
         };
         PickemSettings: {
+            seasonRangePreset: components["schemas"]["PickemSeasonRangePreset"];
             startWeek: components["schemas"]["NflWeekRef"];
             endWeek: components["schemas"]["NflWeekRef"];
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
         };
+        /** @enum {string} */
+        PickemSeasonRangePreset: "regular_season" | "postseason" | "full_season";
         NflWeekRef: {
             /** @enum {string} */
             type: "regular";
@@ -756,7 +759,7 @@ export interface components {
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
             maxMembers?: components["schemas"]["MaxMembers"];
-            settings: components["schemas"]["PickemSettings"];
+            settings: components["schemas"]["PickemSettingsInput"];
         } | {
             /** @enum {string} */
             mode: "elimination";
@@ -774,6 +777,12 @@ export interface components {
         };
         /** @default 10 */
         MaxMembers: number;
+        PickemSettingsInput: {
+            seasonRangePreset: components["schemas"]["PickemSeasonRangePreset"];
+            pickType: components["schemas"]["PickType"];
+            /** @default 5 */
+            picksPerWeek: number;
+        };
         MarchMadnessSettings: {
             /** @default 5 */
             maxBracketsPerMember: number;

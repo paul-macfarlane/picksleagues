@@ -12,6 +12,7 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
+  PICKEM_SEASON_RANGE_PRESET,
   type EliminationPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
@@ -84,6 +85,13 @@ function NewLeague() {
       let settings: unknown;
       if (mode === LEAGUE_MODE.PICKEM) {
         settings = {
+          // Transitional (SIMP-18 → SIMP-20): the wire now carries a
+          // season-range preset and the server resolves the week refs
+          // (ADR-0020), but the preset select that replaces the two week
+          // dropdowns below arrives with SIMP-20. Until then this sends the
+          // preset those dropdowns' defaults describe, and the request schema
+          // drops the refs.
+          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
           startWeek: decodeWeek(pickemStartWeek),
           endWeek: decodeWeek(pickemEndWeek),
           pickType: pickemPickType,

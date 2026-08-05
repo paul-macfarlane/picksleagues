@@ -4,6 +4,7 @@ import {
   LEAGUE_MODE,
   MEMBER_ROLE,
   PICK_TYPE,
+  PICKEM_SEASON_RANGE_PRESET,
   WEEK_TYPE,
   type LeagueWeeksResponse,
   type PickemSettings,
@@ -147,6 +148,7 @@ describe("GET /api/leagues/:leagueId/weeks", () => {
     it("is null for a league whose configured range has no ingested weeks", async () => {
       const { league, member } = await seedLeague({
         ...DEFAULT_PICKEM_SETTINGS,
+        seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
         startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
         endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
       });

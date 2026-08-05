@@ -8,6 +8,7 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
+  PICKEM_SEASON_RANGE_PRESET,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
   type EliminationPushTieResolution,
@@ -190,6 +191,13 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   let wouldInvalidatePicks = false;
   if (isPickem) {
     const draft: PickemSettings = {
+      // Transitional (SIMP-18 → SIMP-20): the preset select that replaces the
+      // two week dropdowns below arrives with SIMP-20, so the draft carries
+      // the league's stored preset unchanged — a settings save can edit Pick
+      // Type and Picks Per Week, and the range moves only when the preset
+      // does (ADR-0020).
+      seasonRangePreset:
+        pickemSettings?.seasonRangePreset ?? PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
       startWeek: decodeWeek(pickemStartWeek),
       endWeek: decodeWeek(pickemEndWeek),
       pickType: pickemPickType,

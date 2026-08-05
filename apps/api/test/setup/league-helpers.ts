@@ -19,6 +19,7 @@ import {
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
   PICK_TYPE,
+  PICKEM_SEASON_RANGE_PRESET,
   SPORT,
   WEEK_TYPE,
   type LeagueMode,
@@ -160,6 +161,7 @@ export async function seedSeason(
 }
 
 export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
+  seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
