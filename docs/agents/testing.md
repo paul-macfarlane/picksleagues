@@ -31,6 +31,16 @@ rereading this guide.
 
 `verified` means the command ran successfully here. `inferred` means configuration names it but setup did not execute it. `unavailable` is an explicit gap.
 
+**Scoping a partial vitest run: use `--project`, never `--dir` or a bare path.**
+The two projects in `vitest.config.ts` are selected by name, and `--dir` is only a
+path filter applied *within every* project — so `vitest run --dir packages/scoring`
+still runs the `integration` project, whose `globalSetup` creates and migrates the
+test database. Confirmed: `vitest list --dir packages/scoring` enumerates both
+`[unit]` and `[integration]`; adding `--project unit` leaves only `[unit]`. Narrow
+with `vitest run --project unit <path>`. This matters because `--dir` reads like a
+scope filter and is not one, so a worker told to stay off the database can reach it
+while believing it has not.
+
 ## Evidence policy
 
 - Repository-local proof-artifact root: `docs/evidence/test-results`.
