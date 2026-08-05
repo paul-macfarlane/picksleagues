@@ -4,7 +4,6 @@ import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
-  LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
@@ -18,6 +17,7 @@ import {
 import { logInfo } from "../../lib/logger";
 import { resetPicksInvalidatedBySettings } from "../pickem/settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
+import { resolveLeagueSettings } from "./season-range";
 import { lockLeagueRow, lockUserRow } from "./locks";
 import {
   authorizeLeagueAction,
@@ -55,8 +55,16 @@ export async function createLeague(
   }
 
   // Second line of defense behind the route's discriminated union; also
-  // applies schema defaults if the service is ever called directly.
-  const settings = LEAGUE_SETTINGS_SCHEMAS[input.mode].parse(input.settings);
+  // applies schema defaults if the service is ever called directly. Pick'em's
+  // season-range preset resolves to concrete week refs here (ADR-0020) — the
+  // stored settings are the resolved fact, never the request.
+  const resolved = await resolveLeagueSettings(db, clock, input.mode, season.id, input.settings);
+  if (!resolved.ok) {
+    throw new Error(
+      `League settings failed validation after the route accepted them: ${resolved.message}`,
+    );
+  }
+  const settings = resolved.settings;
 
   // Spec §Creation: a league exists in a PRE-start state. A start week whose
   // kickoff already passed would be born started — joins closed, settings
@@ -221,21 +229,27 @@ export async function updateLeague(
 
     const now = clock.now();
     if (input.settings !== undefined) {
-      const parsed = LEAGUE_SETTINGS_SCHEMAS[league.mode].safeParse(input.settings);
-      if (!parsed.success) {
-        return {
-          ok: false,
-          reason: "invalid_settings",
-          message: parsed.error.issues[0]?.message ?? "Invalid settings.",
-        };
+      // Re-resolves against the clock as it stands now (ADR-0020): a preset
+      // change is the one edit that can move the range, and this is the last
+      // moment it can happen, since settings lock at league start.
+      const resolved = await resolveLeagueSettings(
+        tx,
+        clock,
+        league.mode,
+        season.seasonId,
+        input.settings,
+      );
+      if (!resolved.ok) {
+        return { ok: false, reason: "invalid_settings", message: resolved.message };
       }
+      const nextSettings = resolved.settings;
       // The gate above checked the OLD start week; the new settings must not
       // move the start into the past either — that would instantly start (and
       // permanently freeze) the league, same trap as creating one post-start.
       const newStartsAt = await leagueStartAt(
         tx,
         { mode: league.mode, seasonId: season.seasonId },
-        parsed.data,
+        nextSettings,
       );
       if (!isPreStart(newStartsAt, clock)) {
         return { ok: false, reason: "start_week_passed" };
@@ -264,14 +278,14 @@ export async function updateLeague(
         league.mode,
         season.id,
         season.settings,
-        parsed.data,
+        nextSettings,
       );
       if (!pickReset.ok) return { ok: false, reason: pickReset.reason };
 
       // Settings live on the current instance now (ADR-0009).
       await tx
         .update(leagueSeasons)
-        .set({ settings: parsed.data, updatedAt: now })
+        .set({ settings: nextSettings, updatedAt: now })
         .where(eq(leagueSeasons.id, season.id));
 
       if (pickReset.cleared > 0) {
