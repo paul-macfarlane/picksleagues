@@ -12,6 +12,7 @@ import {
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import { isClosedToPicks } from "@/lib/game";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -192,23 +193,30 @@ function PickSheet({
 
   // The same rule the API validates the submission with, from the same function
   // in `packages/schemas` — the sheet must never disagree with the write path
-  // about what "complete" means. `locked` arrives server-computed on the slate
-  // (arch D11), so this is not a browser-clock derivation: under the simulator
-  // the browser sits at a different instant entirely.
-  const required = requiredPickemPickCount(picksAllowed, slate.games);
+  // about what "complete" means, including on which games are excluded from the
+  // set. `locked` arrives server-computed on the slate (arch D11), so this is
+  // not a browser-clock derivation: under the simulator the browser sits at a
+  // different instant entirely.
+  const required = requiredPickemPickCount(picksAllowed, slate.games, pickType);
   const complete = required > 0 && selections.size === required;
 
   // Only what the member can still pick (spec §Screens). A game that kicked off
   // without them is forgone and scores nothing (ADR-0018 decision 2), so it is
   // not a row on a sheet they are assembling.
   const openGames = slate.games.filter((game) => !isClosedToPicks(game));
-  // An ATS game with no posted line can't be picked, yet it still counts toward
-  // the required set — so it holds the whole week's submission rather than one
-  // row, and the sheet has to say why Submit won't enable.
+  // An ATS game with no posted line is shown but not pickable, and is not part
+  // of the required set either — so the sheet is completable without it. Saying
+  // so is a courtesy, not an obstacle: without it the member counts more rows
+  // than the target and reads the difference as a bug.
   const noLineCount =
     pickType === PICK_TYPE.AGAINST_THE_SPREAD
       ? openGames.filter((game) => game.spread === null).length
       : 0;
+  // Reachable only in an ATS week where *every* open game is still unpriced: a
+  // required set of zero with games on screen means the odds sync hasn't landed
+  // yet, not that the member did anything. The action bar stays off rather than
+  // offering a Submit that could never enable.
+  const awaitingLines = openGames.length > 0 && required === 0;
 
   function toggle(gameId: string, side: PickemPickSide) {
     setStoredSelections((prev) => {
@@ -252,14 +260,18 @@ function PickSheet({
           <CardDescription>
             {openGames.length === 0
               ? "This week is closed."
-              : `Pick ${required} ${required === 1 ? "game" : "games"}, then submit. Your picks are final once submitted, and each locks at its own kickoff.`}
+              : awaitingLines
+                ? "No spreads are posted for this week yet — picks open as soon as the lines are up."
+                : `Pick ${required} ${required === 1 ? "game" : "games"}, then submit. Your picks are final once submitted, and each locks at its own kickoff.`}
           </CardDescription>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom
             (verified at 375px) — and is dropped with the bar, since the
             reserved gap reads as a broken layout with nothing in it. */}
-        <CardContent className={openGames.length > 0 ? "flex flex-col gap-4 pb-24" : undefined}>
+        <CardContent
+          className={cn("flex flex-col gap-4", openGames.length > 0 && !awaitingLines && "pb-24")}
+        >
           {/* Reachable once the week has closed around a member who submitted
               nothing. Without it the card renders as an empty box, which reads
               as a load failure rather than an answer (spec §Screens). */}
@@ -297,7 +309,7 @@ function PickSheet({
           a transform/filter that would trap it). z-20 stays under the tab bar
           (z-30) and header (z-40) per routes/_authed.tsx's layering comment, and
           well under overlay portals (z-50). */}
-      {openGames.length > 0 && (
+      {openGames.length > 0 && !awaitingLines && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
           {/* Stacks at phone width: the no-line explanation needs a line of its
               own at 375px. Above `sm` there is room for the original single
@@ -307,10 +319,16 @@ function PickSheet({
               <p className="text-sm text-muted-foreground">
                 {pickProgressLabel(selections.size, required)}
               </p>
+              {/* Reconciles the count with the rows: the member can see more
+                  games on screen than the target asks for, and this names the
+                  difference. Deliberately not a warning — the sheet is
+                  completable without them, so this reports a fact rather than an
+                  obstacle. */}
               {noLineCount > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {noLineCount === 1 ? "One game has" : `${noLineCount} games have`} no spread
-                  posted yet — this week can&apos;t be submitted until the line is up.
+                  {noLineCount === 1
+                    ? "One game has no spread posted yet, so it isn't part of this week's set."
+                    : `${noLineCount} games have no spread posted yet, so they aren't part of this week's set.`}
                 </p>
               )}
             </div>

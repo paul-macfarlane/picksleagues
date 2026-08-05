@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
+import { PICK_TYPE, type PickType } from "./pick-type";
 import { PickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
 
@@ -77,31 +78,51 @@ export type PickemPickSubmission = z.infer<typeof PickemPickSubmissionSchema>;
 /**
  * How many picks a week's submission must contain: a full set of what can
  * **still** be picked (ADR-0018 decision 2). Shared by the API's write path,
- * which sizes the submission it accepts, and the web sheet, which enables Save
- * on the same number — one rule, so the two surfaces can never disagree about
- * what "complete" means (the `pickemSettingsInvalidatePicks` precedent).
+ * which sizes the submission it accepts, and the web sheet, which enables
+ * Submit on the same number — one rule, so the two surfaces can never disagree
+ * about what "complete" means (the `pickemSettingsInvalidatePicks` precedent).
  *
- * Locked games are excluded deliberately. `picksAllowed` is
- * `min(picksPerWeek, pickable games)` and `pickable` does not exclude a game
- * that has already kicked off, so requiring `picksAllowed` would ask a member
- * who arrives after the week's first kickoff for more picks than the slate can
- * still supply and lock them out of the week permanently — an implicit weekly
- * deadline, which ADR-0018 refuses. Games that locked before the member
- * submitted are forgone; they were never picks, so nothing scores.
+ * **The required set is exactly what the write path would accept.** Anything it
+ * refuses on sight is not part of the set, because a set containing a refusable
+ * pick is a set no member can ever submit. Two things make a game refusable
+ * before it is even chosen, and they are the same rule wearing two faces:
+ *
+ * - **It has kicked off.** `picksAllowed` is `min(picksPerWeek, pickable games)`
+ *   and `pickable` does not exclude a game that has already started, so
+ *   requiring `picksAllowed` would ask a member arriving after the week's first
+ *   kickoff for more picks than the slate can still supply. Games that locked
+ *   before they submitted are forgone; they were never picks, so nothing scores.
+ * - **It has no line, in an ATS league.** `checkSpreadAccepted` refuses a pick
+ *   on an unpriced game with `spread_unavailable`, so counting it would demand a
+ *   pick the same request then rejects: submit the full set and it is refused
+ *   for the unpriced game, submit the rest and it is `pick_set_incomplete`.
+ *   Straight-up leagues have no spread dependency, so `spread` is ignored there
+ *   and an unpriced game counts normally.
+ *
+ * Both exclusions serve one purpose: **a member must never be unable to submit
+ * a week at all.** That is the outcome ADR-0018 decision 2 was ruled to prevent,
+ * and it does not care whether the games it cannot supply are missing because
+ * they started or because they carry no number yet.
  *
  * **Why the two call sites pass different caps and still agree.** The API
  * passes `settings.picksPerWeek`; the web passes the wire's `picksAllowed`,
- * which is itself `min(picksPerWeek, pickable)`. The unlocked-pickable count
- * filtered here is never larger than the pickable count, so
- * `min(min(p, pickable), unlockedPickable) === min(p, unlockedPickable)` — the
- * extra `pickable` clamp the web's cap carries can never bind first. Neither
- * call site is wrong.
+ * which is itself `min(picksPerWeek, pickable)`. The count filtered here is
+ * never larger than the pickable count — it is that count with rows removed —
+ * so `min(min(p, pickable), submittable) === min(p, submittable)`, and the extra
+ * `pickable` clamp the web's cap carries can never bind first. Neither call site
+ * is wrong. Adding the spread filter does not disturb this: it only removes more
+ * rows.
  */
 export function requiredPickemPickCount(
   cap: number,
-  games: readonly { locked: boolean; pickable: boolean }[],
+  games: readonly { locked: boolean; pickable: boolean; spread: number | null }[],
+  pickType: PickType,
 ): number {
-  return Math.min(cap, games.filter((game) => !game.locked && game.pickable).length);
+  const needsSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
+  const submittable = games.filter(
+    (game) => !game.locked && game.pickable && (!needsSpread || game.spread !== null),
+  );
+  return Math.min(cap, submittable.length);
 }
 
 /**

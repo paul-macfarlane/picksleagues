@@ -154,7 +154,8 @@ async function loadContext(
  *
  * This is the week's *cap*, which the read path serves as `picksAllowed`. The
  * size a submission must actually be is `requiredPickemPickCount`, which also
- * excludes games that have already kicked off (ADR-0018 decision 2).
+ * excludes games that have already kicked off, and — in ATS leagues — games
+ * carrying no line for `checkSpreadAccepted` to accept (ADR-0018 decision 2).
  */
 function picksAllowedFor(picksPerWeek: number, slate: readonly ResolvedSlateGame[]): number {
   return Math.min(picksPerWeek, slate.filter((game) => game.pickable).length);
@@ -387,8 +388,10 @@ export async function submitPickemPicks(
 
     // A full set of what can *still* be picked (ADR-0018 decision 2): sizing
     // against `picksAllowed` instead would ask a member arriving after the
-    // week's first kickoff for picks the slate can no longer supply.
-    const required = requiredPickemPickCount(settings.picksPerWeek, slate);
+    // week's first kickoff — or into an ATS week with an unpriced game — for
+    // picks this same loop would then refuse, which is a week they could never
+    // submit at all. `pickType` is what tells it whether a missing line matters.
+    const required = requiredPickemPickCount(settings.picksPerWeek, slate, settings.pickType);
     if (submissions.length > required) return PICKEM_REFUSAL.TOO_MANY_PICKS;
     if (submissions.length < required) return PICKEM_REFUSAL.PICK_SET_INCOMPLETE;
 

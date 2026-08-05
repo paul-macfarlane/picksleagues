@@ -996,7 +996,112 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       expect(await res.json()).toMatchObject({ error: "spread_stale" });
     });
 
-    it("409s spread_unavailable when the game has no spread at all", async () => {
+    /**
+     * The permanent-lockout regression: an unpriced game must not be part of
+     * the week's required set.
+     *
+     * `checkSpreadAccepted` refuses a pick on a game with no line, so counting
+     * it left an ATS member with no submission the write path would take —
+     * include it and the request 409s `spread_unavailable`, omit it and the
+     * same request 400s `pick_set_incomplete`. Once the priced games kicked off
+     * they were shut out of the week for good, which is exactly the outcome
+     * ADR-0018 decision 2 exists to prevent; it just arrived through
+     * "unpriceable" rather than "locked". The rule is a full set of what can
+     * still be picked, and the server itself says an unpriced game cannot be.
+     */
+    it("sizes the required set to the priced games, so an unpriced one can't strand the week", async () => {
+      const { seasonId, weekIds, gameIds } = await seedSeason(db, {
+        year: 2026,
+        weeks: [
+          {
+            weekNumber: 1,
+            kickoffs: [
+              { kickoffAt: WEEK1_KICKOFF, spread: -3.5 },
+              { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000), spread: 2.5 },
+              // Unlocked and playable, but the odds sync hasn't posted a line.
+              { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
+            ],
+          },
+        ],
+      });
+      const memberA = await createAuthenticatedUser(auth, { username: "member_a" });
+      const league = await insertLeague(db, {
+        seasonId,
+        settings: ATS_SETTINGS,
+        members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+      const weekId = weekIds.get("regular:1")!;
+      const [g1, g2] = gameIds.get("regular:1")! as [string, string, string];
+
+      const res = await putPicks(memberA.cookie, league.id, weekId, {
+        picks: [
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 },
+          { gameId: g2, side: PICKEM_PICK_SIDE.AWAY, spread: 2.5 },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as PickemWeekPicksResponse;
+      const own = body.members.find((m) => m.userId === memberA.user.id)!;
+      expect(own.picks.map((p) => p.gameId).sort()).toEqual([g1, g2].sort());
+    });
+
+    /**
+     * `spread_unavailable` survives the sizing fix above, and this is the shape
+     * it now arrives in: a **correctly sized** set that names an unpriced game
+     * instead of one of the priced ones it was sized against.
+     *
+     * That is a client whose slate disagrees with the server's — a line
+     * withdrawn by an odds correction after the sheet was built, or a stale
+     * page — and the refusal is what tells it so. The previous version of this
+     * test submitted one pick into a week whose only game was unpriced, which
+     * now refuses earlier and for a different reason: the required set is zero,
+     * so the pick is one too many.
+     */
+    it("409s spread_unavailable when a right-sized set names an unpriced game", async () => {
+      const { seasonId, weekIds, gameIds } = await seedSeason(db, {
+        year: 2026,
+        weeks: [
+          {
+            weekNumber: 1,
+            kickoffs: [
+              { kickoffAt: WEEK1_KICKOFF, spread: -3.5 },
+              { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000), spread: 2.5 },
+              { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
+            ],
+          },
+        ],
+      });
+      const memberA = await createAuthenticatedUser(auth, { username: "member_a" });
+      const league = await insertLeague(db, {
+        seasonId,
+        settings: ATS_SETTINGS,
+        members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+      const weekId = weekIds.get("regular:1")!;
+      const [g1, , g3] = gameIds.get("regular:1")! as [string, string, string];
+
+      // Two picks, which is exactly the required set — but one of them is the
+      // game with no line.
+      const res = await putPicks(memberA.cookie, league.id, weekId, {
+        picks: [
+          { gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 },
+          { gameId: g3, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 },
+        ],
+      });
+      expect(res.status).toBe(409);
+      // Distinct from spread_stale: nothing has been posted to accept, so the
+      // member waits for the odds sync rather than re-reviewing a new number.
+      expect(await res.json()).toMatchObject({ error: "spread_unavailable" });
+    });
+
+    /**
+     * The other half of the sizing rule: with no line posted anywhere in the
+     * week, nothing is submittable yet, so the honest refusal is that the set
+     * is oversized rather than that one game lacks a number. The member is not
+     * stranded — the odds sync opens the week.
+     */
+    it("400s too_many_picks when no game in the week has a line yet", async () => {
       const { seasonId, weekIds, gameIds } = await seedSeason(db, {
         year: 2026,
         weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
@@ -1011,12 +1116,10 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       const [g1] = gameIds.get("regular:1")!;
 
       const res = await putPicks(memberA.cookie, league.id, weekId, {
-        picks: [{ gameId: g1, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 }],
+        picks: [{ gameId: g1!, side: PICKEM_PICK_SIDE.HOME, spread: -3.5 }],
       });
-      expect(res.status).toBe(409);
-      // Distinct from spread_stale: nothing has been posted to accept, so the
-      // member waits for the odds sync rather than re-reviewing a new number.
-      expect(await res.json()).toMatchObject({ error: "spread_unavailable" });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: "too_many_picks" });
     });
   });
 

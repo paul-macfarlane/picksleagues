@@ -331,3 +331,180 @@ spreads shown".
   `packages/db/src/schema/pickem.ts:68-81` justifies the per-week uniqueness
   constraint with a week-move scenario ADR-0019 makes unreachable. The constraint
   itself stands (ADR-0018 keeps it); only the comment's reasoning is stale.
+
+---
+
+## 7. Follow-up fix — the unpriced-game lockout (`Refs SIMP-8`)
+
+Raised at D5 review against §6's third note, and correct: what that note
+recorded as an accepted trade was a **permanent lockout**, not a trade.
+
+### The defect
+
+`requiredPickemPickCount` counted a game as part of the required set whenever it
+was unlocked and pickable. In an **ATS** league a game with no line is both, but
+`checkSpreadAccepted` refuses a pick on it with `spread_unavailable`. So on a
+week of four unlocked pickable games, one unpriced, with `picksPerWeek: 5`:
+
+| The member submits | The server answers |
+|---|---|
+| all 4 (the required set — must include the unpriced game) | `409 spread_unavailable` |
+| the 3 priced ones | `400 pick_set_incomplete` |
+
+There was no submission the write path would take. Once the three priced games
+kicked off, the member was shut out of the week for good — the outcome ADR-0018
+decision 2 was ruled to prevent, arriving through "unpriceable" instead of
+"locked". The shipped UI explained the deadlock in the action bar, which does not
+clear it.
+
+### Why this implements decision 2 rather than amending it
+
+Decision 2 states the rule as **"a full set of what can still be picked."** In an
+ATS league a game with no line *cannot be picked* — the server itself refuses it
+on sight. Excluding it is the ruling; counting it contradicts the ruling. No
+owner decision was required and none was taken.
+
+### The change
+
+`packages/schemas` — new signature:
+
+```ts
+requiredPickemPickCount(
+  cap: number,
+  games: readonly { locked: boolean; pickable: boolean; spread: number | null }[],
+  pickType: PickType,
+): number
+```
+
+A game counts only when it is unlocked, pickable, and — in
+`AGAINST_THE_SPREAD` leagues only — carries a spread. Straight-up leagues have no
+spread dependency, so `spread` is ignored there. The docblock now names both
+exclusions as one rule (*the required set is exactly what the write path would
+accept; anything it refuses on sight is not part of it*) and keeps the
+different-caps proof, which still holds: the filter only removes more rows, so
+the filtered count is still never larger than the pickable count.
+
+Both call sites pass the league's pick type — `settings.pickType` in
+`submitPickemPicks`, the `pickType` already in scope in `pickem-picks.tsx`.
+
+### What the suite caught
+
+The existing case *"409s `spread_unavailable` when the game has no spread at
+all"* went red, correctly: it submitted one pick into a week whose only game was
+unpriced, which now refuses earlier and for a different reason (the required set
+is zero, so one pick is one too many). The refusal itself is still real and still
+reachable, so it was **retargeted rather than deleted** — a *correctly sized* set
+that names an unpriced game instead of one of the priced games it was sized
+against, which is the shape a stale client produces when a line is withdrawn by
+an odds correction. A second case pins the no-lines-anywhere week as
+`too_many_picks`.
+
+### Tests added
+
+- `packages/schemas/src/pickem.test.ts` — five new table rows: an ATS game with
+  no line does not count; the same game in a straight-up league does; a spread of
+  `0` is a real line rather than a missing one; a game that is both locked and
+  unpriced is excluded **once**, not twice; an all-unpriced ATS week requires
+  nothing. Unit total 496 → 501.
+- `apps/api/test/pickem-picks.test.ts` — *"sizes the required set to the priced
+  games, so an unpriced one can't strand the week"*: an ATS week with two priced
+  games and one unpriced, the member submits the two priced games and
+  **succeeds**, with both picks asserted persisted. Plus the two refusal cases
+  above. Integration total 472 → 474.
+
+### UI copy
+
+The sheet is now completable, so the copy reports a fact instead of an obstacle.
+
+- **Partly unpriced week** (action bar, under the progress count) —
+  *"One game has no spread posted yet, so it isn't part of this week's set."*
+  Plural: *"N games have no spread posted yet, so they aren't part of this week's
+  set."* It exists to reconcile the count with the rows: the member can see more
+  games than the target asks for, and this names the difference.
+- **Nothing priced yet** (`required === 0` with games on screen — reachable only
+  in ATS) — the card description reads *"No spreads are posted for this week yet
+  — picks open as soon as the lines are up."* The action bar does not mount at
+  all in this state, so there is no Submit that could never enable. The rows
+  still render, each carrying its "No line yet" pill.
+- The week-closed state is unchanged: *"You didn't make any picks this week."*
+
+### Gate output — all seven green
+
+`pnpm format` — exit 0. Only `packages/schemas/src/pickem.test.ts` rewrapped;
+every other file `(unchanged)`.
+
+`pnpm lint` — exit 0, no output.
+
+```
+$ pnpm -r typecheck
+Scope: 7 of 8 workspace projects
+packages/schemas typecheck$ tsc
+packages/schemas typecheck: Done
+packages/core typecheck$ tsc
+packages/scoring typecheck$ tsc
+packages/db typecheck$ tsc
+packages/scoring typecheck: Done
+packages/core typecheck: Done
+packages/db typecheck: Done
+apps/web typecheck$ tsc -b
+apps/api typecheck$ tsc
+apps/web typecheck: Done
+apps/api typecheck: Done
+```
+
+```
+$ vitest run --project unit
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  27 passed (27)
+      Tests  501 passed (501)
+   Start at  21:55:10
+   Duration  1.04s (transform 1.82s, setup 0ms, import 4.02s, tests 295ms, environment 1ms)
+
+```
+
+```
+$ vitest run --project integration
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  26 passed (26)
+      Tests  474 passed (474)
+   Start at  21:55:11
+   Duration  26.85s (transform 571ms, setup 0ms, import 12.80s, tests 11.58s, environment 1ms)
+
+```
+
+```
+$ pnpm contract:check
+$ pnpm --filter @picksleagues/api generate:openapi
+$ tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts
+Wrote /Users/paulmacfarlane/code/picksleagues/openapi/openapi.json
+✨ openapi-typescript 7.13.0
+🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [70.2ms]
+```
+
+Exit 0, and `openapi/` is untouched as predicted — `requiredPickemPickCount` is a
+plain exported function, not a Zod schema, so it has no wire shape. Confirmed by
+running it rather than assumed.
+
+```
+$ tsc -b && vite build
+… 3565 modules transformed …
+dist/assets/src-8XQVkclK.js                                192.13 kB │ gzip: 44.41 kB
+dist/assets/index-Fp9C1vZk.js                              260.36 kB │ gzip: 80.58 kB
+
+✓ built in 476ms
+```
+
+`pnpm test:e2e` not run, per instruction.
+
+### Note for the reviewer
+
+`§6`'s third bullet is now **wrong as written** and is deliberately left in place
+rather than edited: it is the record of what was shipped at commit 1 and what the
+review caught. This section supersedes it. `spread_unavailable` remains a live
+refusal with a narrower reach, which the retargeted test pins.
