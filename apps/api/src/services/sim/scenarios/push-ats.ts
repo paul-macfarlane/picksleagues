@@ -17,7 +17,8 @@ export const pushAtsScenario: SimScenarioDefinition = {
   weeks: [WEEK_1],
   games: [
     {
-      // 24-21 = home by 3, spread -3 -> margin (3) equals -spread (3): exact push.
+      // 24-21 = home by 3, spread -3 -> margin (3) equals -spread (3): exact
+      // push, worth 0.5 to whichever side was picked (ADR-0018 decision 4).
       providerGameId: "push-ats-1",
       weekType: WEEK_1.weekType,
       weekNumber: WEEK_1.weekNumber,
@@ -30,7 +31,8 @@ export const pushAtsScenario: SimScenarioDefinition = {
       finalAwayScore: 21,
     },
     {
-      // 27-13 = home by 14, spread -6 -> margin (14) > -spread (6): clear cover.
+      // 27-13 = home by 14, spread -6 -> margin (14) > -spread (6): clear
+      // cover, 1 point for home and 0 for away.
       providerGameId: "push-ats-2",
       weekType: WEEK_1.weekType,
       weekNumber: WEEK_1.weekNumber,
@@ -43,8 +45,8 @@ export const pushAtsScenario: SimScenarioDefinition = {
       finalAwayScore: 13,
     },
     {
-      // 20-17 = home by 3, spread -10 -> margin (3) < -spread (10): favorite fails
-      // to cover, clear non-cover for the home side.
+      // 20-17 = home by 3, spread -10 -> margin (3) < -spread (10): the favorite
+      // wins and still fails to cover, so home scores 0 and away scores 1.
       providerGameId: "push-ats-3",
       weekType: WEEK_1.weekType,
       weekNumber: WEEK_1.weekNumber,

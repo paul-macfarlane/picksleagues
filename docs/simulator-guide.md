@@ -116,18 +116,20 @@ you end up reading a confusing mix of two seasons.
 
 ## Scenario library
 
-Seven canned NFL edge cases (`apps/api/src/services/sim/scenarios/`), each
+Six canned NFL edge cases (`apps/api/src/services/sim/scenarios/`), each
 covering a specific spec rule:
 
-`push-ats` · `tie-game` · `cancelled-game` · `postponed-game` · `week-move` ·
+`push-ats` · `tie-game` · `cancelled-game` · `postponed-game` ·
 `all-eliminated` · `mixed-week`
 
 Library scenarios are re-materialized from their code definition on every load
 and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
-`docs/runbooks/pickem-regression.md` drives six of these seven as a manual Pick'em
-regression pass — what to click and what to assert, per scenario.
+`docs/runbooks/pickem-regression.md` drives most of these as a manual Pick'em
+regression pass — what to click and what to assert, per scenario. (SIMP-13
+rewrites that runbook against the ADR-0018/0019 rules; until it lands, its
+`week-move` pass names a scenario that no longer exists.)
 
 ## Replay a real season
 

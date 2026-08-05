@@ -6,7 +6,6 @@ import { mixedWeekScenario } from "./mixed-week";
 import { postponedGameScenario } from "./postponed-game";
 import { pushAtsScenario } from "./push-ats";
 import { tieGameScenario } from "./tie-game";
-import { weekMoveScenario } from "./week-move";
 
 /**
  * The canned edge-case scenario library (SIM-4). Keyed by slug so a route can
@@ -18,7 +17,6 @@ export const SIM_SCENARIO_LIBRARY: Record<string, SimScenarioDefinition> = {
   [tieGameScenario.slug]: tieGameScenario,
   [cancelledGameScenario.slug]: cancelledGameScenario,
   [postponedGameScenario.slug]: postponedGameScenario,
-  [weekMoveScenario.slug]: weekMoveScenario,
   [allEliminatedScenario.slug]: allEliminatedScenario,
   [mixedWeekScenario.slug]: mixedWeekScenario,
 };
