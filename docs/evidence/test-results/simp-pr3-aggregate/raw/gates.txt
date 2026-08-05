@@ -1,0 +1,69 @@
+=== integrated candidate: 2988ddead46390141e2d2627b98fcbc6912d2485 ===
+### pnpm format:check
+exit=0
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+### pnpm lint
+exit=0
+$ eslint .
+### pnpm typecheck
+exit=0
+packages/schemas typecheck$ tsc
+packages/schemas typecheck: Done
+packages/scoring typecheck$ tsc
+packages/core typecheck$ tsc
+packages/db typecheck$ tsc
+packages/scoring typecheck: Done
+packages/core typecheck: Done
+packages/db typecheck: Done
+apps/api typecheck$ tsc
+apps/web typecheck$ tsc -b
+apps/web typecheck: Done
+apps/api typecheck: Done
+### pnpm test
+exit=0
+$ vitest run --project unit
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  27 passed (27)
+      Tests  526 passed (526)
+   Start at  01:59:27
+   Duration  943ms (transform 1.46s, setup 0ms, import 3.64s, tests 277ms, environment 1ms)
+
+### pnpm contract:check
+exit=0
+$ pnpm contract:generate && test -z "$(git status --porcelain -- openapi)" || (git status --porcelain -- openapi && echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)
+$ pnpm --filter @picksleagues/api generate:openapi
+$ tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts
+Wrote /Users/paulmacfarlane/code/picksleagues/openapi/openapi.json
+✨ openapi-typescript 7.13.0
+🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [66.3ms]
+### pnpm --filter @picksleagues/web build
+exit=0
+dist/assets/labeled-select-DeGd6nyC.js                      30.91 kB │ gzip: 11.14 kB
+dist/assets/_authed-CLFOBgaQ.js                             38.84 kB │ gzip: 12.32 kB
+dist/assets/button-DVQXxmXL.js                              39.90 kB │ gzip: 13.43 kB
+dist/assets/useOpenInteractionType-uBJ0URaW.js              45.98 kB │ gzip: 15.69 kB
+dist/assets/Match-Dwiok2Jt.js                               48.57 kB │ gzip: 15.74 kB
+dist/assets/form-field-DFZsVdTH.js                          64.41 kB │ gzip: 16.02 kB
+dist/assets/date-time-picker-BqdEotWy.js                    85.39 kB │ gzip: 25.85 kB
+dist/assets/schemas-B7sqQlGY.js                            112.12 kB │ gzip: 30.28 kB
+dist/assets/src-DH0tloQA.js                                192.77 kB │ gzip: 44.55 kB
+dist/assets/index-Biez3Du6.js                              260.36 kB │ gzip: 80.58 kB
+
+✓ built in 444ms
+### pnpm db:up && pnpm test:integration
+exit=0
+$ vitest run --project integration
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  27 passed (27)
+      Tests  490 passed (490)
+   Start at  01:59:36
+   Duration  25.44s (transform 547ms, setup 0ms, import 12.60s, tests 10.46s, environment 1ms)
+

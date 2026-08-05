@@ -885,3 +885,145 @@ and stored shapes into two dispatch maps; a preset-only payload cannot satisfy t
 stored schema, whose week refs are required. The row now names
 `LEAGUE_SETTINGS_INPUT_SCHEMAS`. This corrects a stale plan line to match an approved
 decision (ADR-0020 §The wire shape diverges from the stored shape) — it is not a new one.
+
+### [AI CODE REVIEW] — PR 3, 2026-08-05
+
+Static review of the complete repository diff `9f80131..2988dde` (53 files, +2146/−2426)
+by the frontier orchestrator, along both required axes. Tests passing is not conformity;
+this is a separate read of the code against the contract and the standards.
+
+**No unresolved blocking findings.**
+
+#### Axis 1 — Technical implementation and spec conformity
+
+Every ticket's acceptance criteria are met as the epic and ADR-0020 define them.
+
+| Ticket | Conformity |
+|---|---|
+| SIMP-18 | The preset joins the stored shape **alongside** the resolved refs, so `leagueStartAt`, the join cutoff, the `nflSeasonOrdinal` range checks and `pickemSettingsInvalidatePicks` are untouched — which is the ticket's whole stated point. The wire divergence is structural, not procedural: `LEAGUE_SETTINGS_INPUT_SCHEMAS` gives Pick'em a request schema with no week refs at all, so "the client never supplies the range" is true by construction rather than by a stripping step someone can forget. Elimination and March Madness map to the *same schema object* in both maps rather than a duplicate that could drift. |
+| SIMP-19 | Resolution runs at creation and at the pre-start edit — the only two paths that write settings — behind one function, so a stored blob can never hold an unresolved shape. The MIN-effective-kickoff expression is the same `effectiveKickoffAtSql` the lock derivation uses, so resolution and locking cannot disagree about which week has begun. The no-games fallback falls out of the inner join rather than needing a defensive branch. `renewLeagueSeason` is correctly untouched. |
+| SIMP-20 | One select; both of D1's transitional bridges deleted, so the PR merges carrying none. Elimination keeps its explicit week pair and stops borrowing constants named for Pick'em. Both files stay in the plain-`useState` carve-out. |
+| SIMP-16 | Investigated against the **live** ESPN core API rather than the repo's fixtures — which is what made the finding possible, since those fixtures were Thursday-anchored and wrong. Two-week coverage is idempotent per week, the named-week path stays narrow, and the follower is found by start time so regular 18 pulls in the Wild Card round. |
+| SIMP-13 | Every pass traces to shipped behavior; 46 checkboxes reset, 0 left marked. The operator note's detection surfaces were verified to exist (`logInfo("nfl-sync-schedule.week-move", …)` at `ingest-season.ts:417`, the `weekMoves` counter surfaced through `sync-schedule.ts:172`) — a note telling an operator to watch for a log line that did not exist would be the same failure this ticket was written to fix. |
+| SIMP-15 | Finding: the epic orphaned **no live code**; what it left was nine comments and display strings naming deleted things. Spot-checked independently against the plan's own predicted orphans — `storedPriceSideFor`, `repickErrorMessage`, `formatSigned`, `movedLine`, `MovedPickTeam`, `PICKEM_WEEK_OPTIONS`, `latestSpreadsForGames`, `oddsSnapshots` all return zero references repo-wide. Each was deleted by the PR that orphaned it. |
+
+**Findings, none blocking:**
+
+1. **The stored-settings shape changed non-additively again, and it fails loudly.**
+   `seasonRangePreset` is required with no `.default()` — deliberately, since a pre-ADR row's
+   range came from somewhere the preset cannot describe and defaulting would mislabel that
+   league. The consequence is that existing **dev** Pick'em leagues now fail
+   `LEAGUE_SETTINGS_SCHEMAS[PICKEM].parse`, and the server-side call sites
+   (`pickem/picks.ts:124`, `pickem/settlement.ts:107`) use `.parse`, which throws — so a
+   stale dev league returns a logged 500 rather than degrading. This is the licence SIMP-18
+   grants explicitly and it expires at launch, but the failure is a 500 and the owner has dev
+   leagues. It leads the PR body rather than sitting in a footnote.
+2. **One question is computed by two different routes.** The settings editor's
+   pick-invalidation warning compares the chosen preset's *nominal* range, while the server
+   stores the *resolved* one. The equivalence was re-derived independently here and holds for
+   every reachable pre-start case: settings only edit pre-start, so the stored start week's
+   first kickoff is still ahead, so the server's resolved start can only be the stored start
+   or the nominal one — never a week in between that the client would miss. The reasoning is
+   load-bearing and is written into the code beside it. Flagged because it is the one place
+   the two sides answer the same question differently.
+3. **A refusal/throw asymmetry that is correct.** `resolveLeagueSettings` *returns* a refusal
+   for a bad request and *throws* if the resolved range fails the stored schema. The second
+   can only mean the resolver produced start-after-end, which is a bug and belongs in the
+   logged 500 — matching the rule that anything thrown is a bug by definition.
+4. **Reported, not fixed, not ticketed.** With the required set at 0 (an ATS week with no
+   lines yet), the API returns 200 for an empty submission that persists nothing. Traced at
+   both call sites: nothing is written, the member is not marked submitted, and the SPA's
+   `awaitingLines` branch already suppresses the control. Not a hazard; an imprecise contract.
+   Owner's call whether it becomes a ticket.
+
+#### Axis 2 — Coding standards (`CLAUDE.md`, `.claude/rules/engineering.md`, ADRs)
+
+Checked, and conformant: value sets are `as const` objects with derived literal unions and
+no `enum`; the two dispatch maps are wire-vs-stored, not a duplicated DTO; no
+`.openapi()`-registered schema is wrapped inline (`PickemSettingsInput` is registered under
+its own component name); all "now" reads go through the injected `Clock` with values bound
+as parameters, and the lint rule that enforces it passes; route handlers stay thin with
+resolution in a service; the service calls Drizzle directly with no repository layer; both
+forms stay in the documented plain-`useState` carve-out; the new control is labelled,
+keyboard-operable, theme-token-only and verified at 390px first; `openapi/` is regenerated
+and committed in the same change; comments state constraints and cross-file couplings
+rather than narrating steps. Tests assert outcomes rather than process, no presentation
+policy is frozen by a unit test, and the e2e additions stay journeys rather than branches.
+
+**Two orchestrator changes outside ticket scope, both deliberate and stated:**
+
+- `190c8a0` adds `.claude/worktrees/**` to the ESLint global ignores. A nested agent
+  worktree — which `CLAUDE.md` itself says belongs at that path — put a second TSConfig root
+  inside the lint scope and killed the parser before any rule ran, so `pnpm lint` was
+  failing outright for reasons unrelated to any change here. Fixing the gate was preferable
+  to recording it unrunnable. The stray worktree (`fix/testing-vitest-project-scoping`,
+  clean, not this session's) was left in place rather than removed.
+- `2988dde` corrects `.claude/rules/engineering.md`, which still listed `odds_snapshots`
+  among the "genuinely shared" tables after SIMP-7 dropped it. The D5 worker found it and
+  correctly declined to edit repository policy itself. A standards document naming a table
+  the schema no longer has is precisely the stale-guardrail failure PR 2's closeout warned
+  about.
+
+Three worker-authored fixes were made inline by the orchestrator rather than returned:
+`docs/plans/simp.md`'s SIMP-20 verification row (named the stored schema for what is now a
+wire payload), and one mangled sentence duplicated into `sync-odds.ts` and
+`docs/runbooks/jobs.md`. All are localized wording or reference corrections that change no
+design; recorded here so the commits' provenance stays honest.
+
+Three deliverables' evidence files were placed by the orchestrator because the workers'
+harness refused their file writes. Each worker reported the refusal instead of routing
+around it, which is the right behavior; the orchestrator re-ran the checks it cites rather
+than transcribing worker claims.
+
+### [CLOSEOUT] — PR 3, 2026-08-05
+
+Integrated candidate `2988dde` on `feat/simp-pr3-presets-and-closeout`, base `staging` at
+`9f80131`. 12 commits, 53 files, +2146/−2426. Aggregate gate evidence:
+`docs/evidence/test-results/simp-pr3-aggregate/report.md`; per-deliverable evidence in the
+sibling directories under the same root.
+
+| Deliverable | Tickets | Worker / model | Commits |
+|---|---|---|---|
+| D1 | SIMP-18, SIMP-19 | `atlas-worker` / opus | `ed93d24`, `1771afb` |
+| D2 | SIMP-20 | `atlas-worker` / opus | `9993bd8` |
+| D3 | SIMP-16 | `atlas-worker` / opus | `49612a3` |
+| D4 | SIMP-13 | `atlas-worker` / opus | `1df91b0` |
+| D5 | SIMP-15 | `atlas-worker` / opus | `b3d3e05` |
+| — | gate repair, review, evidence, record | frontier orchestrator | `c5adafc`, `190c8a0`, `4c48fbf`, `987e308`, `dbb24c4`, `2988dde` |
+
+**Verdicts.** Every check was run by the orchestrator on the integrated candidate.
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| SIMP-18/19 preset + resolved refs stored server-side; client cannot override | **PASS** | `pnpm test:integration` — `apps/api/test/league-season-range.test.ts`, 11 cases reading the **stored JSONB**: each preset's nominal range; `ignores week refs a client supplies alongside the preset` (a client naming postseason 4 gets regular 1–18); the games-less provisional fallback; both kickoff-boundary cases; an override-corrected kickoff; `still refuses a preset whose whole range has already run`; two pre-start-editor re-resolution cases. `pnpm contract:check` exit 0 with `openapi/` clean. |
+| SIMP-18/19 a league is never born already-started | **PASS** | Integration: created after week 1 kicked off, the stored start advances to week 2 and `startsAt` reads week 2's kickoff. The whole-range-in-the-past create still returns `start_week_passed`, so the refusal stayed reachable rather than being resolved away. |
+| SIMP-20 one preset select | **PASS** | Phone-width (390×844) screenshots at `simp-pr3-d2-forms/pickem-season-range-fieldset/`, inspected: one full-width "Season range" select, `Start week`/`End week` at count 0, all three presets as `option` roles, keyboard-committable. `pnpm test:e2e` drives the real create form. |
+| SIMP-16 the coming week carries spreads | **PASS** | Live ESPN boundaries recorded (`simp-pr3-d3-odds-coverage/report.md`): after week 1, Wednesday ~3am ET → Wednesday, contiguous. Clock-pinned integration cases seeded with those real windows: on a Tuesday with the current week fully played, the coming week's games come out priced; mid-week both are covered; re-running leaves rows identical; a named week stays narrow; the week after regular 18 is the Wild Card round. |
+| SIMP-13 runbook matches shipped behavior | **PASS** | Read-through: 46 checkboxes reset with 0 left marked; every surviving mention of a deleted flow is an explicit "this no longer exists" statement; every scenario slug it names exists in `SIM_SCENARIO_LIBRARY` and `week-move` appears nowhere; the operator note's log line and counter verified in `ingest-season.ts`. |
+| SIMP-15 no orphans | **PASS** | `pnpm lint` + `pnpm typecheck` exit 0, so no unused import or local survives. Orphan list in `simp-pr3-d5-sweep/report.md`; the plan's eight predicted orphans independently confirmed at zero repo-wide references. |
+| PR gates (format, lint, typecheck, test, integration, contract, web build) | **PASS** | All seven exit 0 on `2988dde`; raw output committed under `simp-pr3-aggregate/raw/`. |
+| Merge gate | **PASS** | `pnpm test:e2e` — **14 passed, 0 skipped**. The six-test Pick'em journey creates its leagues through the new preset path, both via the form and via a direct API post, and still locks, reveals and settles identically. |
+
+**Deviations, stated not buried.**
+
+1. **Settings JSONB changed non-additively** — `seasonRangePreset` is required with no
+   `.default()`, deliberately, so a pre-ADR row fails loudly instead of being mislabelled.
+   **Existing dev Pick'em leagues will now 500 on read** (`.parse` throws at
+   `pickem/picks.ts:124` and `pickem/settlement.ts:107`). This is SIMP-18's explicit
+   licence — no production data, dev data disposable, expiring at launch — but it is the
+   first thing to know before pulling this branch. Recreate dev leagues.
+2. **`pnpm lint` was already broken on `staging`** by a nested agent worktree, unrelated to
+   this work. Fixed here (`190c8a0`) rather than recorded as unrunnable.
+3. **`.claude/rules/engineering.md` named a dropped table.** Corrected; the change touches
+   human-owned repository policy, which is why a worker flagged it rather than editing it.
+4. **`docs/simulator-guide.md` lost one sentence** asserting the regression runbook named a
+   deleted scenario — true until D4, false after it.
+5. **The ESPN week-window fixtures were wrong**, not merely stale: Thursday-anchored
+   constructed data where the real windows are Wednesday-anchored. That shape is what hid
+   the odds gap from the test suite. Corrected against live data.
+
+**Not covered, stated rather than implied:** the Pick'em fieldset inside the *settings
+editor* was not screenshotted separately at phone width. It renders the same component the
+create form does, so the layout is identical by construction, but it was not observed.
+
+**Tickets stay `[~]`.** `[x]` is human-only after PR review (`docs/agents/issue-tracker.md`).
