@@ -127,9 +127,7 @@ and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
 `docs/runbooks/pickem-regression.md` drives most of these as a manual Pick'em
-regression pass — what to click and what to assert, per scenario. (SIMP-13
-rewrites that runbook against the ADR-0018/0019 rules; until it lands, its
-`week-move` pass names a scenario that no longer exists.)
+regression pass — what to click and what to assert, per scenario.
 
 ## Replay a real season
 
