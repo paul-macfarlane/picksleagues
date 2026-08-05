@@ -553,3 +553,70 @@ locked-doc amendments, and the `[x]` transitions on SIMP-1/2/3/17/21 are human-o
 **PR:** https://github.com/paul-macfarlane/picksleagues/pull/27 (`picksleagues`, base
 `staging`). Tickets stay `[~]`; `[x]` is human-only after review
 (`docs/agents/issue-tracker.md`).
+
+---
+
+## [PROGRESS] — PR 2 (SIMP-4, 5, 6, 7, 8, 9, 10, 11, 12, 14)
+
+_Opened 2026-08-04 by `/atlas-implement`. Branch `feat/simp-pr2-rule-surface-collapse`
+off `staging` at `589fac0`. Repository delivery: `picksleagues` (`.`), direct checkout —
+see §Isolation below._
+
+### Isolation decision — direct checkout, no worktrees
+
+The plan's own finding is that these ten tickets are one green unit: the gates
+(`typecheck`, `contract:check`, NOT NULL columns) fail between adjacent tickets wherever
+a symbol deletion and its consumer deletions sit in different tickets. That same coupling
+is what rules out parallel worktrees. The two candidate parallel pairs both collide:
+SIMP-7 (spread) and SIMP-9 (moved) share `apps/api/src/services/slate.ts`; every
+schema-touching ticket shares `packages/schemas/src/pickem.ts` and the committed
+`openapi/` regeneration, which must land exactly once in a green state. A merge of two
+worktrees would therefore conflict in precisely the files whose consistency the gates
+check. Sequential deliverables in one checkout, with the frontier orchestrator screening
+each diff before the next dispatch, is both safer and cheaper here.
+
+### Execution structure — sequential, six deliverables
+
+Ticket commit order follows the plan's PR 2 sequence exactly; one commit per ticket so
+IDs stay referenceable. A deliverable may span several ticket commits where the plan's
+couplings make a smaller unit unverifiable.
+
+| # | Deliverable | Tickets | Ends gate-green? |
+|---|---|---|---|
+| D1 | Fixed-0.5 push, no differential, points-only ranks in `packages/scoring` | SIMP-4 | **Yes** — carries the plan's licensed bridges (`differential: 0` at the five settlement sites, `pushTieResolution` at `settlement.ts:184`) so nothing downstream breaks yet. |
+| D2 | Schema deletions + widened invalidation + new wire codes + differential migration | SIMP-5, SIMP-6 | No — the plan licenses this: SIMP-5's deletions have consumers deleted only in SIMP-8/9/10/11. Verified against a precommitted expected-red list. |
+| D3 | Spread collapse: `games.spread`, idempotent `sync-odds`, `odds_snapshots` gone | SIMP-7 | No — carries D2's red set forward. |
+| D4 | Submit-once write path + settlement/read-path moved removal + contract regen | SIMP-8, SIMP-9 | API/schemas/db green; `apps/web` still red until D5. |
+| D5 | My Picks rewrite, standings, simulator scenarios | SIMP-10, SIMP-11, SIMP-12 | **Yes** — full gate set including `pnpm --filter @picksleagues/web build`. |
+| D6 | E2E merge-gate journey on the submit-once flow | SIMP-14 | **Yes** — plus the human-gated `pnpm test:e2e`. |
+
+Why the intermediate deliverables may end red: making each one green would require
+pulling consumer deletions forward out of their own tickets, which destroys the
+commit-per-ticket contract for no verification gain — the PR, not the commit, is the unit
+the gates judge. Each red deliverable instead ships a precommitted list of the exact
+compile errors it is allowed to leave behind, and the orchestrator rejects any error not
+on that list.
+
+### Criterion-level verification map for this PR
+
+Rows are the plan's §Verification map entries whose earliest checkpoint is PR 2, plus the
+per-PR gate row. Evidence root `docs/evidence/test-results/` is cleared at PR open (PR 1's
+evidence survives in git history, per the plan header).
+
+| Criterion (ticket) | Check | Expected | Earliest checkpoint | Invalidated by |
+|---|---|---|---|---|
+| SIMP-4 push fixed / no differential / shared ranks | `pnpm test` (scoring tables) | 0.5 on every push; `rankStandings` points-only; every remaining spec rule keeps a named case | after D1 | any later scoring edit |
+| SIMP-5 contract clean + raise-invalidates | `pnpm contract:check`; grep the generated client for `PickemRepickRequest`/`movedGame`/`differential`/`MOVED`; unit test on the widened predicate | regen is a no-op; any `picksPerWeek` change invalidates | after D4 (first green state that can regenerate) | any schema edit |
+| SIMP-6/7 migrations apply | `pnpm db:migrate` on a fresh and an existing dev DB; `pnpm test:integration` | columns/table gone, `games.spread` present, suites green | after D3 | later schema edits |
+| SIMP-7 override precedence | integration: override set → wins; cleared → provider spread; re-sync never clobbers an override | `overrideSpread ?? spread` at the serializer and settlement loader only | after D3 | odds/override edits |
+| SIMP-7 sync-odds idempotent | integration: run twice → identical row state, no history; postponed still covered | UPDATE semantics | after D3 | sync-odds edits |
+| SIMP-8 submit-once | integration: second submit → `already_submitted`; over/under-size refusals; post-first-kickoff submitter (B1); raise-then-resubmit (B2); lock/stale/unavailable unchanged | typed refusals; handler mapping compiles exhaustively | after D4 | write-path edits |
+| SIMP-9 cancelled = push, stands | integration: cancel pre/post kickoff → push result; `/repick` absent from the contract; settle twice → identical state | idempotency retained | after D4 | settlement edits |
+| SIMP-10 confirm-and-freeze UI | e2e journey + phone-width screenshots (sheet, confirm dialog, read-only state) | Save gated on completeness; submitted week read-only | after D6 | any My Picks edit |
+| SIMP-11 standings | integration assertions + screenshot | no Diff anywhere; ties share a rank with nothing behind it | after D5 | standings edits |
+| SIMP-12 scenarios | `pnpm test:integration` (sim) + the `/sim` scenario list | `week-move` absent; `cancelled-game` settles to a standing push | after D5 | scenario edits |
+| SIMP-14 merge gate | `pnpm test:e2e` (**human-gated**) | journey green on the submit-once flow | after D6 | anything |
+| PR gates | `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:up && pnpm test:integration`, `pnpm contract:check`, `pnpm --filter @picksleagues/web build` | green | after D6 | — |
+
+Human gate: `pnpm test:e2e` deletes every league in the dev database, so each run needs
+explicit owner approval before it is launched (`docs/agents/testing.md`).
