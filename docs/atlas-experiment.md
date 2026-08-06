@@ -69,11 +69,11 @@ Setup asks for confirmation in ten numbered sections. These are the answers — 
 | --- | --- | --- |
 | `pnpm typecheck` | verified | `tsc` across all workspaces. Every change. |
 | `pnpm lint` | verified | ESLint, incl. the Clock rule and `max-lines` warnings. Every change. |
-| `pnpm test` | verified (27 files, 528 tests) | Vitest unit, no DB. Every change. |
+| `pnpm test` | verified (25 files, 435 tests) | Vitest unit, no DB. Every change. |
 | `pnpm test:integration` | verified (26 files, 505 tests) | In-process Hono against real Postgres; auto-creates and migrates `picksleagues_test`. Any API/DB/service change. |
 | `pnpm contract:check` | verified, clean | Fails if `openapi/` is stale. Any Zod schema or route change. |
 | `pnpm db:up` / `pnpm db:migrate` | verified | Docker Postgres on **port 5433**; applies `packages/db/migrations`. |
-| `pnpm test:e2e` | verified (14 tests, 14.5s) | Playwright against the full local stack; starts or reuses both dev servers itself. The merge gate. |
+| `pnpm test:e2e` | verified (13 tests, 12.8s) | Playwright against the full local stack; starts or reuses both dev servers itself. The merge gate. |
 | `pnpm format` / `format:check` | inferred | Prettier. |
 | **`pnpm build`** | **unavailable at root** | There is no root `build` script. The only build is `pnpm --filter @picksleagues/web build` (`tsc -b && vite build`); `apps/api` and all packages have none. Do not let setup record `pnpm build` as a gate. |
 

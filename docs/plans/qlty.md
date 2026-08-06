@@ -365,3 +365,181 @@ branch: `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`,
 `pnpm contract:check` is not mapped: no ticket touches a Zod schema, DTO, or
 route.
 
+---
+
+## [PROGRESS]
+
+| Deliverable | Ticket | Model | Commit | Outcome |
+|---|---|---|---|---|
+| D1 | QLTY-1 | opus | `f2885a3` | 54 rules audited → 24 untouched, 29 keep+why, 1 deleted |
+| D2 | QLTY-3 | sonnet | `8ae6082` | 528 → 435 unit tests, 2 files deleted, 681 lines removed |
+| D3 | QLTY-2 | opus | `106cc2a` | 48 prose sites rebound, 15 testids added, probe passed |
+| D4 | QLTY-4 | opus | `a14984f` | journey 653 → 546 lines, 68 → 39 assertions, 14 → 13 tests |
+
+D1, D2 and D3 ran **concurrently** (the recorded plan serialized D3; the revision
+is noted in the execution plan above). D4 ran alone after D3 integrated.
+
+### File-conflict prediction, re-checked against the real diffs
+
+The plan predicted D1/D2/D3 disjoint and D3∩D4 = the whole journey file.
+`git show --name-only` on all four commits confirms both: D1 touched one markdown
+file, D2 five `*.test.ts`, D3 ten `.tsx` plus three specs, D4 only
+`e2e/pickem-journey.sim.spec.ts`. **No predicted conflict failed to materialize
+and no unpredicted one appeared** — running the three concurrently was correct,
+and serializing D4 behind D3 was correct.
+
+### Orchestrator rulings
+
+1. **The e2e count drops 14 → 13, and that is accepted.** The D4 packet said the
+   suite "must pass 14/14" while the same packet's candidate trim leaned "delete
+   the cap-league step" — deleting a `test()` block necessarily changes the
+   count. The worker flagged the contradiction rather than padding the suite to
+   hit the number, which is the right instinct. The precommitted criterion is
+   explicit that there is no size quota, so the audit governs and the count
+   follows it.
+2. **A trim justification citing a test QLTY-3 deleted is not valid.** D3's
+   report justified decomposing the "won by / lost by" assertions by pointing at
+   `apps/web/src/lib/game.test.ts` — but D2 removed exactly those cases in
+   parallel. The decision stands on its own (label pairing is presentation
+   policy, so no test is owed); the *stated home* was stale. D4's packet carried
+   this correction so its audit could not repeat it.
+3. **Stale repository facts corrected in this work package.**
+   `docs/agents/testing.md` and `docs/atlas-experiment.md` both recorded
+   `27 files, 528 tests` and `14 tests`; the prune and the trim invalidated both.
+   Updated to `25 files, 435 tests` and `13 tests`, with the e2e last-verified
+   stamp moved to 2026-08-06 on this branch.
+
+---
+
+## [AI CODE REVIEW]
+
+Single formal review, performed statically by the frontier orchestrator over the
+complete `13f08a0..a14984f` diff. **No blocking findings.** Five observations
+recorded below; all are accepted dispositions, three of them wanting an owner
+ruling at PR review.
+
+### Axis 1 — technical implementation and spec conformity
+
+Conformity is exact on all four tickets: QLTY-1 audited every rule and recorded
+*why* for keeps as well as cuts; QLTY-2 rebound to roles/semantics and used a
+testid only where a value must be located positionally, delivered before the
+facelift; QLTY-3 kept what encodes a rule and decided `game.test.ts` and
+`standings.test.ts` individually rather than sweeping the directory; QLTY-4
+classified every assertion and named a lower home or "presentation, no test
+owed" for every trim. Every cited lower home was **verified to exist** by
+reading the target file — `too_many_picks`, `pick_set_incomplete`,
+`picksAllowed` capping, the visibility filter, the weekly-vs-season board case,
+`describe("pickMargin")`, and `league-lifecycle.spec.ts:67-68` all resolve.
+
+1. **`identity.spec.ts` no longer distinguishes its two refusals** — *low,
+   accepted.* `expectFieldError(page, "username")` replaces both the
+   format-error sentence and the "already taken" sentence, so the two call sites
+   now assert the same thing and a bug mapping the 409 onto the *format* error
+   would pass. Accepted because which message appears is decided in
+   `packages/schemas` and pinned for the 409 in `apps/api/test`, while the
+   browser-unique claim — a refusal reached the field the member is looking at,
+   wired so a screen reader announces it — is preserved and in fact asserted
+   more strictly than before (`aria-invalid` + `aria-describedby` + non-empty).
+2. **Three container testids where the rule prefers a heading-anchored role** —
+   *low, accepted.* `standings-card`, `week-picks-card` and
+   `replay-import-card` address *regions* by testid, and the rule reserves
+   testids for values that must be located positionally. Accepted because
+   shadcn's `Card` renders a plain `div` with no role and no accessible name, so
+   a role query would first require adding `role="region"` + `aria-labelledby` —
+   a real a11y improvement, but production markup this epic is scoped out of.
+   The plan explicitly sanctioned "region/testid". Worth a future ticket.
+3. **`aria-pressed` on the locked pick is now unpinned at every layer** —
+   *medium, accepted, owner ruling wanted.* D4 classified it (d); it had guarded
+   a real reported defect (both sides rendering identically once locked).
+   Accepted because `engineering.md` puts fill and enablement squarely in the
+   owner's hands and the domain fact is recoverable from step 6's grade — but
+   this is precisely the epic's own "deleting something load-bearing is the risk
+   to weigh" case. If the owner wants it back, the honest home is a
+   `data-picked-team` attribute on `SubmittedPickRow`, not a restored
+   `aria-pressed` assertion.
+4. **The `?week=` standings selector is unpinned in the browser** — *low,
+   accepted.* D4 trimmed both the URL assertion and the weekly-board repeat. The
+   honest reading is that neither could have caught a wrong-scope bug: with one
+   week played the weekly and season boards carry identical numbers. Pinning it
+   truthfully needs a two-week fixture, which is scope expansion. The server
+   side is held by `pickem-standings.test.ts` → "weekly board carries only that
+   week's points…".
+5. **`StatusPill` widened to `ComponentProps<"span">`** — *informational.*
+   `className` is destructured before `{...props}` so there is no override
+   hazard, and `children` stays required, so an empty pill is still a type
+   error.
+
+**Verified absent:** no production logic changed (the SPA diff is attributes,
+comments and reflow only — confirmed by filtering the diff for non-attribute
+JSX); no helper was orphaned by the test deletions (`sharedRankCounts` and
+`rankLabel` are still consumed by `pickem-week-detail.tsx` and
+`pickem-standings-table.tsx`); no assertion silently disappeared in QLTY-2, and
+every QLTY-4 removal is in its audit table.
+
+### Axis 2 — coding standards
+
+Conforms to `CLAUDE.md` and `.claude/rules/engineering.md`, including the
+versions of those rules this work package rewrote. Specifically: comments state
+constraints and cross-file couplings rather than narrating code; the e2e
+assertions use the `PICK_OUTCOME` / `GAME_STATUS` const sets rather than raw
+literals; UI tests bind to roles, accessible names and deliberate testids with
+no positional selector anywhere; relative imports stay extensionless; no
+arbitrary color values and no theme-token drift; `packages/scoring` untouched;
+no Clock discipline surface involved. The identity rebinding *strengthens*
+accessibility coupling by asserting the `aria-invalid` / `aria-describedby`
+wiring that previously went unchecked.
+
+---
+
+## [CLOSEOUT]
+
+**Repository delivery:** `picksleagues`, branch `chore/qlty-quality-pass`, base
+`staging`, comparison SHA `13f08a0`, integrated candidate `a14984f`.
+Run surface: local only. Evidence root: `docs/evidence/test-results/qlty-aggregate`.
+
+### DoD verdicts
+
+| Ticket | Criterion | Verdict | Evidence |
+|---|---|---|---|
+| QLTY-1 | Every surviving rule states the failure it prevents; why recorded for keeps and cuts | **PASS** | Audit table in the PR body; 54 → 53 rules, one deletion |
+| QLTY-1 | Doc hygiene | **PASS** | `pnpm format:check` clean — `static-and-unit.txt` |
+| QLTY-2 | No sentence-prose binding survives in `e2e/` | **PASS** | Post-change grep: remaining bindings are test-seeded domain data, values inside testid'd cells, and one negative assertion |
+| QLTY-2 | **Decoupling is real, not asserted** | **PASS** | Orchestrator-run probe on the integrated candidate: 5 copy strings reworded across 4 files (grade badges, hidden-pick sentence, board title, pick summary) → **13/13 passed** — `e2e-copy-mutation-probe.txt`; reverted byte-exact, `git status` clean |
+| QLTY-2 | Merge gate green | **PASS** | `pnpm test:e2e` 13/13 — `e2e-merge-gate.txt` |
+| QLTY-2 | SPA intact after testid additions | **PASS** | Web build + `pnpm test` — `static-and-unit.txt` |
+| QLTY-3 | Dispositions applied; every drop names its home or "presentation policy" | **PASS** | Disposition table in the PR body; diff matches it |
+| QLTY-3 | Unit suite green after prune, no orphaned imports | **PASS** | `pnpm test` 435/435 in 25 files — `static-and-unit.txt` |
+| QLTY-4 | Audit table complete before any deletion | **PASS** | Per-assertion table in the PR body, covering keeps as well as trims |
+| QLTY-4 | No rule left homeless | **PASS** | Every cited home independently verified to exist by reading the target file |
+| QLTY-4 | Merge gate green | **PASS** | 13/13 — `e2e-merge-gate.txt` |
+| QLTY-4 | Integration suite (only if cases added) | **n/a** | No case owed: the submitted-week filter is an SPA-side intersection in `pickem-picks.tsx`, not API serialization — verified in source |
+| QLTY-4 | Size delta recorded | **PASS** | 653 → 546 lines, 68 → 39 assertions, 6 → 5 tests, suite 14 → 13 |
+| All | Static gates | **PASS** | `pnpm typecheck`, `pnpm lint`, `pnpm format:check` all exit 0 |
+
+`pnpm test:integration` was not run: no file under `apps/api/` changed.
+`pnpm contract:check` was not run: no Zod schema, DTO, or route changed.
+
+### Deviations from the plan
+
+1. One PR with four commits instead of four PRs (Atlas opens one PR per
+   repository per work package; commit boundaries preserve the reviewability the
+   plan wanted).
+2. D3 ran concurrently with D1/D2 rather than after them; the conflict
+   re-check above confirms this was safe.
+3. Workers did not commit — the orchestrator committed each deliverable after
+   its acceptance screen.
+4. The e2e suite is 13 tests, not 14 (ruling 1 above).
+5. `docs/agents/testing.md` and `docs/atlas-experiment.md` were corrected for
+   stale test counts — files outside the four tickets' scope, changed because
+   this work package is what invalidated them.
+
+### Owner rulings wanted at PR review
+
+- QLTY-1's cut of **"Loose coupling"**, and the kept-but-contested **"Match
+  surrounding code"** (the worker considered deleting it and argued itself into
+  a keep).
+- QLTY-3's two whole-file deletions, `pickem-week-detail.test.ts` and
+  `lib/standings.test.ts`.
+- QLTY-4's dropped **`aria-pressed`** assertion (review finding 3), which
+  guarded a real past defect and now has no home at any layer.
+
