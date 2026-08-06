@@ -22,4 +22,4 @@ Ref: `.claude/rules/engineering.md` — §preamble (every rule states its why) a
 ## Technical plan
 
 - QLTY-1..4: `docs/plans/qlty.md` (delivered — PR #32; closeout recorded there).
-- QLTY-5: `docs/plans/qlty-5.md` (delivered — review, evidence, and closeout recorded there).
+- QLTY-5: `docs/plans/qlty-5.md` (delivered — PR #35; review, evidence, and closeout recorded there).

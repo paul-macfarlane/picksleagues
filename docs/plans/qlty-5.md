@@ -273,7 +273,8 @@ No unresolved blocking findings on either axis.
 # [CLOSEOUT] — QLTY-5
 
 Repository delivery: `picksleagues`, branch `chore/qlty-5-comment-stance`,
-base `staging` at `c29e12a`, head `cd65072`. Run surface: local only.
+base `staging` at `c29e12a`, verified at `cd65072`. Run surface: local only.
+Pull request: https://github.com/paul-macfarlane/picksleagues/pull/35
 Evidence root `docs/evidence/test-results`, cleared at the start of this work
 package and committed on the branch.
 
