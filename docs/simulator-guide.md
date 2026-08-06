@@ -169,7 +169,7 @@ about (engineering rules §Quality).
   - *Keep the active scenario* rewinds the clock to that scenario's start, so the
     wiped season re-ingests as unplayed. Without the rewind every game would come
     back already final and its spreads would be unrecoverable, since the odds sync
-    only snapshots games that have not kicked off.
+    only prices games that have not kicked off.
   - *Drop it* deletes the active scenario and returns the clock to real time.
 
 ## Gotchas

@@ -1046,3 +1046,21 @@ range rather than a control, since Elimination still picks weeks and the refusal
 This is interim: the owner's preferred fix is that a preset whose range has wholly passed
 should not be offerable at all, which needs the create form to know which presets the bound
 season still supports — a new ticket, not a copy change.
+
+**SIMP-15 second correction (2026-08-06, independent audit).** The sweep was audited by a
+fresh agent that did not perform it, against the epic's true base `0625ec0^`. Its
+mechanical categories came back genuinely clean — 795 exports enumerated with none
+orphaned by the epic, every const-set member with a producer, every DB column read, all 89
+OpenAPI components `$ref`'d, no uncalled test fixture. The stale-**reference** category did
+not: nine further comments and docblocks describing deleted behavior, fixed here.
+
+Two lessons worth keeping. First, the keyword sweep the original pass used is the wrong
+tool for this defect class: three of the nine were found by contradiction against a
+docblock the epic had already corrected, not by matching a deleted symbol's name. Second,
+a correction can stop short — findings 1 and 2 were in the *same docblock and paragraph* a
+previous fix had rewritten six lines above. The running tally of stale references the epic
+left is now twenty-one, not nine.
+
+Three further findings are stale text in `backlog/13-quality.md` (QLTY-2, QLTY-3, QLTY-4).
+Ticket text is preview-gated (`docs/agents/issue-tracker.md`), so they are surfaced to the
+owner rather than edited here.

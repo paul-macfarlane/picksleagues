@@ -36,8 +36,8 @@ export const SlateGameSchema = z
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
     awayScore: z.number().int().nullable(),
-    // Home-relative; negative = home favored. Null until the odds sync captures
-    // a snapshot, and in straight-up leagues it is simply unused.
+    // Home-relative; negative = home favored. Null until the odds sync prices the
+    // game, and in straight-up leagues it is simply unused.
     spread: z.number().nullable(),
     /**
      * Live in-game state (DATA-8): the 1-based period a game in progress is in

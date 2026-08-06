@@ -254,7 +254,7 @@ export type UpdateSimFixtureGameRequest = z.infer<typeof UpdateSimFixtureGameReq
  * An environment reset also rewinds the simulated clock to the active scenario's
  * start, so the wiped season re-ingests as an unplayed one. Without that, every
  * game would come back already final and its spreads would be unrecoverable —
- * the odds sync only snapshots games that haven't kicked off.
+ * the odds sync only prices games that haven't kicked off.
  */
 export const SIM_RESET_SCOPE = {
   LEAGUE: "league",

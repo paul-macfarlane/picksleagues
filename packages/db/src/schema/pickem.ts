@@ -87,7 +87,7 @@ export const pickemPicks = pgTable(
       table.gameId,
       table.weekId,
     ),
-    // Serves the per-week read/replace path (own picks, others' picks) and the
+    // Serves the per-week read path (own picks, others' picks) and the
     // picks-per-week cap count.
     index("pickem_picks_season_week_idx").on(table.leagueSeasonId, table.weekId),
     index("pickem_picks_member_week_idx").on(table.leagueMemberId, table.weekId),
