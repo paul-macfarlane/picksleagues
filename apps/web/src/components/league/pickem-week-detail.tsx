@@ -109,7 +109,10 @@ export function PickemWeekDetail({
   const seasonShared = sharedRankCounts(seasonRows);
 
   return (
-    <Card>
+    // The card is addressed by testid and identified by the week it is for:
+    // the title reads "Picks — Week 1", of which only "Week 1" is a fact — the
+    // rest is copy the facelift may reword.
+    <Card data-testid="week-picks-card" data-week-label={slate.data?.label}>
       <CardHeader>
         <CardTitle>{slate.data && picks.data ? `Picks — ${slate.data.label}` : "Picks"}</CardTitle>
         {slate.data && picks.data && (
@@ -246,7 +249,7 @@ function MemberPicksSection({
         {/* Rendered as a count, never as placeholder rows implying content
             (spec §Pick Visibility) — the games behind it haven't kicked off. */}
         {member.hiddenPickCount > 0 && (
-          <p className="pl-9 text-xs text-muted-foreground">
+          <p data-testid="hidden-pick-count" className="pl-9 text-xs text-muted-foreground">
             {member.hiddenPickCount} more pick{member.hiddenPickCount === 1 ? "" : "s"} in — not yet
             revealed.
           </p>
@@ -281,7 +284,17 @@ function PickRow({
   );
 
   return (
-    <li className={PICK_ROW_CLASS_NAME}>
+    // Identified as data rather than by the "(AWAY @ HOME)" text beside the
+    // pick: the merge-gate journey has to find one member's row for one
+    // specific game — and which side they took — without binding to how either
+    // is worded.
+    <li
+      data-testid="member-pick"
+      data-away-team={game.awayTeam.abbreviation}
+      data-home-team={game.homeTeam.abbreviation}
+      data-picked-team={pickedTeam.abbreviation}
+      className={PICK_ROW_CLASS_NAME}
+    >
       <span className="flex flex-wrap items-center gap-1.5 text-foreground">
         <TeamLogo
           logoLightUrl={pickedTeam.logoLightUrl}
@@ -299,7 +312,11 @@ function PickRow({
             they pair on a graded pick, and the standing stands alone while the
             game is still running. */}
         {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
-        {standing && <span className="text-muted-foreground">{standing}</span>}
+        {standing && (
+          <span data-testid="pick-standing" className="text-muted-foreground">
+            {standing}
+          </span>
+        )}
       </span>
       {/* The "as of" qualifier is folded into this same line rather than given
           a block of its own: the row is already tight (unlike the pick-entry

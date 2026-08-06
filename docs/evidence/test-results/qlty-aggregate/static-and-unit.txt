@@ -1,0 +1,65 @@
+# QLTY aggregate verification
+Branch chore/qlty-quality-pass, integrated candidate a14984f, base staging 13f08a0.
+Run surface: local only. Commands from docs/agents/testing.md.
+
+## $ pnpm typecheck
+$ pnpm -r typecheck && tsc -p e2e/tsconfig.json
+Scope: 7 of 8 workspace projects
+packages/schemas typecheck$ tsc
+packages/schemas typecheck: Done
+packages/scoring typecheck$ tsc
+packages/core typecheck$ tsc
+packages/db typecheck$ tsc
+packages/scoring typecheck: Done
+packages/core typecheck: Done
+packages/db typecheck: Done
+apps/web typecheck$ tsc -b
+apps/api typecheck$ tsc
+apps/web typecheck: Done
+apps/api typecheck: Done
+-> exit 0 (confirmed by a separate run capturing $?; the inline capture lost PIPESTATUS through eval)
+
+## $ pnpm lint
+$ eslint .
+-> exit 0 (confirmed by a separate run capturing $?; the inline capture lost PIPESTATUS through eval)
+
+## $ pnpm format:check
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+-> exit 0 (confirmed by a separate run capturing $?; the inline capture lost PIPESTATUS through eval)
+
+## $ pnpm test
+$ vitest run --project unit
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  25 passed (25)
+      Tests  435 passed (435)
+   Start at  12:59:10
+   Duration  895ms (transform 1.41s, setup 0ms, import 3.21s, tests 252ms, environment 2ms)
+
+-> exit 0 (confirmed by a separate run capturing $?; the inline capture lost PIPESTATUS through eval)
+
+## $ pnpm --filter @picksleagues/web build
+dist/assets/settings-ZhTLhwFi.js                            13.59 kB │ gzip:  5.14 kB
+dist/assets/league-settings-fields-aXTfdKBo.js              15.74 kB │ gzip:  6.24 kB
+dist/assets/api-lWrT7OmJ.js                                 17.45 kB │ gzip:  6.15 kB
+dist/assets/link-B-lhMir-.js                                21.61 kB │ gzip:  8.12 kB
+dist/assets/auth-CgaLEmEp.js                                28.39 kB │ gzip: 10.73 kB
+dist/assets/useAnchoredPopupScrollLock-CgaeFSMb.js          28.69 kB │ gzip: 10.95 kB
+dist/assets/labeled-select-Dhgl9CPv.js                      30.91 kB │ gzip: 11.14 kB
+dist/assets/_authed-B4lt9Q9d.js                             38.84 kB │ gzip: 12.32 kB
+dist/assets/button-DVQXxmXL.js                              39.90 kB │ gzip: 13.43 kB
+dist/assets/useOpenInteractionType-uBJ0URaW.js              45.98 kB │ gzip: 15.69 kB
+dist/assets/Match-Dwiok2Jt.js                               48.57 kB │ gzip: 15.74 kB
+dist/assets/form-field-DFZsVdTH.js                          64.41 kB │ gzip: 16.02 kB
+dist/assets/date-time-picker-CTisLp9X.js                    85.39 kB │ gzip: 25.85 kB
+dist/assets/schemas-B7sqQlGY.js                            112.12 kB │ gzip: 30.28 kB
+dist/assets/src-DH0tloQA.js                                192.77 kB │ gzip: 44.55 kB
+dist/assets/index-CcThwhiH.js                              260.36 kB │ gzip: 80.58 kB
+
+✓ built in 423ms
+-> exit 0 (confirmed by a separate run capturing $?; the inline capture lost PIPESTATUS through eval)
+

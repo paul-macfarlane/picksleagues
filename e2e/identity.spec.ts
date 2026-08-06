@@ -1,8 +1,31 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { cleanup, mintSession, uniqueUsername } from "./setup/session";
 
-const USERNAME_ERROR =
-  "Username must be 3-20 characters and contain only letters, numbers, and underscores";
+/**
+ * A field was refused, addressed through the a11y wiring `FormTextField` sets up
+ * — `aria-invalid` plus the error element the input points at — rather than
+ * through the sentence that element prints.
+ *
+ * *Which* message it is stays pinned where the message is decided: the username
+ * format rule in `packages/schemas`, the 409 → field-error mapping in
+ * `apps/api/test`. What only a browser can prove is that the refusal reached the
+ * field the member is looking at, wired up so a screen reader announces it.
+ */
+async function expectFieldError(page: Page, fieldId: string) {
+  const input = page.locator(`#${fieldId}`);
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(input).toHaveAttribute("aria-describedby", `${fieldId}-error`);
+  const error = page.locator(`#${fieldId}-error`);
+  await expect(error).toBeVisible();
+  await expect(error).not.toBeEmpty();
+}
+
+// The shared sonner toast, by the toaster's own type rather than the copy
+// inside it — every action's outcome goes through this one mechanism
+// (engineering rules §Quality), and its wording is the owner's to change.
+function successToast(page: Page): Locator {
+  return page.locator('[data-sonner-toast][data-type="success"]');
+}
 
 // Mints a session and drops it straight into the browser's cookie jar —
 // every spec below authenticates this way instead of driving real OAuth
@@ -31,7 +54,7 @@ test.describe("identity", () => {
 
       await page.locator("#username").fill("ab");
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page.locator("#username-error")).toHaveText(USERNAME_ERROR);
+      await expectFieldError(page, "username");
 
       await page.locator("#username").fill(username);
       await page.getByRole("button", { name: "Continue" }).click();
@@ -93,7 +116,7 @@ test.describe("identity", () => {
       await expect(saveButton).toBeEnabled();
       await saveButton.click();
 
-      await expect(page.getByText("Profile updated")).toBeVisible();
+      await expect(successToast(page)).toBeVisible();
       // The form remounts on a fresh server value once the "me" query
       // refetches; disabled-again is the signal that's landed before the
       // next edit.
@@ -102,7 +125,7 @@ test.describe("identity", () => {
       await page.locator("#username").fill(conflictingUsername);
       await expect(saveButton).toBeEnabled();
       await saveButton.click();
-      await expect(page.locator("#username-error")).toHaveText("That username is already taken.");
+      await expectFieldError(page, "username");
 
       await openAccountMenu(page);
       // Scoped to the menu: the profile page itself now renders the display
