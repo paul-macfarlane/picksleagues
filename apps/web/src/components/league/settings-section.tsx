@@ -61,9 +61,11 @@ import { useErrorToast } from "@/lib/use-error-toast";
 export function LeagueSettingsSection({
   league,
   canEdit,
+  started,
 }: {
   league: LeagueResponse;
   canEdit: boolean;
+  started: boolean;
 }) {
   return (
     <Card>
@@ -78,7 +80,12 @@ export function LeagueSettingsSection({
             syncing each one via a `useEffect` (the effect-free idiom
             number-field.tsx uses for a single prop, applied once for the
             whole merged form). */}
-        <SettingsForm key={settingsFingerprint(league)} league={league} canEdit={canEdit} />
+        <SettingsForm
+          key={settingsFingerprint(league)}
+          league={league}
+          canEdit={canEdit}
+          started={started}
+        />
       </CardContent>
     </Card>
   );
@@ -88,7 +95,15 @@ function settingsFingerprint(league: LeagueResponse): string {
   return `${league.name}|${league.visibility}|${league.maxMembers}|${JSON.stringify(league.settings)}`;
 }
 
-function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: boolean }) {
+function SettingsForm({
+  league,
+  canEdit,
+  started,
+}: {
+  league: LeagueResponse;
+  canEdit: boolean;
+  started: boolean;
+}) {
   const updateLeague = useUpdateLeague(league.id);
 
   // The forms rule's per-mode carve-out (engineering rules §Quality), which
@@ -126,7 +141,10 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   // Fetched only for a Pick'em editor — an ordinary member has no use for it
   // (403 otherwise), and the two other modes have no pick-invalidation rule
   // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
-  const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit);
+  // Post-start, the visibility/max-members/mode fieldset is locked (Decision
+  // 3), so the invalidation warning it feeds can no longer fire — no point
+  // fetching the count.
+  const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
 
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
@@ -280,7 +298,12 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
         (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
           mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
 
-  const anyDirty = nameDirty || visibilityDirty || maxMembersDirty || settingsDirty;
+  // Once started, only the name axis is still editable (Decision 3) — a
+  // dirty lockable field left over from the same minute the window closed
+  // must not count toward "there's something to save".
+  const anyDirty = started
+    ? nameDirty
+    : nameDirty || visibilityDirty || maxMembersDirty || settingsDirty;
   const pickCount = pickSummary.data?.pickCount ?? 0;
   const memberCount = pickSummary.data?.memberCount ?? 0;
 
@@ -308,13 +331,19 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
   //   dialog (a warning that fires with nothing to lose trains people to
   //   click through it).
   const pickWarningActive = wouldInvalidatePicks && (pickSummaryUnknown || pickCount > 0);
-  const canSave =
-    canEdit &&
-    anyDirty &&
-    nameParsed.success &&
-    !hasInvalidNumberField &&
-    !updateLeague.isPending &&
-    !pickSummaryPending;
+  // Once started, the lockable fields' validity and the pick-invalidation
+  // check are moot — only the name axis can still be saved (Decision 3), so
+  // neither `hasInvalidNumberField` (a locked field's own stale value) nor
+  // `pickSummaryPending` (a query that no longer even fetches, see above) may
+  // gate it.
+  const canSave = started
+    ? canEdit && anyDirty && nameParsed.success && !updateLeague.isPending
+    : canEdit &&
+      anyDirty &&
+      nameParsed.success &&
+      !hasInvalidNumberField &&
+      !updateLeague.isPending &&
+      !pickSummaryPending;
 
   const handleSave = () => {
     if (!nameParsed.success) {
@@ -323,19 +352,26 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
     }
     const body: UpdateLeagueRequest = {};
     if (nameDirty) body.name = nameParsed.data;
-    if (visibilityDirty) body.visibility = visibility;
-    if (maxMembersDirty) body.maxMembers = maxMembers;
-    if (settingsDirty) {
-      // The *input* map, not the stored one: Pick'em's request shape is the
-      // preset without the week refs the server resolves (ADR-0020), and the
-      // two other modes map to the same schema in both.
-      const parsedSettings =
-        LEAGUE_SETTINGS_INPUT_SCHEMAS[league.mode].safeParse(assembledSettings);
-      if (!parsedSettings.success) {
-        toast.error(parsedSettings.error.issues[0]?.message ?? "Check your league settings.");
-        return;
+    // The lockable fields are disabled post-start, but state dirtied in the
+    // minute before `useAppNow()` ticked past the start survives the tick —
+    // and the server 409s the whole PATCH on any pre-start-only field, taking
+    // the still-legal name change down with it. `anyDirty` already ignores
+    // them; the payload has to as well.
+    if (!started) {
+      if (visibilityDirty) body.visibility = visibility;
+      if (maxMembersDirty) body.maxMembers = maxMembers;
+      if (settingsDirty) {
+        // The *input* map, not the stored one: Pick'em's request shape is the
+        // preset without the week refs the server resolves (ADR-0020), and the
+        // two other modes map to the same schema in both.
+        const parsedSettings =
+          LEAGUE_SETTINGS_INPUT_SCHEMAS[league.mode].safeParse(assembledSettings);
+        if (!parsedSettings.success) {
+          toast.error(parsedSettings.error.issues[0]?.message ?? "Check your league settings.");
+          return;
+        }
+        body.settings = parsedSettings.data;
       }
-      body.settings = parsedSettings.data;
     }
     updateLeague.mutate(body);
   };
@@ -346,24 +382,27 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
           (Input, Select, Radio) through context — including the ones nested
           inside the shared per-mode fieldsets (league-settings-fields.tsx) —
           without those components needing to forward a `disabled` prop
-          themselves. That's the read-only gate for non-editors (item 4). */}
-      <Field.Root disabled={!canEdit} className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="league-name">League name</Label>
-          <Input
-            id="league-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            aria-invalid={!nameParsed.success ? true : undefined}
-            aria-describedby={!nameParsed.success ? "league-name-error" : undefined}
-          />
-          {!nameParsed.success && (
-            <p id="league-name-error" className="text-sm text-destructive">
-              {nameParsed.error.issues[0]?.message}
-            </p>
-          )}
-        </div>
+          themselves. That's the read-only gate for non-editors (item 4). Name
+          gets its own root because EDIT_NAME has no window (Decision 3): a
+          commissioner keeps it editable after the league starts even though
+          the group below locks. */}
+      <Field.Root disabled={!canEdit} className="flex flex-col gap-1.5">
+        <Label htmlFor="league-name">League name</Label>
+        <Input
+          id="league-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          aria-invalid={!nameParsed.success ? true : undefined}
+          aria-describedby={!nameParsed.success ? "league-name-error" : undefined}
+        />
+        {!nameParsed.success && (
+          <p id="league-name-error" className="text-sm text-destructive">
+            {nameParsed.error.issues[0]?.message}
+          </p>
+        )}
+      </Field.Root>
 
+      <Field.Root disabled={!canEdit || started} className="flex flex-col gap-6">
         <RadioField
           legend="Visibility"
           name="league-visibility"
@@ -422,12 +461,15 @@ function SettingsForm({ league, canEdit }: { league: LeagueResponse; canEdit: bo
 
       {canEdit && (
         <>
-          {/* Static copy, not a client-computed "now" gate — the server's 409
-              (league_started) is the real lock; this just sets expectations.
-              Editors only: read-only viewers can't act on it. */}
+          {/* Not a client-computed lock — the server's 409 (league_started)
+              is the real enforcement; this is the disable-with-reason hint
+              (Decision 1/3), derived from the same `started` the Field.Root
+              above disables on. Editors only: read-only viewers can't act on
+              it. */}
           <p className="text-sm text-muted-foreground">
-            Visibility, max members, and game settings lock once the league starts. League name can
-            be changed anytime.
+            {started
+              ? "Visibility, max members, and game settings are locked — the league has started. League name can still be changed."
+              : "Visibility, max members, and game settings lock once the league starts. League name can be changed anytime."}
           </p>
 
           {/* Only rendered with a real, nonzero count OR an unknown one

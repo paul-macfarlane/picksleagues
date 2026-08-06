@@ -32,10 +32,25 @@ export function memberRoleLabel(role: MemberRole): string {
   return MEMBER_ROLE_LABELS[role];
 }
 
-// Section visibility runs on the LEAGUE_ACTION matrix's role axis only:
-// `preStart: true` renders controls optimistically, and the server's 409
-// (league_started) enforces the window — the client never computes "now"
-// (arch D11).
-export function canActOnLeague(league: LeagueResponse, action: LeagueAction) {
-  return canPerformLeagueAction(action, { role: league.myRole, preStart: true });
+/**
+ * Mirrors the server's `isPreStart` boundary exactly
+ * (apps/api/src/services/leagues/start.ts): `startsAt === null` means the
+ * start isn't derivable yet (not started), and `now >= startsAt` — not `>` —
+ * is started. Kept hook-free (no `useAppNow()` here) so callers read the
+ * clock once per component and pass `now` down; the server's 409 stays the
+ * actual enforcement, this is only the disable-with-reason hint.
+ */
+export function leagueHasStarted(league: LeagueResponse, now: Date): boolean {
+  return league.startsAt !== null && now.getTime() >= new Date(league.startsAt).getTime();
+}
+
+// Section visibility runs on the LEAGUE_ACTION matrix's role axis; the window
+// axis is `leagueHasStarted` against the caller's `now` (arch D11: the
+// server's Clock is the only trustworthy "now", so callers must pass one
+// derived from `useAppNow()`, never a local `Date`).
+export function canActOnLeague(league: LeagueResponse, action: LeagueAction, now: Date) {
+  return canPerformLeagueAction(action, {
+    role: league.myRole,
+    preStart: !leagueHasStarted(league, now),
+  });
 }

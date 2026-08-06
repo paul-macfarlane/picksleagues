@@ -18,12 +18,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserIdentity } from "@/components/user-identity";
 
+const KICK_LOCKED_REASON_ID = "kick-locked-reason";
+
 export function MembersSection({
   league,
   isCommissioner,
+  started,
 }: {
   league: LeagueResponse;
   isCommissioner: boolean;
+  started: boolean;
 }) {
   const { data: session } = authClient.useSession();
   const leagueId = league.id;
@@ -46,12 +50,22 @@ export function MembersSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {/* One note serves every row's Kick trigger (Decision 5) rather than
+            repeating the reason per row — each disabled trigger below points
+            at it via aria-describedby. */}
+        {isCommissioner && started && (
+          <p id={KICK_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+            Removing members is locked once the league starts.
+          </p>
+        )}
+
         {league.members.map((member) => (
           <MemberRow
             key={member.id}
             member={member}
             isCommissioner={isCommissioner}
             isOwnRow={member.userId === myUserId}
+            kickLocked={started}
             onPromote={() =>
               updateRole.mutate({ memberId: member.id, role: MEMBER_ROLE.COMMISSIONER })
             }
@@ -64,14 +78,20 @@ export function MembersSection({
 
         {/* Clearly separated from the roster above — visible to every
             member, not gated on isCommissioner. */}
-        <div className="mt-2 border-t border-border pt-3">
+        <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
+          {started && (
+            <p id="leave-league-reason" className="text-sm text-muted-foreground">
+              Membership is frozen once the league starts.
+            </p>
+          )}
           <AlertDialog>
             <AlertDialogTrigger
               render={
                 <Button
                   variant="outline"
                   className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  disabled={leaveLeague.isPending}
+                  disabled={started || leaveLeague.isPending}
+                  aria-describedby={started ? "leave-league-reason" : undefined}
                 />
               }
             >
@@ -106,6 +126,7 @@ function MemberRow({
   member,
   isCommissioner,
   isOwnRow,
+  kickLocked,
   onPromote,
   onDemote,
   onKick,
@@ -115,6 +136,7 @@ function MemberRow({
   member: LeagueMember;
   isCommissioner: boolean;
   isOwnRow: boolean;
+  kickLocked: boolean;
   onPromote: () => void;
   onDemote: () => void;
   onKick: () => void;
@@ -135,6 +157,8 @@ function MemberRow({
       </UserIdentity>
       {isCommissioner && (
         <div className="flex items-center gap-2">
+          {/* Promote/demote are anytime actions (LEAGUE_ACTION rules) — they
+              stay enabled post-start; only Kick below has a window. */}
           {member.role === MEMBER_ROLE.COMMISSIONER ? (
             <Button variant="outline" size="sm" disabled={isRolePending} onClick={onDemote}>
               Demote
@@ -150,7 +174,14 @@ function MemberRow({
                   `mutation.variables`): confirming closes the dialog, so the
                   trigger is the only thing left to block a second submit. */}
               <AlertDialogTrigger
-                render={<Button variant="destructive" size="sm" disabled={isKickPending} />}
+                render={
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={kickLocked || isKickPending}
+                    aria-describedby={kickLocked ? KICK_LOCKED_REASON_ID : undefined}
+                  />
+                }
               >
                 Kick
               </AlertDialogTrigger>

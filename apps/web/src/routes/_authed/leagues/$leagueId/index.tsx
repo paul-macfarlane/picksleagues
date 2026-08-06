@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { LEAGUE_ACTION, LEAGUE_MODE, type LeagueResponse } from "@picksleagues/schemas";
 import { useLeague, useRenewLeague } from "@/api/leagues";
+import { useAppNow } from "@/lib/app-clock";
 import { canActOnLeague } from "@/lib/league";
 import { PickemStandingsSection } from "@/components/league/pickem-standings-section";
 import { Button } from "@/components/ui/button";
@@ -27,12 +28,13 @@ function LeagueOverview() {
   // Populated by the parent layout route — this reads the same cache entry
   // (leagueQueryKey) and renders instantly rather than refetching.
   const league = useLeague(leagueId);
+  const now = useAppNow();
 
   if (!league.data) return null;
 
   return (
     <div className="flex flex-col gap-4">
-      {league.data.renewable && canActOnLeague(league.data, LEAGUE_ACTION.RENEW_SEASON) && (
+      {league.data.renewable && canActOnLeague(league.data, LEAGUE_ACTION.RENEW_SEASON, now) && (
         <RenewSeasonBanner league={league.data} />
       )}
       {league.data.mode === LEAGUE_MODE.PICKEM ? (
