@@ -19,7 +19,7 @@ function LeagueSettings() {
 
   if (!league.data) return null;
 
-  // Danger Zone renders on the role axis alone (Decision 4): a commissioner
+  // Danger Zone renders on the role axis alone: a commissioner
   // whose window closed still sees it, with Delete disabled + a reason —
   // rendering nothing here would erase the explanation that's the ticket's
   // point.

@@ -19,7 +19,7 @@ function LeagueMembers() {
 
   if (!league.data) return null;
 
-  // Role axis alone (Decision 5): promote/demote are anytime actions and
+  // Role axis alone: promote/demote are anytime actions and
   // must not vanish post-start just because they used to be wired through
   // the window-gated KICK_MEMBER.
   const isCommissioner = league.data.myRole === MEMBER_ROLE.COMMISSIONER;

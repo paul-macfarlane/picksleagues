@@ -141,9 +141,9 @@ function SettingsForm({
   // Fetched only for a Pick'em editor — an ordinary member has no use for it
   // (403 otherwise), and the two other modes have no pick-invalidation rule
   // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
-  // Post-start, the visibility/max-members/mode fieldset is locked (Decision
-  // 3), so the invalidation warning it feeds can no longer fire — no point
-  // fetching the count.
+  // Post-start, the visibility/max-members/mode fieldset is locked, so the
+  // invalidation warning it feeds can no longer fire — no point fetching the
+  // count.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
 
   // All three modes' fields are declared unconditionally (only the active
@@ -298,7 +298,7 @@ function SettingsForm({
         (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
           mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
 
-  // Once started, only the name axis is still editable (Decision 3) — a
+  // Once started, only the name axis is still editable — a
   // dirty lockable field left over from the same minute the window closed
   // must not count toward "there's something to save".
   const anyDirty = started
@@ -332,7 +332,7 @@ function SettingsForm({
   //   click through it).
   const pickWarningActive = wouldInvalidatePicks && (pickSummaryUnknown || pickCount > 0);
   // Once started, the lockable fields' validity and the pick-invalidation
-  // check are moot — only the name axis can still be saved (Decision 3), so
+  // check are moot — only the name axis can still be saved, so
   // neither `hasInvalidNumberField` (a locked field's own stale value) nor
   // `pickSummaryPending` (a query that no longer even fetches, see above) may
   // gate it.
@@ -382,8 +382,8 @@ function SettingsForm({
           (Input, Select, Radio) through context — including the ones nested
           inside the shared per-mode fieldsets (league-settings-fields.tsx) —
           without those components needing to forward a `disabled` prop
-          themselves. That's the read-only gate for non-editors (item 4). Name
-          gets its own root because EDIT_NAME has no window (Decision 3): a
+          themselves. That's the read-only gate for non-editors. Name
+          gets its own root because EDIT_NAME has no window: a
           commissioner keeps it editable after the league starts even though
           the group below locks. */}
       <Field.Root disabled={!canEdit} className="flex flex-col gap-1.5">
@@ -463,7 +463,7 @@ function SettingsForm({
         <>
           {/* Not a client-computed lock — the server's 409 (league_started)
               is the real enforcement; this is the disable-with-reason hint
-              (Decision 1/3), derived from the same `started` the Field.Root
+              derived from the same `started` the Field.Root
               above disables on. Editors only: read-only viewers can't act on
               it. */}
           <p className="text-sm text-muted-foreground">

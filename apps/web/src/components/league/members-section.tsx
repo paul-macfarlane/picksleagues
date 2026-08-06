@@ -50,7 +50,7 @@ export function MembersSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {/* One note serves every row's Kick trigger (Decision 5) rather than
+        {/* One note serves every row's Kick trigger rather than
             repeating the reason per row — each disabled trigger below points
             at it via aria-describedby. */}
         {isCommissioner && started && (
