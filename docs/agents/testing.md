@@ -18,18 +18,34 @@ rereading this guide.
 |---|---|---|---|---|
 | typecheck | `pnpm typecheck` | tsc across every workspace package, then `e2e/tsconfig.json` — `e2e/` and `playwright.config.ts` are not in any workspace, so `pnpm -r` alone left the merge gate's own specs with no type gate | Every change, before PR | verified |
 | lint | `pnpm lint` | ESLint across the repo, including the Clock discipline rule and max-lines warnings | Every change, before PR | verified |
-| test | `pnpm test` | Vitest unit suite, no database required (25 files, 435 tests). Includes the exhaustive packages/scoring spec tests. | Every change, before PR | verified |
-| test:integration | `pnpm test:integration` | In-process Hono against real Postgres (26 files, 505 tests): transactional lock validation, spread-staleness 409s, pick visibility filtering, join cutoffs and caps, settlement idempotency, override precedence. Auto-creates and migrates picksleagues_test. | Any API, DB, service, or schema change. Requires pnpm db:up first. | verified |
+| test | `pnpm test` | Vitest unit suite, no database required. Includes the exhaustive packages/scoring spec tests. | Every change, before PR | verified |
+| test:integration | `pnpm test:integration` | In-process Hono against real Postgres: transactional lock validation, spread-staleness 409s, pick visibility filtering, join cutoffs and caps, settlement idempotency, override precedence. Auto-creates and migrates picksleagues_test. | Any API, DB, service, or schema change. Requires pnpm db:up first. | verified |
 | contract:check | `pnpm contract:check` | Regenerates the OpenAPI spec and client and fails if openapi/ is stale | Any Zod schema, DTO, or route change | verified |
 | format:check | `pnpm format:check` | Prettier check across the repo | Before PR | verified |
 | format | `pnpm format` | Prettier write across the repo | After edits, before lint; rerun affected tests after automatic fixes | verified |
 | build | `pnpm --filter @picksleagues/web build` | tsc -b plus vite build for the SPA. This is the ONLY build in the repository: there is no root build script, and apps/api and all four packages have none. Never record or run 'pnpm build'. | Any apps/web change | verified |
-| test:e2e | `pnpm test:e2e` | Playwright against a full local stack with the SimulatedProvider and simulated clock, no network mocks (13 tests). The merge gate. | Before PR. Safe to run unattended: it starts its own stack on its own database (`picksleagues_e2e`) and ports (5273/3100), created and migrated by `e2e/setup/global-setup.ts`, and never touches the dev database — which is what lets its Pick'em journey reset the simulator with `scope: "environment"`. Needs `pnpm db:up` for the Postgres server. Last verified 2026-08-06 on `chore/qlty-quality-pass`. | verified |
+| test:e2e | `pnpm test:e2e` | Playwright against a full local stack with the SimulatedProvider and simulated clock, no network mocks. The merge gate. | Before PR. Safe to run unattended: it starts its own stack on its own database (`picksleagues_e2e`) and ports (5273/3100), created and migrated by `e2e/setup/global-setup.ts`, and never touches the dev database — which is what lets its Pick'em journey reset the simulator with `scope: "environment"`. Needs `pnpm db:up` for the Postgres server. Last verified 2026-08-06 on `chore/qlty-quality-pass`. | verified |
 | db:up | `pnpm db:up` | Starts and waits for the Docker Postgres container on port 5433 | Before any integration or e2e run | verified |
 | db:migrate | `pnpm db:migrate` | Applies packages/db/migrations to the local database | After pulling or writing a migration | verified |
 | dev | `pnpm dev` | Runs the web and api dev servers in parallel. The SPA is the origin at :5173 and proxies the API; OAuth and session cookies are scoped there. | Driving the app or the season simulator locally to produce evidence | verified |
 
 `verified` means the command ran successfully here. `inferred` means configuration names it but setup did not execute it. `unavailable` is an explicit gap.
+
+**No suite sizes in this table.** File and test counts used to sit in the
+Coverage column and went stale the first time a work package added or pruned a
+test — QLTY changed two of them inside a single delivery, and three documents
+were carrying three different numbers by then. A count belongs in a run's
+evidence, where it is dated and attached to a commit; the `Last verified <date>
+on <branch>` stamp is the freshness signal that does not rot silently.
+
+**Copy-decoupling probe — three runs, not two.** To prove the e2e suite is
+decoupled from copy (the standing guarantee QLTY-2 established): (1) run the
+gate green on current copy; (2) reword the bound strings in the SPA and re-run —
+it must still pass; (3) revert and re-run to prove the revert is clean. Back the
+reverts with byte-exact file copies in the session scratchpad rather than hand
+edits, and confirm with `git status` before reporting. Budget three full
+stack-up/tear-down cycles, not two — a probe that skips step 3 has proved the
+suite tolerates the reword but not that the tree was restored.
 
 **Scoping a partial vitest run: use `--project`, never `--dir` or a bare path.**
 The two projects in `vitest.config.ts` are selected by name, and `--dir` is only a
@@ -43,6 +59,15 @@ while believing it has not.
 
 ## Evidence policy
 
+- **Toast assertions bind to our own contract, never to sonner's markup.** Pass
+  `testId` at the `toast.success` / `toast.error` call sites in
+  `apps/web/src/api/*.ts` and address it with `getByTestId`. An e2e assertion
+  bound to `[data-sonner-toast]`, `data-type`, or any other library-internal
+  attribute lets a dependency bump fail the merge gate with no product change —
+  the exact failure QLTY-2 existed to remove. It also costs an agent several
+  tool calls spelunking `node_modules` to rediscover the shape each time.
+  `e2e/identity.spec.ts` currently binds this way and is the one site to
+  migrate.
 - Repository-local proof-artifact root: `docs/evidence/test-results`.
 - Clear the entire proof-artifact root before capturing evidence for each work
   package. It intentionally contains only the latest work package's evidence.
