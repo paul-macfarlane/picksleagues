@@ -1,0 +1,25 @@
+### pnpm format
+playwright.config.ts 2ms (unchanged)
+pnpm-workspace.yaml 1ms (unchanged)
+tsconfig.base.json 0ms (unchanged)
+vercel.json 0ms (unchanged)
+vitest.config.ts 1ms (unchanged)
+
+### pnpm typecheck
+$ pnpm -r typecheck && tsc -p e2e/tsconfig.json
+Scope: 7 of 8 workspace projects
+packages/schemas typecheck$ tsc
+packages/schemas typecheck: Done
+packages/core typecheck$ tsc
+packages/scoring typecheck$ tsc
+packages/db typecheck$ tsc
+packages/scoring typecheck: Done
+packages/core typecheck: Done
+packages/db typecheck: Done
+apps/api typecheck$ tsc
+apps/web typecheck$ tsc -b
+apps/web typecheck: Done
+apps/api typecheck: Done
+
+### pnpm lint
+$ eslint .
