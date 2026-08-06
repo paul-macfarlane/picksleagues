@@ -21,11 +21,11 @@ import { GameStatePill } from "@/components/league/game-state";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 
 // One pick per row, and each row is a two-line block at phone width: what the
-// member took on the first line, where that game stands on the second
-// (feedback round 4). Previously both lines were a single wrapping flex row, so
-// a short matchup happened to fit beside its status while a long one wrapped —
-// the same information landed in a different place on every row, which is what
-// made the list hard to read. Widening to `sm` restores the one-line,
+// member took on the first line, where that game stands on the second.
+// Previously both lines were a single wrapping flex row, so a short matchup
+// happened to fit beside its status while a long one wrapped — the same
+// information landed in a different place on every row, which is what made the
+// list hard to read. Widening to `sm` restores the one-line,
 // state-pushed-right layout, where the room actually exists.
 const PICK_ROW_CLASS_NAME =
   "flex flex-col gap-0.5 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2";
@@ -35,7 +35,7 @@ function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStan
 }
 
 /**
- * Orders members by how they did *this week*, best first (feedback round 5).
+ * Orders members by how they did *this week*, best first.
  *
  * The rank is the server's own (`pickem_standings`, spec §Standings: points
  * alone, ties sharing a rank) rather than a comparison invented here — two

@@ -31,8 +31,8 @@ export const MAX_ACTIVE_COMMISSIONER_LEAGUES = 10;
 export const MAX_LEAGUE_SIZE = 100;
 
 /**
- * spec-adjacent default (feedback item 11): a league that omits maxMembers on
- * create gets a friend-group-sized cap rather than the global ceiling.
+ * spec-adjacent default: a league that omits maxMembers on create gets a
+ * friend-group-sized cap rather than the global ceiling.
  */
 export const DEFAULT_MAX_MEMBERS = 10;
 
