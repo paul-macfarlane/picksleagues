@@ -116,7 +116,7 @@ export function SimResetCard() {
 
         <SimControlRow
           title="Reset the environment"
-          description="Deletes every league's rows plus all ingested seasons, weeks, games, and odds snapshots. Teams are kept."
+          description="Deletes every league's rows plus all ingested seasons, weeks, and games. Teams are kept."
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="flex-1">
@@ -138,8 +138,8 @@ export function SimResetCard() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Reset the environment?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This deletes every league&apos;s rows plus all ingested seasons, weeks, games,
-                    and odds snapshots. Teams are kept; users and sessions are never touched.{" "}
+                    This deletes every league&apos;s rows plus all ingested seasons, weeks, and
+                    games. Teams are kept; users and sessions are never touched.{" "}
                     {disposition === SCENARIO_DISPOSITION.KEEP
                       ? "The active scenario stays loaded and the simulated clock rewinds to its start, so the wiped season re-ingests as unplayed."
                       : "The active scenario is deleted and the simulated clock returns to real time."}{" "}

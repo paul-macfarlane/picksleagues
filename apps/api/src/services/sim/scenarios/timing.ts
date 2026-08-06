@@ -27,10 +27,9 @@ export function kickoffOffsetMs(weekStartOffsetMs: number, gameIndex: number): n
 /**
  * Week 1 of the shared regular-season cast, reused by every scenario.
  *
- * It is the only week the library declares. `week-move` was the one scenario
- * that spanned two, and it went with ADR-0019; a `WEEK_2` nothing declared
- * would be a definition kept warm for a rule the product no longer has. A
- * scenario that genuinely needs a second week adds it back with its own reason.
+ * It is the only week the library declares: no scenario spans two, since week
+ * moves went out of scope (ADR-0019). A scenario that genuinely needs a second
+ * week adds it back with its own reason.
  */
 export const WEEK_1: SimWeekDef = {
   weekType: WEEK_TYPE.REGULAR,

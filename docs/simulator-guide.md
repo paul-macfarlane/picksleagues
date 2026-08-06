@@ -127,9 +127,7 @@ and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
 `docs/runbooks/pickem-regression.md` drives most of these as a manual Pick'em
-regression pass — what to click and what to assert, per scenario. (SIMP-13
-rewrites that runbook against the ADR-0018/0019 rules; until it lands, its
-`week-move` pass names a scenario that no longer exists.)
+regression pass — what to click and what to assert, per scenario.
 
 ## Replay a real season
 
@@ -164,14 +162,14 @@ about (engineering rules §Quality).
 
 - **League** — that league's invites, members, seasons, and the league row. The
   clock is untouched.
-- **Environment** — every league's rows *plus* all ingested seasons, weeks, games,
-  and odds snapshots. `teams` are kept (ingestion re-links rather than recreates
-  them). Users, sessions, and accounts are never touched — a reset that signed the
+- **Environment** — every league's rows *plus* all ingested seasons, weeks, and
+  games (which carry the current spread directly since SIMP-7). `teams` are kept
+  (ingestion re-links rather than recreates them). Users, sessions, and accounts are never touched — a reset that signed the
   operator out would be unusable.
   - *Keep the active scenario* rewinds the clock to that scenario's start, so the
     wiped season re-ingests as unplayed. Without the rewind every game would come
     back already final and its spreads would be unrecoverable, since the odds sync
-    only snapshots games that have not kicked off.
+    only prices games that have not kicked off.
   - *Drop it* deletes the active scenario and returns the clock to real time.
 
 ## Gotchas

@@ -52,6 +52,15 @@ function competitor(overrides: {
   };
 }
 
+/**
+ * Week windows in this file follow the real ESPN shape, verified against the
+ * live core API on 2026-08-05 for the 2025 season: an opening regular week
+ * anchored to the season-opener Thursday, then contiguous Wednesday →
+ * Wednesday windows (07:00Z under EDT, 08:00Z under EST) with no gap between
+ * them, postseason rounds included. Dates below are those windows shifted onto
+ * the season each case uses. They were previously Thursday-anchored and
+ * plausible-looking rather than real, which hid the SIMP-16 odds gap.
+ */
 const REGULAR_INDEX_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks?limit=32`;
 const POSTSEASON_INDEX_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks?limit=32`;
 
@@ -72,13 +81,13 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         number: 1,
         text: "Week 1",
         startDate: "2026-09-10T07:00Z",
-        endDate: "2026-09-17T06:59Z",
+        endDate: "2026-09-16T06:59Z",
       }),
       [week2Ref]: jsonResponse({
         number: 2,
         text: "Week 2",
-        startDate: "2026-09-17T07:00Z",
-        endDate: "2026-09-24T06:59Z",
+        startDate: "2026-09-16T07:00Z",
+        endDate: "2026-09-23T06:59Z",
       }),
     });
 
@@ -92,14 +101,14 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         weekNumber: 1,
         label: "Week 1",
         startsAt: new Date("2026-09-10T07:00Z"),
-        endsAt: new Date("2026-09-17T06:59Z"),
+        endsAt: new Date("2026-09-16T06:59Z"),
       },
       {
         weekType: WEEK_TYPE.REGULAR,
         weekNumber: 2,
         label: "Week 2",
-        startsAt: new Date("2026-09-17T07:00Z"),
-        endsAt: new Date("2026-09-24T06:59Z"),
+        startsAt: new Date("2026-09-16T07:00Z"),
+        endsAt: new Date("2026-09-23T06:59Z"),
       },
     ]);
   });
@@ -125,32 +134,32 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
       [wildCardRef]: jsonResponse({
         number: 1,
         text: "Wild Card",
-        startDate: "2027-01-09T07:00Z",
-        endDate: "2027-01-13T06:59Z",
+        startDate: "2027-01-06T08:00Z",
+        endDate: "2027-01-13T07:59Z",
       }),
       [divisionalRef]: jsonResponse({
         number: 2,
         text: "Divisional Round",
-        startDate: "2027-01-16T07:00Z",
-        endDate: "2027-01-20T06:59Z",
+        startDate: "2027-01-13T08:00Z",
+        endDate: "2027-01-20T07:59Z",
       }),
       [conferenceRef]: jsonResponse({
         number: 3,
         text: "Conference Championship",
-        startDate: "2027-01-23T07:00Z",
-        endDate: "2027-01-27T06:59Z",
+        startDate: "2027-01-20T08:00Z",
+        endDate: "2027-01-27T07:59Z",
       }),
       [proBowlRef]: jsonResponse({
         number: 4,
         text: "Pro Bowl",
-        startDate: "2027-02-01T07:00Z",
-        endDate: "2027-02-02T06:59Z",
+        startDate: "2027-01-27T08:00Z",
+        endDate: "2027-02-03T07:59Z",
       }),
       [superBowlRef]: jsonResponse({
         number: 5,
         text: "Super Bowl",
-        startDate: "2027-02-08T07:00Z",
-        endDate: "2027-02-09T06:59Z",
+        startDate: "2027-02-03T08:00Z",
+        endDate: "2027-02-10T07:59Z",
       }),
     });
 
@@ -164,29 +173,29 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 1,
         label: "Wild Card",
-        startsAt: new Date("2027-01-09T07:00Z"),
-        endsAt: new Date("2027-01-13T06:59Z"),
+        startsAt: new Date("2027-01-06T08:00Z"),
+        endsAt: new Date("2027-01-13T07:59Z"),
       },
       {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 2,
         label: "Divisional Round",
-        startsAt: new Date("2027-01-16T07:00Z"),
-        endsAt: new Date("2027-01-20T06:59Z"),
+        startsAt: new Date("2027-01-13T08:00Z"),
+        endsAt: new Date("2027-01-20T07:59Z"),
       },
       {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 3,
         label: "Conference Championship",
-        startsAt: new Date("2027-01-23T07:00Z"),
-        endsAt: new Date("2027-01-27T06:59Z"),
+        startsAt: new Date("2027-01-20T08:00Z"),
+        endsAt: new Date("2027-01-27T07:59Z"),
       },
       {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 4,
         label: "Super Bowl",
-        startsAt: new Date("2027-02-08T07:00Z"),
-        endsAt: new Date("2027-02-09T06:59Z"),
+        startsAt: new Date("2027-02-03T08:00Z"),
+        endsAt: new Date("2027-02-10T07:59Z"),
       },
     ]);
   });
@@ -222,13 +231,13 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         number: 1,
         text: "Week 1",
         startDate: "2026-09-10T07:00Z",
-        endDate: "2026-09-17T06:59Z",
+        endDate: "2026-09-16T06:59Z",
       }),
       [postRef]: jsonResponse({
         number: 1,
         text: "Wild Card",
-        startDate: "2027-01-09T07:00Z",
-        endDate: "2027-01-13T06:59Z",
+        startDate: "2027-01-06T08:00Z",
+        endDate: "2027-01-13T07:59Z",
       }),
     });
 
@@ -266,8 +275,8 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
       [wildCardRef]: jsonResponse({
         number: 1,
         text: "Wild Card",
-        startDate: "2028-01-08T07:00Z",
-        endDate: "2028-01-12T06:59Z",
+        startDate: "2028-01-05T08:00Z",
+        endDate: "2028-01-12T07:59Z",
       }),
     });
 
@@ -281,8 +290,8 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
           weekType: WEEK_TYPE.POSTSEASON,
           weekNumber: 1,
           label: "Wild Card",
-          startsAt: new Date("2028-01-08T07:00Z"),
-          endsAt: new Date("2028-01-12T06:59Z"),
+          startsAt: new Date("2028-01-05T08:00Z"),
+          endsAt: new Date("2028-01-12T07:59Z"),
         },
       ],
     });

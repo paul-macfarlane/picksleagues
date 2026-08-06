@@ -4,7 +4,7 @@ import {
   EliminationSettingsSchema,
   LeagueSettingsSchema,
   MarchMadnessSettingsSchema,
-  PickemSettingsSchema,
+  PickemSettingsInputSchema,
 } from "./league-settings";
 import { LeagueStatusSchema } from "./league-status";
 import { LeagueVisibilitySchema } from "./league-visibility";
@@ -35,7 +35,9 @@ export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).ope
 
 // Settings are validated against the mode's schema at the boundary — the
 // discriminated union makes an invalid mode/settings pairing unrepresentable
-// rather than a service-layer check.
+// rather than a service-layer check. Pick'em takes its *input* schema: the
+// request names a season-range preset and the server resolves the week refs it
+// stores (ADR-0020), so a client can't supply them here at all.
 export const CreateLeagueRequestSchema = z
   .discriminatedUnion("mode", [
     z.object({
@@ -43,7 +45,7 @@ export const CreateLeagueRequestSchema = z
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
       maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
-      settings: PickemSettingsSchema,
+      settings: PickemSettingsInputSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.ELIMINATION),

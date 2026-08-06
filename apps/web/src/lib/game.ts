@@ -238,8 +238,8 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
 
 // Home-relative spread, flipped for the away side (spec §ATS) — the sign a
 // member reads next to the team they'd be picking, not the raw stored number.
-// Shared by the pick entry grid, the substitute-pick dialog, and the week/pick
-// detail view so the three surfaces never drift on how a spread reads.
+// Shared by the pick entry grid and the week/pick detail view so the two
+// surfaces never drift on how a spread reads.
 export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
   if (spread === null) return null;
   const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;
@@ -251,22 +251,20 @@ export function spreadLabel(spread: number | null, side: PickemPickSide): string
 // "picked" highlight and the pre-existing locked/unplayable badges — which
 // must stay visually distinct from it — can never drift out of sync with
 // each other. `locked`/`unplayable` take priority over `hasSelection`: a
-// retained pick on a locked or pushed game is still rendered via its own
+// submitted pick on a locked or pushed game is still rendered via its own
 // "Your pick" copy, not the freshly-picked highlight.
 export type PickRowState = "unplayable" | "locked" | "picked" | "open";
 
 /**
- * ADR-0015's retention boundary in one place: once a game has kicked off or
- * stopped being playable, any pick on it is retained server-side and the pick
- * editor can no longer change it.
+ * Whether a game can still take a pick: kicked off, or no longer playable.
  *
- * The pick screen asks this three ways that must agree — which rows render
- * read-only, which selections still belong in the editable map, and whether the
- * save bar has anything left to do. Restating it at each site is what let them
- * drift: the selection map was filtered by this rule only at mount, so a game
- * that locked while the screen was open stayed in it *and* joined the retained
- * map, counting one pick twice ("8 of 5 picks") and queueing a submission the
- * write path's lock guard must 409.
+ * One definition, because the unsubmitted sheet asks it in more than one place
+ * that must agree — which rows render read-only, and how large the required set
+ * is. Restating it per site is what let them drift before: a game that locked
+ * while the screen was open stayed in the selection map, so the sheet counted a
+ * pick it could no longer make and queued a submission the write path's lock
+ * guard had to 409. Under submit-once (ADR-0018) that refusal costs the whole
+ * week rather than one pick, which is why this stays a single function.
  */
 export function isClosedToPicks(game: { locked: boolean; pickable: boolean }): boolean {
   return game.locked || !game.pickable;

@@ -239,9 +239,9 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     const leagueName = `E2E Pickem ${commishName.slice(-8)}`;
 
     // Fresh user ⇒ the dashboard empty state; its CTA reads "Create a league".
-    // Defaults are a Pick'em league, Start/End Week 1–18, Straight Up, 5 picks
-    // per week (apps/web/src/routes/_authed/leagues/new.tsx) — exactly the
-    // shape this journey needs, so nothing on the form is touched.
+    // Defaults are a Pick'em league over the Regular Season preset, Straight
+    // Up, 5 picks per week (apps/web/src/routes/_authed/leagues/new.tsx) —
+    // exactly the shape this journey needs, so nothing on the form is touched.
     await pageA.goto("/");
     await pageA.getByRole("link", { name: "Create a league" }).click();
     await expect(pageA).toHaveURL(/\/leagues\/new/);
@@ -340,9 +340,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
         mode: "pickem",
         name: `E2E Cap2 ${commishName.slice(-8)}`,
         visibility: "private",
+        // The wire shape carries the preset only (ADR-0020): the server
+        // resolves the week refs it stores, so naming them here would be
+        // ignored rather than honoured.
         settings: {
-          startWeek: { type: "regular", number: 1 },
-          endWeek: { type: "regular", number: 18 },
+          seasonRangePreset: "regular_season",
           pickType: "straight_up",
           picksPerWeek: 2,
         },

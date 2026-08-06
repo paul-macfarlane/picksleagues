@@ -305,6 +305,9 @@
       "PickemSettings": {
         "type": "object",
         "properties": {
+          "seasonRangePreset": {
+            "$ref": "#/components/schemas/PickemSeasonRangePreset"
+          },
           "startWeek": {
             "$ref": "#/components/schemas/NflWeekRef"
           },
@@ -322,9 +325,18 @@
           }
         },
         "required": [
+          "seasonRangePreset",
           "startWeek",
           "endWeek",
           "pickType"
+        ]
+      },
+      "PickemSeasonRangePreset": {
+        "type": "string",
+        "enum": [
+          "regular_season",
+          "postseason",
+          "full_season"
         ]
       },
       "NflWeekRef": {
@@ -512,7 +524,7 @@
                 "$ref": "#/components/schemas/MaxMembers"
               },
               "settings": {
-                "$ref": "#/components/schemas/PickemSettings"
+                "$ref": "#/components/schemas/PickemSettingsInput"
               }
             },
             "required": [
@@ -587,6 +599,27 @@
         "minimum": 2,
         "maximum": 100,
         "default": 10
+      },
+      "PickemSettingsInput": {
+        "type": "object",
+        "properties": {
+          "seasonRangePreset": {
+            "$ref": "#/components/schemas/PickemSeasonRangePreset"
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 5
+          }
+        },
+        "required": [
+          "seasonRangePreset",
+          "pickType"
+        ]
       },
       "MarchMadnessSettings": {
         "oneOf": [

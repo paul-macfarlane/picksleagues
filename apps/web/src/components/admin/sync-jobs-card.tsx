@@ -14,7 +14,7 @@ const NFL_SYNC_JOB_ROWS: { job: NflSyncJob; label: string; description: string }
   {
     job: NFL_SYNC_JOB.SYNC_ODDS,
     label: "Sync odds",
-    description: "Spread snapshots for games that haven't started.",
+    description: "Spreads for games that haven't started.",
   },
   {
     job: NFL_SYNC_JOB.SYNC_SCORES,

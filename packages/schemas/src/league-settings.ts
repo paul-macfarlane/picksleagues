@@ -50,8 +50,65 @@ export function nflSeasonOrdinal(week: NflWeekRef): number {
  */
 export const MAX_PICKS_PER_WEEK = 16;
 
+/**
+ * The season range a Pick'em league covers, as a commissioner names it
+ * (ADR-0020). Replaces the explicit start/end week pair as the *input*; the
+ * concrete refs it resolves to are still what gets stored and computed on.
+ */
+export const PICKEM_SEASON_RANGE_PRESET = {
+  REGULAR_SEASON: "regular_season",
+  POSTSEASON: "postseason",
+  FULL_SEASON: "full_season",
+} as const;
+
+export type PickemSeasonRangePreset =
+  (typeof PICKEM_SEASON_RANGE_PRESET)[keyof typeof PICKEM_SEASON_RANGE_PRESET];
+
+export const PickemSeasonRangePresetSchema = z
+  .enum(PICKEM_SEASON_RANGE_PRESET)
+  .openapi("PickemSeasonRangePreset");
+
+/** The two week refs a preset resolves to — what the rest of the system computes on. */
+export type PickemSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
+
+/**
+ * Each preset's nominal range (ADR-0020 §The three presets), in the week
+ * vocabulary the spec already uses: regular-season weeks 1-18, then the four
+ * playoff rounds Wild Card through Super Bowl.
+ *
+ * It lives beside the preset because it *is* the preset's definition, not a
+ * detail of how the API resolves one. Two consumers read it: the server's
+ * resolver, which starts from the nominal range and may advance the start past
+ * a week already underway, and the web settings editor, which builds the draft
+ * range it warns about from it. A second copy in either place would be a rule
+ * able to disagree with itself about what "Regular Season" covers.
+ */
+export const PICKEM_NOMINAL_RANGE = {
+  [PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON]: {
+    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+    endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
+  },
+  [PICKEM_SEASON_RANGE_PRESET.POSTSEASON]: {
+    startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
+    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+  },
+  [PICKEM_SEASON_RANGE_PRESET.FULL_SEASON]: {
+    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+  },
+} as const satisfies Record<PickemSeasonRangePreset, PickemSeasonRange>;
+
+/**
+ * Stored Pick'em settings: the commissioner's preset *and* the concrete week
+ * refs it resolved to at the moment the setting was written (ADR-0020 §The
+ * resolved range is stored, not re-derived). The refs are kept because
+ * `leagueStartAt`, the join cutoff, `nflSeasonOrdinal` range checks and
+ * `pickemSettingsInvalidatePicks` all compute on them — none of them needed to
+ * learn about presets.
+ */
 export const PickemSettingsSchema = z
   .object({
+    seasonRangePreset: PickemSeasonRangePresetSchema,
     startWeek: NflWeekRefSchema,
     endWeek: NflWeekRefSchema,
     pickType: PickTypeSchema,
@@ -64,6 +121,23 @@ export const PickemSettingsSchema = z
   .openapi("PickemSettings");
 
 export type PickemSettings = z.infer<typeof PickemSettingsSchema>;
+
+/**
+ * Wire shape for a Pick'em settings write — the preset, and no week refs
+ * (ADR-0020 §The wire shape diverges from the stored shape). The omission is
+ * the point: a client that cannot name `startWeek`/`endWeek` cannot dictate the
+ * range the server resolves against the season and the clock, and no stripping
+ * step on the write path can be forgotten.
+ */
+export const PickemSettingsInputSchema = z
+  .object({
+    seasonRangePreset: PickemSeasonRangePresetSchema,
+    pickType: PickTypeSchema,
+    picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
+  })
+  .openapi("PickemSettingsInput");
+
+export type PickemSettingsInput = z.infer<typeof PickemSettingsInputSchema>;
 
 /**
  * Whether a Pick'em settings edit invalidates already-submitted picks (spec
@@ -189,3 +263,18 @@ export const LEAGUE_SETTINGS_SCHEMAS = {
   [LEAGUE_MODE.ELIMINATION]: EliminationSettingsSchema,
   [LEAGUE_MODE.MARCH_MADNESS]: MarchMadnessSettingsSchema,
 } as const satisfies Record<LeagueMode, z.ZodType<LeagueSettings, unknown>>;
+
+export type LeagueSettingsInput = PickemSettingsInput | EliminationSettings | MarchMadnessSettings;
+
+/**
+ * Wire-side dispatch, the counterpart to `LEAGUE_SETTINGS_SCHEMAS`: the schema
+ * a settings *request* must satisfy. Only Pick'em's entry differs from the
+ * stored map (ADR-0020 is Pick'em-only by scope) — Elimination and March
+ * Madness accept exactly what they store, so their wire and stored schemas are
+ * the same object rather than a duplicate that could drift.
+ */
+export const LEAGUE_SETTINGS_INPUT_SCHEMAS = {
+  [LEAGUE_MODE.PICKEM]: PickemSettingsInputSchema,
+  [LEAGUE_MODE.ELIMINATION]: EliminationSettingsSchema,
+  [LEAGUE_MODE.MARCH_MADNESS]: MarchMadnessSettingsSchema,
+} as const satisfies Record<LeagueMode, z.ZodType<LeagueSettingsInput, unknown>>;

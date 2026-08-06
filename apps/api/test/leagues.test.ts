@@ -9,13 +9,14 @@ import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app, appAfterKickoff } = makeLeagueTestHarness();
 
+// The Pick'em wire shape names a season-range preset and no week refs
+// (ADR-0020); the server resolves the range it stores.
 const VALID_PICKEM_BODY = {
   mode: "pickem",
   name: "The Gridiron Gang",
   visibility: "private",
   settings: {
-    startWeek: { type: "regular", number: 1 },
-    endWeek: { type: "regular", number: 18 },
+    seasonRangePreset: "regular_season",
     pickType: "straight_up",
   },
 };
@@ -125,14 +126,19 @@ describe("POST /api/leagues", () => {
     expect(memberRows[0]).toMatchObject({ userId: user.id, role: "commissioner" });
   });
 
-  it("derives startsAt as null when the start week has no ingested games", async () => {
-    await seedDefaultSeason();
+  it("derives startsAt as null when no week in the preset's range has ingested games", async () => {
+    // Weeks exist, kickoffs don't — resolution has nothing to advance past, so
+    // the nominal start stands and no start boundary is derivable yet.
+    await seedSeason(db, {
+      year: 2026,
+      weeks: [
+        { weekNumber: 1, kickoffs: [] },
+        { weekNumber: 2, kickoffs: [] },
+      ],
+    });
     const { cookie } = await createAuthenticatedUser(auth);
 
-    const res = await postLeague(cookie, {
-      ...VALID_PICKEM_BODY,
-      settings: { ...VALID_PICKEM_BODY.settings, startWeek: { type: "regular", number: 2 } },
-    });
+    const res = await postLeague(cookie, VALID_PICKEM_BODY);
     expect(res.status).toBe(201);
     expect(((await res.json()) as LeagueResponse).startsAt).toBeNull();
   });
@@ -154,12 +160,12 @@ describe("POST /api/leagues", () => {
 
   it.each([
     {
-      label: "end week before start week",
-      settings: {
-        startWeek: { type: "regular", number: 5 },
-        endWeek: { type: "regular", number: 4 },
-        pickType: "straight_up",
-      },
+      label: "unknown season range preset",
+      settings: { seasonRangePreset: "weeks_4_to_15", pickType: "straight_up" },
+    },
+    {
+      label: "no season range preset",
+      settings: { pickType: "straight_up" },
     },
     {
       label: "unknown pick type",
@@ -400,20 +406,23 @@ describe("POST /api/leagues", () => {
     expect(await db.select().from(leagues)).toHaveLength(0);
   });
 
-  it("allows a passed calendar date when the start week has no ingested games yet", async () => {
-    await seedDefaultSeason();
+  it("advances the start past a week already underway instead of refusing", async () => {
+    const week2Kickoff = new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
+    await seedSeason(db, {
+      year: 2026,
+      weeks: [
+        { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+        { weekNumber: 2, kickoffs: [{ kickoffAt: week2Kickoff }] },
+      ],
+    });
     const { cookie } = await createAuthenticatedUser(auth);
 
-    // Week 2 has no games, so no start boundary exists yet — pre-start.
-    const res = await postLeague(
-      cookie,
-      {
-        ...VALID_PICKEM_BODY,
-        settings: { ...VALID_PICKEM_BODY.settings, startWeek: { type: "regular", number: 2 } },
-      },
-      appAfterKickoff,
-    );
+    // Week 1 has kicked off under this clock. Pinned to it the league would be
+    // born started — joins closed before anyone was invited (ADR-0020) — so
+    // the resolved start is the next week still ahead.
+    const res = await postLeague(cookie, VALID_PICKEM_BODY, appAfterKickoff);
     expect(res.status).toBe(201);
+    expect(((await res.json()) as LeagueResponse).startsAt).toBe(week2Kickoff.toISOString());
   });
 
   it("does not count plain memberships toward the cap", async () => {

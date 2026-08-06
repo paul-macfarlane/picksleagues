@@ -31,9 +31,8 @@ export const SimScenarioSourceSchema = z.enum(SIM_SCENARIO_SOURCE).openapi("SimS
  * The statuses a fixture can *end* in — a strict subset of `GAME_STATUS`,
  * derived from it so the two can't drift. `scheduled`/`in_progress` are excluded
  * because they are transient states the provider derives from the simulated
- * clock, never a terminal outcome; `moved` is excluded because it exists only
- * for admin overrides (a provider week move is a game changing weeks, which a
- * fixture expresses by its `weekNumber`).
+ * clock, never a terminal outcome. A game changing weeks is expressed by the
+ * fixture's `weekNumber`, not by a status (ADR-0019).
  */
 export const SIM_FINAL_STATUS = {
   FINAL: GAME_STATUS.FINAL,
@@ -248,14 +247,14 @@ export type UpdateSimFixtureGameRequest = z.infer<typeof UpdateSimFixtureGameReq
  * How much a reset wipes (spec §Testing: "wipe a test league or the whole
  * environment"). `league` clears one league's own rows and nothing else.
  * `environment` clears all league data plus all ingested sports data — seasons,
- * weeks, games, and odds snapshots — keeping only `teams`, which ingestion
- * re-links rather than recreates. Neither scope touches users, sessions, or
+ * weeks, and games (which carry the current spread since SIMP-7) — keeping only
+ * `teams`, which ingestion re-links rather than recreates. Neither scope touches users, sessions, or
  * accounts: a reset that signed the operator out would be unusable.
  *
  * An environment reset also rewinds the simulated clock to the active scenario's
  * start, so the wiped season re-ingests as an unplayed one. Without that, every
  * game would come back already final and its spreads would be unrecoverable —
- * the odds sync only snapshots games that haven't kicked off.
+ * the odds sync only prices games that haven't kicked off.
  */
 export const SIM_RESET_SCOPE = {
   LEAGUE: "league",

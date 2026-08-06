@@ -428,6 +428,217 @@ describe("syncNflOdds", () => {
 });
 
 /**
+ * The boundary SIMP-16 was opened to establish. Windows here are the real ESPN
+ * shape, not a convenient one — see `WEEK_1`/`WEEK_2` below.
+ */
+describe("syncNflOdds: real ESPN week windows (the Tuesday gap)", () => {
+  /**
+   * Verified against the live ESPN core API on 2026-08-05
+   * (`sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2025/types/2/weeks/{n}`),
+   * the same endpoint `EspnProvider` reads. After the opening week, an ESPN week
+   * runs Wednesday ~07:00Z to the following Wednesday ~06:59Z (08:00Z/07:59Z
+   * once EST starts) and the windows are contiguous — no gap between them:
+   *
+   *   reg wk 1: 2025-09-04T07:00Z (Thu) → 2025-09-10T06:59Z (Wed)
+   *   reg wk 2: 2025-09-10T07:00Z (Wed) → 2025-09-17T06:59Z (Wed)
+   *   reg wk 3: 2025-09-17T07:00Z (Wed) → 2025-09-24T06:59Z (Wed)
+   *
+   * Shifted onto this suite's 2026 season (opener Thursday 2026-09-10). The
+   * consequence: on a Tuesday the *current* week is the one already played, so
+   * a current-week-only target prices nothing at all and the coming weekend's
+   * games carry no line until Wednesday ~3am ET.
+   */
+  const WEEK_1 = providerWeek(1, "2026-09-10T07:00:00.000Z", "2026-09-16T06:59:00.000Z");
+  const WEEK_2 = providerWeek(2, "2026-09-16T07:00:00.000Z", "2026-09-23T06:59:00.000Z");
+  const WEEK_3 = providerWeek(3, "2026-09-23T07:00:00.000Z", "2026-09-30T06:59:00.000Z");
+
+  // Tuesday afternoon ET, inside week 1's window with every week-1 game played.
+  const TUESDAY = new Date("2026-09-15T18:00:00.000Z");
+  // Thursday afternoon ET, inside week 2's window and before its first kickoff.
+  const MID_WEEK = new Date("2026-09-17T18:00:00.000Z");
+
+  const WEEK_1_GAMES = [
+    providerGame({
+      providerGameId: "w1-sun",
+      weekNumber: 1,
+      kickoffAt: new Date("2026-09-13T17:00:00.000Z"),
+      spread: -3.5,
+    }),
+    providerGame({
+      providerGameId: "w1-mon",
+      weekNumber: 1,
+      kickoffAt: new Date("2026-09-15T00:15:00.000Z"),
+      spread: 1.5,
+    }),
+  ];
+  const WEEK_2_GAMES = [
+    providerGame({
+      providerGameId: "w2-thu",
+      weekNumber: 2,
+      kickoffAt: new Date("2026-09-18T00:15:00.000Z"),
+      spread: -6.5,
+    }),
+    providerGame({
+      providerGameId: "w2-sun",
+      weekNumber: 2,
+      kickoffAt: new Date("2026-09-20T17:00:00.000Z"),
+      spread: 2.5,
+    }),
+  ];
+  const WEEK_3_GAMES = [
+    providerGame({
+      providerGameId: "w3-sun",
+      weekNumber: 3,
+      kickoffAt: new Date("2026-09-27T17:00:00.000Z"),
+      spread: -7.5,
+    }),
+  ];
+
+  async function seedThreeWeeks() {
+    provider.structure = { seasonYear: SEASON_YEAR, weeks: [WEEK_1, WEEK_2, WEEK_3] };
+    provider.gamesByWeek = new Map([
+      [weekKey(WEEK_TYPE.REGULAR, 1), WEEK_1_GAMES],
+      [weekKey(WEEK_TYPE.REGULAR, 2), WEEK_2_GAMES],
+      [weekKey(WEEK_TYPE.REGULAR, 3), WEEK_3_GAMES],
+    ]);
+    await syncNflSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
+  }
+
+  it("Tuesday, with the current week fully played: the coming week's games still come out priced", async () => {
+    await seedThreeWeeks();
+
+    const details = await syncNflOdds(db, new FixedClock(TUESDAY), provider, {});
+    expect(details).toMatchObject({
+      seasonYear: SEASON_YEAR,
+      weekNumber: 1,
+      unstartedGames: 2,
+      spreadsUpdated: 2,
+      gamesWithoutOdds: 0,
+    });
+
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["w1-sun", null],
+        ["w1-mon", null],
+        ["w2-thu", -6.5],
+        ["w2-sun", 2.5],
+        // Two weeks out, not one — pricing the whole rest of the season would
+        // be a different job.
+        ["w3-sun", null],
+      ]),
+    );
+  });
+
+  it("mid-week: prices what is left of the current week and all of the next", async () => {
+    await seedThreeWeeks();
+
+    const details = await syncNflOdds(db, new FixedClock(MID_WEEK), provider, {});
+    expect(details).toMatchObject({ weekNumber: 2, unstartedGames: 3, spreadsUpdated: 3 });
+
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["w1-sun", null],
+        ["w1-mon", null],
+        ["w2-thu", -6.5],
+        ["w2-sun", 2.5],
+        ["w3-sun", -7.5],
+      ]),
+    );
+  });
+
+  it("re-running over both weeks leaves row state identical", async () => {
+    await seedThreeWeeks();
+    const tuesdayClock = new FixedClock(TUESDAY);
+
+    await syncNflOdds(db, tuesdayClock, provider, {});
+    const afterFirst = await db.select().from(games).orderBy(games.providerGameId);
+
+    const second = await syncNflOdds(db, tuesdayClock, provider, {});
+    expect(second).toMatchObject({ unstartedGames: 2, spreadsUpdated: 0 });
+    expect(await db.select().from(games).orderBy(games.providerGameId)).toEqual(afterFirst);
+  });
+
+  it("an explicit week targets that week and only that week", async () => {
+    await seedThreeWeeks();
+
+    const details = await syncNflOdds(db, new FixedClock(TUESDAY), provider, { weekNumber: 2 });
+    expect(details).toMatchObject({ weekNumber: 2, weeksTargeted: 1, spreadsUpdated: 2 });
+
+    // Week 3 stays unpriced: naming a week is the narrow, manual path.
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["w1-sun", null],
+        ["w1-mon", null],
+        ["w2-thu", -6.5],
+        ["w2-sun", 2.5],
+        ["w3-sun", null],
+      ]),
+    );
+  });
+
+  // The week after regular week 18 is postseason week 1: the following week is
+  // found by start time, never by week type, or the Wild Card slate would sit
+  // unpriced through the last regular-season week.
+  it("the week following the last regular week is the first postseason week", async () => {
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(18, "2026-12-30T08:00:00.000Z", "2027-01-06T07:59:00.000Z"),
+        providerWeek(
+          1,
+          "2027-01-06T08:00:00.000Z",
+          "2027-01-13T07:59:00.000Z",
+          WEEK_TYPE.POSTSEASON,
+          "Wild Card",
+        ),
+      ],
+    };
+    provider.gamesByWeek = new Map([
+      [
+        weekKey(WEEK_TYPE.REGULAR, 18),
+        [
+          providerGame({
+            providerGameId: "reg18",
+            weekNumber: 18,
+            kickoffAt: new Date("2027-01-03T18:00:00.000Z"),
+            spread: -1.5,
+          }),
+        ],
+      ],
+      [
+        weekKey(WEEK_TYPE.POSTSEASON, 1),
+        [
+          providerGame({
+            providerGameId: "wc1",
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            kickoffAt: new Date("2027-01-09T21:30:00.000Z"),
+            spread: -4.5,
+          }),
+        ],
+      ],
+    ]);
+    await syncNflSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
+
+    // Friday of regular week 18, before its Sunday games.
+    const details = await syncNflOdds(
+      db,
+      new FixedClock(new Date("2027-01-01T18:00:00.000Z")),
+      provider,
+      {},
+    );
+    expect(details).toMatchObject({ weekNumber: 18, unstartedGames: 2, spreadsUpdated: 2 });
+
+    expect(await spreadsByProviderId()).toEqual(
+      new Map([
+        ["reg18", -1.5],
+        ["wc1", -4.5],
+      ]),
+    );
+  });
+});
+
+/**
  * `nflSeasonYearFor` maps Jan–Jul back to the prior season label, so all
  * offseason a bare run would derive a season whose weeks are already over while
  * next season's games sit unsynced — and an ATS league can take no picks until

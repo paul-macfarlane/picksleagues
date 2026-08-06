@@ -40,9 +40,8 @@ export type ProviderGame = {
   homeTeamProviderId: string;
   awayTeamProviderId: string;
   kickoffAt: Date;
-  // Only the statuses a provider can produce — `moved` is override-only
-  // (arch §Overrides): a provider "week move" surfaces as the game's week
-  // FK changing, never as a status value.
+  // A provider "week move" surfaces as the game's week FK changing, never as a
+  // status value (ADR-0019).
   status: GameStatus;
   // null until the game is in progress or final; ESPN sends "0" pre-game,
   // which we deliberately do not surface as a score.

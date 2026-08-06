@@ -12,9 +12,11 @@ import {
   MEMBER_ROLE,
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
+  PICKEM_SEASON_RANGE_PRESET,
   PICK_TYPE,
   WEEK_TYPE,
   type PickemSettings,
+  type PickemSettingsInput,
   type PickemWeekPicksResponse,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
@@ -268,7 +270,7 @@ describe("GET /api/weeks/:weekId/games", () => {
     expect(game?.stateAsOf).toBe(SEED_AT.toISOString());
   });
 
-  it("reflects the seeded odds snapshot's spread, and null when none was seeded", async () => {
+  it("reflects the seeded game's spread, and null when none was seeded", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedSeason(db, {
       year: 2026,
@@ -1143,8 +1145,15 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
 });
 
 describe("PATCH /api/leagues/:leagueId — settings changes reset picks (settings-reset.ts)", () => {
-  function settingsWith(overrides: Partial<PickemSettings>): PickemSettings {
-    return { ...DEFAULT_PICKEM_SETTINGS, ...overrides };
+  // Builds a *wire* settings payload: a season-range preset and no week refs
+  // (ADR-0020) — the range these edits move is the one the server resolves.
+  function settingsWith(overrides: Partial<PickemSettingsInput> = {}): PickemSettingsInput {
+    return {
+      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
+      pickType: DEFAULT_PICKEM_SETTINGS.pickType,
+      picksPerWeek: DEFAULT_PICKEM_SETTINGS.picksPerWeek,
+      ...overrides,
+    };
   }
 
   /** One member, one submitted week — the week's full three-game set. */
@@ -1173,12 +1182,10 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // forever. Clearing is the only way back into the week.
     { label: "picksPerWeek is raised", settings: settingsWith({ picksPerWeek: 8 }) },
     {
-      label: "startWeek moves later",
-      settings: settingsWith({ startWeek: { type: WEEK_TYPE.REGULAR, number: 2 } }),
-    },
-    {
-      label: "endWeek moves earlier",
-      settings: settingsWith({ endWeek: { type: WEEK_TYPE.REGULAR, number: 10 } }),
+      // Regular Season → Postseason moves the resolved start past every week
+      // the submitted picks live in.
+      label: "the season range preset moves the start later",
+      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON }),
     },
   ])("clears picks when $label — a change that could strand them", async ({ settings }) => {
     const { league, memberA } = await seedWithSubmittedWeek();
@@ -1190,8 +1197,10 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
 
   it.each([
     {
-      label: "endWeek moves later",
-      settings: settingsWith({ endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 } }),
+      // Regular Season → Full Season keeps the same resolved start and pushes
+      // the end out: every existing pick still sits in a week the league plays.
+      label: "the season range preset moves the end later",
+      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON }),
     },
   ])("keeps picks when $label — nothing is stranded", async ({ settings }) => {
     const { league, memberA } = await seedWithSubmittedWeek();
@@ -1213,6 +1222,7 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // JSONB directly (settings-reset.ts: `1 < undefined` is false, which is
     // exactly the bug this pins).
     const withoutPicksPerWeek = {
+      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       startWeek: DEFAULT_PICKEM_SETTINGS.startWeek,
       endWeek: DEFAULT_PICKEM_SETTINGS.endWeek,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
@@ -1232,7 +1242,7 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     expect(picks.status).toBe(200);
 
     const res = await patchLeague(memberA.cookie, league.id, {
-      settings: { ...DEFAULT_PICKEM_SETTINGS, picksPerWeek: 1 },
+      settings: settingsWith({ picksPerWeek: 1 }),
     });
     expect(res.status).toBe(200);
     expect(await pickCountFor(league.id)).toBe(0);
@@ -1271,7 +1281,7 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     const patchRes = await patchLeague(
       memberA.cookie,
       league.id,
-      { settings: { ...DEFAULT_PICKEM_SETTINGS, pickType: PICK_TYPE.AGAINST_THE_SPREAD } },
+      { settings: settingsWith({ pickType: PICK_TYPE.AGAINST_THE_SPREAD }) },
       appAfterKickoff,
     );
     expect(patchRes.status).toBe(409);
