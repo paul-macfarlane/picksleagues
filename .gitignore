@@ -37,3 +37,7 @@ coverage/
 !docs/evidence/test-results/
 !docs/evidence/test-results/**
 # <!-- atlas-v3:gitignore:end -->
+
+# Python bytecode (Atlas hooks are Python; everything else here is TS)
+__pycache__/
+*.py[cod]
