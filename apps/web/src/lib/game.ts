@@ -37,25 +37,31 @@ export function weekTypeLabel(weekType: WeekType): string {
   return WEEK_TYPE_LABELS[weekType];
 }
 
-// Empty (not a placeholder dash) when unscored: this renders after the status
-// word, and "Scheduled –" reads as a truncated line rather than "no score yet".
+/**
+ * Empty (not a placeholder dash) when unscored: this renders after the status
+ * word, and "Scheduled –" reads as a truncated line rather than "no score yet".
+ */
 export function scoreText(away: number | null, home: number | null): string {
   return away === null || home === null ? "" : ` ${away}–${home}`;
 }
 
-// Period 1-4 are regulation quarters; 5+ is overtime (DATA-8's bound allows up
-// to 10, the longest NFL game on record having reached the 6th). The first
-// overtime reads bare ("OT"), matching how a broadcast reads it — only the
-// second and later gets a number, so this can't be a flat `period - 4`.
+/**
+ * Period 1-4 are regulation quarters; 5+ is overtime (DATA-8's bound allows up
+ * to 10, the longest NFL game on record having reached the 6th). The first
+ * overtime reads bare ("OT"), matching how a broadcast reads it — only the
+ * second and later gets a number, so this can't be a flat `period - 4`.
+ */
 export function periodLabel(period: number): string {
   if (period <= 4) return `Q${period}`;
   if (period === 5) return "OT";
   return `OT${period - 4}`;
 }
 
-// `m:ss`: no leading zero on minutes (a period never reaches double-digit
-// minutes in practice, and the admin override form's m:ss input round-trips
-// through this same function), always two digits on seconds.
+/**
+ * `m:ss`: no leading zero on minutes (a period never reaches double-digit
+ * minutes in practice, and the admin override form's m:ss input round-trips
+ * through this same function), always two digits on seconds.
+ */
 export function clockLabel(clockSeconds: number): string {
   const minutes = Math.floor(clockSeconds / 60);
   const seconds = clockSeconds % 60;
@@ -236,23 +242,27 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
   return "tied";
 }
 
-// Home-relative spread, flipped for the away side (spec §ATS) — the sign a
-// member reads next to the team they'd be picking, not the raw stored number.
-// Shared by the pick entry grid and the week/pick detail view so the two
-// surfaces never drift on how a spread reads.
+/**
+ * Home-relative spread, flipped for the away side (spec §ATS) — the sign a
+ * member reads next to the team they'd be picking, not the raw stored number.
+ * Shared by the pick entry grid and the week/pick detail view so the two
+ * surfaces never drift on how a spread reads.
+ */
 export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
   if (spread === null) return null;
   const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;
   return value > 0 ? `+${value}` : `${value}`;
 }
 
-// A pick row's visual state (PKM UX feedback: "make submitted state obvious
-// inline"). One function drives the row's border/badge styling so the new
-// "picked" highlight and the pre-existing locked/unplayable badges — which
-// must stay visually distinct from it — can never drift out of sync with
-// each other. `locked`/`unplayable` take priority over `hasSelection`: a
-// submitted pick on a locked or pushed game is still rendered via its own
-// "Your pick" copy, not the freshly-picked highlight.
+/**
+ * A pick row's visual state (PKM UX feedback: "make submitted state obvious
+ * inline"). One function drives the row's border/badge styling so the new
+ * "picked" highlight and the pre-existing locked/unplayable badges — which
+ * must stay visually distinct from it — can never drift out of sync with
+ * each other. `locked`/`unplayable` take priority over `hasSelection`: a
+ * submitted pick on a locked or pushed game is still rendered via its own
+ * "Your pick" copy, not the freshly-picked highlight.
+ */
 export type PickRowState = "unplayable" | "locked" | "picked" | "open";
 
 /**

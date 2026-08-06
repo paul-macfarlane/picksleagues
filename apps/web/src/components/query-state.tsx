@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
-// Shared loading/error/empty triad for any query-backed view: originally a
-// rule-of-three extraction for the admin browsers (teams/seasons/games),
-// since adopted by the league pick'em/standings screens too — one definition
-// for the "Loading… / error + outline Retry / empty" markup instead of every
-// screen re-hand-rolling it (and silently drifting, as the picks tab's
-// missing Retry did before this extraction).
+/**
+ * Shared loading/error/empty triad for any query-backed view: originally a
+ * rule-of-three extraction for the admin browsers (teams/seasons/games),
+ * since adopted by the league pick'em/standings screens too — one definition
+ * for the "Loading… / error + outline Retry / empty" markup instead of every
+ * screen re-hand-rolling it (and silently drifting, as the picks tab's
+ * missing Retry did before this extraction).
+ */
 export function QueryState({
   isPending,
   pendingMessage = "Loading…",

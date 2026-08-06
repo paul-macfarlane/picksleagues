@@ -36,9 +36,8 @@ export function MembersSection({
   const updateRole = useUpdateMemberRole(leagueId);
   const kickMember = useKickMember(leagueId);
 
-  // Moved from the Danger Zone (item 4/5 consolidation) — every member,
-  // regardless of role, can leave from here; a sole member leaving deletes
-  // the league (server-enforced, unchanged).
+  // Every member, regardless of role, can leave from here; a sole member
+  // leaving deletes the league (server-enforced).
   const leaveLeague = useLeaveLeague(leagueId);
 
   return (

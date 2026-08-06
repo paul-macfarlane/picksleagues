@@ -13,10 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Desktop nav companion to the Home/Discover links — surfaces the current
-// league (when on one) and every league the signed-in user belongs to, one
-// tap away. Shares its data (and cache entry) with the dashboard's league
-// list via useMyLeagues.
+/**
+ * Desktop nav companion to the Home/Discover links — surfaces the current
+ * league (when on one) and every league the signed-in user belongs to, one
+ * tap away. Shares its data (and cache entry) with the dashboard's league
+ * list via useMyLeagues.
+ */
 export function LeagueSwitcher() {
   // strict: false merges params across whatever route is matched, so
   // leagueId comes back populated only on /leagues/$leagueId and its

@@ -76,13 +76,15 @@ export function orderMembersByWeek(
   });
 }
 
-// The week/pick detail screen (spec Screens inventory): every member's picks
-// for one week, joined against that week's slate so each pick renders as a
-// real matchup rather than a bare game id, and against both standings boards so
-// each member arrives with the record that explains their position. Visibility
-// is already enforced by the API (`picks` only contains kicked-off games for
-// non-viewers); this component never re-derives that rule, only renders what it
-// was given.
+/**
+ * The week/pick detail screen (spec Screens inventory): every member's picks
+ * for one week, joined against that week's slate so each pick renders as a
+ * real matchup rather than a bare game id, and against both standings boards so
+ * each member arrives with the record that explains their position. Visibility
+ * is already enforced by the API (`picks` only contains kicked-off games for
+ * non-viewers); this component never re-derives that rule, only renders what it
+ * was given.
+ */
 export function PickemWeekDetail({
   leagueId,
   weekId,

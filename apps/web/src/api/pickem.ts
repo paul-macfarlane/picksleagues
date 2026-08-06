@@ -37,9 +37,11 @@ function pickemStandingsQueryPrefix(leagueId: string) {
   return ["league", leagueId, "pickem", "standings"];
 }
 
-// Season-cumulative board when `weekId` is omitted, a single week's board
-// otherwise — one endpoint at two scopes (spec §Standings), so one query key
-// shape covers both, keyed by the resolved scope rather than "undefined".
+/**
+ * Season-cumulative board when `weekId` is omitted, a single week's board
+ * otherwise — one endpoint at two scopes (spec §Standings), so one query key
+ * shape covers both, keyed by the resolved scope rather than "undefined".
+ */
 export function pickemStandingsQueryKey(leagueId: string, weekId?: string) {
   return [...pickemStandingsQueryPrefix(leagueId), weekId ?? "season"];
 }
@@ -57,11 +59,13 @@ export function usePickemStandings(leagueId: string, weekId?: string) {
   });
 }
 
-// The settings editor's pre-save warning input: how much a Pick'em-invalidating
-// settings edit would destroy. Its own query key (not folded into the league
-// query) since it's fetched conditionally and on a different cadence — every
-// keystroke in the settings form re-derives whether the change would
-// invalidate, but the count itself only needs to be fetched once per visit.
+/**
+ * The settings editor's pre-save warning input: how much a Pick'em-invalidating
+ * settings edit would destroy. Its own query key (not folded into the league
+ * query) since it's fetched conditionally and on a different cadence — every
+ * keystroke in the settings form re-derives whether the change would
+ * invalidate, but the count itself only needs to be fetched once per visit.
+ */
 export function pickemPickSummaryQueryKey(leagueId: string) {
   return ["league", leagueId, "pickem", "pick-summary"];
 }
@@ -114,9 +118,11 @@ function pickSubmissionErrorMessage(error: ErrorResponse): string {
   }
 }
 
-// The member's one submission for the week (ADR-0018 decision 1): the full
-// required set, in one call, never edited afterwards. The caller confirms
-// irreversibility before this fires.
+/**
+ * The member's one submission for the week (ADR-0018 decision 1): the full
+ * required set, in one call, never edited afterwards. The caller confirms
+ * irreversibility before this fires.
+ */
 export function useSubmitPicks(leagueId: string, weekId: string) {
   const queryClient = useQueryClient();
   return useMutation({

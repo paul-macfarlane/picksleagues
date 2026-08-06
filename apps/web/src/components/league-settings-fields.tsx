@@ -65,9 +65,11 @@ export const MM_ROUND_LABELS = [
   "Championship",
 ] as const;
 
-// Pick'em names its season range by preset, never by week numbers (ADR-0020):
-// the server resolves the concrete refs against the bound season and the clock,
-// so there is nothing here for a commissioner to spell out week by week.
+/**
+ * Pick'em names its season range by preset, never by week numbers (ADR-0020):
+ * the server resolves the concrete refs against the bound season and the clock,
+ * so there is nothing here for a commissioner to spell out week by week.
+ */
 export const PICKEM_SEASON_RANGE_OPTIONS: {
   value: PickemSeasonRangePreset;
   label: string;
@@ -77,15 +79,19 @@ export const PICKEM_SEASON_RANGE_OPTIONS: {
   { value: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON, label: "Full Season" },
 ];
 
-// Matches the range weeks 1-18 described before presets existed, so a league
-// created without touching this control covers what it always did.
+/**
+ * Matches the range weeks 1-18 described before presets existed, so a league
+ * created without touching this control covers what it always did.
+ */
 export const DEFAULT_PICKEM_SEASON_RANGE = PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON;
 
-// NFL postseason rounds restart at 1 (spec §Pick'em League Settings), so week
-// selects encode both the regular/postseason weeks table's identity —
-// `type:number` — into one option value; decodeWeek reverses it. Elimination is
-// the only mode that still addresses weeks directly (ADR-0020 §Scope defers
-// presets there to epic 06).
+/**
+ * NFL postseason rounds restart at 1 (spec §Pick'em League Settings), so week
+ * selects encode both the regular/postseason weeks table's identity —
+ * `type:number` — into one option value; decodeWeek reverses it. Elimination is
+ * the only mode that still addresses weeks directly (ADR-0020 §Scope defers
+ * presets there to epic 06).
+ */
 export function encodeWeek(ref: NflWeekRef): string {
   return `${ref.type}:${ref.number}`;
 }
@@ -100,14 +106,18 @@ export const REGULAR_WEEK_OPTIONS = Array.from({ length: 18 }, (_, index) => {
   return { value: encodeWeek(ref), label: `Week ${index + 1}` };
 });
 
-// Elimination is regular-season only (spec §Elimination Core Rules), so its
-// week selects never offer a postseason round.
+/**
+ * Elimination is regular-season only (spec §Elimination Core Rules), so its
+ * week selects never offer a postseason round.
+ */
 export const DEFAULT_ELIMINATION_START_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 1 });
 export const DEFAULT_ELIMINATION_END_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 18 });
 
-// Shared radio-group wiring: a legend, then one Radio + Label pair per
-// option (with optional helper text) — used for mode, visibility, pick
-// type, and Elimination's push/tie setting.
+/**
+ * Shared radio-group wiring: a legend, then one Radio + Label pair per
+ * option (with optional helper text) — used for mode, visibility, pick
+ * type, and Elimination's push/tie setting.
+ */
 export function RadioField<Value extends string>({
   legend,
   name,

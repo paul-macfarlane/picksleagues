@@ -14,9 +14,11 @@ export type LocalDateTimeParts = {
 
 const TIME_PATTERN = /^\d{2}:\d{2}$/;
 
-// `new Date(value)` here parses a value the operator already typed or
-// selected — the sanctioned exception to the Clock rule (not a "now" read;
-// see invite-panel.tsx for the same reasoning at the existing call sites).
+/**
+ * `new Date(value)` here parses a value the operator already typed or
+ * selected — the sanctioned exception to the Clock rule (not a "now" read;
+ * see invite-panel.tsx for the same reasoning at the existing call sites).
+ */
 export function splitLocalDateTimeValue(value: string): LocalDateTimeParts {
   if (!value) return { date: undefined, time: "" };
   const [, timePart = ""] = value.split("T");
@@ -27,11 +29,13 @@ export function splitLocalDateTimeValue(value: string): LocalDateTimeParts {
   };
 }
 
-// Recombines a calendar-selected date with a "HH:mm" time-of-day into the
-// same "YYYY-MM-DDTHH:mm" shape the input this replaces produced — the exact
-// round trip `toLocalDateTimeInputValue`/`buildFixturePatch` depend on. Reads
-// the date's local getters (never UTC ones), matching how the calendar
-// itself represents the selected day.
+/**
+ * Recombines a calendar-selected date with a "HH:mm" time-of-day into the
+ * same "YYYY-MM-DDTHH:mm" shape the input this replaces produced — the exact
+ * round trip `toLocalDateTimeInputValue`/`buildFixturePatch` depend on. Reads
+ * the date's local getters (never UTC ones), matching how the calendar
+ * itself represents the selected day.
+ */
 export function combineLocalDateTimeValue(date: Date, time: string): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

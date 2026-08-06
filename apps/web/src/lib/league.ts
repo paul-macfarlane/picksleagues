@@ -44,10 +44,12 @@ export function leagueHasStarted(league: LeagueResponse, now: Date): boolean {
   return league.startsAt !== null && now.getTime() >= new Date(league.startsAt).getTime();
 }
 
-// Section visibility runs on the LEAGUE_ACTION matrix's role axis; the window
-// axis is `leagueHasStarted` against the caller's `now` (arch D11: the
-// server's Clock is the only trustworthy "now", so callers must pass one
-// derived from `useAppNow()`, never a local `Date`).
+/**
+ * Section visibility runs on the LEAGUE_ACTION matrix's role axis; the window
+ * axis is `leagueHasStarted` against the caller's `now` (arch D11: the
+ * server's Clock is the only trustworthy "now", so callers must pass one
+ * derived from `useAppNow()`, never a local `Date`).
+ */
 export function canActOnLeague(league: LeagueResponse, action: LeagueAction, now: Date) {
   return canPerformLeagueAction(action, {
     role: league.myRole,

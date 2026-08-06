@@ -11,14 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-// A calendar + time-input popover replacing the native `datetime-local`
-// input (which browsers render inconsistently and can't be themed to match
-// shadcn/Base UI) at the app's three kickoff/expiry/instant sites. Speaks the
-// exact same "YYYY-MM-DDTHH:mm" local wall-clock string those sites already
-// pass through `toLocalDateTimeInputValue`/`new Date(value).toISOString()`
-// (sim-clock-card.tsx, sim-fixture-row.tsx via fixture-patch.ts,
-// invite-panel.tsx) — a drop-in `value`/`onChange` replacement for the
-// `Input type="datetime-local"` it replaces, so that round trip is untouched.
+/**
+ * A calendar + time-input popover replacing the native `datetime-local`
+ * input (which browsers render inconsistently and can't be themed to match
+ * shadcn/Base UI) at the app's three kickoff/expiry/instant sites. Speaks the
+ * exact same "YYYY-MM-DDTHH:mm" local wall-clock string those sites already
+ * pass through `toLocalDateTimeInputValue`/`new Date(value).toISOString()`
+ * (sim-clock-card.tsx, sim-fixture-row.tsx via fixture-patch.ts,
+ * invite-panel.tsx) — a drop-in `value`/`onChange` replacement for the
+ * `Input type="datetime-local"` it replaces, so that round trip is untouched.
+ */
 export function DateTimePicker({
   id,
   value,

@@ -5,12 +5,14 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 // issue" so the two field adapters can't drift on what an error renders as.
 import { fieldErrorMessage } from "@/components/form-field";
 
-// TanStack Form adapter for DateTimePicker, mirroring FormTextField's
-// Label + control + error-<p> wiring (form-field.tsx) for the one form field
-// that needs a date/time control instead of a plain Input — sim-fixture-row's
-// `kickoffAt`. Kept as its own component rather than teaching FormTextField
-// to swap controls, matching how LabeledSelect stays separate from
-// FormTextField today.
+/**
+ * TanStack Form adapter for DateTimePicker, mirroring FormTextField's
+ * Label + control + error-<p> wiring (form-field.tsx) for the one form field
+ * that needs a date/time control instead of a plain Input — sim-fixture-row's
+ * `kickoffAt`. Kept as its own component rather than teaching FormTextField
+ * to swap controls, matching how LabeledSelect stays separate from
+ * FormTextField today.
+ */
 export function FormDateTimeField({
   field,
   label,

@@ -21,12 +21,14 @@ export function useMe() {
   });
 }
 
-// Shared by claim-username (first sign-in) and profile (anytime edit) — both
-// PATCH /api/me, but their 409 (username taken) and success behavior differ
-// entirely (claim navigates on, profile toasts + refetches), so the hook
-// stays thin and takes those as options rather than assuming a form or a
-// particular success action. 409 is field-level feedback, never a toast —
-// `onUsernameTaken` is the caller's `form.setErrorMap`, not moved in here.
+/**
+ * Shared by claim-username (first sign-in) and profile (anytime edit) — both
+ * PATCH /api/me, but their 409 (username taken) and success behavior differ
+ * entirely (claim navigates on, profile toasts + refetches), so the hook
+ * stays thin and takes those as options rather than assuming a form or a
+ * particular success action. 409 is field-level feedback, never a toast —
+ * `onUsernameTaken` is the caller's `form.setErrorMap`, not moved in here.
+ */
 export function useUpdateMe(options: {
   onUsernameTaken: () => void;
   onSuccess: (data: MeResponse) => void | Promise<void>;

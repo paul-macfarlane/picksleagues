@@ -57,10 +57,12 @@ export function openSelections(
   return open;
 }
 
-// The sticky action bar's progress copy (feedback: submitting a 16-game
-// slate shouldn't require scrolling to find the count) — a pure formatter so
-// the exact phrasing is pinned by a test rather than re-typed at the call
-// site.
+/**
+ * The sticky action bar's progress copy (feedback: submitting a 16-game
+ * slate shouldn't require scrolling to find the count) — a pure formatter so
+ * the exact phrasing is pinned by a test rather than re-typed at the call
+ * site.
+ */
 export function pickProgressLabel(heldCount: number, picksAllowed: number): string {
   return `${heldCount} of ${picksAllowed} picks`;
 }

@@ -10,10 +10,12 @@ import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Top-level (not under _authed): mirrors claim-username.tsx — the invite
-// round-trip owns its own redirect state so sign-in/claim can return here
-// (mvp-spec §Invites: "Visiting a link while signed out routes through
-// sign-in and back"; lib/redirect.ts names this route as the consumer).
+/**
+ * Top-level (not under _authed): mirrors claim-username.tsx — the invite
+ * round-trip owns its own redirect state so sign-in/claim can return here
+ * (mvp-spec §Invites: "Visiting a link while signed out routes through
+ * sign-in and back"; lib/redirect.ts names this route as the consumer).
+ */
 export const Route = createFileRoute("/join/$code")({
   beforeLoad: async ({ location }) => {
     const { data: session } = await authClient.getSession();

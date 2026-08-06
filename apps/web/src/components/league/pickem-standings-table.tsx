@@ -20,8 +20,10 @@ export type StandingsSortColumn =
 
 export const SORT_DIRECTION = { ASCENDING: "ascending", DESCENDING: "descending" } as const;
 
-// Named for the `aria-sort` token set so the attribute is the value itself
-// rather than a mapping this file has to keep in sync.
+/**
+ * Named for the `aria-sort` token set so the attribute is the value itself
+ * rather than a mapping this file has to keep in sync.
+ */
 export type SortDirection = (typeof SORT_DIRECTION)[keyof typeof SORT_DIRECTION];
 
 export interface StandingsSort {

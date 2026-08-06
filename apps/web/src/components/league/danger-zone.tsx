@@ -14,12 +14,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Commissioner-only — the route only renders this component when the viewer
-// is a commissioner (role axis), so there's no internal role check left to
-// make (Leave league lives on the Members tab now, visible to every member —
-// see members-section.tsx). Rendering survives the window closing: only the
-// Delete trigger disables, with an inline reason, so the commissioner can see
-// they once had the power rather than the section silently disappearing.
+/**
+ * Commissioner-only — the route only renders this component when the viewer
+ * is a commissioner (role axis), so there's no internal role check left to
+ * make (Leave league lives on the Members tab now, visible to every member —
+ * see members-section.tsx). Rendering survives the window closing: only the
+ * Delete trigger disables, with an inline reason, so the commissioner can see
+ * they once had the power rather than the section silently disappearing.
+ */
 export function DangerZoneSection({
   league,
   started,

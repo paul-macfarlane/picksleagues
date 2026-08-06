@@ -5,11 +5,13 @@ import { api } from "@/lib/api";
 // slate a week is made of. Every NFL mode reads both, so they sit outside
 // api/pickem.ts.
 
-// A league's season weeks, clipped to its configured Start/End Week
-// (spec §Pick'em League Settings) and carrying the default landing week —
-// the week selector and its default source this, never deriving either
-// client-side (ADR: "Use it as the initial selection rather than deriving
-// one client-side").
+/**
+ * A league's season weeks, clipped to its configured Start/End Week
+ * (spec §Pick'em League Settings) and carrying the default landing week —
+ * the week selector and its default source this, never deriving either
+ * client-side (ADR: "Use it as the initial selection rather than deriving
+ * one client-side").
+ */
 export function leagueWeeksQueryKey(leagueId: string) {
   return ["league", leagueId, "weeks"];
 }
@@ -27,16 +29,20 @@ export function useLeagueWeeks(leagueId: string) {
   });
 }
 
-// Keyed by week alone (not league): the slate endpoint serves the week's
-// games with current spreads and derived lock state, independent of which
-// league is viewing it.
+/**
+ * Keyed by week alone (not league): the slate endpoint serves the week's
+ * games with current spreads and derived lock state, independent of which
+ * league is viewing it.
+ */
 export function weekSlateQueryKey(weekId: string | undefined) {
   return ["week-slate", weekId];
 }
 
-// `skipToken` rather than `enabled` for the not-yet-selected week: it narrows
-// `weekId` to a string inside the queryFn, so the required path param needs no
-// non-null assertion (same idiom as api/admin.ts's useAdminGames).
+/**
+ * `skipToken` rather than `enabled` for the not-yet-selected week: it narrows
+ * `weekId` to a string inside the queryFn, so the required path param needs no
+ * non-null assertion (same idiom as api/admin.ts's useAdminGames).
+ */
 export function useWeekSlate(weekId: string | undefined) {
   return useQuery({
     queryKey: weekSlateQueryKey(weekId),

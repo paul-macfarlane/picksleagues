@@ -29,10 +29,12 @@ const STATUS_PILL_TONES = {
 
 export type StatusPillTone = keyof typeof STATUS_PILL_TONES;
 
-// Span props pass through so a caller can put a `data-testid` and the machine
-// value of what the pill is saying on it. A pill's *word* is copy the
-// facelift may reword; the state it stands for is not, and the E2E gate binds to
-// that instead.
+/**
+ * Span props pass through so a caller can put a `data-testid` and the machine
+ * value of what the pill is saying on it. A pill's *word* is copy the
+ * facelift may reword; the state it stands for is not, and the E2E gate binds to
+ * that instead.
+ */
 export function StatusPill({
   tone = "neutral",
   className,
