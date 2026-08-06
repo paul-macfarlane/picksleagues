@@ -45,6 +45,20 @@ Two accounts are the point — one member's view of another is where the visibil
 rule lives, and it cannot be checked from a single session. Use a second browser
 profile, not a second tab.
 
+**Keep both windows on screen at once — never two tabs in one window.** TanStack Query
+refetches on `visibilitychange` and on nothing else (`focusManager`, query-core 5.x): it
+has no `focus`/`blur` listener, and treats itself as focused whenever
+`document.visibilityState !== "hidden"`. A tab you switch *away from* goes hidden and
+reloads the instant you come back, erasing exactly the mid-flight state Passes 1 and 6
+exist to catch. Two side-by-side windows both stay `visible`, so neither ever refetches
+and you can change the world in one while the other holds its stale sheet. Don't
+full-screen either window — an occluded window does go hidden. To be certain, paste this
+into the picks window's console and confirm it stays silent while you work in the other:
+
+```js
+document.addEventListener("visibilitychange", () => console.log("hidden:", document.hidden));
+```
+
 **Pick type is a per-pass choice.** ATS exercises the spread; straight-up exercises
 the tie. Where a pass depends on one, it says so.
 
@@ -108,24 +122,24 @@ the happy path for one league shape; what it does not take are the branches belo
 
 Assert:
 
-- [ ] The action bar counts `N of M picks`, and **Submit stays disabled** until the
+- [x] The action bar counts `N of M picks`, and **Submit stays disabled** until the
       sheet is a full set. `M` is what the week can still take, not the number of
       rows on screen.
-- [ ] At `M`, every *unselected* row's buttons go dead while a held side stays
+- [x] At `M`, every *unselected* row's buttons go dead while a held side stays
       operable — giving one back is what frees the slot.
-- [ ] The confirmation names the count and the week and says, in as many words, that
+- [X] The confirmation names the count and the week and says, in as many words, that
       the picks are final and can't be changed, replaced, or removed.
-- [ ] **Cancel writes nothing.** The sheet is exactly as it was, still editable,
+- [x] **Cancel writes nothing.** The sheet is exactly as it was, still editable,
       still complete.
-- [ ] Confirming freezes the week: the submit control is **gone**, not disabled;
+- [x] Confirming freezes the week: the submit control is **gone**, not disabled;
       both sides of every row are disabled; and the side you took is still visibly
       the one you took, rather than both sides dimming into anonymity.
-- [ ] **Two tabs.** Open the same week in a second tab *before* submitting, assemble
+- [ ] ~**Two tabs.** Open the same week in a second tab *before* submitting, assemble
       a set in both, submit in one, then submit in the other. The second is refused
       with "a week can only be submitted once", and the tab replaces its dead sheet
       with the read-only week it now holds — it must not sit on a sheet that can
-      never be submitted.
-- [ ] **A kickoff mid-sheet.** With an unsubmitted sheet open and selections made,
+      never be submitted.~ Hard to test because tanstack refetches on focus
+- [X] **A kickoff mid-sheet.** With an unsubmitted sheet open and selections made,
       advance the clock past the first kickoff → Sync scores → return to the tab
       *without reloading*. The started game leaves the sheet, its selection goes
       with it, the required count drops by one, and a sheet that was complete is
@@ -145,17 +159,17 @@ Assert:
 
 Assert:
 
-- [ ] The exact push grades **Push**, worth **0.5**. Fixed, with no setting behind it
+- [x] The exact push grades **Push**, worth **0.5**. Fixed, with no setting behind it
       — the Push/Tie Resolution league setting is gone (ADR-0018 decision 4), so
       there is no configuration under which this reads anything else.
-- [ ] A graded push shows the **badge only** — no margin phrase beside it. ("pushing"
+- [x] A graded push shows the **badge only** — no margin phrase beside it. ("pushing"
       is the *in-progress* wording; once graded, the badge is the whole verdict, and
       a push has no magnitude to state.)
-- [ ] The cover reads `covered by 8`, the non-cover `short by 7` — the magnitude
+- [x] The cover reads `covered by 8`, the non-cover `short by 7` — the magnitude
       measured against the spread, not the scoreboard margin.
-- [ ] Standings: **1.5** points from three picks, W-L-P `1-1-1`. The half point
+- [x] Standings: **1.5** points from three picks, W-L-P `1-1-1`. The half point
       renders as a half point, neither rounded nor truncated.
-- [ ] Both sides of a settled row carry the spread the pick was made **at** — the
+- [x] Both sides of a settled row carry the spread the pick was made **at** — the
       number settlement graded on — and it agrees with the margin phrase on the same
       row. A member should never see the number move under a made pick.
 
@@ -167,12 +181,12 @@ Two games, both required. A tie is a push with no spread involved.
 
 Assert:
 
-- [ ] Both games grade **Push** at 0.5, and neither shows a margin phrase.
+- [x] Both games grade **Push** at 0.5, and neither shows a margin phrase.
       (`tie-game-2` is a spread-0 pick'em, so it is a tie and a push at once; in a
       straight-up league it is simply the tie.)
-- [ ] No spread appears anywhere in a straight-up league — not on the sheet, not on
+- [x] No spread appears anywhere in a straight-up league — not on the sheet, not on
       the frozen week, not on League Picks.
-- [ ] Standings read W-L-P `0-0-2` and **1** point from two picks — not 0, not 2.
+- [x] Standings read W-L-P `0-0-2` and **1** point from two picks — not 0, not 2.
 
 ## Pass 4 — Cancellation is a push, and the push stands
 
@@ -203,27 +217,28 @@ state the deleted substitute flow used to key on.
 
 Assert:
 
-- [ ] The cancelled game's pick is **retained** and marked a push — never silently
+- [x] The cancelled game's pick is **retained** and marked a push — never silently
       deleted.
-- [ ] The row says why: the game was cancelled, the pick resolved as a push, and the
+- [x] The row says why: the game was cancelled, the pick resolved as a push, and the
       member's other picks are unaffected.
-- [ ] There is **no substitute control, no re-pick, and no way back into the week** —
+- [x] There is **no substitute control, no re-pick, and no way back into the week** —
       not on the row, not in the action bar, nowhere. The slot is spent (ADR-0018
       decision 3).
-- [ ] The push **stands** with `cancelled-game-3` unplayed and unpicked-over. The old
+- [x] The push **stands** with `cancelled-game-3` unplayed and unpicked-over. The old
       rule made the push conditional on the rest of the slate; this one does not.
-- [ ] The standings credit the 0.5 within that one sync — no clock move, no
+- [x] The standings credit the 0.5 within that one sync — no clock move, no
       `/sim/settle` — because `sync-schedule` re-settles the league-weeks holding
       picks on games whose status changed. W-L-P counts it in **P**.
-- [ ] `cancelled-game-1` — cancelled before anyone could pick it — is **absent from
+- [x] `cancelled-game-1` — cancelled before anyone could pick it — is **absent from
       the member's week entirely**, for both members. Not "visible but disabled": a
       game nobody holds and nobody can pick is dead weight on the screen, and a fresh
       pick on it would be free points.
-- [ ] It never counted either: the sheet asked for two, not three.
+- [x] It never counted either: the sheet asked for two, not three.
 
 ## Pass 5 — Postponement is *not* cancellation
 
-**Scenario:** `postponed-game` · **Run it once per pick type — the ATS run found a bug**
+**Scenario:** `postponed-game` · **Run it once per pick type — the ATS run is the one that
+caught the PR #22 bug** (see §Timing note; it is fixed, not outstanding)
 
 The trap: a postponed game looks like a cancelled one and behaves like neither. A
 postponement inside the week is played later and resolves normally — so unlike a
@@ -233,22 +248,22 @@ kickoff.
 
 Assert:
 
-- [ ] The sheet asks for **all three** games, the postponed one included. (Contrast
+- [x] The sheet asks for **all three** games, the postponed one included. (Contrast
       Pass 4, where the cancelled game is neither shown nor counted. That difference
       is the whole pass.)
-- [ ] The pick on the postponed game **stays**, and grades **nothing** — no result,
+- [x] The pick on the postponed game **stays**, and grades **nothing** — no result,
       no points, no W/L/P movement. It is pending, not pushed.
-- [ ] Once its kickoff passes, the pick locks and is revealed to the other member
+- [x] Once its kickoff passes, the pick locks and is revealed to the other member
       like any other. Locking is derived from the kickoff, so a game that never
       starts still locks on time.
-- [ ] Standings do not count it in either direction.
+- [x] Standings do not count it in either direction.
 
 In an **ATS** league, additionally — this is where the pick type changes the answer,
 and where a postponed game was unpickable until the odds sync learned about it:
 
-- [ ] The postponed game **shows a spread**, the one its fixture declares. `sync-odds`
+- [x] The postponed game **shows a spread**, the one its fixture declares. `sync-odds`
       prices every unstarted status, not only `scheduled`.
-- [ ] It is pickable **and counted**: the sheet asks for three. A "No line yet" pill
+- [x] It is pickable **and counted**: the sheet asks for three. A "No line yet" pill
       on it, a dead pair of buttons, and a required count of two mean the odds sync
       skipped it — the bug this pass exists to catch. Under submit-once the cost is
       higher than it was: an unpriced game doesn't merely block itself, it changes
@@ -258,6 +273,10 @@ and where a postponed game was unpickable until the odds sync learned about it:
 
 **Scenario:** `push-ats` (any ATS-capable one) · **League:** against the spread ·
 **Fixture editor**
+
+**This pass needs the two-window setup above.** Done as two tabs it cannot fail: switching
+to the fixture editor hides the picks tab, and coming back refetches the new spread onto
+the sheet, so the number you submit is already current and the refusal never fires.
 
 The one ATS path that overrides-driven testing cannot produce, because it needs the
 line to move *between* load and submit. There is no re-pricing and no accept-latest
@@ -296,24 +315,24 @@ submit-once, **the only way a member ever re-submits a week** (ADR-0018).
 
 Assert:
 
-- [ ] A **raise** invalidates exactly as a lowering does. Under submit-once nobody can
+- [x] A **raise** invalidates exactly as a lowering does. Under submit-once nobody can
       add to a submitted week, so raising the cap without clearing would leave every
       member who had already submitted permanently undersized with no way to comply.
-- [ ] An inline warning appears **before** saving, naming a real pick count and member
+- [x] An inline warning appears **before** saving, naming a real pick count and member
       count — not a generic caution.
-- [ ] Confirming is required; cancelling changes nothing.
-- [ ] The counts match what is actually deleted.
-- [ ] A change that strands nothing — the league's name — raises **no** warning and no
+- [x] Confirming is required; cancelling changes nothing.
+- [x] The counts match what is actually deleted.
+- [x] A change that strands nothing — the league's name — raises **no** warning and no
       dialog.
-- [ ] Changing **Pick type** warns the same way. So does moving **Season range** to a
+- [x] Changing **Pick type** warns the same way. So does moving **Season range** to a
       narrower preset (Full Season → Regular Season); widening it (Regular Season →
       Full Season) does not, because every existing pick still sits in a week the
       league plays.
-- [ ] After saving, the members' weeks are open again: the sheet is back, and a
+- [x] After saving, the members' weeks are open again: the sheet is back, and a
       **fresh full set** can be submitted. Not "re-pick within the new cap" — there is
       no partial edit, only another whole submission.
 - [ ] Once any pick has **locked**, the same save is refused (`picks_locked`) and
-      nothing changes — neither the settings nor the picks.
+      nothing changes — neither the settings nor the picks. - This works, but instead of waiting for a user to edit and then be warned "Visibility and settings are locked once the league starts.", we should just disable editing of those settings in the first place (disable the form). Let's include a inline message in the settings explaining that is the case, so the commissioner knows why the settings are disabled.
 
 ## Pass 8 — Season conclusion and renewal
 
@@ -322,11 +341,24 @@ Assert:
 Conclusion is the easy half; renewal is where a multi-season bug would live
 (ADR-0009).
 
+**Getting a next season to renew into — you don't have to build one.** Once the current
+season has concluded, a **bare** Sync schedule (no season param) creates the upcoming one
+itself: the offseason self-heal writes `defaultSeasonYear + 1`, real when the provider has
+a schedule and otherwise provisional from `estimatedNflWeeks` (ADR-0009). That path is
+pure computation, so it works under the simulator, where the provider knows only the
+scenario's own year.
+
+After the clock advance: Admin → Jobs → **Sync schedule**, then read the response body in
+the network tab. `upcoming: "provisional"` (or `"real"`) plus `upcomingSeasonYear` confirms
+it landed; `skipped_not_concluded` means the clock has not actually cleared the last week
+yet, and `skipped_no_weeks` means nothing was ever synced. `latestSeasonForSport` now
+returns the newer year, so `renewable` flips true and the Renew control appears.
+
 Assert:
 
-- [ ] A concluded season **refuses new picks** with a clear message ("This season is
+- [x] A concluded season **refuses new picks** with a clear message ("This season is
       over — picks are closed."), rather than failing obscurely.
-- [ ] Final standings remain readable after conclusion.
+- [x] Final standings remain readable after conclusion.
 - [ ] The league offers **renewal** once a newer season row exists, to the
       commissioner only.
 - [ ] A renewed league starts an **empty pick ledger** — last season's picks and
