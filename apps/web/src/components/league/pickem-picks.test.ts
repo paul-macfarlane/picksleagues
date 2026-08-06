@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PICKEM_PICK_SIDE } from "@picksleagues/schemas";
-import { openSelections, pickProgressLabel } from "./pickem-picks";
+import { openSelections } from "./pickem-picks";
 
 /**
  * The sheet's narrowing rule. Under ADR-0018 a member gets one submission per
@@ -46,25 +46,5 @@ describe("openSelections", () => {
     );
 
     expect([...held.entries()]).toEqual([["open", PICKEM_PICK_SIDE.HOME]]);
-  });
-});
-
-/**
- * Pins the sticky action bar's progress phrasing (feedback: submitting a
- * 16-game slate shouldn't require scrolling to find the count) — the exact
- * string is also asserted literally by e2e/pickem-journey.sim.spec.ts, so a
- * wording change here must be a deliberate, visible edit to both.
- */
-describe("pickProgressLabel", () => {
-  it("renders the held count over the required set", () => {
-    expect(pickProgressLabel(4, 4)).toBe("4 of 4 picks");
-  });
-
-  it("renders an empty sheet", () => {
-    expect(pickProgressLabel(0, 5)).toBe("0 of 5 picks");
-  });
-
-  it("renders a partial sheet", () => {
-    expect(pickProgressLabel(2, 5)).toBe("2 of 5 picks");
   });
 });

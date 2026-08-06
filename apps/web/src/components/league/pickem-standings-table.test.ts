@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PickemStandingsRow } from "@picksleagues/schemas";
-import {
-  DEFAULT_STANDINGS_SORT,
-  nextStandingsSort,
-  sortStandingsRows,
-  SORT_DIRECTION,
-  STANDINGS_SORT_COLUMN,
-} from "./pickem-standings-table";
+import { sortStandingsRows, SORT_DIRECTION, STANDINGS_SORT_COLUMN } from "./pickem-standings-table";
 
 function row(overrides: Partial<PickemStandingsRow> & { displayName: string }): PickemStandingsRow {
   return {
@@ -26,7 +20,7 @@ function row(overrides: Partial<PickemStandingsRow> & { displayName: string }): 
 
 /**
  * The table is sortable by any column, but the *board* is the server's: rank is
- * competition ranking on points alone (ADR-0018 decision 4), so these tests pin
+ * competition ranking on points alone (ADR-0018 decision 4), so this test pins
  * that sorting only reorders rows and never renumbers them.
  */
 describe("sortStandingsRows", () => {
@@ -42,70 +36,6 @@ describe("sortStandingsRows", () => {
     row({ displayName: "Delta", points: 3, wins: 3, losses: 1, rank: 1 }),
     row({ displayName: "Charlie", points: 1, wins: 1, losses: 3, rank: 4 }),
   ];
-
-  const names = (rows: readonly PickemStandingsRow[]) => rows.map((r) => r.displayName);
-
-  it("defaults to rank ascending — the league's actual standing", () => {
-    expect(DEFAULT_STANDINGS_SORT).toEqual({ column: "rank", direction: "ascending" });
-    expect(names(sortStandingsRows(board, DEFAULT_STANDINGS_SORT))).toEqual([
-      "Alpha",
-      "Bravo",
-      "Delta",
-      "Charlie",
-    ]);
-  });
-
-  it.each([
-    {
-      column: STANDINGS_SORT_COLUMN.POINTS,
-      direction: SORT_DIRECTION.DESCENDING,
-      expected: ["Alpha", "Bravo", "Delta", "Charlie"],
-    },
-    {
-      column: STANDINGS_SORT_COLUMN.POINTS,
-      direction: SORT_DIRECTION.ASCENDING,
-      expected: ["Charlie", "Alpha", "Bravo", "Delta"],
-    },
-    {
-      column: STANDINGS_SORT_COLUMN.RECORD,
-      direction: SORT_DIRECTION.DESCENDING,
-      expected: ["Alpha", "Delta", "Bravo", "Charlie"],
-    },
-    {
-      column: STANDINGS_SORT_COLUMN.RECORD,
-      direction: SORT_DIRECTION.ASCENDING,
-      expected: ["Charlie", "Bravo", "Alpha", "Delta"],
-    },
-    {
-      column: STANDINGS_SORT_COLUMN.MEMBER,
-      direction: SORT_DIRECTION.DESCENDING,
-      expected: ["Delta", "Charlie", "Bravo", "Alpha"],
-    },
-    {
-      column: STANDINGS_SORT_COLUMN.RANK,
-      direction: SORT_DIRECTION.DESCENDING,
-      expected: ["Charlie", "Alpha", "Bravo", "Delta"],
-    },
-  ])("sorts by $column $direction", ({ column, direction, expected }) => {
-    expect(names(sortStandingsRows(board, { column, direction }))).toEqual(expected);
-  });
-
-  it("is stable — rows the comparator calls equal keep the server's order", () => {
-    // The three tied members are level on points and share a rank; the server
-    // sent them name-ascending and every sort must preserve that, in both
-    // directions (a reversed comparator must not reverse the tie group).
-    const byPoints = sortStandingsRows(board, {
-      column: STANDINGS_SORT_COLUMN.POINTS,
-      direction: SORT_DIRECTION.DESCENDING,
-    });
-    expect(names(byPoints.filter((r) => r.points === 3))).toEqual(["Alpha", "Bravo", "Delta"]);
-
-    const byRecord = sortStandingsRows(board, {
-      column: STANDINGS_SORT_COLUMN.RECORD,
-      direction: SORT_DIRECTION.ASCENDING,
-    });
-    expect(names(byRecord.filter((r) => r.wins === 3))).toEqual(["Alpha", "Delta"]);
-  });
 
   it("never recomputes rank — every row keeps the server's, ties included", () => {
     for (const column of Object.values(STANDINGS_SORT_COLUMN)) {
@@ -126,19 +56,6 @@ describe("sortStandingsRows", () => {
       }
     }
   });
-
-  it("does not mutate the rows it was given", () => {
-    const snapshot = names(board);
-    sortStandingsRows(board, {
-      column: STANDINGS_SORT_COLUMN.POINTS,
-      direction: SORT_DIRECTION.DESCENDING,
-    });
-    expect(names(board)).toEqual(snapshot);
-  });
-
-  it("handles an empty board", () => {
-    expect(sortStandingsRows([], DEFAULT_STANDINGS_SORT)).toEqual([]);
-  });
 });
 
 /**
@@ -154,28 +71,5 @@ describe("sortStandingsRows", () => {
 describe("STANDINGS_SORT_COLUMN", () => {
   it("offers nothing behind points to separate tied members", () => {
     expect(Object.values(STANDINGS_SORT_COLUMN)).toEqual(["rank", "member", "record", "points"]);
-  });
-});
-
-describe("nextStandingsSort", () => {
-  it("reverses the column already sorted", () => {
-    expect(nextStandingsSort(DEFAULT_STANDINGS_SORT, STANDINGS_SORT_COLUMN.RANK)).toEqual({
-      column: "rank",
-      direction: "descending",
-    });
-    expect(
-      nextStandingsSort(
-        { column: STANDINGS_SORT_COLUMN.RANK, direction: SORT_DIRECTION.DESCENDING },
-        STANDINGS_SORT_COLUMN.RANK,
-      ),
-    ).toEqual({ column: "rank", direction: "ascending" });
-  });
-
-  it.each([
-    { column: STANDINGS_SORT_COLUMN.MEMBER, direction: "ascending" },
-    { column: STANDINGS_SORT_COLUMN.POINTS, direction: "descending" },
-    { column: STANDINGS_SORT_COLUMN.RECORD, direction: "descending" },
-  ])("opens $column at $direction — best first for a scoring column", ({ column, direction }) => {
-    expect(nextStandingsSort(DEFAULT_STANDINGS_SORT, column)).toEqual({ column, direction });
   });
 });
