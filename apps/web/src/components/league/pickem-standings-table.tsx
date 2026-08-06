@@ -266,7 +266,14 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
         {/* The spec requires a "last updated" stamp and forbids claiming
             real-time freshness — never "live", just when settlement last wrote
             this board. */}
-        <p className="text-xs text-muted-foreground">
+        {/* `data-settled` is the fact the stamp reports — whether this board has
+            ever been written — so the merge-gate journey can assert it either
+            way without binding to either sentence (QLTY-2). */}
+        <p
+          data-testid="standings-updated-at"
+          data-settled={lastUpdatedAt ? "true" : "false"}
+          className="text-xs text-muted-foreground"
+        >
           {lastUpdatedAt
             ? `Last updated ${formatDateTime(lastUpdatedAt)}`
             : "Nothing has settled yet."}

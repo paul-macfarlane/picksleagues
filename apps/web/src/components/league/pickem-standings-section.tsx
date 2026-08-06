@@ -35,7 +35,9 @@ export function PickemStandingsSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      {/* Addressed by testid rather than by a card whose title happens to read
+          "Standings" (QLTY-2). */}
+      <Card data-testid="standings-card">
         <CardHeader>
           <CardTitle>Standings</CardTitle>
           <CardDescription>

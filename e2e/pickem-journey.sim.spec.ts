@@ -4,9 +4,12 @@ import { latestInviteCode } from "./setup/league-seed";
 import {
   APP_ROLE,
   ERROR_CODE,
+  GAME_STATUS,
   PICKEM_PICK_SIDE,
+  PICK_OUTCOME,
   SIM_CLOCK_ADJUSTMENT_KIND,
   SIM_RESET_SCOPE,
+  type PickOutcome,
 } from "../packages/schemas/src/index";
 
 /**
@@ -61,14 +64,55 @@ async function signInAs(context: BrowserContext, overrides?: Parameters<typeof m
   return user;
 }
 
-// Selects a pick on the Picks tab by scoping to the game row's own text
-// ("<away> @ <home>", `pickem-game-row.tsx`'s `Matchup`) rather than a bare
-// team-abbreviation button — the abbreviations happen to be unique across
+/**
+ * Locators for the contracts the SPA carries for this suite (QLTY-2).
+ *
+ * A row is addressed by *which teams it is between* and a value by *which value
+ * it is* — never by the sentence either is printed in. The facelift is free to
+ * reword every string on these screens, and a merge gate that fell over when it
+ * did would be a veto on the redesign rather than a check on the product. Team
+ * abbreviations, week labels and member names are domain data rather than copy,
+ * so binding to those is the point and not the exception.
+ */
+function gameRow(page: Page, awayAbbr: string, homeAbbr: string): Locator {
+  return page.locator(
+    `[data-testid="game-row"][data-away-team="${awayAbbr}"][data-home-team="${homeAbbr}"]`,
+  );
+}
+
+// One member's row for one game, inside their section of the league-wide pick
+// detail — the join this suite has to check, since a pick attached to the wrong
+// member is invisible to any per-member count.
+function memberPickFor(member: Locator, awayAbbr: string, homeAbbr: string): Locator {
+  return member.locator(
+    `[data-testid="member-pick"][data-away-team="${awayAbbr}"][data-home-team="${homeAbbr}"]`,
+  );
+}
+
+// Graded picks, by the grade settlement actually wrote (`PICK_OUTCOME`) rather
+// than by the badge's word for it — which also sidesteps "Correct" being a
+// substring of "Incorrect".
+function gradedPicks(scope: Locator, outcome: PickOutcome): Locator {
+  return scope.locator(`[data-testid="pick-outcome"][data-outcome="${outcome}"]`);
+}
+
+// A value element is on screen and carries the data claimed of it — the
+// abbreviations and numbers inside the line, never the line.
+async function expectValue(value: Locator, ...fragments: (string | RegExp)[]) {
+  await expect(value).toBeVisible();
+  for (const fragment of fragments) {
+    await expect(value).toContainText(fragment);
+  }
+}
+
+// Selects a pick on the Picks tab, scoped to the game's own row rather than a
+// bare team-abbreviation button — the abbreviations happen to be unique across
 // this fixture's 8 teams, but scoping is what keeps this correct if that ever
 // changes.
 async function selectPick(page: Page, awayAbbr: string, homeAbbr: string, pickAbbr: string) {
-  const row = page.locator("li", { hasText: `${awayAbbr} @ ${homeAbbr}` });
-  await row.getByRole("button", { name: pickAbbr, exact: true }).click();
+  await gameRow(page, awayAbbr, homeAbbr)
+    .getByRole("button", { name: pickAbbr, exact: true })
+    .click();
 }
 
 // The sheet's submit control (`pickem-picks.tsx`'s sticky action bar). Named
@@ -161,8 +205,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   async function openLeaguePicks() {
     await pageA.getByRole("link", { name: "League Picks" }).click();
     await expect(pageA).toHaveURL(new RegExp(`/leagues/${leagueId}/league-picks`));
-    const detail = pageA.locator('[data-slot="card"]', { hasText: "Picks — Week 1" });
+    const detail = pageA.getByTestId("week-picks-card");
     await expect(detail).toBeVisible();
+    // The week it opened on — the whole point of the assertion — read off the
+    // card's own contract rather than out of its title's phrasing.
+    await expect(detail).toHaveAttribute("data-week-label", "Week 1");
     return detail;
   }
 
@@ -307,7 +354,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // freeze is a property of having submitted, not of the games locking, which
     // is the whole difference between ADR-0018 and the editable rules it
     // replaced. `submitSheet` already asserted the submit control is gone.
-    const submitted = pageA.locator("li", { hasText: "MIA @ BUF" });
+    const submitted = gameRow(pageA, "MIA", "BUF");
     await expect(submitted.getByRole("button", { name: "BUF", exact: true })).toBeDisabled();
     await expect(submitted.getByRole("button", { name: "MIA", exact: true })).toBeDisabled();
 
@@ -357,8 +404,13 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     // Every open game is on the sheet — the member chooses which two of the
     // four to spend the cap on, so hiding any of them would decide it for them.
-    for (const matchup of ["MIA @ BUF", "DEN @ KC", "PHI @ DAL", "SEA @ SF"]) {
-      await expect(pageA.locator("li", { hasText: matchup })).toBeVisible();
+    for (const [away, home] of [
+      ["MIA", "BUF"],
+      ["DEN", "KC"],
+      ["PHI", "DAL"],
+      ["SEA", "SF"],
+    ]) {
+      await expect(gameRow(pageA, away!, home!)).toBeVisible();
     }
 
     await expect(submitControl(pageA)).toBeDisabled();
@@ -369,23 +421,27 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // of rows on screen (ADR-0018 decision 2), and a third selection has no
     // slot left to take.
     await expect(
-      pageA.locator("li", { hasText: "SEA @ SF" }).getByRole("button", { name: "SF", exact: true }),
+      gameRow(pageA, "SEA", "SF").getByRole("button", { name: "SF", exact: true }),
     ).toBeDisabled();
     await submitSheet(pageA);
 
     // The submitted week is the member's own picks, not the slate: the two they
     // passed on are gone, at every clock position from here on, because nothing
     // about this week can change again.
-    await expect(pageA.locator("li", { hasText: "DEN @ KC" })).toBeVisible();
-    await expect(pageA.locator("li", { hasText: "PHI @ DAL" })).toBeVisible();
-    await expect(pageA.locator("li", { hasText: "MIA @ BUF" })).toHaveCount(0);
-    await expect(pageA.locator("li", { hasText: "SEA @ SF" })).toHaveCount(0);
+    await expect(gameRow(pageA, "DEN", "KC")).toBeVisible();
+    await expect(gameRow(pageA, "PHI", "DAL")).toBeVisible();
+    await expect(gameRow(pageA, "MIA", "BUF")).toHaveCount(0);
+    await expect(gameRow(pageA, "SEA", "SF")).toHaveCount(0);
   });
 
   test("before kickoff, another member's picks are hidden behind a count", async () => {
     await pageA.goto(`/leagues/${leagueId}`);
-    // Nothing has settled yet — the season board's own empty state.
-    await expect(pageA.getByText("Nothing has settled yet.")).toBeVisible();
+    // Nothing has settled yet — the season board's own "never been written"
+    // state, read off the stamp's contract rather than its sentence.
+    await expect(pageA.getByTestId("standings-updated-at")).toHaveAttribute(
+      "data-settled",
+      "false",
+    );
 
     await pageA.getByRole("combobox", { name: "View" }).click();
     await pageA.getByRole("option", { name: "Week 1", exact: true }).click();
@@ -401,20 +457,21 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // ...and that scope selector governs the board alone. The league's picks
     // are their own tab now (round 5), so changing the period here must not
     // conjure a second card underneath it.
-    await expect(pageA.getByText(/^Picks — /)).toHaveCount(0);
+    await expect(pageA.getByTestId("week-picks-card")).toHaveCount(0);
 
     const detail = await openLeaguePicks();
 
     // Every member starts collapsed, the viewer included — the page opens as a
     // weekly leaderboard and a reader expands the member they came for.
     const own = memberRow(detail, commishName);
-    await expect(own.locator("li").first()).toBeHidden();
-    await expect(own.locator("li")).toHaveCount(4);
-    await expect(own.getByText(/more pick/)).toHaveCount(0);
+    await expect(own.getByTestId("member-pick").first()).toBeHidden();
+    await expect(own.getByTestId("member-pick")).toHaveCount(4);
+    await expect(own.getByTestId("hidden-pick-count")).toHaveCount(0);
 
     const other = await expandMember(detail, joinerName);
-    await expect(other.getByText("4 more picks in — not yet revealed.")).toBeVisible();
-    await expect(other.locator("li")).toHaveCount(0);
+    // The count is the value; the sentence around it is copy.
+    await expectValue(other.getByTestId("hidden-pick-count"), /\b4\b/);
+    await expect(other.getByTestId("member-pick")).toHaveCount(0);
   });
 
   test("past one kickoff: that pick locks, is revealed, and the week refuses a second submission", async () => {
@@ -422,7 +479,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // without a remount — the position a member is in whenever they leave the
     // picks tab open through a Sunday.
     await pageA.goto(`/leagues/${leagueId}/my-picks`);
-    await expect(pageA.locator("li", { hasText: "MIA @ BUF" })).toBeVisible();
+    await expect(gameRow(pageA, "MIA", "BUF")).toBeVisible();
 
     const lockInstant = new Date(new Date(game1.kickoffAt).getTime() + 60_000).toISOString();
     await adminContext.request.post("/api/sim/clock", {
@@ -440,9 +497,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // the badge slot from "Locked" — it has kicked off by definition, and which
     // of the three states the row is in is the more useful fact (feedback round
     // 4). The lock itself is asserted below, by the API's own refusal.
-    const lockedRow = pageA.locator("li", { hasText: "MIA @ BUF" });
-    await expect(lockedRow.getByText("In progress")).toBeVisible();
-    await expect(lockedRow.getByText("Locked")).toHaveCount(0);
+    const lockedRow = gameRow(pageA, "MIA", "BUF");
+    const lockedStatus = lockedRow.getByTestId("game-status");
+    await expect(lockedStatus).toBeVisible();
+    await expect(lockedStatus).toHaveAttribute("data-status", GAME_STATUS.IN_PROGRESS);
+    await expect(lockedRow.getByTestId("lock-state")).toHaveCount(0);
 
     // Read the rest only *after* the row above proves the new slate has landed.
     // The refetch is asynchronous, so asserting straight after the visibility
@@ -453,12 +512,12 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // knowing that the away side comes first (spec §UI conventions). The
     // simulator holds an in-progress game at 0–0 for its whole window by
     // design, so the value here is fixed rather than merely unasserted.
-    await expect(lockedRow.getByText("MIA 0 – BUF 0")).toBeVisible();
+    await expectValue(lockedRow.getByTestId("game-state"), "MIA 0", "BUF 0");
 
     // The provisional standing: a reading of the last sync, phrased as a
     // magnitude and never as a verdict (spec §Provisional pick standing).
     // Straight-up league, level at 0–0, so the pick is "tied".
-    await expect(lockedRow.getByText("Your pick: BUF · tied")).toBeVisible();
+    await expectValue(lockedRow.getByTestId("pick-summary"), "BUF", "tied");
     const lockedPicked = lockedRow.getByRole("button", { name: "BUF", exact: true });
     const lockedUnpicked = lockedRow.getByRole("button", { name: "MIA", exact: true });
     // Locking must not erase *which* side is held: both sides disabled and
@@ -473,14 +532,15 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // three days ahead, so the last game is ~12h away and reads "Today"/
     // "Tomorrow", while a browser-clock label would still call it three days
     // out and print a weekday. Nothing else in the suite can distinguish them.
-    await expect(
-      pageA.locator("li", { hasText: "SEA @ SF" }).getByText(/Kickoff (Today|Tomorrow) /),
-    ).toBeVisible();
+    await expectValue(
+      gameRow(pageA, "SEA", "SF").getByTestId("game-state"),
+      /\b(Today|Tomorrow)\b/,
+    );
 
     // A game that has *not* kicked off is just as frozen as the one that has:
     // immutability is the submission's property, and a refetch mid-week must
     // not hand any of it back.
-    const unstartedRow = pageA.locator("li", { hasText: "DEN @ KC" });
+    const unstartedRow = gameRow(pageA, "DEN", "KC");
     await expect(unstartedRow.getByRole("button", { name: "DEN", exact: true })).toBeDisabled();
     await expect(submitControl(pageA)).toHaveCount(0);
 
@@ -503,9 +563,9 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await pageA.goto(`/leagues/${leagueId}`);
     const detail = await openLeaguePicks();
     const other = await expandMember(detail, joinerName);
-    await expect(other.getByText("3 more picks in — not yet revealed.")).toBeVisible();
-    await expect(other.locator("li")).toHaveCount(1);
-    await expect(other.locator("li").first()).toContainText("MIA");
+    await expectValue(other.getByTestId("hidden-pick-count"), /\b3\b/);
+    await expect(other.getByTestId("member-pick")).toHaveCount(1);
+    await expect(other.getByTestId("member-pick")).toHaveAttribute("data-picked-team", "MIA");
   });
 
   test("after every game goes final, settlement produces the expected standings", async () => {
@@ -527,57 +587,64 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     // Season-cumulative board (the default view).
     await pageA.goto(`/leagues/${leagueId}`);
-    const seasonTable = pageA.locator('[data-slot="card"]', { hasText: "Standings" }).first();
+    const seasonTable = pageA.getByTestId("standings-card");
     await assertTiedStandings(seasonTable);
-    await expect(pageA.getByText(/^Last updated/)).toBeVisible();
+    // The board has been written now — the stamp's fact, not its wording.
+    await expect(pageA.getByTestId("standings-updated-at")).toHaveAttribute("data-settled", "true");
 
     // Weekly board — the only week played, so it matches the season totals.
     await pageA.getByRole("combobox", { name: "View" }).click();
     await pageA.getByRole("option", { name: "Week 1", exact: true }).click();
-    const weekTable = pageA.locator('[data-slot="card"]', { hasText: "Standings" }).first();
+    const weekTable = pageA.getByTestId("standings-card");
     await assertTiedStandings(weekTable);
 
     // Every game is final now, so both members' full picks are revealed.
     const detail = await openLeaguePicks();
     const commishPicks = memberRow(detail, commishName);
     const joinerPicks = memberRow(detail, joinerName);
-    await expect(commishPicks.locator("li")).toHaveCount(4);
-    await expect(joinerPicks.locator("li")).toHaveCount(4);
-    await expect(detail.getByText(/more pick/)).toHaveCount(0);
+    await expect(commishPicks.getByTestId("member-pick")).toHaveCount(4);
+    await expect(joinerPicks.getByTestId("member-pick")).toHaveCount(4);
+    await expect(detail.getByTestId("hidden-pick-count")).toHaveCount(0);
 
     // Each pick's grade reaches the UI, and each member's four split two-two —
-    // a check mark means precisely "this graded correct", which is why it
-    // appears nowhere before a pick settles. `exact` matters: an inexact
-    // "Correct" is a case-insensitive substring of "Incorrect".
+    // a badge means precisely "this graded", which is why none appears before a
+    // pick settles. Addressed by the grade itself rather than by its word, so
+    // relabelling the badge can't fail this.
     for (const member of [commishPicks, joinerPicks]) {
-      await expect(member.getByText("Correct", { exact: true })).toHaveCount(2);
-      await expect(member.getByText("Incorrect", { exact: true })).toHaveCount(2);
+      await expect(gradedPicks(member, PICK_OUTCOME.CORRECT)).toHaveCount(2);
+      await expect(gradedPicks(member, PICK_OUTCOME.INCORRECT)).toHaveCount(2);
       // Every graded pick pairs its badge with the size of the result — none of
-      // these pushed, so all four carry a magnitude (round 5).
-      await expect(member.getByText(/^won by \d/)).toHaveCount(2);
-      await expect(member.getByText(/^lost by \d/)).toHaveCount(2);
+      // these pushed, so all four carry a magnitude (round 5). The magnitude is
+      // the number; whether it's phrased "won by 10" or otherwise is copy, and
+      // which way each one went is already pinned by the grades above.
+      await expect(member.getByTestId("pick-standing")).toHaveCount(4);
+      await expect(member.getByTestId("pick-standing").filter({ hasText: /\d/ })).toHaveCount(4);
     }
 
     // The two members graded on the *same* game, which is what the symmetric
     // counts above can't see: they took opposite sides of it, so a pick joined
     // to the wrong member shows up here.
-    const openingGame = (member: Locator) => member.locator("li", { hasText: "(MIA @ BUF)" });
-    await expect(openingGame(commishPicks).getByText("Correct", { exact: true })).toHaveCount(1);
-    await expect(openingGame(joinerPicks).getByText("Incorrect", { exact: true })).toHaveCount(1);
+    const openingGame = (member: Locator) => memberPickFor(member, "MIA", "BUF");
+    await expect(gradedPicks(openingGame(commishPicks), PICK_OUTCOME.CORRECT)).toHaveCount(1);
+    await expect(gradedPicks(openingGame(joinerPicks), PICK_OUTCOME.INCORRECT)).toHaveCount(1);
 
     // Same grades on the member's own week, where the outcome takes the badge
     // slot the in-progress state held before the game finished.
     await pageA.goto(`/leagues/${leagueId}/my-picks`);
-    const settledRow = pageA.locator("li", { hasText: "MIA @ BUF" });
-    await expect(settledRow.getByText("Correct", { exact: true })).toBeVisible();
-    await expect(settledRow.getByText("Locked")).toHaveCount(0);
-    // BUF (home) beat MIA (away) 27–17 — named, and in away-home order.
-    await expect(settledRow.getByText("MIA 17 – BUF 27")).toBeVisible();
+    const settledRow = gameRow(pageA, "MIA", "BUF");
+    const settledBadge = settledRow.getByTestId("pick-outcome");
+    await expect(settledBadge).toBeVisible();
+    await expect(settledBadge).toHaveAttribute("data-outcome", PICK_OUTCOME.CORRECT);
+    await expect(settledRow.getByTestId("lock-state")).toHaveCount(0);
+    // BUF (home) beat MIA (away) 27–17 — each number named by its own team, so
+    // this never depends on knowing that the away side comes first.
+    await expectValue(settledRow.getByTestId("game-state"), "MIA 17", "BUF 27");
     // The magnitude survives the grade but the provisional *phrasing* must not:
     // the badge above owns the verdict, so the line states only how big the
     // result was (round 5).
-    await expect(settledRow.getByText("Your pick: BUF · won by 10")).toBeVisible();
-    await expect(settledRow.getByText(/tied|up \d|down \d/)).toHaveCount(0);
+    const settledSummary = settledRow.getByTestId("pick-summary");
+    await expectValue(settledSummary, "BUF", /\b10\b/);
+    await expect(settledSummary).not.toContainText(/tied|up \d|down \d/);
 
     // Still no submit control — the week was frozen from the moment it was
     // submitted and finishing changes nothing about that.

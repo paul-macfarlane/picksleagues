@@ -23,7 +23,9 @@ export function SimReplayCard({ state }: { state: SimStateResponse }) {
   const [year, setYear] = useState(String(years[0]));
 
   return (
-    <Card>
+    // Addressed by testid: `CardTitle` is a div rather than a heading, so the
+    // only other way to find this card is its own prose (QLTY-2).
+    <Card data-testid="replay-import-card">
       <CardHeader>
         <CardTitle>Import a replay season</CardTitle>
         <CardDescription>

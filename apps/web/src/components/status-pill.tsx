@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,13 +29,17 @@ const STATUS_PILL_TONES = {
 
 export type StatusPillTone = keyof typeof STATUS_PILL_TONES;
 
+// Span props pass through so a caller can put a `data-testid` and the machine
+// value of what the pill is saying on it (QLTY-2). A pill's *word* is copy the
+// facelift may reword; the state it stands for is not, and the E2E gate binds to
+// that instead.
 export function StatusPill({
   tone = "neutral",
   className,
   children,
-}: {
+  ...props
+}: ComponentProps<"span"> & {
   tone?: StatusPillTone;
-  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -45,6 +49,7 @@ export function StatusPill({
         STATUS_PILL_TONES[tone],
         className,
       )}
+      {...props}
     >
       {children}
     </span>

@@ -122,6 +122,20 @@ function Matchup({ game }: { game: SlateGame }) {
 const ROW_CLASS_NAME = "flex flex-col gap-2 rounded-lg border border-border p-3";
 
 /**
+ * The row's identity as data (QLTY-2): which two teams it is between, rather
+ * than the `"<away> @ <home>"` line it happens to print. The merge-gate journey
+ * addresses rows through these, so rewording or re-laying-out a matchup can't
+ * fail the gate — while a row rendered for the wrong game still does.
+ */
+function gameRowAttributes(game: SlateGame) {
+  return {
+    "data-testid": "game-row",
+    "data-away-team": game.awayTeam.abbreviation,
+    "data-home-team": game.homeTeam.abbreviation,
+  } as const;
+}
+
+/**
  * A row in the unsubmitted sheet. Only games the member can still pick reach
  * here (`pickem-picks.tsx` filters the slate), so there is no locked, cancelled,
  * or graded state to render — nothing on this row has happened yet.
@@ -155,6 +169,7 @@ export function SheetGameRow({
 
   return (
     <li
+      {...gameRowAttributes(game)}
       className={cn(
         ROW_CLASS_NAME,
         // Full-strength `primary`, not a fraction of it: the palette is
@@ -171,7 +186,9 @@ export function SheetGameRow({
         {noLineYet && <StatusPill>No line yet</StatusPill>}
       </div>
 
-      <p className="text-xs text-muted-foreground">{gameStateLabel(game, now)}</p>
+      <p data-testid="game-state" className="text-xs text-muted-foreground">
+        {gameStateLabel(game, now)}
+      </p>
 
       <div className="grid grid-cols-2 gap-2">
         <SideButton
@@ -232,7 +249,10 @@ export function SubmittedPickRow({
   );
 
   return (
-    <li className={cn(ROW_CLASS_NAME, rowState === "picked" && "border-primary bg-primary/5")}>
+    <li
+      {...gameRowAttributes(game)}
+      className={cn(ROW_CLASS_NAME, rowState === "picked" && "border-primary bg-primary/5")}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Matchup game={game} />
         {/* One badge, most-informative-wins, and the chain is total because
@@ -252,13 +272,15 @@ export function SubmittedPickRow({
         ) : rowState === "picked" ? (
           <StatusPill tone="accent">Picked</StatusPill>
         ) : (
-          game.locked && <StatusPill>Locked</StatusPill>
+          game.locked && <StatusPill data-testid="lock-state">Locked</StatusPill>
         )}
       </div>
 
       {/* Kickoff before the game starts, status + score after — a member whose
           pick has locked wants to know how it is doing, not when it began. */}
-      <p className="text-xs text-muted-foreground">{gameStateLabel(game, now)}</p>
+      <p data-testid="game-state" className="text-xs text-muted-foreground">
+        {gameStateLabel(game, now)}
+      </p>
       {/* Own line, not appended to the state line above: this row has the
           room, and the qualifier reads more clearly set apart from the score
           it's dating than crowded onto the same line (DATA-8; spec §UI
@@ -292,7 +314,7 @@ export function SubmittedPickRow({
               because it is a fact about the *pick*, not the game — the badge
               there is already saying "In progress" or how it graded, which is
               the game's news. */}
-          <p className="text-xs text-muted-foreground">
+          <p data-testid="pick-summary" className="text-xs text-muted-foreground">
             {`Your pick: ${
               pick.side === PICKEM_PICK_SIDE.HOME
                 ? game.homeTeam.abbreviation
