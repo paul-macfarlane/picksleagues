@@ -41,19 +41,21 @@ Reset → environment (drop it)      →  Scenarios → Load <slug>
 →  Create a league, join as a second user
 ```
 
-Two accounts are the point — one member's view of another is where the visibility
-rule lives, and it cannot be checked from a single session. Use a second browser
-profile, not a second tab.
+**Two browser windows, side by side — never two tabs in one window.** Two accounts are the
+point to begin with: one member's view of another is where the visibility rule lives, and
+it cannot be checked from a single session, so the second account needs its own browser
+profile. Give each one its own **window**, both on screen at once.
 
-**Keep both windows on screen at once — never two tabs in one window.** TanStack Query
-refetches on `visibilitychange` and on nothing else (`focusManager`, query-core 5.x): it
-has no `focus`/`blur` listener, and treats itself as focused whenever
-`document.visibilityState !== "hidden"`. A tab you switch *away from* goes hidden and
-reloads the instant you come back, erasing exactly the mid-flight state Passes 1 and 6
-exist to catch. Two side-by-side windows both stay `visible`, so neither ever refetches
-and you can change the world in one while the other holds its stale sheet. Don't
-full-screen either window — an occluded window does go hidden. To be certain, paste this
-into the picks window's console and confirm it stays silent while you work in the other:
+The windows matter beyond the accounts, and this is the single most useful thing in this
+document. TanStack Query refetches on `visibilitychange` and on nothing else
+(`focusManager`, query-core 5.x): it has no `focus`/`blur` listener, and treats itself as
+focused whenever `document.visibilityState !== "hidden"`. A **tab** you switch away from
+goes hidden and reloads the instant you come back, erasing exactly the mid-flight state
+Passes 1 and 6 exist to catch — which is why those passes look impossible when run in
+tabs. Two **windows** both stay `visible`, so neither ever refetches, and you can change
+the world in one while the other holds its stale sheet. Don't full-screen either window —
+an occluded window does go hidden. To be certain, paste this into the picks window's
+console and confirm it stays silent while you work in the other:
 
 ```js
 document.addEventListener("visibilitychange", () => console.log("hidden:", document.hidden));
@@ -134,7 +136,7 @@ Assert:
 - [x] Confirming freezes the week: the submit control is **gone**, not disabled;
       both sides of every row are disabled; and the side you took is still visibly
       the one you took, rather than both sides dimming into anonymity.
-- [ ] ~**Two tabs.** Open the same week in a second tab *before* submitting, assemble
+- [x] ~**Two tabs.** Open the same week in a second tab *before* submitting, assemble
       a set in both, submit in one, then submit in the other. The second is refused
       with "a week can only be submitted once", and the tab replaces its dead sheet
       with the read-only week it now holds — it must not sit on a sheet that can
@@ -288,19 +290,19 @@ bar left to check: one write, one handshake (ADR-0018).
 
 Assert:
 
-- [ ] The submission is **refused** with a stale-spread message telling the member to
+- [x] The submission is **refused** with a stale-spread message telling the member to
       review the new lines and submit again — not a generic failure.
-- [ ] The page **refetches on its own** and the edited game now shows the new number
+- [x] The page **refetches on its own** and the edited game now shows the new number
       on **both** sides. Nothing is held at an old line on an unsubmitted sheet:
       there is no pick yet, so there is no accepted number yet.
-- [ ] The selections survive the refusal, so a second attempt is one click plus the
+- [x] The selections survive the refusal, so a second attempt is one click plus the
       confirmation — and it succeeds, storing the new spread.
-- [ ] The frozen week shows that **new** number on the pick, which is what settlement
+- [x] The frozen week shows that **new** number on the pick, which is what settlement
       will grade against.
-- [ ] After the game finishes, the margin phrase agrees with the number on the same
+- [x] After the game finishes, the margin phrase agrees with the number on the same
       row (`covered by N` measured from the stored spread), never from whatever line
       the game carried later.
-- [ ] Once the game kicks off, League Picks shows the pick at the same stored number
+- [x] Once the game kicks off, League Picks shows the pick at the same stored number
       — that surface reads the pick's spread too, so the two cannot disagree.
 
 ## Pass 7 — A settings change that destroys picks
@@ -331,8 +333,8 @@ Assert:
 - [x] After saving, the members' weeks are open again: the sheet is back, and a
       **fresh full set** can be submitted. Not "re-pick within the new cap" — there is
       no partial edit, only another whole submission.
-- [ ] Once any pick has **locked**, the same save is refused (`picks_locked`) and
-      nothing changes — neither the settings nor the picks. - This works, but instead of waiting for a user to edit and then be warned "Visibility and settings are locked once the league starts.", we should just disable editing of those settings in the first place (disable the form). Let's include a inline message in the settings explaining that is the case, so the commissioner knows why the settings are disabled.
+- [x] Once any pick has **locked**, the same save is refused (`picks_locked`) and
+      nothing changes — neither the settings nor the picks.
 
 ## Pass 8 — Season conclusion and renewal
 
@@ -359,9 +361,9 @@ Assert:
 - [x] A concluded season **refuses new picks** with a clear message ("This season is
       over — picks are closed."), rather than failing obscurely.
 - [x] Final standings remain readable after conclusion.
-- [ ] The league offers **renewal** once a newer season row exists, to the
+- [x] The league offers **renewal** once a newer season row exists, to the
       commissioner only.
-- [ ] A renewed league starts an **empty pick ledger** — last season's picks and
+- [x] A renewed league starts an **empty pick ledger** — last season's picks and
       standings do not carry over, and last season's remain reachable.
 
 ---
