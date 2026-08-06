@@ -1,0 +1,25 @@
+[WebServer]     at async $fetch (http://localhost:5273/node_modules/.vite/deps/better-auth_react.js?v=f6f19607:834:10)
+[WebServer]     at async Object.apply (http://localhost:5273/node_modules/.vite/deps/better-auth_react.js?v=f6f19607:1131:12)
+[WebServer]     at async Object.beforeLoad (http://localhost:5273/src/routes/sign-in.tsx:24:29)
+[WebServer]     at async loadMatches (http://localhost:5273/node_modules/.vite/deps/@tanstack_react-router.js?v=f6f19607:2506:31)
+[WebServer]     at async http://localhost:5273/node_modules/.vite/deps/@tanstack_react-router.js?v=f6f19607:3570:7
+[WebServer] 
+[WebServer] The above error occurred in the <MatchInnerImpl> component.
+[WebServer] 
+[WebServer] React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+[WebServer] 
+[WebServer] 3:56:45 PM [vite] (client) [console.warn] Warning: The following error wasn't caught by any route! At the very least, consider setting an 'errorComponent' in your RootRoute!
+[WebServer] 3:56:45 PM [vite] (client) [console.warn] Warning: Failed to fetch
+  ✓   4 [chromium] › e2e/identity.spec.ts:95:3 › identity › profile edit: Save gates on a real change, success toasts and updates the account menu, a taken username errors inline (1.8s)
+  ✓   1 [chromium] › e2e/identity.spec.ts:140:3 › identity › delete account signs out immediately and the session cannot return (1.9s)
+  ✓   7 [chromium] › e2e/sim-panel.spec.ts:109:3 › simulator › a non-admin cannot see the simulator route (602ms)
+  ✓   8 [chromium] › e2e/smoke.spec.ts:10:1 › unauthenticated visit redirects to sign-in and the API is reachable (288ms)
+  ✓   6 [chromium] › e2e/sim-panel.spec.ts:26:3 › simulator › an admin reaches the simulator section and every tab renders its cards (1.0s)
+  ✓   3 [chromium] › e2e/league-lifecycle.spec.ts:12:3 › league lifecycle › create → invite → second user joins → both appear on league home (3.2s)
+  ✓   9 [simulated] › e2e/pickem-journey.sim.spec.ts:276:3 › Pick'em merge-gate journey (mixed-week scenario) › commissioner creates a Pick'em league; a second member joins via invite (999ms)
+  ✓  10 [simulated] › e2e/pickem-journey.sim.spec.ts:309:3 › Pick'em merge-gate journey (mixed-week scenario) › both members commit week 1 as one irreversible full set (1.4s)
+  ✓  11 [simulated] › e2e/pickem-journey.sim.spec.ts:363:3 › Pick'em merge-gate journey (mixed-week scenario) › before kickoff, another member's picks are hidden behind a count (322ms)
+  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (504ms)
+  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (479ms)
+
+  13 passed (12.5s)

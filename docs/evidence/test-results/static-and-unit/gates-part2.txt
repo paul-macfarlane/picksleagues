@@ -1,0 +1,34 @@
+### pnpm test
+$ vitest run --project unit
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  26 passed (26)
+      Tests  439 passed (439)
+   Start at  15:51:30
+   Duration  928ms (transform 1.43s, setup 0ms, import 3.41s, tests 259ms, environment 2ms)
+
+
+### pnpm --filter @picksleagues/web build
+dist/assets/button-DVQXxmXL.js                              39.90 kB │ gzip: 13.43 kB
+dist/assets/useOpenInteractionType-uBJ0URaW.js              45.98 kB │ gzip: 15.69 kB
+dist/assets/Match-Dwiok2Jt.js                               48.57 kB │ gzip: 15.74 kB
+dist/assets/form-field-DFZsVdTH.js                          64.41 kB │ gzip: 16.02 kB
+dist/assets/date-time-picker-CmUMXuFv.js                    85.39 kB │ gzip: 25.85 kB
+dist/assets/schemas-B7sqQlGY.js                            112.12 kB │ gzip: 30.28 kB
+dist/assets/src-DH0tloQA.js                                192.77 kB │ gzip: 44.55 kB
+dist/assets/index-CzEw3fAt.js                              260.37 kB │ gzip: 80.58 kB
+
+✓ built in 439ms
+
+### git status --short (AC-7: no contract/API churn)
+ M apps/web/src/components/league/danger-zone.tsx
+ M apps/web/src/components/league/members-section.tsx
+ M apps/web/src/components/league/settings-section.tsx
+ M apps/web/src/lib/league.ts
+ M apps/web/src/routes/_authed/leagues/$leagueId/index.tsx
+ M apps/web/src/routes/_authed/leagues/$leagueId/members.tsx
+ M apps/web/src/routes/_authed/leagues/$leagueId/settings.tsx
+?? apps/web/src/lib/league.test.ts
+?? docs/evidence/test-results/
