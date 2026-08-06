@@ -47,10 +47,12 @@ export const MeResponseSchema = z
 
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
-// Claiming a username (first sign-in), changing it later (mvp-spec: username
-// is changeable anytime, old name released immediately), and editing the
-// freely-editable display name are all the same partial-update operation —
-// one PATCH /me. At least one field must be present or there's nothing to do.
+/**
+ * Claiming a username (first sign-in), changing it later (mvp-spec: username
+ * is changeable anytime, old name released immediately), and editing the
+ * freely-editable display name are all the same partial-update operation —
+ * one PATCH /me. At least one field must be present or there's nothing to do.
+ */
 export const UpdateMeRequestSchema = z
   .object({
     username: UsernameSchema.optional(),
@@ -63,9 +65,11 @@ export const UpdateMeRequestSchema = z
 
 export type UpdateMeRequest = z.infer<typeof UpdateMeRequestSchema>;
 
-// Account deletion (mvp-spec §Users & Identity, ID-3) anonymizes the user row
-// in place rather than removing it — future picks/results/standings FK to it
-// and must survive. This is the single home for the placeholder display name;
-// the API writes it on deletion and future UI (standings, league members)
-// renders deleted users with it.
+/**
+ * Account deletion (mvp-spec §Users & Identity, ID-3) anonymizes the user row
+ * in place rather than removing it — future picks/results/standings FK to it
+ * and must survive. This is the single home for the placeholder display name;
+ * the API writes it on deletion and future UI (standings, league members)
+ * renders deleted users with it.
+ */
 export const DELETED_USER_DISPLAY_NAME = "Deleted User";

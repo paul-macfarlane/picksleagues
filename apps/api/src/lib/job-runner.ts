@@ -18,11 +18,13 @@ type JobResult = Record<string, string | number | boolean>;
  * — it measures duration, not a domain timestamp, so it's exempt from the
  * Clock discipline (arch D13).
  */
-// No explicit return type annotation: `c.json(body, status)` returns a
-// `Response & TypedResponse<...>` narrowed to `body`'s type and the literal
-// status code, and inference is what lets `app.openapi` handlers return this
-// helper's result directly — annotating a wider type (e.g. `Response`) would
-// erase that narrowing and break every call site's route-response check.
+/**
+ * No explicit return type annotation: `c.json(body, status)` returns a
+ * `Response & TypedResponse<...>` narrowed to `body`'s type and the literal
+ * status code, and inference is what lets `app.openapi` handlers return this
+ * helper's result directly — annotating a wider type (e.g. `Response`) would
+ * erase that narrowing and break every call site's route-response check.
+ */
 export async function runJob(c: Context, jobName: string, fn: () => Promise<JobResult>) {
   const startedAt = performance.now();
   try {
