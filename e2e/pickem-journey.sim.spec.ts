@@ -29,10 +29,12 @@ import {
  * The one refusal asserted here is `already_submitted`, because "the week is
  * one submission" is the premise every other assertion below rests on.
  *
- * QLTY-4 applied that rule to this file itself. What survives is either a
- * cross-stack outcome on the spine — create/join, the submit-once freeze, lock
- * and reveal at kickoff, settlement, standings — or a rule no cheaper layer can
- * hold, the app clock's "Today"/"Tomorrow" reading being the clearest example.
+ * That rule has been applied to this file itself, so what reads as sparseness
+ * here is deliberate and adding breadth back needs the same test. What survives
+ * is either a cross-stack outcome on the spine — create/join, the submit-once
+ * freeze, lock and reveal at kickoff, settlement, standings — or a rule no
+ * cheaper layer can hold, the app clock's "Today"/"Tomorrow" reading being the
+ * clearest example.
  * Badge slots, disclosure defaults, column counts, `?week=` routing and
  * provisional phrasing were deleted rather than relocated: they are
  * presentation, which the engineering rules leave to the owner's judgement and
@@ -74,7 +76,7 @@ async function signInAs(context: BrowserContext, overrides?: Parameters<typeof m
 }
 
 /**
- * Locators for the contracts the SPA carries for this suite (QLTY-2).
+ * Locators for the contracts the SPA carries for this suite.
  *
  * A row is addressed by *which teams it is between* and a value by *which value
  * it is* — never by the sentence either is printed in. The facelift is free to

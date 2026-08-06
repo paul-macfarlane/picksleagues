@@ -71,7 +71,7 @@ export function PickOutcomeBadge({
   return (
     // `data-outcome` is the grade itself (`PICK_OUTCOME`), which is what the
     // merge-gate journey asserts — the label beside it is copy, and "Correct"
-    // is a substring of "Incorrect" besides (QLTY-2).
+    // is a substring of "Incorrect" besides.
     <StatusPill tone={tone} className={className} data-testid="pick-outcome" data-outcome={outcome}>
       <Icon aria-hidden="true" className="size-3" />
       {label}

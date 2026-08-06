@@ -122,7 +122,7 @@ function Matchup({ game }: { game: SlateGame }) {
 const ROW_CLASS_NAME = "flex flex-col gap-2 rounded-lg border border-border p-3";
 
 /**
- * The row's identity as data (QLTY-2): which two teams it is between, rather
+ * The row's identity as data: which two teams it is between, rather
  * than the `"<away> @ <home>"` line it happens to print. The merge-gate journey
  * addresses rows through these, so rewording or re-laying-out a matchup can't
  * fail the gate — while a row rendered for the wrong game still does.

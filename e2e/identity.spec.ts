@@ -4,7 +4,7 @@ import { cleanup, mintSession, uniqueUsername } from "./setup/session";
 /**
  * A field was refused, addressed through the a11y wiring `FormTextField` sets up
  * — `aria-invalid` plus the error element the input points at — rather than
- * through the sentence that element prints (QLTY-2).
+ * through the sentence that element prints.
  *
  * *Which* message it is stays pinned where the message is decided: the username
  * format rule in `packages/schemas`, the 409 → field-error mapping in

@@ -268,7 +268,7 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
             this board. */}
         {/* `data-settled` is the fact the stamp reports — whether this board has
             ever been written — so the merge-gate journey can assert it either
-            way without binding to either sentence (QLTY-2). */}
+            way without binding to either sentence. */}
         <p
           data-testid="standings-updated-at"
           data-settled={lastUpdatedAt ? "true" : "false"}

@@ -56,9 +56,9 @@ test.describe("simulator", () => {
       // /sim (Clock tab, default): the clock card's status block is fed by
       // GET /api/sim/state — proving it rendered proves the whole SPA -> proxy
       // -> admin-gated sim route chain, which is the thing a mock would have
-      // hidden (arch D14). Bound to the *readings* rather than their labels
-      // (QLTY-2), which also raises the bar: a rendered label with an empty
-      // value beside it used to pass this.
+      // hidden (arch D14). Bound to the *readings* rather than their labels,
+      // which also raises the bar: a rendered label with an empty value beside
+      // it used to pass this.
       await expect(page.getByTestId("sim-now")).not.toBeEmpty();
       await expect(page.getByTestId("sim-offset")).not.toBeEmpty();
       // The clock's own controls, not just its readout — this is the

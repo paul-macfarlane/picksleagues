@@ -21,7 +21,7 @@ export function GameStatePill({ status }: { status: GameStatus }) {
   if (status !== GAME_STATUS.IN_PROGRESS) return null;
   return (
     // `data-status` carries the status itself, so a test can assert which state
-    // a row is in without binding to the words in it (QLTY-2).
+    // a row is in without binding to the words in it.
     <StatusPill tone="strong" data-testid="game-status" data-status={status}>
       <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
       In progress

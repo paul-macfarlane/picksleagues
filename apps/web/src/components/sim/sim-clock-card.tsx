@@ -59,7 +59,7 @@ function StatusItem({
   label,
   value,
   // On the value, not the label: what proves this card reached
-  // GET /api/sim/state is the reading, and the label beside it is copy (QLTY-2).
+  // GET /api/sim/state is the reading, and the label beside it is copy.
   testId,
 }: {
   label: string;

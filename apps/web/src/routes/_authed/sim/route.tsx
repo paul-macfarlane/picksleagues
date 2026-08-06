@@ -46,7 +46,7 @@ function SimLayout() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center py-8">
         {/* Testid'd because the guard test's whole claim is that this reads as
-            an unknown route — bound to the state, not to its sentence (QLTY-2). */}
+            an unknown route — bound to the state, not to its sentence. */}
         <p data-testid="page-not-found" className="text-sm text-muted-foreground">
           Page not found.
         </p>

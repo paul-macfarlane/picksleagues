@@ -109,9 +109,9 @@ export function PickemWeekDetail({
   const seasonShared = sharedRankCounts(seasonRows);
 
   return (
-    // The card is addressed by testid and identified by the week it is for
-    // (QLTY-2): the title reads "Picks — Week 1", of which only "Week 1" is a
-    // fact — the rest is copy the facelift may reword.
+    // The card is addressed by testid and identified by the week it is for:
+    // the title reads "Picks — Week 1", of which only "Week 1" is a fact — the
+    // rest is copy the facelift may reword.
     <Card data-testid="week-picks-card" data-week-label={slate.data?.label}>
       <CardHeader>
         <CardTitle>{slate.data && picks.data ? `Picks — ${slate.data.label}` : "Picks"}</CardTitle>
@@ -285,7 +285,7 @@ function PickRow({
 
   return (
     // Identified as data rather than by the "(AWAY @ HOME)" text beside the
-    // pick (QLTY-2): the merge-gate journey has to find one member's row for one
+    // pick: the merge-gate journey has to find one member's row for one
     // specific game — and which side they took — without binding to how either
     // is worded.
     <li
