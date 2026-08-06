@@ -493,6 +493,8 @@ wiring that previously went unchecked.
 
 ## [CLOSEOUT]
 
+**Pull request:** https://github.com/paul-macfarlane/picksleagues/pull/32
+
 **Repository delivery:** `picksleagues`, branch `chore/qlty-quality-pass`, base
 `staging`, comparison SHA `13f08a0`, integrated candidate `a14984f`.
 Run surface: local only. Evidence root: `docs/evidence/test-results/qlty-aggregate`.
