@@ -575,7 +575,7 @@
                 "$ref": "#/components/schemas/MaxMembers"
               },
               "settings": {
-                "$ref": "#/components/schemas/SurvivorSettings"
+                "$ref": "#/components/schemas/SurvivorSettingsInput"
               }
             },
             "required": [
@@ -642,6 +642,21 @@
           "seasonRangePreset",
           "pickType"
         ]
+      },
+      "SurvivorSettingsInput": {
+        "type": "object",
+        "properties": {
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "pushTieResolution": {
+            "$ref": "#/components/schemas/SurvivorPushTieResolution"
+          }
+        },
+        "required": [
+          "pickType"
+        ],
+        "additionalProperties": false
       },
       "MarchMadnessSettings": {
         "oneOf": [

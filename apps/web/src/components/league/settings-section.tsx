@@ -22,8 +22,6 @@ import {
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
 import {
-  DEFAULT_SURVIVOR_END_WEEK,
-  DEFAULT_SURVIVOR_START_WEEK,
   DEFAULT_PICKEM_SEASON_RANGE,
   SurvivorSettingsFields,
   MarchMadnessSettingsFields,
@@ -31,8 +29,6 @@ import {
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
-  decodeWeek,
-  encodeWeek,
 } from "@/components/league-settings-fields";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
 import {
@@ -175,12 +171,6 @@ function SettingsForm({
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
-  const [survivorStartWeek, setSurvivorStartWeek] = useState(
-    survivorSettings ? encodeWeek(survivorSettings.startWeek) : DEFAULT_SURVIVOR_START_WEEK,
-  );
-  const [survivorEndWeek, setSurvivorEndWeek] = useState(
-    survivorSettings ? encodeWeek(survivorSettings.endWeek) : DEFAULT_SURVIVOR_END_WEEK,
-  );
   const [survivorPickType, setSurvivorPickType] = useState<PickType>(
     survivorSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
   );
@@ -265,16 +255,15 @@ function SettingsForm({
       ? pickemSettingsInvalidatePicks(pickemSettings, draft)
       : true;
   } else if (isSurvivor) {
+    // No range on the wire (ADR-0024) — and none in the dirty check either: a
+    // save re-resolves the stored refs server-side against the clock, so the
+    // range is never something this form has an opinion about.
     assembledSettings = {
-      startWeek: decodeWeek(survivorStartWeek),
-      endWeek: decodeWeek(survivorEndWeek),
       pickType: survivorPickType,
       pushTieResolution: survivorPushTie,
     };
     settingsDirty = survivorSettings
-      ? survivorStartWeek !== encodeWeek(survivorSettings.startWeek) ||
-        survivorEndWeek !== encodeWeek(survivorSettings.endWeek) ||
-        survivorPickType !== survivorSettings.pickType ||
+      ? survivorPickType !== survivorSettings.pickType ||
         survivorPushTie !== survivorSettings.pushTieResolution
       : true;
   } else {
@@ -451,10 +440,7 @@ function SettingsForm({
 
         {isSurvivor && (
           <SurvivorSettingsFields
-            startWeek={survivorStartWeek}
-            onStartWeekChange={setSurvivorStartWeek}
-            endWeek={survivorEndWeek}
-            onEndWeekChange={setSurvivorEndWeek}
+            seasonRange={survivorSettings ?? undefined}
             pickType={survivorPickType}
             onPickTypeChange={setSurvivorPickType}
             pushTie={survivorPushTie}

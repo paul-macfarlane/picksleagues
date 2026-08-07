@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { LEAGUE_MODE, LeagueModeSchema } from "./league-mode";
 import {
-  SurvivorSettingsSchema,
+  SurvivorSettingsInputSchema,
   LeagueSettingsSchema,
   MarchMadnessSettingsSchema,
   PickemSettingsInputSchema,
@@ -46,9 +46,10 @@ export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).ope
 /**
  * Settings are validated against the mode's schema at the boundary — the
  * discriminated union makes an invalid mode/settings pairing unrepresentable
- * rather than a service-layer check. Pick'em takes its *input* schema: the
- * request names a season-range preset and the server resolves the week refs it
- * stores (ADR-0020), so a client can't supply them here at all.
+ * rather than a service-layer check. Both NFL modes take their *input* schema:
+ * neither request carries week refs, because the server resolves the range it
+ * stores — Pick'em from a season-range preset (ADR-0020), Survivor from the
+ * one range its mode allows (ADR-0024).
  */
 export const CreateLeagueRequestSchema = z
   .discriminatedUnion("mode", [
@@ -64,7 +65,7 @@ export const CreateLeagueRequestSchema = z
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
       maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
-      settings: SurvivorSettingsSchema,
+      settings: SurvivorSettingsInputSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.MARCH_MADNESS),

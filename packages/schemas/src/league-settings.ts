@@ -68,8 +68,25 @@ export const PickemSeasonRangePresetSchema = z
   .enum(PICKEM_SEASON_RANGE_PRESET)
   .openapi("PickemSeasonRangePreset");
 
-/** The two week refs a preset resolves to — what the rest of the system computes on. */
-export type PickemSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
+/**
+ * The two week refs a season range resolves to — what the rest of the system
+ * computes on. Mode-neutral because both NFL modes resolve into it: Pick'em
+ * from a commissioner's preset (ADR-0020), Survivor from the one range its
+ * mode allows (ADR-0024).
+ */
+export type NflSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
+
+/**
+ * The regular season as a range, with one home because two modes name it:
+ * Pick'em's Regular Season preset (and the front half of Full Season), and the
+ * whole of Survivor, which is regular-season only (ADR-0007) and therefore has
+ * no preset to choose. A second copy of the week numbers could disagree with
+ * itself about which weeks the regular season is.
+ */
+export const NFL_REGULAR_SEASON_RANGE = {
+  startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+  endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
+} as const satisfies NflSeasonRange;
 
 /**
  * Each preset's nominal range (ADR-0020 §The three presets), in the week
@@ -84,19 +101,16 @@ export type PickemSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
  * able to disagree with itself about what "Regular Season" covers.
  */
 export const PICKEM_NOMINAL_RANGE = {
-  [PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON]: {
-    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
-    endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-  },
+  [PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON]: NFL_REGULAR_SEASON_RANGE,
   [PICKEM_SEASON_RANGE_PRESET.POSTSEASON]: {
     startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
     endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
   },
   [PICKEM_SEASON_RANGE_PRESET.FULL_SEASON]: {
-    startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+    startWeek: NFL_REGULAR_SEASON_RANGE.startWeek,
     endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
   },
-} as const satisfies Record<PickemSeasonRangePreset, PickemSeasonRange>;
+} as const satisfies Record<PickemSeasonRangePreset, NflSeasonRange>;
 
 /**
  * The create form's and the settings editor's shared availability answer
@@ -233,6 +247,30 @@ export const SurvivorSettingsSchema = z
 
 export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
 
+/**
+ * Wire shape for a Survivor settings write (ADR-0024): the pick type and the
+ * push/tie rule, and nothing about the season range. Unlike Pick'em's input
+ * there is no preset field either — Survivor is regular-season only
+ * (ADR-0007), so its one legal range is implicit in the mode and the server
+ * resolves the concrete refs it stores against the bound season and the clock.
+ *
+ * Strict, where Pick'em's input merely strips unknown keys: a Survivor request
+ * naming week refs comes from a client that believes it chose a range, and
+ * discarding that silently would create a league covering weeks nobody asked
+ * for. Pick'em's request still carries its `seasonRangePreset` when stray refs
+ * are stripped alongside it; here there would be nothing left of the intent.
+ */
+export const SurvivorSettingsInputSchema = z
+  .strictObject({
+    pickType: PickTypeSchema,
+    pushTieResolution: SurvivorPushTieResolutionSchema.default(
+      SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+    ),
+  })
+  .openapi("SurvivorSettingsInput");
+
+export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
+
 export const MARCH_MADNESS_SCORING_MODEL = {
   STANDARD_DOUBLING: "standard_doubling",
   CUSTOM: "custom",
@@ -292,17 +330,20 @@ export const LEAGUE_SETTINGS_SCHEMAS = {
   [LEAGUE_MODE.MARCH_MADNESS]: MarchMadnessSettingsSchema,
 } as const satisfies Record<LeagueMode, z.ZodType<LeagueSettings, unknown>>;
 
-export type LeagueSettingsInput = PickemSettingsInput | SurvivorSettings | MarchMadnessSettings;
+export type LeagueSettingsInput =
+  PickemSettingsInput | SurvivorSettingsInput | MarchMadnessSettings;
 
 /**
  * Wire-side dispatch, the counterpart to `LEAGUE_SETTINGS_SCHEMAS`: the schema
- * a settings *request* must satisfy. Only Pick'em's entry differs from the
- * stored map (ADR-0020 is Pick'em-only by scope) — Survivor and March
- * Madness accept exactly what they store, so their wire and stored schemas are
- * the same object rather than a duplicate that could drift.
+ * a settings *request* must satisfy. Both NFL modes' entries differ from the
+ * stored map, because both have their season range resolved server-side rather
+ * than chosen — Pick'em from a preset (ADR-0020), Survivor from the one range
+ * its mode allows (ADR-0024). March Madness has no season range at all, so it
+ * accepts exactly what it stores and its wire and stored schemas are the same
+ * object rather than a duplicate that could drift.
  */
 export const LEAGUE_SETTINGS_INPUT_SCHEMAS = {
   [LEAGUE_MODE.PICKEM]: PickemSettingsInputSchema,
-  [LEAGUE_MODE.SURVIVOR]: SurvivorSettingsSchema,
+  [LEAGUE_MODE.SURVIVOR]: SurvivorSettingsInputSchema,
   [LEAGUE_MODE.MARCH_MADNESS]: MarchMadnessSettingsSchema,
 } as const satisfies Record<LeagueMode, z.ZodType<LeagueSettingsInput, unknown>>;

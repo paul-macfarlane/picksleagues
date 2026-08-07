@@ -214,7 +214,30 @@ describe("POST /api/leagues", () => {
     expect(((await res.json()) as LeagueResponse).maxMembers).toBe(10);
   });
 
-  it("400s on a survivor league with a postseason week", async () => {
+  it("creates a survivor league from the two settings it still accepts", async () => {
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, {
+      mode: "survivor",
+      name: "Survivors",
+      visibility: "private",
+      settings: { pickType: "straight_up" },
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as LeagueResponse;
+    // The range is the server's answer, not the request's (ADR-0024); the
+    // push/tie default is the schema's.
+    expect(body.settings).toMatchObject({
+      startWeek: { type: "regular", number: 1 },
+      endWeek: { type: "regular", number: 18 },
+      pushTieResolution: "advance",
+    });
+  });
+
+  it("400s a survivor create that tries to name its own week range", async () => {
+    // ADR-0024: the range is resolved server-side, so a client naming one is
+    // refused outright rather than having its whole intent silently dropped.
     await seedDefaultSeason();
     const { cookie } = await createAuthenticatedUser(auth);
 
@@ -224,11 +247,12 @@ describe("POST /api/leagues", () => {
       visibility: "private",
       settings: {
         startWeek: { type: "regular", number: 1 },
-        endWeek: { type: "postseason", number: 1 },
+        endWeek: { type: "regular", number: 10 },
         pickType: "straight_up",
       },
     });
     expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "validation" });
   });
 
   it("409s march-madness creation while no NCAAMB season is ingested", async () => {

@@ -23,8 +23,6 @@ import { useCreateLeague } from "@/api/leagues";
 import { usePickemSeasonRangePresets } from "@/api/pickem";
 import { leagueModeLabel } from "@/lib/league";
 import {
-  DEFAULT_SURVIVOR_END_WEEK,
-  DEFAULT_SURVIVOR_START_WEEK,
   DEFAULT_PICKEM_SEASON_RANGE,
   SurvivorSettingsFields,
   MarchMadnessSettingsFields,
@@ -32,7 +30,6 @@ import {
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
-  decodeWeek,
 } from "@/components/league-settings-fields";
 import { FormTextField } from "@/components/form-field";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
@@ -64,8 +61,6 @@ function NewLeague() {
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [survivorStartWeek, setSurvivorStartWeek] = useState(DEFAULT_SURVIVOR_START_WEEK);
-  const [survivorEndWeek, setSurvivorEndWeek] = useState(DEFAULT_SURVIVOR_END_WEEK);
   const [survivorPickType, setSurvivorPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
     SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
@@ -122,9 +117,9 @@ function NewLeague() {
           picksPerWeek: pickemPicksPerWeek,
         };
       } else if (mode === LEAGUE_MODE.SURVIVOR) {
+        // No range on the wire at all (ADR-0024): the mode is regular-season
+        // only, so the server resolves the refs it stores against the clock.
         settings = {
-          startWeek: decodeWeek(survivorStartWeek),
-          endWeek: decodeWeek(survivorEndWeek),
           pickType: survivorPickType,
           pushTieResolution: survivorPushTie,
         };
@@ -243,10 +238,6 @@ function NewLeague() {
 
             {mode === LEAGUE_MODE.SURVIVOR && (
               <SurvivorSettingsFields
-                startWeek={survivorStartWeek}
-                onStartWeekChange={setSurvivorStartWeek}
-                endWeek={survivorEndWeek}
-                onEndWeekChange={setSurvivorEndWeek}
                 pickType={survivorPickType}
                 onPickTypeChange={setSurvivorPickType}
                 pushTie={survivorPushTie}

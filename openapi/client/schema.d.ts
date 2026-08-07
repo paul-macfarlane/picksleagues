@@ -839,7 +839,7 @@ export interface components {
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
             maxMembers?: components["schemas"]["MaxMembers"];
-            settings: components["schemas"]["SurvivorSettings"];
+            settings: components["schemas"]["SurvivorSettingsInput"];
         } | {
             /** @enum {string} */
             mode: "march_madness";
@@ -855,6 +855,10 @@ export interface components {
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
+        };
+        SurvivorSettingsInput: {
+            pickType: components["schemas"]["PickType"];
+            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         MarchMadnessSettings: {
             /** @default 5 */
