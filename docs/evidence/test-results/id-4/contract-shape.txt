@@ -1,0 +1,12 @@
+## Avatar fields by component (imageOverride + providerImage must be MeResponse-only)
+  MeResponse: image, imageOverride, providerImage
+  UpdateMeRequest: imageOverride
+  LeagueMember: image
+  PickemStandingsRow: image
+  PickemMemberPicks: image
+
+## Registered-component integrity
+  Username (must stay non-nullable): {"type":"string","pattern":"^[a-z0-9_]{3,20}$"}
+  NullableImageUrl: {"type":["string","null"],"maxLength":2048,"format":"uri"}
+  NullableImageUrl: 2 $ref(s)
+  NullableUsername: 1 $ref(s)

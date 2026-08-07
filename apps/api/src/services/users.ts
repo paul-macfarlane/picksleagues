@@ -17,8 +17,29 @@ import {
   MEMBER_ROLE,
   type AppRole,
   type DisplayName,
+  type ImageUrl,
   type Username,
 } from "@picksleagues/schemas";
+
+/**
+ * The avatar to show for a user: the member's own URL when they've set one,
+ * otherwise the OAuth provider's (ADR-0022) — the same
+ * `override_* ?? provider_*` precedence the sports tables use.
+ *
+ * Every surface that serializes a user's avatar must call this. Both columns
+ * are `string | null`, so a serializer that reaches for the wrong one type-checks
+ * cleanly and ships the wrong picture — there is no compiler to catch it, which
+ * is why the resolution has exactly one home.
+ *
+ * Structurally typed rather than taking a `users` row: the standings query
+ * selects a narrow projection and must be able to pass it.
+ */
+export function resolveUserImage(user: {
+  image: string | null;
+  imageOverride: string | null;
+}): string | null {
+  return user.imageOverride ?? user.image;
+}
 
 export type UpdateProfileResult =
   { ok: true; user: typeof users.$inferSelect } | { ok: false; reason: "username_taken" };
@@ -34,12 +55,17 @@ const USERNAME_UNIQUE_CONSTRAINT = "users_username_unique";
  * touches the username column. The `citext` unique constraint on
  * `users.username` is the race-proof uniqueness check (engineering rules
  * §Data & database) — no pre-check SELECT.
+ *
+ * `imageOverride` is tri-state (ADR-0022) and the `!== undefined` test is what
+ * carries it: an absent key never touches the column, while an explicit `null`
+ * writes SQL NULL and reverts the member to their provider avatar. The
+ * provider's own `users.image` is never written here.
  */
 export async function updateProfile(
   db: Db,
   clock: Clock,
   userId: string,
-  fields: { username?: Username; displayName?: DisplayName },
+  fields: { username?: Username; displayName?: DisplayName; imageOverride?: ImageUrl | null },
 ): Promise<UpdateProfileResult> {
   try {
     const rows = await db
@@ -47,6 +73,7 @@ export async function updateProfile(
       .set({
         ...(fields.username !== undefined ? { username: fields.username } : {}),
         ...(fields.displayName !== undefined ? { display_name: fields.displayName } : {}),
+        ...(fields.imageOverride !== undefined ? { imageOverride: fields.imageOverride } : {}),
         updatedAt: clock.now(),
       })
       .where(eq(users.id, userId))
@@ -132,6 +159,11 @@ export async function deleteAccount(
         username: null,
         display_name: DELETED_USER_DISPLAY_NAME,
         image: null,
+        // The tombstone row keeps rendering on every league surface it has
+        // history on, so a member-set URL left here would keep fetching a live
+        // third party — and logging the viewer's IP to it — under "Deleted
+        // User", indefinitely.
+        imageOverride: null,
         email: `deleted-${userId}@deleted.invalid`,
         emailVerified: false,
         // The row survives deletion (FK history), so it must not survive

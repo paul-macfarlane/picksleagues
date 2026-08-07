@@ -24,6 +24,7 @@ import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
+import { resolveUserImage } from "../users";
 import { startablePickemSeasonRangePresets } from "../leagues/season-range";
 import {
   getWeek,
@@ -262,7 +263,7 @@ export async function getPickemWeekPicks(
       userId: user.id,
       username: user.username,
       displayName: user.display_name,
-      image: user.image,
+      image: resolveUserImage(user),
       isViewer,
       picks: visible.map((pick) => ({
         id: pick.id,

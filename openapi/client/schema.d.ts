@@ -36,7 +36,7 @@ export interface paths {
         delete: operations["deleteMe"];
         options?: never;
         head?: never;
-        /** Claim/change the caller's username and/or edit their display name */
+        /** Claim/change the caller's username, display name, and/or avatar URL */
         patch: operations["updateMe"];
         trace?: never;
     };
@@ -673,12 +673,16 @@ export interface components {
             displayName: string;
             email: string;
             image: string | null;
+            imageOverride: components["schemas"]["NullableImageUrl"];
+            providerImage: string | null;
             isAdmin: boolean;
             simEnabled: boolean;
             /** Format: date-time */
             now: string;
         };
         NullableUsername: string | null;
+        /** Format: uri */
+        NullableImageUrl: string | null;
         ErrorResponse: {
             error: string;
             message: string;
@@ -686,6 +690,7 @@ export interface components {
         UpdateMeRequest: {
             username?: components["schemas"]["Username"];
             displayName?: components["schemas"]["DisplayName"];
+            imageOverride?: components["schemas"]["NullableImageUrl"];
         };
         Username: string;
         DisplayName: string;

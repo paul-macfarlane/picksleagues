@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
 import { LEAGUE_STATUS, MEMBER_ROLE, SPORT, type LeagueResponse } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { DEFAULT_PICKEM_SETTINGS, insertLeague, seedSeason } from "./setup/league-helpers";
@@ -506,6 +506,38 @@ describe("GET /api/leagues/:leagueId", () => {
     expect(body).toMatchObject({ name: "Mine", myRole: "member" });
     expect(body.settings).toMatchObject(DEFAULT_PICKEM_SETTINGS);
     expect(body.members).toHaveLength(2);
+  });
+
+  // The member list carries the *resolved* avatar (ADR-0022) — league-mates see
+  // the override, never the provider photo it replaced, and never the raw
+  // override field itself.
+  it("shows a league-mate a member's avatar override in place of their provider image", async () => {
+    const { seasonId } = await seedDefaultSeason();
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    const other = await createAuthenticatedUser(auth, { username: "override_haver" });
+    await db
+      .update(users)
+      .set({
+        image: "https://provider.example.invalid/from-oauth.png",
+        imageOverride: "https://cdn.example.invalid/member-set.png",
+      })
+      .where(eq(users.id, other.user.id));
+    const league = await insertLeague(db, {
+      seasonId,
+      name: "Mine",
+      members: [
+        { userId: user.id, role: MEMBER_ROLE.COMMISSIONER },
+        { userId: other.user.id, role: MEMBER_ROLE.MEMBER },
+      ],
+    });
+
+    const res = await getLeague(cookie, league.id);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as LeagueResponse;
+    expect(body.members.find((member) => member.userId === other.user.id)?.image).toBe(
+      "https://cdn.example.invalid/member-set.png",
+    );
   });
 
   it("404s a non-member so private leagues stay hidden", async () => {

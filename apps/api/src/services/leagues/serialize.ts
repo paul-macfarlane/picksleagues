@@ -8,6 +8,7 @@ import {
   type LeagueSettings,
   type LeagueStatus,
 } from "@picksleagues/schemas";
+import { resolveUserImage } from "../users";
 
 export type LeagueRow = typeof leagues.$inferSelect;
 
@@ -32,7 +33,7 @@ function serializeMember(row: {
     userId: row.user.id,
     username: row.user.username,
     displayName: row.user.display_name,
-    image: row.user.image,
+    image: resolveUserImage(row.user),
     role: row.member.role,
     joinedAt: row.member.createdAt.toISOString(),
   };

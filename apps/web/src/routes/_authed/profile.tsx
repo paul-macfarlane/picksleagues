@@ -1,11 +1,18 @@
 import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
-import { DisplayNameSchema, UsernameSchema, type MeResponse } from "@picksleagues/schemas";
+import {
+  DisplayNameSchema,
+  ImageUrlSchema,
+  UsernameSchema,
+  type MeResponse,
+  type UpdateMeRequest,
+} from "@picksleagues/schemas";
 import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
+import { useAvatarPreview } from "@/lib/avatar-preview";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -66,7 +73,7 @@ function Profile() {
   // syncing local state from a prop in an effect.
   return (
     <ProfileForm
-      key={`${me.data.username ?? ""}:${me.data.displayName}`}
+      key={`${me.data.username ?? ""}:${me.data.displayName}:${me.data.imageOverride ?? ""}`}
       profile={me.data}
       refetchSession={refetchSession}
     />
@@ -100,6 +107,9 @@ function ProfileForm({
     defaultValues: {
       displayName: profile.displayName,
       username: profile.username ?? "",
+      // Always a string here: `null` is a wire concept (it's how the member
+      // clears the override) materialized only at submit.
+      imageOverride: profile.imageOverride ?? "",
     },
     onSubmit: async ({ value }) => {
       // Each field's own onSubmit validator (below) already confirmed it's
@@ -107,16 +117,34 @@ function ProfileForm({
       // the canonical (trimmed/lowercased) value to send.
       const displayNameChanged = value.displayName.trim() !== profile.displayName;
       const usernameChanged = value.username.trim().toLowerCase() !== (profile.username ?? "");
+      const trimmedImage = value.imageOverride.trim();
+      const imageOverrideChanged = trimmedImage !== (profile.imageOverride ?? "");
 
-      const body: { username?: string; displayName?: string } = {};
+      const body: UpdateMeRequest = {};
       if (displayNameChanged) body.displayName = DisplayNameSchema.parse(value.displayName);
       if (usernameChanged) body.username = UsernameSchema.parse(value.username);
+      // Emptying the field is the clear, and `null` is how the wire says so —
+      // omitting the key would mean "leave it alone" instead.
+      if (imageOverrideChanged) {
+        body.imageOverride = trimmedImage === "" ? null : ImageUrlSchema.parse(trimmedImage);
+      }
 
       if (Object.keys(body).length === 0) return;
       // Fire-and-forget `mutate`: form-core re-throws an awaited rejection out of
       // handleSubmit as an unhandled rejection; the mutation's onError owns failures.
       update.mutate(body);
     },
+  });
+
+  // `useStore` rather than this file's `form.Subscribe` idiom: a render prop
+  // can't host the preview hook, and two subscriptions (header avatar, hint
+  // below the field) would run two independent probes of the same URL. Same
+  // store either way.
+  const draftImage = useStore(form.store, (state) => state.values.imageOverride);
+  const preview = useAvatarPreview({
+    draft: draftImage,
+    savedImage: profile.image,
+    providerImage: profile.providerImage,
   });
 
   return (
@@ -130,11 +158,10 @@ function ProfileForm({
           <UserIdentity
             displayName={profile.displayName}
             username={profile.username}
-            image={profile.image}
+            image={preview.src}
             avatarSize="lg"
             className="flex-col"
           />
-          <CardDescription>Your avatar comes from your sign-in provider.</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -188,6 +215,43 @@ function ProfileForm({
                 />
               )}
             </form.Field>
+            <form.Field
+              name="imageOverride"
+              validators={{
+                // Unchanged is valid, and so is empty — emptying the field is
+                // how the member reverts to the provider's avatar.
+                onSubmit: ({ value }) => {
+                  const trimmed = value.trim();
+                  if (trimmed === (profile.imageOverride ?? "") || trimmed === "") return undefined;
+                  const parsed = ImageUrlSchema.safeParse(trimmed);
+                  return parsed.success
+                    ? undefined
+                    : (parsed.error.issues[0]?.message ?? "Enter an https image URL.");
+                },
+              }}
+            >
+              {(field) => (
+                <FormTextField
+                  field={field}
+                  label="Avatar image URL"
+                  type="url"
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="https://…"
+                  hint="Comes from your sign-in provider unless you set one here. Clear the field to go back."
+                />
+              )}
+            </form.Field>
+            {/* The avatar silently holding at its old image is ambiguous — it
+                reads as "the preview is slow" when it actually means the URL
+                won't render for anyone. `role="status"` so it's announced,
+                since the preview itself is purely visual. */}
+            {preview.failed && (
+              <p role="status" className="text-xs text-muted-foreground">
+                We couldn&apos;t load that image. Saving it will show your initials instead.
+              </p>
+            )}
             <form.Subscribe selector={(state) => state.values}>
               {(values) => {
                 // Compare trimmed: the server stores the trimmed value, so a
@@ -196,7 +260,11 @@ function ProfileForm({
                 const displayNameChanged = values.displayName.trim() !== profile.displayName;
                 const usernameChanged =
                   values.username.trim().toLowerCase() !== (profile.username ?? "");
-                const hasChanges = displayNameChanged || usernameChanged;
+                // Comparing against "" for an unset override is what enables
+                // Save when the member *empties* a field that had a value.
+                const imageOverrideChanged =
+                  values.imageOverride.trim() !== (profile.imageOverride ?? "");
+                const hasChanges = displayNameChanged || usernameChanged || imageOverrideChanged;
 
                 return (
                   <Button
