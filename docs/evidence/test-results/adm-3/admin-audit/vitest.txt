@@ -1,0 +1,9 @@
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues/.claude/worktrees/adm-3/picksleagues
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  11:27:53
+   Duration  1.85s (transform 371ms, setup 0ms, import 978ms, tests 437ms, environment 0ms)
+

@@ -452,3 +452,102 @@ existing transaction under a row lock.
 **Evidence:** workers return raw verification output as text; the orchestrator
 writes it beneath `docs/evidence/test-results/adm-3/` on acceptance (committed
 text; images to the PR, per `docs/agents/testing.md`).
+
+## [AI CODE REVIEW] — 2026-08-07, integrated branch `d2b0d40`
+
+Single formal review, performed by the frontier orchestrator over the complete
+repository diff (`ec85ec7..d2b0d40`). Worker reports and the per-deliverable
+acceptance screens are context, not this review.
+
+### Axis 1 — technical implementation and spec conformity
+
+Conforms to the ticket line, to D1–D8 as approved (including the owner's
+pagination amendment), and to arch §Manual Sports Data Overrides. Every AC has
+an evidence-backed verdict in the map below. Specifically checked and found
+correct:
+
+- **The audit write is inside the recompute's transaction**, after
+  `lockLeagueSeasonRow` and before the first delete, so a rolled-back rebuild
+  leaves no row and a committed one is never unaudited. The three non-admin
+  callers (`settleSweep`, `settlePicksForGames`, `settleForSim`) pass no `audit`
+  and are pinned silent by a test that first proves each of them *did* settle
+  the season — a row-count assertion that would otherwise pass vacuously.
+- **The engineering rule that said "a rebuild runs outside a transaction" was
+  stale against the code** and is corrected in the same change rather than left
+  to contradict it.
+- **Label resolution cannot drop an audit row.** The only join in the list query
+  is on `users` (restrict FK, accounts anonymized in place); target labels are a
+  `Map` lookup applied after the page is fetched, and the orphaned-target case
+  is seeded and asserted rather than argued.
+- **The anomaly predicate is strictly `>`**, matching `isLocked`'s `<= now`, and
+  the boundary is tested in both directions (`now` absent, `now + 1ms` present)
+  — the one case a `>=` would get wrong while agreeing everywhere else.
+- **No predicate is restated.** The coalesces come from `services/games.ts`, the
+  status set is exported from `packages/schemas` rather than copied, and `now`
+  reaches SQL as a bound parameter.
+
+### Axis 2 — coding standards (`CLAUDE.md`, `.claude/rules/engineering.md`)
+
+No unresolved blocking findings. Adjudicated:
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | `recordRebuildAudit` is non-exported but carries a `/** */` comment, where the comment-form rule prescribes `//` | **Accepted, no change.** `settlement.ts` uses `/** */` on *every* non-exported function (`loadSettleableSeason`, `loadWeekInputs`, `settleWeekResults`, `rebuildStandings`, `weeksWithPicks`), verified by reading the file. The rule's stated failure — editors surfacing only `/** */` at a call site — is about exports; "match surrounding code" governs here, and a lone `//` would be the inconsistency. |
+| 2 | `QueryState` gained an optional `pendingFallback`, a shared component outside the deliverable's file set | **Accepted.** The skeleton rule requires loading views to wait behind skeletons *through* `QueryState`, which had no way to render them; hand-rolling them beside it is the drift that rule exists to prevent. Additive and defaulted, so no existing call site changes behaviour. |
+| 3 | `offset` generates as `number \| null` in the client, `limit` does not | **Advisory, left as specified.** `z.coerce.number().int().min(0)` genuinely admits `null` (`Number(null) === 0` passes `min(0)`); `limit`'s `min(1)` rejects it. Honest rather than wrong — a query string cannot carry a literal null — but a caller passing `null` would type-check and then 400. Not the `.nullable()`-registration trap: the `openapi/` diff is purely additive and `components.schemas.Username` is unchanged. Worth revisiting if a second offset-paginated endpoint appears. |
+| 4 | `total` and the page are two queries, so they could disagree under a concurrent writer | **Accepted.** The only writer is the admin reading the view. A window function would tie the total's correctness to the page's `where`, which is worse. |
+| 5 | `services/admin-data.ts` is now ~360 lines | **Deferred, already flagged.** The plan records this as craft debt for the owner; a further admin read likely warrants splitting the audit reads into their own module. |
+| 6 | The anomalies query is not refetched when the simulated clock moves | **Advisory.** It sits under `ADMIN_QUERY_KEY_PREFIX`, so sync-job invalidation covers the ingestion route into this state; a clock jump under the simulator leaves it stale until refetch. Diagnostic surface, not a product claim. |
+| 7 | `validateSearch` throws on a malformed `?offset=abc` rather than falling back to page one | **Advisory.** Reachable only by hand-editing the URL, and consistent with the other admin routes' search validation. |
+
+Findings 3, 6, and 7 are recorded rather than fixed: each would change a shape
+the plan pinned or a precedent the repo already sets, and none affects a
+delivered criterion.
+
+## [CLOSEOUT] — 2026-08-07
+
+Delivered on `feat/adm-3-audit-view`, base `staging` @ `ec85ec7`. Evidence root
+`docs/evidence/test-results/adm-3/` (committed text; images on the PR).
+
+### Deliverables
+
+| # | Deliverable | Commit | Worker |
+|---|---|---|---|
+| W1 | Rebuild auditing | `263405f` | `atlas-worker`, session model |
+| W2 | Audit endpoint + paginated view | `8696b2b` | `atlas-worker`, session model |
+| W3 | Anomaly detection + integrity card | `d2b0d40` | `atlas-worker`, session model |
+
+### Verdicts
+
+| # | Criterion | Verdict | Evidence |
+|---|---|---|---|
+| AC1 | Audit view lists rows — who/what/when/prior value, newest first, orphaned target kept with `targetLabel: null` | **PASS** | `admin-audit/vitest.txt` (13 tests) |
+| AC1b | The whole trail is reachable by paging; no overlap, no gap; past-the-end is an empty page; bad params 400 | **PASS** | `admin-audit/vitest.txt` |
+| AC2 | Both new endpoints are admin-only (401 / 403) | **PASS** | `admin-audit/vitest.txt`, `anomalies/vitest.txt` |
+| AC3 | Rebuild writes its audit row; sweep, ingestion and sim stay silent; no row for a no-op rebuild | **PASS** | `admin-audit/vitest.txt` |
+| AC4 | `unlocked ∧ outcome-knowable` games detected, including the no-admin-fault route and the boundary instant | **PASS** | `anomalies/vitest.txt` (6 tests) |
+| AC5 | Audit tab renders; invisible to non-admins | **PASS** | `ui-drive/transcript.md` (390px drive; signed-out visit redirects to sign-in with zero audit headers present) |
+| AC5b | Pager: range line, disabled ends, URL, Back, reload, no re-skeleton | **PASS** | `ui-drive/transcript.md` |
+| AC6 | SPA consumes only the generated client; contract committed | **PASS** | `gates/contract-check.txt` |
+| DoD | `typecheck`, `lint`, `format:check`, `test`, `test:integration`, web build, `test:e2e` | **PASS** | `gates/static-checks.txt`, `gates/suites.txt`, `gates/e2e.txt` (13 passed, **0 skipped** — checked, because a failed dependency project reports the merge-gate journey as skipped rather than run) |
+
+Integration suite moved 529 → 544 tests; unit suite unchanged at 462.
+
+### Deviations and notes
+
+- **D5 was amended before implementation** at the owner's request: offset
+  pagination (25/page, `total` on the wire) instead of a single capped page.
+  This resolved red-team finding 6 rather than relaxing a reviewed constraint.
+- **The engineering rule asserting a rebuild runs outside a transaction was
+  stale** and is corrected in this change.
+- **`QueryState` gained an optional `pendingFallback`** — a shared component
+  outside the planned file set, accepted so the skeleton rule could be met
+  through the shared component rather than beside it.
+- **No migration, no ADR, no new e2e spec**, exactly as scoped.
+- Three advisories are recorded unfixed in the review above (nullable `offset`
+  in the generated client; the anomalies query not refetching on a simulated
+  clock jump; `validateSearch` throwing on a hand-mangled `?offset=`).
+- **Verification environment:** the UI drive ran against a throwaway database
+  created and dropped inside the run, never the dev database, and never read the
+  live `.env`. `pnpm test:e2e` required a `.env` in the worktree, which a human
+  supplied — the one human gate in this run.
