@@ -99,6 +99,28 @@ export const PICKEM_NOMINAL_RANGE = {
 } as const satisfies Record<PickemSeasonRangePreset, PickemSeasonRange>;
 
 /**
+ * The create form's and the settings editor's shared availability answer
+ * (`GET /pickem/season-range-presets`, `GET
+ * /leagues/{leagueId}/pickem/season-range-presets`): which presets the
+ * relevant season can still start, and that season's year. `seasonYear` is
+ * `null` only when no NFL season has been ingested at all — reachable from
+ * the create-form endpoint, never the league-scoped one (a league always has
+ * a bound season). A fresh component, not a `.nullable()` wrap of an
+ * already-registered schema (engineering rules §Contract & codegen — the
+ * wrapper would inherit the registration and widen every other `$ref` to it).
+ */
+export const PickemSeasonRangePresetsResponseSchema = z
+  .object({
+    seasonYear: z.number().nullable(),
+    startablePresets: z.array(PickemSeasonRangePresetSchema),
+  })
+  .openapi("PickemSeasonRangePresetsResponse");
+
+export type PickemSeasonRangePresetsResponse = z.infer<
+  typeof PickemSeasonRangePresetsResponseSchema
+>;
+
+/**
  * Stored Pick'em settings: the commissioner's preset *and* the concrete week
  * refs it resolved to at the moment the setting was written (ADR-0020 §The
  * resolved range is stored, not re-derived). The refs are kept because

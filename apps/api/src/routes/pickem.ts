@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ErrorResponseSchema,
   PickemPickSummarySchema,
+  PickemSeasonRangePresetsResponseSchema,
   PickemStandingsResponseSchema,
   PickemWeekPicksResponseSchema,
   SubmitPickemPicksRequestSchema,
@@ -20,10 +21,12 @@ import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/re
 import type { SessionVariables } from "../middleware/session";
 import {
   getPickemPickSummary,
+  getPickemSeasonRangePresets,
   getPickemWeekPicks,
   submitPickemPicks,
 } from "../services/pickem/picks";
 import { getPickemStandings } from "../services/pickem/standings";
+import { pickemSeasonRangePresetsForCreate } from "../services/leagues/season-range";
 
 const LeagueWeekParamsSchema = z.object({ leagueId: z.uuid(), weekId: z.uuid() });
 const LeagueIdParamsSchema = z.object({ leagueId: z.uuid() });
@@ -40,6 +43,44 @@ const getPickSummary = createRoute({
       description:
         "Pick and distinct-member counts on the league's current season instance — what a settings edit that invalidates picks would destroy",
       content: { "application/json": { schema: PickemPickSummarySchema } },
+    },
+    400: errorResponse("Not a Pick'em league (wrong_league_mode)"),
+    401: UNAUTHENTICATED_401,
+    403: NOT_COMMISSIONER_403,
+    404: LEAGUE_NOT_FOUND_404,
+    500: MISCONFIGURED_500,
+  },
+});
+
+const getSeasonRangePresets = createRoute({
+  method: "get",
+  path: "/pickem/season-range-presets",
+  operationId: "getPickemSeasonRangePresets",
+  summary:
+    "Which of the three ADR-0020 season-range presets the latest ingested NFL season can still start (create form)",
+  responses: {
+    200: {
+      description:
+        "The latest ingested NFL season's year (null if none ingested) and which presets it can still start",
+      content: { "application/json": { schema: PickemSeasonRangePresetsResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    500: MISCONFIGURED_500,
+  },
+});
+
+const getLeagueSeasonRangePresets = createRoute({
+  method: "get",
+  path: "/leagues/{leagueId}/pickem/season-range-presets",
+  operationId: "getLeaguePickemSeasonRangePresets",
+  summary:
+    "Which presets the league's own bound season can still start (commissioner, settings editor only)",
+  request: { params: LeagueIdParamsSchema },
+  responses: {
+    200: {
+      description:
+        "The league's bound season year and which presets it can still start — the settings editor's availability hint",
+      content: { "application/json": { schema: PickemSeasonRangePresetsResponseSchema } },
     },
     400: errorResponse("Not a Pick'em league (wrong_league_mode)"),
     401: UNAUTHENTICATED_401,
@@ -133,6 +174,34 @@ export function pickemRoutes(deps: AppDeps) {
   // function of which route file mounts last.
   app.use("/leagues/:leagueId/pickem/*", requireSession(deps));
   app.use("/leagues/:leagueId/pickem/*", requireDbAndClock(deps));
+
+  // The create-form endpoint sits outside `/leagues/:leagueId/pickem/*` — it
+  // isn't league-scoped at all, so it needs its own middleware registration.
+  app.use("/pickem/*", requireSession(deps));
+  app.use("/pickem/*", requireDbAndClock(deps));
+
+  app.openapi(getSeasonRangePresets, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
+
+    const result = await pickemSeasonRangePresetsForCreate(db, clock);
+    return c.json(result, 200);
+  });
+
+  app.openapi(getLeagueSeasonRangePresets, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
+    const { leagueId } = c.req.valid("param");
+
+    const result = await getPickemSeasonRangePresets(db, clock, leagueId, sessionUser.id);
+    if (!result.ok) {
+      const { body, status } = pickemRefusal(result.reason);
+      return c.json(ErrorResponseSchema.parse(body), status);
+    }
+
+    return c.json(result.value, 200);
+  });
 
   app.openapi(getPickSummary, async (c) => {
     const db = c.get("db");
