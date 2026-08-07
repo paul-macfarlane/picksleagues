@@ -86,15 +86,18 @@ function LeagueLayout() {
                 your own and reading the league's are different tasks on
                 different cadences, and the second was previously buried behind
                 Overview's standings-scope dropdown. */}
+            {(league.data.mode === LEAGUE_MODE.PICKEM ||
+              league.data.mode === LEAGUE_MODE.SURVIVOR) && (
+              <Link to="/leagues/$leagueId/my-picks" params={{ leagueId }} {...tabLinkProps}>
+                My Picks
+              </Link>
+            )}
+            {/* Still Pick'em-only: Survivor's all-members board is its own
+                surface and doesn't exist yet. */}
             {league.data.mode === LEAGUE_MODE.PICKEM && (
-              <>
-                <Link to="/leagues/$leagueId/my-picks" params={{ leagueId }} {...tabLinkProps}>
-                  My Picks
-                </Link>
-                <Link to="/leagues/$leagueId/league-picks" params={{ leagueId }} {...tabLinkProps}>
-                  League Picks
-                </Link>
-              </>
+              <Link to="/leagues/$leagueId/league-picks" params={{ leagueId }} {...tabLinkProps}>
+                League Picks
+              </Link>
             )}
             <Link to="/leagues/$leagueId/members" params={{ leagueId }} {...tabLinkProps}>
               Members
