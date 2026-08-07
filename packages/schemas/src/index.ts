@@ -6,6 +6,7 @@ export * from "./display-name";
 export * from "./error";
 export * from "./game-status";
 export * from "./health";
+export * from "./image-url";
 export * from "./invites";
 export * from "./job";
 export * from "./league-actions";

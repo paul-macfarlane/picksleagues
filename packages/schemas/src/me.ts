@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { DisplayNameSchema } from "./display-name";
+import { ImageUrlSchema } from "./image-url";
 import { UsernameSchema } from "./username";
 
 // mvp-spec §Users & Identity: the authenticated caller's own profile.
@@ -9,13 +10,27 @@ import { UsernameSchema } from "./username";
 // the (non-nullable) UpdateMeRequest contract too.
 const NullableUsernameSchema = UsernameSchema.nullable().openapi("NullableUsername");
 
+// Same registration rule as above: `null` folded into the shared `ImageUrl`
+// component would widen every other reference to it.
+const NullableImageUrlSchema = ImageUrlSchema.nullable().openapi("NullableImageUrl");
+
 export const MeResponseSchema = z
   .object({
     id: z.string(),
     username: NullableUsernameSchema,
     displayName: z.string(),
     email: z.string(),
+    // The *resolved* avatar — the member's override if set, else the
+    // provider's (ADR-0022). Not validated as a URL: the provider's string
+    // isn't ours to police, and this field is a read.
     image: z.string().nullable(),
+    // The member's raw value, carried alongside `image` because the resolved
+    // value alone can't distinguish "unset, inheriting the provider's" from
+    // "set to that same URL" — so a form round-tripping `image` would promote
+    // the provider URL into the override on an untouched save, and clearing
+    // would be inexpressible. Only `/me` carries it; every other surface shows
+    // other members the resolved value alone.
+    imageOverride: NullableImageUrlSchema,
     // Admin capability = the caller's `users.app_role` (ADR-0013) — the SPA uses
     // this to show/hide the admin surface.
     isAdmin: z.boolean(),
@@ -52,14 +67,23 @@ export type MeResponse = z.infer<typeof MeResponseSchema>;
  * is changeable anytime, old name released immediately), and editing the
  * freely-editable display name are all the same partial-update operation —
  * one PATCH /me. At least one field must be present or there's nothing to do.
+ *
+ * `imageOverride` is tri-state (ADR-0022): absent leaves the stored value
+ * alone, an https URL sets it, and an explicit `null` clears it back to the
+ * provider's avatar.
  */
 export const UpdateMeRequestSchema = z
   .object({
     username: UsernameSchema.optional(),
     displayName: DisplayNameSchema.optional(),
+    imageOverride: NullableImageUrlSchema.optional(),
   })
-  .refine((data) => data.username !== undefined || data.displayName !== undefined, {
-    message: "At least one of username or displayName is required",
+  // Presence, not truthiness: `{ imageOverride: null }` is the clear, and a
+  // truthy test would reject the one request whose whole purpose is a falsy
+  // value. Unknown keys are stripped before this runs, so a body of only
+  // unrecognized fields still fails here.
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: "At least one field is required",
   })
   .openapi("UpdateMeRequest");
 

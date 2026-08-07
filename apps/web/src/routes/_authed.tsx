@@ -273,6 +273,12 @@ function MobileNav() {
 
 function SessionMenu() {
   const { data: session } = authClient.useSession();
+  // The avatar comes from /me, not from `session.user.image`: that column is
+  // the provider's, and Better Auth's session knows nothing about the member's
+  // override (ADR-0022), so reading it here would show the provider photo to
+  // the one person who set a different one. React Query dedupes this against
+  // the calls in AuthedLayout and MobileNav, so it costs no request.
+  const me = useMe();
   const navigate = useNavigate();
 
   // beforeLoad already guarantees a session for this subtree; this hook can still
@@ -286,7 +292,7 @@ function SessionMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger aria-label="Open account menu">
         <Avatar>
-          <AvatarImage src={session.user.image ?? undefined} alt="" />
+          <AvatarImage src={me.data?.image ?? undefined} alt="" />
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>

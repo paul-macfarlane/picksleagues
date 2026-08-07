@@ -14,7 +14,7 @@ import { zodValidationHook } from "../lib/default-hook";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import { errorResponse, MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/route-responses";
 import type { SessionVariables } from "../middleware/session";
-import { deleteAccount, getUser, updateProfile } from "../services/users";
+import { deleteAccount, getUser, resolveUserImage, updateProfile } from "../services/users";
 
 function serializeMe(
   user: typeof users.$inferSelect,
@@ -26,7 +26,11 @@ function serializeMe(
     username: user.username,
     displayName: user.display_name,
     email: user.email,
-    image: user.image,
+    image: resolveUserImage(user),
+    // The only surface carrying the raw override alongside the resolved value:
+    // this is the caller's own profile, and the editor needs to tell "unset,
+    // inheriting" from "set" (ADR-0022).
+    imageOverride: user.imageOverride,
     // Admin capability is the user's own role column (ADR-0013), so it travels
     // with the row rather than being resolved from env alongside `simEnabled`.
     isAdmin: user.appRole === APP_ROLE.ADMIN,
@@ -56,7 +60,7 @@ const updateMe = createRoute({
   method: "patch",
   path: "/me",
   operationId: "updateMe",
-  summary: "Claim/change the caller's username and/or edit their display name",
+  summary: "Claim/change the caller's username, display name, and/or avatar URL",
   request: {
     body: {
       content: { "application/json": { schema: UpdateMeRequestSchema } },
@@ -131,9 +135,13 @@ export function meRoutes(deps: AppDeps) {
     const db = c.get("db");
     const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const { username, displayName } = c.req.valid("json");
+    const { username, displayName, imageOverride } = c.req.valid("json");
 
-    const result = await updateProfile(db, clock, sessionUser.id, { username, displayName });
+    const result = await updateProfile(db, clock, sessionUser.id, {
+      username,
+      displayName,
+      imageOverride,
+    });
     if (!result.ok) {
       return c.json(
         ErrorResponseSchema.parse({

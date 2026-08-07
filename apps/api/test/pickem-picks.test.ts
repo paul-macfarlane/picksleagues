@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { games, leagueMembers, leagueSeasons, pickemPicks } from "@picksleagues/db";
+import { games, leagueMembers, leagueSeasons, pickemPicks, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ELIMINATION_PUSH_TIE_RESOLUTION,
@@ -364,6 +364,27 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     const unknownLeague = await getPicks(memberA.cookie, randomUUID(), weekId);
     expect(unknownLeague.status).toBe(404);
     expect(await unknownLeague.json()).toMatchObject({ error: "league_not_found" });
+  });
+
+  // Same resolved-avatar rule as the league member list (ADR-0022): this
+  // serializer builds its own member literal, so it can drift independently.
+  it("shows a league-mate a member's avatar override in place of their provider image", async () => {
+    const { league, weekIds, memberA, memberB } = await seedPickemLeague();
+    await db
+      .update(users)
+      .set({
+        image: "https://provider.example.invalid/from-oauth.png",
+        imageOverride: "https://cdn.example.invalid/member-set.png",
+      })
+      .where(eq(users.id, memberB.user.id));
+
+    const res = await getPicks(memberA.cookie, league.id, weekIds.get("regular:1")!);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PickemWeekPicksResponse;
+    expect(body.members.find((member) => member.userId === memberB.user.id)?.image).toBe(
+      "https://cdn.example.invalid/member-set.png",
+    );
   });
 
   it("400s wrong_league_mode for an elimination league", async () => {

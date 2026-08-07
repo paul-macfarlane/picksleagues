@@ -41,6 +41,9 @@
               "null"
             ]
           },
+          "imageOverride": {
+            "$ref": "#/components/schemas/NullableImageUrl"
+          },
           "isAdmin": {
             "type": "boolean"
           },
@@ -58,6 +61,7 @@
           "displayName",
           "email",
           "image",
+          "imageOverride",
           "isAdmin",
           "simEnabled",
           "now"
@@ -69,6 +73,14 @@
           "null"
         ],
         "pattern": "^[a-z0-9_]{3,20}$"
+      },
+      "NullableImageUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2048,
+        "format": "uri"
       },
       "ErrorResponse": {
         "type": "object",
@@ -93,6 +105,9 @@
           },
           "displayName": {
             "$ref": "#/components/schemas/DisplayName"
+          },
+          "imageOverride": {
+            "$ref": "#/components/schemas/NullableImageUrl"
           }
         }
       },
@@ -2695,7 +2710,7 @@
       },
       "patch": {
         "operationId": "updateMe",
-        "summary": "Claim/change the caller's username and/or edit their display name",
+        "summary": "Claim/change the caller's username, display name, and/or avatar URL",
         "requestBody": {
           "content": {
             "application/json": {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers } from "@picksleagues/db";
+import { leagueMembers, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ELIMINATION_PUSH_TIE_RESOLUTION,
@@ -251,6 +252,35 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     expect(body.rows[0]).toMatchObject({ points: 1, rank: 1, isViewer: true });
     expect(body.rows[1]).toMatchObject({ points: 1, rank: 1, isViewer: false });
     expect(body.rows[2]).toMatchObject({ points: 0, rank: 3, isViewer: false }); // skips rank 2
+  });
+
+  /**
+   * The genuinely distinct avatar path: standings select a narrow projection
+   * rather than the whole user row, so this is the one call site where
+   * resolution depends on the query having asked for the override column at all
+   * (ADR-0022).
+   */
+  it("shows a league-mate a member's avatar override in place of their provider image", async () => {
+    // `users` is shadowed by the seed's own binding in the tests around this
+    // one; aliased here so the table import stays reachable.
+    const { league, users: seeded } = await seedStandingsLeague();
+    const viewer = seeded[0]!;
+    const other = seeded[1]!;
+    await db
+      .update(users)
+      .set({
+        image: "https://provider.example.invalid/from-oauth.png",
+        imageOverride: "https://cdn.example.invalid/member-set.png",
+      })
+      .where(eq(users.id, other.user.id));
+
+    const res = await getStandings(viewer.cookie, league.id);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PickemStandingsResponse;
+    expect(body.rows.find((row) => row.userId === other.user.id)?.image).toBe(
+      "https://cdn.example.invalid/member-set.png",
+    );
   });
 
   it("serves each member's settled W/L/P, and 0-0-0 for one with nothing settled", async () => {

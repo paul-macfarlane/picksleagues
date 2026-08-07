@@ -15,6 +15,11 @@ const testEnv = makeTestEnv();
 
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
+// `.invalid` hosts (RFC 2606) throughout: nothing here should be resolvable,
+// let alone fetchable — the app validates the URL's shape and never retrieves it.
+const PROVIDER_IMAGE = "https://provider.example.invalid/from-oauth.png";
+const MEMBER_IMAGE = "https://cdn.example.invalid/member-set.png";
+
 const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: testEnv, db });
 const app = createApp({ auth, db, clock: async () => new FixedClock(FIXED_NOW) });
@@ -97,6 +102,7 @@ describe("GET /api/me", () => {
       displayName: "Test User",
       email: user.email,
       image: null,
+      imageOverride: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -176,6 +182,7 @@ describe("PATCH /api/me", () => {
       displayName: "Test User",
       email: user.email,
       image: null,
+      imageOverride: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -250,6 +257,7 @@ describe("PATCH /api/me", () => {
       displayName: "New Name",
       email: user.email,
       image: null,
+      imageOverride: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -275,6 +283,7 @@ describe("PATCH /api/me", () => {
       displayName: "New Name",
       email: user.email,
       image: null,
+      imageOverride: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -294,6 +303,89 @@ describe("PATCH /api/me", () => {
     expect(body).toHaveProperty("message");
   });
 
+  it("sets the avatar override and serves it as the resolved image", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await patchMeBody(cookie, { imageOverride: MEMBER_IMAGE });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as MeResponse;
+    expect(body.image).toBe(MEMBER_IMAGE);
+    expect(body.imageOverride).toBe(MEMBER_IMAGE);
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.imageOverride).toBe(MEMBER_IMAGE);
+  });
+
+  /**
+   * The whole point of the two-column split (ADR-0022): the provider's avatar
+   * has to still be there to fall back to, so clearing can revert to it. A
+   * single column would have been overwritten on the way in and the fallback
+   * would be gone for good.
+   */
+  it("falls back to the provider image when unset, and clearing the override reverts to it", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    // Straight to the column Better Auth owns — no app route writes it.
+    await db.update(users).set({ image: PROVIDER_IMAGE }).where(eq(users.id, user.id));
+
+    const beforeBody = (await (await getMe(cookie)).json()) as MeResponse;
+    expect(beforeBody.image).toBe(PROVIDER_IMAGE);
+    expect(beforeBody.imageOverride).toBeNull();
+
+    const setBody = (await (
+      await patchMeBody(cookie, { imageOverride: MEMBER_IMAGE })
+    ).json()) as MeResponse;
+    expect(setBody.image).toBe(MEMBER_IMAGE);
+
+    const clearRes = await patchMeBody(cookie, { imageOverride: null });
+    expect(clearRes.status).toBe(200);
+    const clearedBody = (await clearRes.json()) as MeResponse;
+    expect(clearedBody.image).toBe(PROVIDER_IMAGE);
+    expect(clearedBody.imageOverride).toBeNull();
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.imageOverride).toBeNull();
+    expect(row?.image).toBe(PROVIDER_IMAGE);
+  });
+
+  it.each([
+    { label: "http, not https", imageOverride: "http://cdn.example.invalid/a.png" },
+    { label: "javascript: scheme", imageOverride: "javascript:alert(1)" },
+    { label: "data: URL", imageOverride: "data:image/png;base64,iVBORw0KGgo=" },
+    { label: "protocol-relative", imageOverride: "//cdn.example.invalid/a.png" },
+    { label: "not a URL at all", imageOverride: "not a url" },
+    {
+      label: "over 2048 chars",
+      imageOverride: `https://cdn.example.invalid/${"a".repeat(2049 - 28)}`,
+    },
+  ])("400s on a refused avatar URL ($label)", async ({ imageOverride }) => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await patchMeBody(cookie, { imageOverride });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
+    expect(body).toHaveProperty("message");
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.imageOverride).toBeNull();
+  });
+
+  it("leaves an existing override alone when the field is omitted", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    await patchMeBody(cookie, { imageOverride: MEMBER_IMAGE });
+
+    const res = await patchMeBody(cookie, { displayName: "New Name" });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as MeResponse;
+    expect(body.imageOverride).toBe(MEMBER_IMAGE);
+
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.imageOverride).toBe(MEMBER_IMAGE);
+  });
+
   it("stores the display name trimmed", async () => {
     const { user, cookie } = await createAuthenticatedUser(auth);
 
@@ -308,7 +400,7 @@ describe("PATCH /api/me", () => {
   });
 });
 
-describe("Better Auth's /api/auth/update-user cannot write app_role", () => {
+describe("Better Auth's /api/auth/update-user cannot reach the app's validated columns", () => {
   // Omitting `app_role` from `user.fields`/`additionalFields` (apps/api/src/
   // auth.ts) is the only thing keeping Better Auth's own update-user route
   // from granting admin. This guards that claim against a future edit adding
@@ -331,6 +423,33 @@ describe("Better Auth's /api/auth/update-user cannot write app_role", () => {
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
     expect(row?.display_name).toBe("New Name");
     expect(row?.appRole).toBe(APP_ROLE.USER);
+  });
+
+  // Better Auth's update-user body is `z.record(z.string(), z.any())`, so an
+  // `additionalFields` entry for the override would hand it a write path that
+  // never sees `ImageUrlSchema` — which is the reason the member's avatar lives
+  // in its own column rather than in `image` (ADR-0022).
+  it("drops image_override/imageOverride/avatarUrl write attempts", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+
+    const res = await app.request("/api/auth/update-user", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        name: "New Name",
+        image_override: MEMBER_IMAGE,
+        imageOverride: MEMBER_IMAGE,
+        avatarUrl: MEMBER_IMAGE,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.display_name).toBe("New Name");
+    expect(row?.imageOverride).toBeNull();
+    // Nothing is asserted about `users.image`: that route legitimately writes
+    // the provider column, and pinning it here would freeze a decision the
+    // ADR deliberately left open.
   });
 });
 
@@ -355,6 +474,7 @@ describe("DELETE /api/me", () => {
       username: null,
       display_name: DELETED_USER_DISPLAY_NAME,
       image: null,
+      imageOverride: null,
       email: `deleted-${user.id}@deleted.invalid`,
       emailVerified: false,
     });
