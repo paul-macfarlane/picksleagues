@@ -1,80 +1,26 @@
-### COMMIT: 8e4d815040d76026347bede142174df8b5df91d0
+LG-11 local gates — feat/lg-11-role-aware-renewal-pill
 
-### pnpm typecheck
-packages/core typecheck$ tsc
-packages/scoring typecheck: Done
-packages/core typecheck: Done
-packages/db typecheck: Done
-apps/web typecheck$ tsc -b
-apps/api typecheck$ tsc
-apps/web typecheck: Done
-apps/api typecheck: Done
-
-### pnpm lint
-$ eslint .
-(lint exit=0)
-
-### pnpm test
- RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
-
-
- Test Files  26 passed (26)
-      Tests  439 passed (439)
-   Start at  21:23:09
-   Duration  911ms (transform 1.30s, setup 0ms, import 3.33s, tests 252ms, environment 2ms)
-
-
-### pnpm format:check
+$ pnpm format:check
 $ prettier --check .
 Checking formatting...
 All matched files use Prettier code style!
 
-### pnpm --filter @picksleagues/web build
-dist/assets/Match-Dwiok2Jt.js                               48.57 kB │ gzip: 15.74 kB
-dist/assets/form-field-DFZsVdTH.js                          64.41 kB │ gzip: 16.02 kB
-dist/assets/date-time-picker-B7zsRwK0.js                    85.39 kB │ gzip: 25.85 kB
-dist/assets/schemas-B7sqQlGY.js                            112.12 kB │ gzip: 30.28 kB
-dist/assets/src-DzgFmEDt.js                                192.87 kB │ gzip: 44.58 kB
-dist/assets/index-Dgs3Lwcn.js                              260.38 kB │ gzip: 80.59 kB
+$ pnpm typecheck
+apps/api typecheck$ tsc
+apps/web typecheck$ tsc -b
+apps/web typecheck: Done
+apps/api typecheck: Done
 
-✓ built in 446ms
+$ pnpm lint
+$ eslint .
 
-### pnpm test:integration
- RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+$ pnpm --filter @picksleagues/web build
+dist/assets/index-CHdnqk10.js                              260.38 kB │ gzip: 80.58 kB
 
+✓ built in 421ms
 
- Test Files  28 passed (28)
-      Tests  505 passed (505)
-   Start at  21:23:17
-   Duration  26.79s (transform 569ms, setup 0ms, import 13.24s, tests 11.04s, environment 1ms)
+$ pnpm test:e2e
+  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (497ms)
+  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (574ms)
 
-
-### pnpm contract:check
-Wrote /Users/paulmacfarlane/code/picksleagues/openapi/openapi.json
-✨ openapi-typescript 7.13.0
-🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [70ms]
-(contract exit=0)
-
-### pnpm test:e2e
-$ playwright test
-[WebServer] $ tsx watch --env-file=../../.env src/dev.ts
-[WebServer] $ vite
-
-Running 13 tests using 5 workers
-
-  ✓   4 [chromium] › e2e/identity.spec.ts:70:3 › identity › preserves the intended destination through the claim-username gate (1.2s)
-  ✓   3 [chromium] › e2e/identity.spec.ts:95:3 › identity › profile edit: Save gates on a real change, success toasts and updates the account menu, a taken username errors inline (1.9s)
-  ✓   1 [chromium] › e2e/identity.spec.ts:44:3 › identity › unclaimed session is gated to /claim-username; invalid submit errors inline; a valid claim reaches the dashboard (1.9s)
-  ✓   5 [chromium] › e2e/identity.spec.ts:140:3 › identity › delete account signs out immediately and the session cannot return (2.2s)
-  ✓   7 [chromium] › e2e/smoke.spec.ts:10:1 › unauthenticated visit redirects to sign-in and the API is reachable (352ms)
-  ✓   6 [chromium] › e2e/sim-panel.spec.ts:26:3 › simulator › an admin reaches the simulator section and every tab renders its cards (1.2s)
-  ✓   8 [chromium] › e2e/sim-panel.spec.ts:109:3 › simulator › a non-admin cannot see the simulator route (528ms)
-  ✓   2 [chromium] › e2e/league-lifecycle.spec.ts:12:3 › league lifecycle › create → invite → second user joins → both appear on league home (3.1s)
-  ✓   9 [simulated] › e2e/pickem-journey.sim.spec.ts:276:3 › Pick'em merge-gate journey (mixed-week scenario) › commissioner creates a Pick'em league; a second member joins via invite (1.0s)
-  ✓  10 [simulated] › e2e/pickem-journey.sim.spec.ts:309:3 › Pick'em merge-gate journey (mixed-week scenario) › both members commit week 1 as one irreversible full set (1.2s)
-  ✓  11 [simulated] › e2e/pickem-journey.sim.spec.ts:363:3 › Pick'em merge-gate journey (mixed-week scenario) › before kickoff, another member's picks are hidden behind a count (327ms)
-  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (508ms)
-  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (378ms)
-
-  13 passed (12.6s)
-(e2e exit=0)
+  13 passed (12.9s)
