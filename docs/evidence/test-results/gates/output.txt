@@ -1,5 +1,5 @@
-DATA-9 DoD gates — 2026-08-07T03:49:07Z on feat/data-9-unseeded-playoff-games
-Run surface: local only (docs/agents/testing.md). Verified commit is recorded in the plan's [CLOSEOUT].
+DATA-9 DoD gates — 2026-08-07T03:58:06Z on feat/data-9-unseeded-playoff-games
+Run surface: local only (docs/agents/testing.md). Verified commit is the PR head.
 
 === pnpm typecheck — exit 0 ===
 $ pnpm -r typecheck && tsc -p e2e/tsconfig.json
@@ -12,8 +12,8 @@ packages/scoring typecheck$ tsc
 packages/scoring typecheck: Done
 packages/core typecheck: Done
 packages/db typecheck: Done
-apps/api typecheck$ tsc
 apps/web typecheck$ tsc -b
+apps/api typecheck$ tsc
 apps/web typecheck: Done
 apps/api typecheck: Done
 
@@ -28,8 +28,8 @@ $ vitest run --project unit
 
  Test Files  26 passed (26)
       Tests  447 passed (447)
-   Start at  23:45:06
-   Duration  929ms (transform 1.40s, setup 0ms, import 3.47s, tests 277ms, environment 1ms)
+   Start at  23:56:16
+   Duration  951ms (transform 1.57s, setup 0ms, import 3.67s, tests 273ms, environment 1ms)
 
 
 === pnpm format:check — exit 0 ===
@@ -43,5 +43,5 @@ $ pnpm --filter @picksleagues/api generate:openapi
 $ tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts
 Wrote /Users/paulmacfarlane/code/picksleagues/openapi/openapi.json
 ✨ openapi-typescript 7.13.0
-🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [68ms]
+🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [69.7ms]
 

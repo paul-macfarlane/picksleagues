@@ -1,6 +1,7 @@
-DATA-9 integration — 2026-08-07T03:49:07Z on feat/data-9-unseeded-playoff-games
+DATA-9 integration — 2026-08-07T03:58:06Z on feat/data-9-unseeded-playoff-games
 Command: pnpm db:up && pnpm test:integration (real Postgres, localhost:5433, database picksleagues_test) — exit 0
-This run also re-applied migration 0021 to that database as part of global setup.
+picksleagues_test was dropped first, so this run recreated and migrated it from scratch:
+21 migrations applied, matching the journal exactly. No migration ships with this work package.
 
 $ vitest run --project integration
 
@@ -9,6 +10,6 @@ $ vitest run --project integration
 
  Test Files  28 passed (28)
       Tests  512 passed (512)
-   Start at  23:47:57
-   Duration  27.41s (transform 604ms, setup 0ms, import 13.42s, tests 11.45s, environment 2ms)
+   Start at  23:57:11
+   Duration  27.61s (transform 608ms, setup 0ms, import 13.46s, tests 11.49s, environment 1ms)
 

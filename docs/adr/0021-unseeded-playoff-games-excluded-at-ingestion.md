@@ -46,9 +46,16 @@ false positives are effectively impossible, while either signal alone identifies
 placeholders — the redundancy costs nothing and survives ESPN changing one of them.
 
 No new state is introduced: the game row is created by the normal `sync-schedule` upsert on the
-first sync after ESPN seeds the matchup, on the same `providerGameId`. A one-time data migration
-removes the placeholder `games` and `teams` rows already ingested, guarded to raise rather than
-destroy any `pickem_picks` row that references one.
+first sync after ESPN seeds the matchup, on the same `providerGameId`.
+
+**No cleanup migration ships with this.** Placeholder rows earlier syncs created exist only in
+throwaway environments — the product has no production deployment yet, and the databases that do
+hold them are rebuilt from ingestion rather than migrated. Writing a forward-only data migration
+to delete rows nobody depends on would put a permanent step in every future environment's
+migration history to fix a condition that will never occur again once this ships. If a specific
+database needs clearing, deleting its NFL teams whose `provider_team_id` is negative or whose
+abbreviation is `TBD` (and the games pointing at them) is a one-off query, not schema history.
+Revisit only if placeholder rows are ever found in an environment that cannot be rebuilt.
 
 ### The season-range resolver fallback is part of this decision
 

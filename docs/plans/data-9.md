@@ -44,7 +44,8 @@ unpickable), plus a record of that decision. The owner delegated the boundary ch
 **An event whose competitors are undetermined is not yet a game in our domain.**
 `EspnProvider.fetchNflWeekGames` excludes any competition where **either** competitor is a
 placeholder; the game row is created by the normal `sync-schedule` upsert on the first sync after
-ESPN seeds the matchup. A one-time data migration removes the placeholder rows already ingested.
+ESPN seeds the matchup. **The cleanup migration originally planned here was withdrawn by the
+owner after delivery — see `[SCOPE CHANGE]`.**
 Recorded as **ADR-0021** (step 1 below drafts it; `/atlas-implement` invocation approves it per
 the planning contract).
 
@@ -138,7 +139,6 @@ inherit the obligation.
   doc-comment sentences that currently present the inner join as the mechanism.
 - `apps/api/test/league-season-range.test.ts`, `apps/api/test/pickem-season-range-presets.test.ts`
   — resolver and availability coverage for the unseeded-round cases.
-- `packages/db/migrations/` — one custom data migration (cleanup).
 - `apps/api/test/nfl-sync-schedule.test.ts` — reframe the existing TBD-teams test (lines
   ~719–780: it proves the ADR-0010 partial bootstrap index tolerates shared abbreviations, which
   stays true; its comment must stop presenting TBD ingestion as the normal provider path, and its
@@ -221,18 +221,8 @@ journeys).
    fake `GameDataProvider`, so the ESPN exclusion is exercised only at the unit layer, and the
    integration layer proves that a sync over a provider omitting the games creates nothing. Do
    not try to route ESPN HTTP fixtures through the integration suite.
-5. **Cleanup migration.** Custom SQL migration (`drizzle-kit generate --custom`, following the
-   `0010_partial-unique-abbreviation-teams.sql` naming precedent): in one transaction, (a) guard
-   — raise if any `pickem_picks` row references a game whose home or away team matches the
-   placeholder predicate, so member picks are never destroyed silently and a failed deploy
-   surfaces the situation to the owner; (b) delete matching `games`; (c) delete the
-   now-unreferenced placeholder `teams` rows. Predicate mirrors the adapter's, sport-scoped and
-   case-insensitive (red-team A5):
-   `sport = 'nfl' AND (provider_team_id LIKE '-%' OR upper(abbreviation) = 'TBD')`.
-   Comment cites ADR-0021. Idempotent by construction (second run matches nothing) — but note
-   drizzle never re-runs an applied migration, which is why the human gate below covers the
-   deploy race. The `pickem_picks.game_id` RESTRICT FK is the hard backstop; the guard exists to
-   fail with a clear message rather than a bare constraint error.
+5. ~~**Cleanup migration.**~~ **Withdrawn** — see `[SCOPE CHANGE]`. Was: a guarded custom SQL
+   migration deleting the placeholder `games`/`teams` rows earlier syncs had created.
 6. **Gates + evidence + PR** per the verification map; PR via
    `gh pr create --base staging --head <feature-branch>`.
 
@@ -256,8 +246,8 @@ independent of 2 in code but is what makes 2 shippable, so neither merges withou
   unseeded round and `startablePickemSeasonRangePresets` reports both startable; a league created
   there is pre-start and adopts the round's real first kickoff once seeded. At the same instant
   Regular Season resolves to nominal and is not startable, and after the Super Bowl no preset is.
-- **AC5** — The migration removes all previously ingested placeholder games and teams rows;
-  with a pick referencing a placeholder game, it raises and applies nothing.
+- ~~**AC5** — The migration removes all previously ingested placeholder games and teams rows.~~
+  **Withdrawn with the migration** — see `[SCOPE CHANGE]`.
 - **AC6** — ADR-0021 exists, records the boundary decision, its alternatives, and the resolver
   fallback that keeps league creation working; ADR-0010 and ADR-0020 carry amendment pointers.
 
@@ -272,7 +262,6 @@ A6, `docs/agents/testing.md`).
 | AC1 | unit: `pnpm vitest run --project unit packages/core/src/espn-provider.test.ts` | none | all placeholder cases excluded, seeded pass through | `docs/evidence/test-results/espn-provider-unit/output.txt` | end of step 2 | edits to `espn-provider.ts`, its fixtures, or `game-data-provider.ts` |
 | AC2, AC3 | integration: `pnpm db:up && pnpm test:integration` | Docker Postgres :5433 (`picksleagues_test`, auto-created/migrated) | suite green incl. reframed TBD test, seeding-transition, pre-start assertions | `docs/evidence/test-results/integration/output.txt` | end of step 4 | any api service, db schema/migration, or test change |
 | AC4 | integration: same command, cases in `league-season-range.test.ts` + `pickem-season-range-presets.test.ts` (fixtures set the simulated clock and the seeded/unseeded week shape; no ESPN involved) | same | Postseason + Full Season advance and are startable; Regular Season unchanged | same file | end of step 3 | edits to `season-range.ts`, `start.ts`, or `PICKEM_NOMINAL_RANGE` |
-| AC5 | manual, local dev db: seed placeholder teams+games via psql; `pnpm db:migrate`; assert rows deleted. Re-seed with a referencing `pickem_picks` row; re-apply; assert raise + no deletion | Docker Postgres :5433 (dev db — **ask before wiping**; use throwaway rows only) | first run deletes exactly the placeholder rows; guarded run raises | `docs/evidence/test-results/migration-cleanup/transcript.txt` (sanitized: no DATABASE_URL) | end of step 5 | any edit to the migration SQL |
 | AC6 | static: files exist, citations greppable (`grep -l "ADR-0021" docs/adr/`) | none | ADR + both pointers present | PR diff | end of step 1 | ADR edits |
 | DoD | `pnpm typecheck && pnpm lint && pnpm test && pnpm format:check` | none | green | `docs/evidence/test-results/gates/output.txt` | step 6 | any edit |
 | DoD | `pnpm contract:check` | none | **no diff** — this change adds no schema/route; a dirty `openapi/` here is a scope violation, not a regeneration chore | same | step 6 | schema/route edits (none planned) |
@@ -281,9 +270,7 @@ A6, `docs/agents/testing.md`).
 Fixtures: AC1 needs a canned ESPN scoreboard fixture with `-1`/`-2` competitors (modeled on the
 ticket's verified description; none exists in `espn-provider.test.ts` today) — checked in with
 the test. AC4 needs no new fixture kind: the integration suite already builds seasons, weeks, and
-games directly and drives a simulated clock. AC5's seeded junk rows are created and torn down
-inside the transcript itself; the dev database is otherwise untouched (repo guardrail: ask before
-wiping dev — this plan never wipes).
+games directly and drives a simulated clock.
 
 Candidate evidence from planning: none executed — planning was static reading. The repo facts
 cited above (NOT NULL team FKs, inner-join null semantics, `requiredPickemPickCount`, sync-role
@@ -294,24 +281,11 @@ from the ESPN season *structure* independently of games
 (`apps/api/src/services/nfl/ingest-season.ts:288-340`), so all four postseason rounds have real
 windows long before seeding — was verified the same way.
 
-### Human gate (merge/deploy)
+### Human gate
 
-Migrations apply to staging/prod via GitHub Actions on merge (ADR-0003), so the cleanup runs
-against real data at deploy time.
-
-- **Prerequisite:** PR approved, gates green.
-- **Human action:** before merging, run against staging and prod (read-only):
-  `SELECT count(*) FROM pickem_picks p JOIN games g ON p.game_id = g.id JOIN teams t ON t.id IN (g.home_team_id, g.away_team_id) WHERE t.provider_team_id LIKE '-%' OR upper(t.abbreviation) = 'TBD';`
-- **Expected:** 0. If nonzero, stop — the migration will (correctly) fail the deploy; owner
-  decides the remedy for those picks first.
-- **Post-check (staging, then again on prod after the `main` deploy — red-team A1):** the
-  migration applied green and
-  `SELECT count(*) FROM teams WHERE provider_team_id LIKE '-%' OR upper(abbreviation) = 'TBD'`
-  returns 0. The prod re-check matters because `migrate.yml` and the Vercel deploy race
-  independently: if the daily 6am ET `nfl-sync-schedule` tick lands between the migration and
-  the new adapter serving, the old code re-ingests placeholders and no migration ever removes
-  them again. **Remediation if nonzero:** re-run the cleanup SQL manually against that
-  environment (same statements, same guard).
+**None.** The plan originally carried one, for the cleanup migration running against real data at
+deploy time. Withdrawing the migration removes the gate with it — nothing in this work package
+touches a deployed database. See `[SCOPE CHANGE]`.
 
 ### Repository-specific considerations (docs/agents/planning.md)
 
@@ -325,8 +299,8 @@ against real data at deploy time.
   selectable). Recorded as an amendment pointer from ADR-0020 into ADR-0021 rather than a second
   ADR — one decision, one record.
 - *Clock:* no new "now" reads anywhere in the change.
-- *Migration policy:* forward-only data migration; rollback is re-running `sync-schedule` after
-  reverting the adapter (rows recreate); stored-row compatibility n/a (no shape change).
+- *Migration policy:* n/a — no migration ships. Rollback is reverting the adapter, after which
+  the next `sync-schedule` re-ingests placeholder rows as before.
 - *Jobs:* `sync-schedule` stays idempotent — skipping is stateless; re-runs converge.
 - *Scoring/settlement:* untouched.
 
@@ -355,7 +329,7 @@ Delivered 2026-08-06 on `feat/data-9-unseeded-playoff-games`, base `staging` @ `
 | D2 | Adapter boundary, `GameDataProvider` contract, unit tests | AC1 | `f85d990` |
 | D3 | Season-range resolver fallback + resolution/availability tests | AC4 | `818794e` |
 | D4 | Seeding-transition coverage; reframed comments and test titles | AC2, AC3 | `95c4761` |
-| D5 | Guarded cleanup data migration | AC5 | `8b7039e` |
+| D5 | ~~Guarded cleanup data migration~~ — delivered as `8b7039e`, then reverted whole; see `[SCOPE CHANGE]` | — | reverted |
 
 Setup commit `d877761` carried the claim (`[ ]` → `[~]`), the plan file, and the evidence-root
 clear required before capturing this work package's proof.
@@ -374,15 +348,15 @@ placeholder guard in `ingest-season.ts`, no new e2e specs).
 
 Findings, all resolved:
 
-1. **Guard message double-counted affected picks** (`0021_remove-placeholder-playoff-games.sql`).
-   `count(*)` over a join that matches `teams` twice when *both* competitors are placeholders —
-   the normal case — reported 2 for a single pick. Caught by running the migration proof rather
-   than by reading the SQL. Fixed to `count(DISTINCT p."id")` and re-proved; the transcript in
-   `docs/evidence/test-results/migration-cleanup/` shows the corrected message.
-2. **Migration comment overstated its own predicate.** It claimed to "mirror the adapter's"
-   predicate, but the adapter parses the provider id as a number while the SQL matches a leading
-   `-`. Rewritten to state the difference, so a future edit to one is not assumed to cover the
-   other. Fixed inline by the orchestrator; the deliverable commit was amended.
+1. ~~**Guard message double-counted affected picks**~~ — moot, the migration was withdrawn. Kept
+   on the record because it is the finding that justifies running proof rather than reading SQL:
+   `count(*)` over a join matching `teams` twice when *both* competitors were placeholders — the
+   normal case — reported 2 for a single pick, and only executing it surfaced that. Fixed at the
+   time to `count(DISTINCT p."id")` and re-proved; the transcript has since been deleted with the
+   migration.
+2. ~~**Migration comment overstated its own predicate**~~ — moot, withdrawn with the migration.
+   It claimed to "mirror the adapter's" predicate where the adapter parses the id as a number and
+   the SQL matched a leading `-`; rewritten at the time to state the difference.
 3. **Comments that would have started lying** — the `teams` table header and
    `enrichTeamsFromListing`, both of which presented TBD ingestion as live provider behavior, and
    two `nfl-sync-schedule.test.ts` titles built on the same premise. Reframed in D4: the partial
@@ -427,7 +401,6 @@ Run surface: **local only**. Pull request: https://github.com/paul-macfarlane/pi
 | AC2 — no rows for an unseeded round; the game appears on the sync after seeding | PASS | `pnpm test:integration` (`nfl-sync-schedule.test.ts`, "a round the provider serves empty, then serves seeded…"); AC2's adapter half is proved at the unit layer, since the integration suite injects a fake `GameDataProvider` | `docs/evidence/test-results/integration/output.txt` |
 | AC3 — a league whose start week has no games is pre-start: joinable, editable, startable | PASS | `pnpm test:integration` — `invites-join.test.ts` "treats a league whose start week has no games as pre-start (joinable)", `members.test.ts` pre-start settings edits, and D3's `startsAt: null` assertions | same |
 | AC4 — Postseason and Full Season advance to the unseeded round and are reported startable; Regular Season unchanged; nothing startable once every window closed | PASS | `pnpm test:integration` (`league-season-range.test.ts`, `pickem-season-range-presets.test.ts`) | same |
-| AC5 — migration removes placeholder games and teams; raises and applies nothing when a pick references one | PASS | `drizzle-kit migrate` on a throwaway scratch database, then the migration body against seeded rows, both cases | `docs/evidence/test-results/migration-cleanup/transcript.txt` |
 | AC6 — ADR-0021 exists and records both halves; ADR-0010/0020 carry amendment pointers | PASS | `grep -l "ADR-0021" docs/adr/` | PR diff |
 | DoD — typecheck, lint, test, format:check | PASS | `pnpm typecheck` / `lint` / `test` / `format:check`, each exit 0 | `docs/evidence/test-results/gates/output.txt` |
 | DoD — contract:check leaves `openapi/` clean | PASS | `pnpm contract:check`, exit 0, working tree clean afterwards — this change adds no schema or route | same |
@@ -440,21 +413,43 @@ dropped. The plan's proposed `_(needs-triage)_` → `_(ready-for-agent)_` relabe
 ticket line was **not** applied: it changes ticket text, which `docs/agents/issue-tracker.md`
 requires a human preview for, and `/atlas-implement`'s standing approval does not extend to it.
 
-**Human gate — not yet satisfied; it is a merge/deploy gate, not a code gate.** Migrations apply
-to staging and prod through GitHub Actions on merge (ADR-0003), so the cleanup runs against real
-data at deploy time. Before merging, run against **staging and prod**:
+**Human gate: none.** The migration that required one was withdrawn (see `[SCOPE CHANGE]`).
+Nothing in this work package touches a deployed database, and no manual SQL is owed before or
+after merge.
+
+## [SCOPE CHANGE]
+
+**2026-08-06 — the cleanup data migration is withdrawn.** Owner decision, after delivery and
+after the PR was opened: *"We don't need a migration of data because we are not in prod yet."*
+
+Removed: `packages/db/migrations/0021_remove-placeholder-playoff-games.sql`, its snapshot and
+journal entry, and the `docs/evidence/test-results/migration-cleanup/` transcript. Deliverable D5
+is reverted whole; AC5 is withdrawn with it. Every other deliverable stands unchanged — this
+narrows the work package, it does not alter the decision the ticket asked for.
+
+**Why the removal is the better answer, not merely the cheaper one.** A forward-only data
+migration is permanent: it lives in the migration history of every environment ever created from
+this repository, including ones that will be built long after the last placeholder row is gone.
+Paying that permanently to delete rows from throwaway databases — with no production deployment
+in existence — is a bad trade. The adapter change is what makes the rows stop appearing; the
+migration only tidied up behind it.
+
+**Consequence, stated plainly:** any database that already holds placeholder `games`/`teams` rows
+still holds them after this merges. Nothing reads them into a pick anymore once a league's slate
+is served, because they can no longer be created and the seeded rows overwrite nothing — but they
+are present. Clearing one is a one-off query, not schema history:
 
 ```sql
-SELECT count(*) FROM pickem_picks p
-JOIN games g ON p.game_id = g.id
-JOIN teams t ON t.id IN (g.home_team_id, g.away_team_id)
-WHERE t.provider_team_id LIKE '-%' OR upper(t.abbreviation) = 'TBD';
+DELETE FROM games g USING teams t
+WHERE t.id IN (g.home_team_id, g.away_team_id) AND t.sport = 'nfl'
+  AND (t.provider_team_id LIKE '-%' OR upper(t.abbreviation) = 'TBD');
+DELETE FROM teams t WHERE t.sport = 'nfl'
+  AND (t.provider_team_id LIKE '-%' OR upper(t.abbreviation) = 'TBD');
 ```
 
-Expected `0`. If nonzero, stop — the migration will correctly fail the deploy, and those picks
-need a decision first. After the deploy, re-check on **each** environment that
-`SELECT count(*) FROM teams WHERE provider_team_id LIKE '-%' OR upper(abbreviation) = 'TBD'`
-returns `0`. The prod re-check is not ceremony: `migrate.yml` and the Vercel deploy race, so if
-the daily 06:00 ET `nfl-sync-schedule` tick lands between the migration and the new adapter
-serving, the old code re-ingests placeholders and no migration removes them again. Remedy is to
-re-run the cleanup statements manually against that environment, guard included.
+Check for affected picks first — the `pickem_picks.game_id` RESTRICT FK will refuse the first
+statement rather than destroy one, which is the backstop the withdrawn migration's guard existed
+to make legible.
+
+ADR-0021 records this under its own Decision section, so the reasoning is durable rather than
+living only in a plan file.
