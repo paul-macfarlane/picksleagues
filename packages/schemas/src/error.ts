@@ -64,6 +64,13 @@ export const ERROR_CODE = {
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
   OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
+  // Survivor's three own refusals (spec §Game Mode 2). The rest of its
+  // vocabulary — locking, spreads, week range, league mode — is the shared set
+  // above; a mode-specific synonym for any of them would just make the same
+  // failure read differently depending on which league the member is in.
+  MEMBER_ELIMINATED: "member_eliminated",
+  TEAM_CONSUMED: "team_consumed",
+  TEAM_NOT_IN_GAME: "team_not_in_game",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

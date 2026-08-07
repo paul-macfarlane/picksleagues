@@ -13,8 +13,10 @@ import {
   pickemSettingsInvalidatePicks,
   PickemSettingsInputSchema,
   PickemSettingsSchema,
+  survivorSettingsInvalidatePicks,
   type PickemSeasonRangePreset,
   type PickemSettings,
+  type SurvivorSettings,
 } from "./league-settings";
 import { LEAGUE_MODE } from "./league-mode";
 import { PICK_TYPE } from "./pick-type";
@@ -215,6 +217,35 @@ describe("pickemSettingsInvalidatePicks", () => {
   });
 });
 
+describe("survivorSettingsInvalidatePicks", () => {
+  const base: SurvivorSettings = {
+    startWeek: regular(1),
+    endWeek: regular(18),
+    pushTieResolution: "advance",
+  };
+
+  it("invalidates when startWeek moves later in season order", () => {
+    expect(survivorSettingsInvalidatePicks(base, { ...base, startWeek: regular(2) })).toBe(true);
+  });
+
+  it.each([
+    { label: "nothing changes", next: base },
+    // Settlement reads this at grading time, so no stored pick becomes
+    // ungradeable — this is the case the whole predicate exists to spare.
+    {
+      label: "pushTieResolution changes",
+      next: { ...base, pushTieResolution: "eliminate" as const },
+    },
+    {
+      label: "startWeek moves earlier (widens the range)",
+      previous: { ...base, startWeek: regular(2) },
+      next: base,
+    },
+  ])("does not invalidate when $label", ({ next, previous = base }) => {
+    expect(survivorSettingsInvalidatePicks(previous, next)).toBe(false);
+  });
+});
+
 describe("PICKEM_NOMINAL_RANGE", () => {
   it("pins each preset's nominal range", () => {
     expect(PICKEM_NOMINAL_RANGE).toEqual({
@@ -318,7 +349,6 @@ describe("SurvivorSettingsSchema", () => {
   const base = {
     startWeek: regular(1),
     endWeek: regular(18),
-    pickType: "straight_up",
   };
 
   it("applies default: advance on push", () => {
@@ -352,47 +382,40 @@ describe("SurvivorSettingsSchema", () => {
     const stored = {
       startWeek: regular(5),
       endWeek: regular(18),
-      pickType: "straight_up" as const,
       pushTieResolution: "advance" as const,
     };
     expect(SurvivorSettingsSchema.parse(stored)).toEqual(stored);
   });
 
   it("accepts the regular-season nominal range both modes resolve from", () => {
-    expect(
-      SurvivorSettingsSchema.safeParse({
-        ...NFL_REGULAR_SEASON_RANGE,
-        pickType: "straight_up",
-      }).success,
-    ).toBe(true);
+    expect(SurvivorSettingsSchema.safeParse(NFL_REGULAR_SEASON_RANGE).success).toBe(true);
   });
 });
 
 describe("SurvivorSettingsInputSchema", () => {
-  it("carries only the two settings a commissioner still chooses", () => {
-    const parsed = SurvivorSettingsInputSchema.parse({ pickType: "straight_up" });
-    expect(parsed).toEqual({ pickType: "straight_up", pushTieResolution: "advance" });
+  it("carries only the one setting a commissioner still chooses", () => {
+    expect(SurvivorSettingsInputSchema.parse({})).toEqual({ pushTieResolution: "advance" });
   });
 
-  // ADR-0024: the range is resolved server-side against the clock, so a client
-  // naming its own gets the resolved one anyway — same as Pick'em's input,
-  // which strips stray refs supplied alongside the preset.
+  // Everything else a client might send is decided somewhere other than the
+  // wire: the range server-side against the clock (ADR-0024), and the pick type
+  // by the mode itself (ADR-0026 — Survivor is straight-up only). Stripping
+  // rather than refusing is what keeps an out-of-date client from failing a
+  // league creation over a setting it can't influence either way.
   it.each([
-    { label: "a start week", input: { pickType: "straight_up", startWeek: regular(5) } },
-    { label: "an end week", input: { pickType: "straight_up", endWeek: regular(10) } },
+    { label: "a start week", input: { startWeek: regular(5) } },
+    { label: "an end week", input: { endWeek: regular(10) } },
     {
       label: "the whole pre-ADR-0024 range",
-      input: { pickType: "straight_up", startWeek: regular(1), endWeek: regular(18) },
+      input: { startWeek: regular(1), endWeek: regular(18) },
     },
     {
       label: "a season-range preset it has no vocabulary for",
-      input: { pickType: "straight_up", seasonRangePreset: "regular_season" },
+      input: { seasonRangePreset: "regular_season" },
     },
+    { label: "a pick type", input: { pickType: "straight_up" } },
   ])("strips $label from the wire", ({ input }) => {
-    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({
-      pickType: "straight_up",
-      pushTieResolution: "advance",
-    });
+    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({ pushTieResolution: "advance" });
   });
 });
 

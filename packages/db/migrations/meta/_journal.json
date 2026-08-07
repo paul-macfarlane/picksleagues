@@ -162,6 +162,20 @@
       "when": 1786125201483,
       "tag": "0022_survivor_mode_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786129709398,
+      "tag": "0023_dark_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786139403033,
+      "tag": "0024_brave_thunderball",
+      "breakpoints": true
     }
   ]
 }

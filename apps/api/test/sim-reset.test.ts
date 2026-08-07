@@ -1,10 +1,21 @@
 import { eq, isNotNull } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { games, leagues, simScenarios, sportSeasons, teams, users, weeks } from "@picksleagues/db";
+import {
+  games,
+  leagues,
+  simScenarios,
+  sportSeasons,
+  survivorPicks,
+  survivorState,
+  teams,
+  users,
+  weeks,
+} from "@picksleagues/db";
 import { nflSeasonYearFor } from "@picksleagues/core";
 import { GAME_STATUS, type SimResetResponse } from "@picksleagues/schemas";
 import {
   adminCaller,
+  auth,
   closeSimDb,
   db,
   expectCloseTo,
@@ -19,6 +30,11 @@ import {
 } from "./setup/sim-helpers";
 import { providerGame } from "./setup/provider-fixtures";
 import { insertLeague, seedSeason } from "./setup/league-helpers";
+import {
+  insertSurvivorPick,
+  insertSurvivorState,
+  seedSurvivorLeague,
+} from "./setup/survivor-league";
 import { resetDb } from "./setup/reset-db";
 
 beforeEach(async () => {
@@ -58,6 +74,49 @@ describe("POST /api/sim/reset", () => {
     expect(await db.select().from(leagues).where(eq(leagues.id, leagueB.id))).toHaveLength(1);
     expect(await db.select().from(games)).toHaveLength(1);
     expect(await db.select().from(sportSeasons)).toHaveLength(1);
+  });
+
+  it("counts the Survivor tables it deletes, rather than letting them vanish by cascade", async () => {
+    const { app, cookie } = await adminCaller();
+    const {
+      league,
+      leagueSeasonId,
+      weekIds,
+      gameIds,
+      teamIds,
+      users: seeded,
+      members,
+    } = await seedSurvivorLeague(db, auth, {
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: new Date("2026-09-14T17:00:00.000Z") }] }],
+      members: [{ username: "simresetcomm" }],
+    });
+    const memberId = members.get(seeded[0]!.user.id)!;
+    await insertSurvivorPick(db, {
+      leagueSeasonId,
+      leagueMemberId: memberId,
+      weekId: weekIds.get("regular:1")!,
+      gameId: gameIds.get("regular:1")![0]!,
+      teamId: teamIds.home,
+    });
+    await insertSurvivorState(db, { leagueSeasonId, leagueMemberId: memberId });
+
+    const res = await postJson(
+      app,
+      "/api/sim/reset",
+      { scope: "league", leagueId: league.id },
+      cookie,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SimResetResponse;
+    // Both rows would cascade from `league_members` whether or not this service
+    // names them, so the assertion that earns its place is the *count*: the sim
+    // panel reports these numbers, and a table that vanishes without being
+    // counted reads as a table that was missed.
+    expect(body.deleted.survivor_picks).toBe(1);
+    expect(body.deleted.survivor_state).toBe(1);
+    expect(await db.select().from(survivorPicks)).toEqual([]);
+    expect(await db.select().from(survivorState)).toEqual([]);
   });
 
   it("an unknown league 404s with league_not_found", async () => {

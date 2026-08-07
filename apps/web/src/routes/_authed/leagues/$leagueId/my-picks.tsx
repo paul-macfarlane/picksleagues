@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { useLeague } from "@/api/leagues";
-import { pickemSettingsOf } from "@/lib/league-settings";
+import { pickemSettingsOf, survivorSettingsOf } from "@/lib/league-settings";
 import { PickemPicks } from "@/components/league/pickem-picks";
+import { SurvivorPicks } from "@/components/league/survivor-picks";
 import { LeagueWeekPicker } from "@/components/league/league-week-picker";
 
 const searchSchema = z.object({
@@ -31,23 +32,30 @@ function MyPicks() {
   const league = useLeague(leagueId);
 
   if (!league.data) return null;
-  // Direct navigation guard — the tab itself only renders for Pick'em
-  // leagues (route.tsx), but this route is still reachable by URL. Parsed
-  // rather than cast (see pickemSettingsOf); `null` also covers a settings
+  // Direct navigation guard — the tab renders only for the modes with a pick
+  // screen (route.tsx), but this route is still reachable by URL. Parsed rather
+  // than cast (see pickemSettingsOf); both being null also covers a settings
   // blob that doesn't parse, which this screen could render nothing sane from.
-  const settings = pickemSettingsOf(league.data);
-  if (!settings) return null;
+  const pickem = pickemSettingsOf(league.data);
+  const survivor = survivorSettingsOf(league.data);
+  if (!pickem && !survivor) return null;
 
   return (
     <LeagueWeekPicker
       leagueId={leagueId}
-      selectId="pickem-week-select"
+      // Named for the page, not the mode: the id exists so the label
+      // association is unique on screen, and both modes render one picker here.
+      selectId="my-picks-week-select"
       weekId={weekId}
       onSelectWeek={(next) => navigate({ search: { weekId: next }, replace: true })}
     >
-      {(effectiveWeekId) => (
-        <PickemPicks leagueId={leagueId} weekId={effectiveWeekId} pickType={settings.pickType} />
-      )}
+      {(effectiveWeekId) =>
+        pickem ? (
+          <PickemPicks leagueId={leagueId} weekId={effectiveWeekId} pickType={pickem.pickType} />
+        ) : (
+          survivor && <SurvivorPicks leagueId={leagueId} weekId={effectiveWeekId} />
+        )
+      }
     </LeagueWeekPicker>
   );
 }

@@ -135,12 +135,15 @@ function SettingsForm({
   const survivorSettings = survivorSettingsOf(league);
   const marchMadnessSettings = marchMadnessSettingsOf(league);
 
-  // Fetched only for a Pick'em editor — an ordinary member has no use for it
-  // (403 otherwise), and the two other modes have no pick-invalidation rule
-  // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
-  // Post-start, the visibility/max-members/mode fieldset is locked, so the
-  // invalidation warning it feeds can no longer fire — no point fetching the
-  // count.
+  // Fetched only for the editing commissioner of a Pick'em league — an ordinary
+  // member has no use for the count (403 otherwise), and neither other mode has
+  // a settings change this form can make that strands picks: March Madness
+  // stores none, and Survivor's only invalidating change is a server-side
+  // re-resolution of its start week, which no field here expresses (ADR-0026
+  // removed the Pick Type that was the other one). Post-start the whole settings
+  // fieldset is locked, so the warning this feeds can no longer fire — no point
+  // fetching the count. The other two modes leave `wouldInvalidatePicks` false,
+  // and nothing below reads this unless it's true.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
 
   // The editor's answer: which presets the league's own bound season can
@@ -171,9 +174,6 @@ function SettingsForm({
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
-  const [survivorPickType, setSurvivorPickType] = useState<PickType>(
-    survivorSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
-  );
   const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
     survivorSettings?.pushTieResolution ?? SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
@@ -203,8 +203,10 @@ function SettingsForm({
   // Whether the assembled draft would invalidate already-submitted picks
   // (spec §Commissioner Powers), via the same predicate the server's
   // settings write clears picks with — computed here so the warning/confirm
-  // below can never disagree with what a save would actually destroy.
-  // Survivor has no picks yet (ELM-2), so it's Pick'em-only.
+  // below can never disagree with what a save would actually destroy. Only
+  // Pick'em can reach it from this form (ADR-0015 decision 3): March Madness
+  // stores no picks, and Survivor's one invalidating change is decided by the
+  // server's clock rather than by anything here.
   //
   // Advisory only, not authoritative: this compares the draft against the
   // *cached* `league.settings` the editor was opened with, while the
@@ -258,14 +260,18 @@ function SettingsForm({
     // No range on the wire (ADR-0024) — and none in the dirty check either: a
     // save re-resolves the stored refs server-side against the clock, so the
     // range is never something this form has an opinion about.
-    assembledSettings = {
-      pickType: survivorPickType,
-      pushTieResolution: survivorPushTie,
-    };
+    assembledSettings = { pushTieResolution: survivorPushTie };
     settingsDirty = survivorSettings
-      ? survivorPickType !== survivorSettings.pickType ||
-        survivorPushTie !== survivorSettings.pushTieResolution
+      ? survivorPushTie !== survivorSettings.pushTieResolution
       : true;
+    // `wouldInvalidatePicks` stays false, and that is a statement about the
+    // form rather than about the mode. Survivor's one invalidating change is an
+    // advanced start week (`survivorSettingsInvalidatePicks`), and no field here
+    // moves it: the server re-resolves the range against *its* clock, so
+    // whether a save strands a pick is not something this browser can know
+    // before asking. The server still clears (or 409s) correctly — this warning
+    // was only ever advisory, and with Pick Type gone (ADR-0026) there is no
+    // longer a Survivor change it can honestly predict.
   } else {
     assembledSettings =
       mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -324,14 +330,14 @@ function SettingsForm({
   //   risk skipping the confirm because the count hasn't arrived yet — the
   //   summary query starts as soon as this editor is commissioner-visible,
   //   so this window is normally sub-second.
-  const pickSummaryPending = isPickem && wouldInvalidatePicks && pickSummary.isPending;
+  const pickSummaryPending = wouldInvalidatePicks && pickSummary.isPending;
   // - errored: the count is UNKNOWN, not zero. Treating an unreachable
   //   summary as "no picks at risk" is the defect this replaced — it let a
   //   commissioner save a pick-destroying change with no warning and no
   //   confirm. So an error is always treated as "picks might exist", and
   //   Save must stay enabled (a genuinely harmless change must still be
   //   saveable even if this side query is down).
-  const pickSummaryUnknown = isPickem && wouldInvalidatePicks && pickSummary.isError;
+  const pickSummaryUnknown = wouldInvalidatePicks && pickSummary.isError;
   // - loaded: a real, nonzero count — never a fired-when-nothing's-at-stake
   //   dialog (a warning that fires with nothing to lose trains people to
   //   click through it).
@@ -441,8 +447,6 @@ function SettingsForm({
         {isSurvivor && (
           <SurvivorSettingsFields
             seasonRange={survivorSettings ?? undefined}
-            pickType={survivorPickType}
-            onPickTypeChange={setSurvivorPickType}
             pushTie={survivorPushTie}
             onPushTieChange={setSurvivorPushTie}
           />

@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
+  MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICK_TYPE,
   PICKEM_SEASON_RANGE_PRESET,
@@ -103,7 +104,7 @@ describe("GET /api/leagues/:leagueId/weeks", () => {
     expect(body.weeks.map((week) => week.weekNumber)).toEqual([2]);
   });
 
-  it("400s for a league that isn't Pick'em", async () => {
+  it("serves a Survivor league too — both NFL modes carry a start/end week range", async () => {
     const { seasonId } = await seedSeason(db, { weeks: THREE_WEEKS });
     const member = await createAuthenticatedUser(auth);
     const league = await insertLeague(db, {
@@ -111,9 +112,30 @@ describe("GET /api/leagues/:leagueId/weeks", () => {
       mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
-        endWeek: { type: WEEK_TYPE.REGULAR, number: 3 },
+        endWeek: { type: WEEK_TYPE.REGULAR, number: 2 },
         pickType: PICK_TYPE.STRAIGHT_UP,
         pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+      },
+      members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+    });
+
+    const response = await getWeeks(member.cookie, league.id);
+    const body = (await response.json()) as LeagueWeeksResponse;
+
+    expect(response.status).toBe(200);
+    // Clipped to the Survivor league's own resolved range, not the season's.
+    expect(body.weeks.map((week) => week.weekNumber)).toEqual([1, 2]);
+  });
+
+  it("400s for a mode with no season range at all", async () => {
+    const { seasonId } = await seedSeason(db, { weeks: THREE_WEEKS });
+    const member = await createAuthenticatedUser(auth);
+    const league = await insertLeague(db, {
+      seasonId,
+      mode: LEAGUE_MODE.MARCH_MADNESS,
+      settings: {
+        scoringModel: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
+        maxBracketsPerMember: 5,
       },
       members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

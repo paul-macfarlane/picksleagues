@@ -455,17 +455,13 @@
               "number"
             ]
           },
-          "pickType": {
-            "$ref": "#/components/schemas/PickType"
-          },
           "pushTieResolution": {
             "$ref": "#/components/schemas/SurvivorPushTieResolution"
           }
         },
         "required": [
           "startWeek",
-          "endWeek",
-          "pickType"
+          "endWeek"
         ]
       },
       "SurvivorPushTieResolution": {
@@ -646,16 +642,10 @@
       "SurvivorSettingsInput": {
         "type": "object",
         "properties": {
-          "pickType": {
-            "$ref": "#/components/schemas/PickType"
-          },
           "pushTieResolution": {
             "$ref": "#/components/schemas/SurvivorPushTieResolution"
           }
-        },
-        "required": [
-          "pickType"
-        ]
+        }
       },
       "MarchMadnessSettings": {
         "oneOf": [
@@ -1540,6 +1530,119 @@
         "required": [
           "gameId",
           "side"
+        ]
+      },
+      "SurvivorWeekPicksResponse": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorMemberPick"
+            }
+          },
+          "consumedTeamIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "members",
+          "consumedTeamIds"
+        ]
+      },
+      "SurvivorMemberPick": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isViewer": {
+            "type": "boolean"
+          },
+          "hasPicked": {
+            "type": "boolean"
+          },
+          "pick": {
+            "$ref": "#/components/schemas/NullableSurvivorPick"
+          },
+          "eliminated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "isViewer",
+          "hasPicked",
+          "pick",
+          "eliminated"
+        ]
+      },
+      "NullableSurvivorPick": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weekId": {
+            "type": "string"
+          },
+          "gameId": {
+            "type": "string"
+          },
+          "teamId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "weekId",
+          "gameId",
+          "teamId"
+        ]
+      },
+      "SubmitSurvivorPickRequest": {
+        "type": "object",
+        "properties": {
+          "gameId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "teamId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "gameId",
+          "teamId"
         ]
       },
       "NflSyncJob": {
@@ -4409,7 +4512,7 @@
             }
           },
           "400": {
-            "description": "Not a Pick'em league (wrong_league_mode)",
+            "description": "The league's mode has no start/end week range to clip to (wrong_league_mode) — both NFL modes do, March Madness does not",
             "content": {
               "application/json": {
                 "schema": {
@@ -4877,6 +4980,181 @@
           },
           "409": {
             "description": "The caller already submitted this week and a week is one immutable submission (already_submitted), a submitted game has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/picks": {
+      "get": {
+        "operationId": "getSurvivorWeekPicks",
+        "summary": "Every member's pick for a week, filtered by kickoff visibility",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per member. The caller sees their own pick always; another member's appears only once that game has kicked off, with `hasPicked` reporting that one exists. `consumedTeamIds` is the caller's own burned teams, excluding this week's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurvivorWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Survivor league (wrong_league_mode), or the week is outside this league's season or resolved range, or is not a regular-season week (week_out_of_range)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/pick": {
+      "put": {
+        "operationId": "submitSurvivorPick",
+        "summary": "Make or change the caller's pick for a week — allowed until that game kicks off",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitSurvivorPickRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pick saved; the week is returned as the read endpoint would serve it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurvivorWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Survivor league (wrong_league_mode), the week is outside this league's resolved regular-season range (week_out_of_range), or the game isn't in this week's slate (game_not_in_week)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), or the season has concluded (league_concluded)",
             "content": {
               "application/json": {
                 "schema": {

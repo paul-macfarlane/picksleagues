@@ -495,7 +495,7 @@ describe("PATCH /api/leagues/:leagueId — the pre-start editor re-resolves", ()
  * anything on the wire to reach it by.
  */
 describe("POST /api/leagues — Survivor's range is resolved, never chosen", () => {
-  const SURVIVOR_SETTINGS = { pickType: "straight_up", pushTieResolution: "advance" };
+  const SURVIVOR_SETTINGS = { pushTieResolution: "advance" };
 
   it("stores the regular season while every week is still ahead", async () => {
     await seedFullSeason();
@@ -508,7 +508,6 @@ describe("POST /api/leagues — Survivor's range is resolved, never chosen", () 
     expect(await storedSurvivorSettings(id)).toMatchObject({
       startWeek: regular(1),
       endWeek: regular(18),
-      pickType: "straight_up",
       pushTieResolution: "advance",
     });
   });
@@ -593,10 +592,7 @@ describe("POST /api/leagues — Survivor's range is resolved, never chosen", () 
     expect(created.status).toBe(201);
     const { id } = (await created.json()) as LeagueResponse;
 
-    const res = await patchLeague(cookie, id, {
-      pickType: "straight_up",
-      pushTieResolution: "eliminate",
-    });
+    const res = await patchLeague(cookie, id, { pushTieResolution: "eliminate" });
     expect(res.status).toBe(200);
     expect(await storedSurvivorSettings(id)).toMatchObject({
       startWeek: regular(1),

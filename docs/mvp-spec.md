@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), and ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), and ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -136,11 +136,12 @@ Two parallel leaderboards:
 
 ## Game Mode 2: NFL Survivor
 
-A survivor pool. Each week, every member picks one team to win (SU or ATS per league setting). Correct → advance. Incorrect or no pick → eliminated. Last member standing wins.
+A survivor pool. Each week, every member picks one team to win **straight up**. Correct → advance. Incorrect or no pick → eliminated. Last member standing wins.
 
 ### League Settings
-1. **Pick Type** — Straight Up or Against the Spread
-2. **Push/Tie Resolution** — on an ATS push or SU tie: member advances and the team is consumed (default), or member is eliminated
+1. **Push/Tie Resolution** — on a tie: member advances and the team is consumed (default), or member is eliminated
+
+**Survivor has no Pick Type setting.** The mode is straight up only, so a pick carries no spread and there is nothing to accept at pick time. Picks stay changeable until kickoff (below), and against-the-spread grading is priced at pick time — the two together would let a member re-pick the same team purely to be re-graded against a friendlier line, which rewards refreshing rather than picking. Pick'em keeps its own Pick Type, because its week is a single immutable submission and has no second write to shop with. (ADR-0026.)
 
 **Survivor has no season-range setting.** The mode is regular-season only, so Regular Season is the only range it can ever run, and a control offering one option is not a choice. The league's week range is instead resolved server-side when settings are written — regular-season week 1 through week 18, advanced past any week already under way so the league is never born already-started — and stored as the concrete week refs the join cutoff and settlement compute on. Commissioners see the resolved range read-only. (ADR-0024, applying ADR-0020's mid-week resolution rule.)
 
@@ -154,6 +155,7 @@ A survivor pool. Each week, every member picks one team to win (SU or ATS per le
 - **Cancelled game:** pick resolves as a push — the member survives and the team is **not** consumed (available for future use). A game the provider moves to another week is not a modelled event in either NFL mode (ADR-0019); an admin corrects it with a `cancelled` status override, which lands here.
 - **Postponed within the same week:** pick resolves normally when the game is played.
 - Eliminated members remain league members with full pick visibility.
+- **Eliminated members cannot pick.** Once a member's elimination has *settled*, the pick endpoint refuses them. A pick made before that settlement — in the gap between busting and the week being settled — is accepted and simply grades to nothing; that gap is what keeps the revival rule above honest, since revived members' next-week picks were legitimately made while they still read as alive (ADR-0025).
 
 ### End of League
 The league concludes once the last week of its resolved range has settled. If multiple members are still alive, they are **co-winners** and share first place. There are no extension weeks and no further tiebreaker.
@@ -272,7 +274,7 @@ No standalone stats pages, head-to-head views, or historical archives.
 
 - Game scores refresh approximately every **5 minutes** during game days; pick outcomes, eliminations, and standings update on the same cadence as games go final.
 - The app is not real-time within those 5-minute windows — the UI shows a "last updated" timestamp and users refresh/reload to see the latest, with no live push.
-- Spreads refresh several times daily; the spread shown and accepted at pick time is the spread of record for that pick.
+- Spreads refresh several times daily; the spread shown and accepted at pick time is the spread of record for that Pick'em pick. Survivor is straight up and stores no spread (ADR-0026).
 - Schedule changes (cancellations, postponements) are reflected by the next daily schedule sync; a cancelled game's picks show as pushes shortly after.
 - A nightly reconciliation pass re-verifies all results and standings, so any late stat corrections are reflected by the next morning.
 
@@ -291,7 +293,7 @@ Acceptance bar: every scoring rule and edge case in this spec is reproducible in
 
 ## Explicitly Out of Scope (MVP)
 
-Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges outside the three season-range presets
+Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges outside the three season-range presets · Survivor against-the-spread picks
 
 ## Decisions Log
 
@@ -304,6 +306,7 @@ Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor e
 | Pick'em season range | Three presets — Regular Season, Postseason, Full Season — resolved to concrete weeks at league creation; custom ranges dropped (ADR-0020) |
 | Game Mode 2 name | Ships as **NFL Survivor**, the industry-standard term; called "Elimination" in the original v0.3 text (ADR-0023) |
 | Survivor season range | No range setting — the server resolves and stores a regular-season range (ADR-0024) |
+| Survivor pick type | Straight up only; the Pick Type setting removed, since changeable picks plus pick-time spreads reward refreshing (ADR-0026) |
 | Survivor lives | Fixed at 1; buy-back deferred |
 | Survivor end-of-league | Co-winners share rank; no extension weeks |
 | MM bonuses (upset, perfect round) | Deferred |

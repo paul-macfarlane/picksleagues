@@ -15,7 +15,7 @@ import {
   type LeagueVisibility,
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
-import { resetPicksInvalidatedBySettings } from "../pickem/settings-reset";
+import { resetPicksInvalidatedBySettings } from "./settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
 import { resolveLeagueSettings } from "./season-range";
 import { lockLeagueRow, lockUserRow } from "./locks";
