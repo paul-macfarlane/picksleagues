@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueMembers, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   MEMBER_ROLE,
@@ -113,19 +113,19 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
   it("400s wrong_league_mode for a league that isn't Pick'em", async () => {
     // Matches every sibling under /pickem/ (league-weeks.test.ts's identical
     // case) — without this check the path would serve a zero-filled board
-    // for an Elimination league instead of refusing.
+    // for a Survivor league instead of refusing.
     const { seasonId } = await seedSeason(db, {
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
     });
     const member = await createAuthenticatedUser(auth);
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

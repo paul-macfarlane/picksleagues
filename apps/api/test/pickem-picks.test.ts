@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { games, leagueMembers, leagueSeasons, pickemPicks, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_STATUS,
@@ -387,16 +387,16 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     );
   });
 
-  it("400s wrong_league_mode for an elimination league", async () => {
+  it("400s wrong_league_mode for a survivor league", async () => {
     const { seasonId, weekIds, memberA } = await seedPickemLeague();
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -1340,16 +1340,16 @@ describe("GET /api/leagues/:leagueId/pickem/pick-summary", () => {
     expect(await unknownLeague.json()).toMatchObject({ error: "league_not_found" });
   });
 
-  it("400s wrong_league_mode for an elimination league", async () => {
+  it("400s wrong_league_mode for a survivor league", async () => {
     const { seasonId, memberA } = await seedPickemLeague();
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

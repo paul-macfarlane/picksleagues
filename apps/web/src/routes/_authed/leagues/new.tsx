@@ -5,14 +5,14 @@ import { toast } from "sonner";
 import {
   CreateLeagueRequestSchema,
   DEFAULT_MAX_MEMBERS,
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
   LeagueNameSchema,
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  type EliminationPushTieResolution,
+  type SurvivorPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
@@ -23,10 +23,10 @@ import { useCreateLeague } from "@/api/leagues";
 import { usePickemSeasonRangePresets } from "@/api/pickem";
 import { leagueModeLabel } from "@/lib/league";
 import {
-  DEFAULT_ELIMINATION_END_WEEK,
-  DEFAULT_ELIMINATION_START_WEEK,
+  DEFAULT_SURVIVOR_END_WEEK,
+  DEFAULT_SURVIVOR_START_WEEK,
   DEFAULT_PICKEM_SEASON_RANGE,
-  EliminationSettingsFields,
+  SurvivorSettingsFields,
   MarchMadnessSettingsFields,
   PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
@@ -45,7 +45,7 @@ export const Route = createFileRoute("/_authed/leagues/new")({
 
 const MODE_OPTIONS: { value: LeagueMode; label: string }[] = [
   { value: LEAGUE_MODE.PICKEM, label: leagueModeLabel(LEAGUE_MODE.PICKEM) },
-  { value: LEAGUE_MODE.ELIMINATION, label: leagueModeLabel(LEAGUE_MODE.ELIMINATION) },
+  { value: LEAGUE_MODE.SURVIVOR, label: leagueModeLabel(LEAGUE_MODE.SURVIVOR) },
   { value: LEAGUE_MODE.MARCH_MADNESS, label: leagueModeLabel(LEAGUE_MODE.MARCH_MADNESS) },
 ];
 
@@ -64,11 +64,11 @@ function NewLeague() {
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [eliminationStartWeek, setEliminationStartWeek] = useState(DEFAULT_ELIMINATION_START_WEEK);
-  const [eliminationEndWeek, setEliminationEndWeek] = useState(DEFAULT_ELIMINATION_END_WEEK);
-  const [eliminationPickType, setEliminationPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
-  const [eliminationPushTie, setEliminationPushTie] = useState<EliminationPushTieResolution>(
-    ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+  const [survivorStartWeek, setSurvivorStartWeek] = useState(DEFAULT_SURVIVOR_START_WEEK);
+  const [survivorEndWeek, setSurvivorEndWeek] = useState(DEFAULT_SURVIVOR_END_WEEK);
+  const [survivorPickType, setSurvivorPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
+  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
+    SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(5);
@@ -121,12 +121,12 @@ function NewLeague() {
           pickType: pickemPickType,
           picksPerWeek: pickemPicksPerWeek,
         };
-      } else if (mode === LEAGUE_MODE.ELIMINATION) {
+      } else if (mode === LEAGUE_MODE.SURVIVOR) {
         settings = {
-          startWeek: decodeWeek(eliminationStartWeek),
-          endWeek: decodeWeek(eliminationEndWeek),
-          pickType: eliminationPickType,
-          pushTieResolution: eliminationPushTie,
+          startWeek: decodeWeek(survivorStartWeek),
+          endWeek: decodeWeek(survivorEndWeek),
+          pickType: survivorPickType,
+          pushTieResolution: survivorPushTie,
         };
       } else {
         settings =
@@ -161,7 +161,7 @@ function NewLeague() {
   });
 
   // Submit gates on every NumberField currently rendered — which fields those
-  // are depends on `mode` (Elimination renders none beyond maxMembers).
+  // are depends on `mode` (Survivor renders none beyond maxMembers).
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
     (mode === LEAGUE_MODE.PICKEM && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
@@ -241,16 +241,16 @@ function NewLeague() {
                 />
               ))}
 
-            {mode === LEAGUE_MODE.ELIMINATION && (
-              <EliminationSettingsFields
-                startWeek={eliminationStartWeek}
-                onStartWeekChange={setEliminationStartWeek}
-                endWeek={eliminationEndWeek}
-                onEndWeekChange={setEliminationEndWeek}
-                pickType={eliminationPickType}
-                onPickTypeChange={setEliminationPickType}
-                pushTie={eliminationPushTie}
-                onPushTieChange={setEliminationPushTie}
+            {mode === LEAGUE_MODE.SURVIVOR && (
+              <SurvivorSettingsFields
+                startWeek={survivorStartWeek}
+                onStartWeekChange={setSurvivorStartWeek}
+                endWeek={survivorEndWeek}
+                onEndWeekChange={setSurvivorEndWeek}
+                pickType={survivorPickType}
+                onPickTypeChange={setSurvivorPickType}
+                pushTie={survivorPushTie}
+                onPushTieChange={setSurvivorPushTie}
               />
             )}
 

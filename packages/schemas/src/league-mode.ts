@@ -7,7 +7,7 @@ import { z } from "@hono/zod-openapi";
  */
 export const LEAGUE_MODE = {
   PICKEM: "pickem",
-  ELIMINATION: "elimination",
+  SURVIVOR: "survivor",
   MARCH_MADNESS: "march_madness",
 } as const;
 

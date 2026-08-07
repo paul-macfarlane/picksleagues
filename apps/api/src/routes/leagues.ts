@@ -190,7 +190,7 @@ export function leagueRoutes(deps: AppDeps) {
         cap_exceeded: "You already run 10 active leagues — conclude or delete one first.",
         no_active_season: "That game mode has no season available yet.",
         // Deliberately names no control: Pick'em chooses its range by preset
-        // (ADR-0020) and Elimination still picks weeks, so "choose a later
+        // (ADR-0020) and Survivor still picks weeks, so "choose a later
         // start week" would name a dropdown half the callers no longer have.
         start_week_passed: "That season range has already begun — choose one that starts later.",
       } as const;

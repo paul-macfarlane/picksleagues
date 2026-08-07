@@ -4,7 +4,7 @@ import { PICK_OUTCOME, type PickOutcome } from "@picksleagues/schemas";
  * Standings derivation (spec §Game Mode 1 — Standings).
  *
  * Pure, and mode-agnostic on purpose: it consumes scored outcomes, not picks,
- * so Elimination and March Madness rank through the same two functions once
+ * so Survivor and March Madness rank through the same two functions once
  * their scoring modules produce points. `PICK_OUTCOME` is itself the shared
  * outcome set (Pick'em grades against it and so does March Madness), so
  * tallying it here keeps that property.

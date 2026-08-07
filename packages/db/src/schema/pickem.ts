@@ -72,7 +72,7 @@ export const pickemPicks = pgTable(
      * Scoped to the week deliberately (ADR-0017, kept by ADR-0018). Spanning
      * every week would enforce a rule Pick'em's spec does not have: its Core
      * Rules say only that each week a member picks from *that week's* slate,
-     * and the once-per rule in the spec belongs to Elimination, where it is a
+     * and the once-per rule in the spec belongs to Survivor, where it is a
      * *team* ledger ("a member may pick each NFL team at most once per
      * league").
      *
@@ -106,8 +106,8 @@ export const pickemPicks = pgTable(
  *
  * Per mode, not shared — ADR-0016 records the deviation from arch D9's shared
  * `pick_results`/`standings`. The shape here is Pick'em's: points and one
- * ranked row per member per scope. Elimination's board is
- * a survivor ledger (`elimination_state`) and March Madness wants one row **per
+ * ranked row per member per scope. Survivor's board is
+ * a survivor ledger (`survivor_state`) and March Madness wants one row **per
  * bracket**, up to 10 per member — neither fits, and forcing them to would cost
  * the constraints that make this table's rules DB-enforced. The reuse the fork
  * preserves is `packages/scoring`'s mode-agnostic ranking, not the tables.

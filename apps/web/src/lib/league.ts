@@ -13,7 +13,7 @@ import {
 // preview, and the dashboard's league list.
 const LEAGUE_MODE_LABELS: Record<LeagueMode, string> = {
   [LEAGUE_MODE.PICKEM]: "NFL Pick'em",
-  [LEAGUE_MODE.ELIMINATION]: "NFL Elimination",
+  [LEAGUE_MODE.SURVIVOR]: "NFL Survivor",
   [LEAGUE_MODE.MARCH_MADNESS]: "March Madness Pool",
 };
 

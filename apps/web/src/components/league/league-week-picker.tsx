@@ -9,7 +9,7 @@ import { QueryState } from "@/components/query-state";
  *
  * Shared by the two pick surfaces (`/picks`, `/league-picks`), which are the
  * same page frame around different content. Generic rather than `pickem*`
- * because Elimination's weekly slate is the second mode that will use it
+ * because Survivor's weekly slate is the second mode that will use it
  * unchanged (engineering rule on mode-specific naming).
  *
  * Two things live here rather than at each call site, because they are what the

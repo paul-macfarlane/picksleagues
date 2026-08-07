@@ -196,42 +196,42 @@ export function pickemSettingsInvalidatePicks(
 }
 
 /**
- * On an ATS push / SU tie in Elimination (spec §Elimination League Settings):
+ * On an ATS push / SU tie in Survivor (spec §Survivor League Settings):
  * advance with the team consumed (default), or eliminate.
  */
-export const ELIMINATION_PUSH_TIE_RESOLUTION = {
+export const SURVIVOR_PUSH_TIE_RESOLUTION = {
   ADVANCE: "advance",
   ELIMINATE: "eliminate",
 } as const;
 
-export type EliminationPushTieResolution =
-  (typeof ELIMINATION_PUSH_TIE_RESOLUTION)[keyof typeof ELIMINATION_PUSH_TIE_RESOLUTION];
+export type SurvivorPushTieResolution =
+  (typeof SURVIVOR_PUSH_TIE_RESOLUTION)[keyof typeof SURVIVOR_PUSH_TIE_RESOLUTION];
 
-export const EliminationPushTieResolutionSchema = z
-  .enum(ELIMINATION_PUSH_TIE_RESOLUTION)
-  .openapi("EliminationPushTieResolution");
+export const SurvivorPushTieResolutionSchema = z
+  .enum(SURVIVOR_PUSH_TIE_RESOLUTION)
+  .openapi("SurvivorPushTieResolution");
 
 /**
- * Elimination is regular-season only (spec §Elimination Core Rules) — the
+ * Survivor is regular-season only (spec §Survivor Core Rules) — the
  * week refs still carry `type` so both NFL modes' settings address weeks with
  * one shape, but only the regular member is admitted.
  */
-export const EliminationSettingsSchema = z
+export const SurvivorSettingsSchema = z
   .object({
     startWeek: nflRegularWeekRef,
     endWeek: nflRegularWeekRef,
     pickType: PickTypeSchema,
-    pushTieResolution: EliminationPushTieResolutionSchema.default(
-      ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+    pushTieResolution: SurvivorPushTieResolutionSchema.default(
+      SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
     ),
   })
   .refine((s) => s.endWeek.number >= s.startWeek.number, {
     message: "End week must be at or after the start week.",
     path: ["endWeek"],
   })
-  .openapi("EliminationSettings");
+  .openapi("SurvivorSettings");
 
-export type EliminationSettings = z.infer<typeof EliminationSettingsSchema>;
+export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
 
 export const MARCH_MADNESS_SCORING_MODEL = {
   STANDARD_DOUBLING: "standard_doubling",
@@ -271,14 +271,14 @@ export const MarchMadnessSettingsSchema = z
 
 export type MarchMadnessSettings = z.infer<typeof MarchMadnessSettingsSchema>;
 
-export type LeagueSettings = PickemSettings | EliminationSettings | MarchMadnessSettings;
+export type LeagueSettings = PickemSettings | SurvivorSettings | MarchMadnessSettings;
 
 /**
  * Read-side shape for responses, where the mode discriminant lives on the
  * league itself — clients narrow by `league.mode`, not by inspecting settings.
  */
 export const LeagueSettingsSchema = z
-  .union([PickemSettingsSchema, EliminationSettingsSchema, MarchMadnessSettingsSchema])
+  .union([PickemSettingsSchema, SurvivorSettingsSchema, MarchMadnessSettingsSchema])
   .openapi("LeagueSettings");
 
 /**
@@ -288,21 +288,21 @@ export const LeagueSettingsSchema = z
  */
 export const LEAGUE_SETTINGS_SCHEMAS = {
   [LEAGUE_MODE.PICKEM]: PickemSettingsSchema,
-  [LEAGUE_MODE.ELIMINATION]: EliminationSettingsSchema,
+  [LEAGUE_MODE.SURVIVOR]: SurvivorSettingsSchema,
   [LEAGUE_MODE.MARCH_MADNESS]: MarchMadnessSettingsSchema,
 } as const satisfies Record<LeagueMode, z.ZodType<LeagueSettings, unknown>>;
 
-export type LeagueSettingsInput = PickemSettingsInput | EliminationSettings | MarchMadnessSettings;
+export type LeagueSettingsInput = PickemSettingsInput | SurvivorSettings | MarchMadnessSettings;
 
 /**
  * Wire-side dispatch, the counterpart to `LEAGUE_SETTINGS_SCHEMAS`: the schema
  * a settings *request* must satisfy. Only Pick'em's entry differs from the
- * stored map (ADR-0020 is Pick'em-only by scope) — Elimination and March
+ * stored map (ADR-0020 is Pick'em-only by scope) — Survivor and March
  * Madness accept exactly what they store, so their wire and stored schemas are
  * the same object rather than a duplicate that could drift.
  */
 export const LEAGUE_SETTINGS_INPUT_SCHEMAS = {
   [LEAGUE_MODE.PICKEM]: PickemSettingsInputSchema,
-  [LEAGUE_MODE.ELIMINATION]: EliminationSettingsSchema,
+  [LEAGUE_MODE.SURVIVOR]: SurvivorSettingsSchema,
   [LEAGUE_MODE.MARCH_MADNESS]: MarchMadnessSettingsSchema,
 } as const satisfies Record<LeagueMode, z.ZodType<LeagueSettingsInput, unknown>>;

@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { LEAGUE_MODE, LeagueModeSchema } from "./league-mode";
 import {
-  EliminationSettingsSchema,
+  SurvivorSettingsSchema,
   LeagueSettingsSchema,
   MarchMadnessSettingsSchema,
   PickemSettingsInputSchema,
@@ -60,11 +60,11 @@ export const CreateLeagueRequestSchema = z
       settings: PickemSettingsInputSchema,
     }),
     z.object({
-      mode: z.literal(LEAGUE_MODE.ELIMINATION),
+      mode: z.literal(LEAGUE_MODE.SURVIVOR),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
       maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
-      settings: EliminationSettingsSchema,
+      settings: SurvivorSettingsSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.MARCH_MADNESS),

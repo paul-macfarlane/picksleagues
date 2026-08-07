@@ -52,7 +52,7 @@ function LeagueOverview() {
             <CardTitle>Standings</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Elimination's survivor board and MM's bracket leaderboard ship
+            {/* Survivor's board and MM's bracket leaderboard ship
                 with their own epics — nothing to compute yet for those modes. */}
             <p className="text-sm text-muted-foreground">
               Standings for this game mode aren&apos;t available yet.

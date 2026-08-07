@@ -214,12 +214,12 @@ describe("POST /api/leagues", () => {
     expect(((await res.json()) as LeagueResponse).maxMembers).toBe(10);
   });
 
-  it("400s on an elimination league with a postseason week", async () => {
+  it("400s on a survivor league with a postseason week", async () => {
     await seedDefaultSeason();
     const { cookie } = await createAuthenticatedUser(auth);
 
     const res = await postLeague(cookie, {
-      mode: "elimination",
+      mode: "survivor",
       name: "Survivors",
       visibility: "private",
       settings: {

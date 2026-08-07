@@ -248,7 +248,7 @@
         "type": "string",
         "enum": [
           "pickem",
-          "elimination",
+          "survivor",
           "march_madness"
         ]
       },
@@ -272,7 +272,7 @@
             "$ref": "#/components/schemas/PickemSettings"
           },
           {
-            "$ref": "#/components/schemas/EliminationSettings"
+            "$ref": "#/components/schemas/SurvivorSettings"
           },
           {
             "type": "object",
@@ -412,7 +412,7 @@
           "against_the_spread"
         ]
       },
-      "EliminationSettings": {
+      "SurvivorSettings": {
         "type": "object",
         "properties": {
           "startWeek": {
@@ -459,7 +459,7 @@
             "$ref": "#/components/schemas/PickType"
           },
           "pushTieResolution": {
-            "$ref": "#/components/schemas/EliminationPushTieResolution"
+            "$ref": "#/components/schemas/SurvivorPushTieResolution"
           }
         },
         "required": [
@@ -468,7 +468,7 @@
           "pickType"
         ]
       },
-      "EliminationPushTieResolution": {
+      "SurvivorPushTieResolution": {
         "type": "string",
         "enum": [
           "advance",
@@ -562,7 +562,7 @@
               "mode": {
                 "type": "string",
                 "enum": [
-                  "elimination"
+                  "survivor"
                 ]
               },
               "name": {
@@ -575,7 +575,7 @@
                 "$ref": "#/components/schemas/MaxMembers"
               },
               "settings": {
-                "$ref": "#/components/schemas/EliminationSettings"
+                "$ref": "#/components/schemas/SurvivorSettings"
               }
             },
             "required": [

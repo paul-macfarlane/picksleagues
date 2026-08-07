@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
-  EliminationSettingsSchema,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
+  SurvivorSettingsSchema,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
@@ -312,7 +312,7 @@ describe("changing the season-range preset", () => {
   });
 });
 
-describe("EliminationSettingsSchema", () => {
+describe("SurvivorSettingsSchema", () => {
   const base = {
     startWeek: regular(1),
     endWeek: regular(18),
@@ -320,7 +320,7 @@ describe("EliminationSettingsSchema", () => {
   };
 
   it("applies default: advance on push", () => {
-    expect(EliminationSettingsSchema.parse(base).pushTieResolution).toBe("advance");
+    expect(SurvivorSettingsSchema.parse(base).pushTieResolution).toBe("advance");
   });
 
   it.each([
@@ -328,7 +328,7 @@ describe("EliminationSettingsSchema", () => {
     { label: "single week", input: { ...base, startWeek: regular(7), endWeek: regular(7) } },
     { label: "eliminate on push", input: { ...base, pushTieResolution: "eliminate" } },
   ])("accepts $label", ({ input }) => {
-    expect(EliminationSettingsSchema.safeParse(input).success).toBe(true);
+    expect(SurvivorSettingsSchema.safeParse(input).success).toBe(true);
   });
 
   it.each([
@@ -341,7 +341,7 @@ describe("EliminationSettingsSchema", () => {
     { label: "week 0", input: { ...base, startWeek: regular(0) } },
     { label: "week 19", input: { ...base, endWeek: regular(19) } },
   ])("rejects $label", ({ input }) => {
-    expect(EliminationSettingsSchema.safeParse(input).success).toBe(false);
+    expect(SurvivorSettingsSchema.safeParse(input).success).toBe(false);
   });
 });
 
@@ -413,11 +413,11 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
   it("dispatches every league mode to its settings schema", () => {
     expect(Object.keys(LEAGUE_SETTINGS_SCHEMAS).sort()).toEqual(Object.values(LEAGUE_MODE).sort());
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM]).toBe(PickemSettingsSchema);
-    expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.ELIMINATION]).toBe(EliminationSettingsSchema);
+    expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR]).toBe(SurvivorSettingsSchema);
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(MarchMadnessSettingsSchema);
   });
 
-  // Only Pick'em's two entries differ (ADR-0020 §Scope) — an Elimination or
+  // Only Pick'em's two entries differ (ADR-0020 §Scope) — a Survivor or
   // March Madness entry drifting apart would mean a wire shape nothing
   // resolves into the stored one.
   it("dispatches every league mode to its input schema, diverging only for Pick'em", () => {
@@ -425,16 +425,16 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
       Object.values(LEAGUE_MODE).sort(),
     );
     expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.PICKEM]).toBe(PickemSettingsInputSchema);
-    expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.ELIMINATION]).toBe(EliminationSettingsSchema);
+    expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.SURVIVOR]).toBe(SurvivorSettingsSchema);
     expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(
       MarchMadnessSettingsSchema,
     );
   });
 
   it("pins the wire values other packages build on", () => {
-    expect(Object.values(LEAGUE_MODE).sort()).toEqual(["elimination", "march_madness", "pickem"]);
+    expect(Object.values(LEAGUE_MODE).sort()).toEqual(["march_madness", "pickem", "survivor"]);
     expect(Object.values(PICK_TYPE).sort()).toEqual(["against_the_spread", "straight_up"]);
-    expect(Object.values(ELIMINATION_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
+    expect(Object.values(SURVIVOR_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
     expect(Object.values(WEEK_TYPE).sort()).toEqual(["postseason", "regular"]);
     expect(Object.values(PICKEM_SEASON_RANGE_PRESET).sort()).toEqual([
       "full_season",

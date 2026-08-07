@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Field } from "@base-ui/react/field";
 import { toast } from "sonner";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   MARCH_MADNESS_SCORING_MODEL,
@@ -11,7 +11,7 @@ import {
   PICKEM_NOMINAL_RANGE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
-  type EliminationPushTieResolution,
+  type SurvivorPushTieResolution,
   type LeagueResponse,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
@@ -22,10 +22,10 @@ import {
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
 import {
-  DEFAULT_ELIMINATION_END_WEEK,
-  DEFAULT_ELIMINATION_START_WEEK,
+  DEFAULT_SURVIVOR_END_WEEK,
+  DEFAULT_SURVIVOR_START_WEEK,
   DEFAULT_PICKEM_SEASON_RANGE,
-  EliminationSettingsFields,
+  SurvivorSettingsFields,
   MarchMadnessSettingsFields,
   PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
@@ -53,7 +53,7 @@ import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
 import { useLeaguePickemSeasonRangePresets, usePickemPickSummary } from "@/api/pickem";
 import {
-  eliminationSettingsOf,
+  survivorSettingsOf,
   marchMadnessSettingsOf,
   pickemSettingsOf,
 } from "@/lib/league-settings";
@@ -119,7 +119,7 @@ function SettingsForm({
   const [maxMembers, setMaxMembers] = useState(league.maxMembers);
 
   const isPickem = league.mode === LEAGUE_MODE.PICKEM;
-  const isElimination = league.mode === LEAGUE_MODE.ELIMINATION;
+  const isSurvivor = league.mode === LEAGUE_MODE.SURVIVOR;
   const isMarchMadness = league.mode === LEAGUE_MODE.MARCH_MADNESS;
 
   // Parsed once, and used for all three jobs below — seeding the controls,
@@ -136,7 +136,7 @@ function SettingsForm({
   // fieldset reads as dirty so the commissioner can save a correction, and
   // `wouldInvalidatePicks` assumes the worst.
   const pickemSettings = pickemSettingsOf(league);
-  const eliminationSettings = eliminationSettingsOf(league);
+  const survivorSettings = survivorSettingsOf(league);
   const marchMadnessSettings = marchMadnessSettingsOf(league);
 
   // Fetched only for a Pick'em editor — an ordinary member has no use for it
@@ -175,19 +175,17 @@ function SettingsForm({
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
-  const [eliminationStartWeek, setEliminationStartWeek] = useState(
-    eliminationSettings
-      ? encodeWeek(eliminationSettings.startWeek)
-      : DEFAULT_ELIMINATION_START_WEEK,
+  const [survivorStartWeek, setSurvivorStartWeek] = useState(
+    survivorSettings ? encodeWeek(survivorSettings.startWeek) : DEFAULT_SURVIVOR_START_WEEK,
   );
-  const [eliminationEndWeek, setEliminationEndWeek] = useState(
-    eliminationSettings ? encodeWeek(eliminationSettings.endWeek) : DEFAULT_ELIMINATION_END_WEEK,
+  const [survivorEndWeek, setSurvivorEndWeek] = useState(
+    survivorSettings ? encodeWeek(survivorSettings.endWeek) : DEFAULT_SURVIVOR_END_WEEK,
   );
-  const [eliminationPickType, setEliminationPickType] = useState<PickType>(
-    eliminationSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
+  const [survivorPickType, setSurvivorPickType] = useState<PickType>(
+    survivorSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
   );
-  const [eliminationPushTie, setEliminationPushTie] = useState<EliminationPushTieResolution>(
-    eliminationSettings?.pushTieResolution ?? ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
+    survivorSettings?.pushTieResolution ?? SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
@@ -216,7 +214,7 @@ function SettingsForm({
   // (spec §Commissioner Powers), via the same predicate the server's
   // settings write clears picks with — computed here so the warning/confirm
   // below can never disagree with what a save would actually destroy.
-  // Elimination has no picks yet (ELM-2), so it's Pick'em-only.
+  // Survivor has no picks yet (ELM-2), so it's Pick'em-only.
   //
   // Advisory only, not authoritative: this compares the draft against the
   // *cached* `league.settings` the editor was opened with, while the
@@ -266,18 +264,18 @@ function SettingsForm({
     wouldInvalidatePicks = pickemSettings
       ? pickemSettingsInvalidatePicks(pickemSettings, draft)
       : true;
-  } else if (isElimination) {
+  } else if (isSurvivor) {
     assembledSettings = {
-      startWeek: decodeWeek(eliminationStartWeek),
-      endWeek: decodeWeek(eliminationEndWeek),
-      pickType: eliminationPickType,
-      pushTieResolution: eliminationPushTie,
+      startWeek: decodeWeek(survivorStartWeek),
+      endWeek: decodeWeek(survivorEndWeek),
+      pickType: survivorPickType,
+      pushTieResolution: survivorPushTie,
     };
-    settingsDirty = eliminationSettings
-      ? eliminationStartWeek !== encodeWeek(eliminationSettings.startWeek) ||
-        eliminationEndWeek !== encodeWeek(eliminationSettings.endWeek) ||
-        eliminationPickType !== eliminationSettings.pickType ||
-        eliminationPushTie !== eliminationSettings.pushTieResolution
+    settingsDirty = survivorSettings
+      ? survivorStartWeek !== encodeWeek(survivorSettings.startWeek) ||
+        survivorEndWeek !== encodeWeek(survivorSettings.endWeek) ||
+        survivorPickType !== survivorSettings.pickType ||
+        survivorPushTie !== survivorSettings.pushTieResolution
       : true;
   } else {
     assembledSettings =
@@ -451,16 +449,16 @@ function SettingsForm({
           />
         )}
 
-        {isElimination && (
-          <EliminationSettingsFields
-            startWeek={eliminationStartWeek}
-            onStartWeekChange={setEliminationStartWeek}
-            endWeek={eliminationEndWeek}
-            onEndWeekChange={setEliminationEndWeek}
-            pickType={eliminationPickType}
-            onPickTypeChange={setEliminationPickType}
-            pushTie={eliminationPushTie}
-            onPushTieChange={setEliminationPushTie}
+        {isSurvivor && (
+          <SurvivorSettingsFields
+            startWeek={survivorStartWeek}
+            onStartWeekChange={setSurvivorStartWeek}
+            endWeek={survivorEndWeek}
+            onEndWeekChange={setSurvivorEndWeek}
+            pickType={survivorPickType}
+            onPickTypeChange={setSurvivorPickType}
+            pushTie={survivorPushTie}
+            onPushTieChange={setSurvivorPushTie}
           />
         )}
 
