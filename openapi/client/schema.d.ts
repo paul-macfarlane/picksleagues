@@ -2827,7 +2827,7 @@ export interface operations {
                     "application/json": components["schemas"]["LeagueWeeksResponse"];
                 };
             };
-            /** @description Not a Pick'em league (wrong_league_mode) */
+            /** @description The league's mode has no start/end week range to clip to (wrong_league_mode) — both NFL modes do, March Madness does not */
             400: {
                 headers: {
                     [name: string]: unknown;
