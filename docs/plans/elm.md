@@ -1091,16 +1091,17 @@ than by weakening the guard.
    made without a prior preview**, flagged rather than glossed.
 3. **`settings-reset.ts` moved** from `services/pickem/` to `services/leagues/`
    (orchestrator, `a2c817d`) once D4 gave it a real per-mode dispatch.
-4. **`docs/agents/testing.md` describes a toast `testId` mechanism that does not
-   exist.** It requires toast assertions to bind to a `testId` passed at the
-   `toast.*` call site; sonner's option type has no data-attribute pass-through
-   and no repo call site does it, so the policy describes code that was never
-   built. Building it means changing shared `apps/web/src/api/refusals.ts` and
-   every Pick'em call site — outside ELM-2's contract, and a policy doc besides.
-   **ELM-5 is where this bites**: its Survivor journey will want toast
-   assertions, and the only available selector is sonner's internal markup,
-   which is exactly what that rule exists to forbid. Owner decision: build the
-   mechanism as its own ticket, or relax the rule.
+4. ~~**`docs/agents/testing.md` describes a toast `testId` mechanism that does
+   not exist.**~~ **Resolved 2026-08-07:** the owner ruled to drop the rule
+   rather than build the mechanism. It had required toast assertions to bind to
+   a `testId` passed at the `toast.*` call site, but sonner's option type has no
+   data-attribute pass-through, so the policy described code nobody had written
+   and nobody could write cheaply. `testing.md` now names toasts as the one
+   sanctioned exception to the never-bind-to-DOM-structure rule, records
+   `[data-sonner-toast][data-type="error"]` as the binding, and states the
+   accepted risk (a sonner major renaming those attributes fails the merge gate
+   with no product change). ELM-5 can now assert toasts without inventing
+   infrastructure first.
 5. **The editor's Survivor warning cannot see an advanced start week** — only a
    Pick Type change. There is no preset to re-derive a range from (ADR-0024),
    and whether the server's re-resolution advances the start depends on the

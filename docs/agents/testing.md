@@ -59,15 +59,15 @@ while believing it has not.
 
 ## Evidence policy
 
-- **Toast assertions bind to our own contract, never to sonner's markup.** Pass
-  `testId` at the `toast.success` / `toast.error` call sites in
-  `apps/web/src/api/*.ts` and address it with `getByTestId`. An e2e assertion
-  bound to `[data-sonner-toast]`, `data-type`, or any other library-internal
-  attribute lets a dependency bump fail the merge gate with no product change —
-  the exact failure QLTY-2 existed to remove. It also costs an agent several
-  tool calls spelunking `node_modules` to rediscover the shape each time.
-  `e2e/identity.spec.ts` currently binds this way and is the one site to
-  migrate.
+- **Toasts are the one sanctioned exception to "never bind to DOM structure"**
+  (`.claude/rules/engineering.md` §Quality). Sonner exposes no way to put our
+  own handle on a toast — its option type has no data-attribute pass-through —
+  so `[data-sonner-toast][data-type="error"]`, as `e2e/identity.spec.ts` uses,
+  is the binding. Accepted risk, named so it is not rediscovered as a bug: a
+  sonner major that renames those attributes fails the merge gate with no
+  product change. This exception exists because the alternative is binding to
+  the toast's copy, which is worse — copy changes on the owner's judgement alone
+  and must not tax that.
 - Repository-local proof-artifact root: `docs/evidence/test-results`, with **one
   directory per work package**, lowercased: `docs/evidence/test-results/data-9/…`.
 - **Never clear the root, and never delete another work package's evidence.**
