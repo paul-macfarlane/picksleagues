@@ -224,3 +224,103 @@ Run surface local only; real dependency is Postgres on :5433 (`pnpm db:up`). Evi
 DoD5 is the leak check: if `imageOverride` shows up under `LeagueMember`,
 `PickemStandingsRow`, or `PickemMemberPicks`, the "resolved value only, everywhere but `/me`"
 decision has leaked to other members.
+
+---
+
+## [PROGRESS]
+
+| When | Event |
+|---|---|
+| 2026-08-07 | Owner ruled the four decisions in §Decisions during planning. Branch `feat/id-4-member-set-avatar` cut from `staging` @ `497c6d6`; ID-4 claimed `[~]`. |
+| 2026-08-07 | D1 and D2 dispatched in parallel (disjoint file ownership, workers do not commit). Both initially returned research-only because the session was still in plan mode — no edits lost, both resumed from transcript. |
+| 2026-08-07 | D2 accepted → `0e38280`. One orchestrator fix: the ADR index row read "Member-set avatar URL", thinner than its neighbours' decision-statement style; widened in place. |
+| 2026-08-07 | HG1 satisfied — TS-5 and the ID-4 line rewrite previewed to the owner and approved as written. |
+| 2026-08-07 | A second `/atlas-implement ID-4` invocation interrupted the orchestrator mid-turn while D1 was editing `apps/api/test/pickem-standings.test.ts`. Resumed from state; **no** duplicated claim, branch, worker, or commit. D1 was confirmed **alive** (message queued to its next tool round) rather than assumed dead, so no takeover. |
+| 2026-08-07 | D1 accepted → `50b62f0`. Aggregate verification run against the integrated candidate. PR #40 opened. |
+
+### Isolation decision, re-checked at closeout
+
+The plan chose a direct checkout on the grounds that D1 (code) and D2 (docs) own disjoint files and workers do not commit. Verified against the real diffs: `git show --name-only 0e38280` and `50b62f0` share **zero** paths. The prediction held.
+
+It was, however, right for an incomplete reason. `backlog/06-elimination.md` was modified by a **concurrent session** *during* this run (the ELM plan pointer, matching the untracked `docs/plans/elm.md`) — the checkout was busier than the plan assumed. Nothing leaked, because every commit staged explicit paths and never `git add -A`. A future run that detects unrelated dirt at start should treat it as evidence of a live session and prefer a worktree; explicit-path staging carried this one, but it was the only thing standing between the two runs.
+
+## [AI CODE REVIEW]
+
+Single formal review, performed by the frontier orchestrator over the complete integrated diff (`497c6d6..50b62f0`). Both axes: **no unresolved blocking findings.**
+
+### Axis 1 — technical implementation and spec conformity
+
+Conformity assessed against `backlog/01-identity.md` ID-4, this plan, and ADR-0022.
+
+All nine ACs and six DoD items are implemented and evidenced. The two deviations are the orchestrator rulings recorded in §Deviations below, both accepted.
+
+Findings:
+
+1. **`ImageUrl` is not emitted as an OpenAPI component — correct, not a defect.** The plan predicted an `ImageUrl` component alongside `NullableImageUrl`. In fact `ImageUrl` is referenced nowhere on the wire (the request and response both use the nullable variant), so zod-openapi emits no component and `contract-shape.txt` records 0 `$ref`s. The export still earns its place: the SPA imports `ImageUrlSchema` to parse before submit. No action; the plan's prediction was wrong, the code is right.
+2. **`profile.tsx` still renders `<p>Loading profile…</p>` rather than skeletons via `QueryState`**, contrary to engineering.md §Quality. **Pre-existing and out of scope** — the block is untouched by this change, and LNCH-8 is the backlog item that retrofits sites predating that rule. Recorded so it is not mistaken for something ID-4 introduced.
+3. **The session-menu avatar falls back to initials for the window before `/me` resolves.** Accepted and anticipated in the plan: `Avatar` is fixed-size so there is no layout shift, and `useMe()` is already called twice in `_authed.tsx`, so React Query dedupes and this adds no request.
+
+Test strategy holds up where it matters most: both avatar columns are `string | null`, so a serializer reading the wrong one type-checks cleanly. The three league-facing serializers each got an independent outcome assertion for exactly that reason, and `pickem-standings` — the only site with a narrow projection — is the one that would have failed had the select not been extended.
+
+### Axis 2 — coding standards
+
+Assessed against `CLAUDE.md`, `.claude/rules/engineering.md`, and the ADRs they reference.
+
+- **Nullable-registration rule (the silent one): satisfied, and proven.** `NullableImageUrl` is its own component and `Username` remains `type: "string"`. This is the failure mode `contract:check` cannot catch, so it was verified against the generated spec rather than by reading the source.
+- **API-first, one definition per DTO, thin route handler, services-own-queries, no repository layer:** all satisfied. The SPA body is typed `UpdateMeRequest` rather than an inline restatement.
+- **A service names refusals, never an HTTP status:** unchanged — no new refusal reason was introduced, and correctly no `lib/*-refusals.ts` was minted for a route whose only refusal is still `username_taken`.
+- **Comments state a why and cite durable identifiers:** every new comment cites `ADR-0022` or a spec section; none cites this plan's internal numbering. Doc-comment form follows visibility (`/** */` on the exported `resolveUserImage` and `ImageUrlSchema`; `//` on the non-exported `NullableImageUrlSchema`).
+- **Assert outcomes, not process:** the integration tests assert what a league-mate sees, never `resolveUserImage` directly. The e2e binds to the field id and `toHaveValue`, and deliberately never asserts the rendered `<img alt="">`, which has no accessible name.
+- **Notable:** the e2e sync uses `page.waitForResponse` rather than this file's `[data-sonner-toast]` idiom. That moves *away* from the library-internal coupling `docs/agents/testing.md` names as the one site still to migrate, so it is an improvement rather than a new violation.
+
+### Orchestrator fixes applied during acceptance
+
+- `docs/adr/README.md` — index row description widened to match neighbours (D2).
+
+## [CLOSEOUT]
+
+**Repository delivery:** `picksleagues` · base `staging` @ `497c6d6` · branch `feat/id-4-member-set-avatar` · **PR: https://github.com/paul-macfarlane/picksleagues/pull/40**
+
+| Deliverable | Worker / model | Commit |
+|---|---|---|
+| D1 — avatar end to end (schema, column + migration, resolution, service/route, SPA, tests) | `atlas-worker`, inherited frontier | `50b62f0` |
+| D2 — ADR-0022, index row, spec reconciliation | `atlas-worker`, sonnet | `0e38280` |
+
+### Verdicts
+
+Verified run commands and evidence under `docs/evidence/test-results/id-4/`. Integrated candidate `50b62f0`; real dependency Postgres on :5433; run surface local only.
+
+| # | Criterion | Verdict | Evidence |
+|---|---|---|---|
+| AC1 | Setting an https URL persists and becomes the rendered avatar | **PASS** | `integration.txt` |
+| AC2 | Unset override falls back to the provider image | **PASS** | `integration.txt` |
+| AC3 | Clearing reverts to the provider image, provider column untouched | **PASS** | `integration.txt`, `e2e.txt` |
+| AC4 | Non-https / oversize / `javascript:` / `data:` refused at the edge | **PASS** | `unit.txt`, `integration.txt` |
+| AC5 | Override renders on member-list, standings, and week-detail surfaces | **PASS** | `integration.txt` |
+| AC6 | Broken / non-image URL degrades to initials, no new UI | **PASS** (static) | `UserIdentity` + `AvatarFallback` unmodified in `497c6d6..50b62f0`; recorded in Axis 1 |
+| AC7 | Account deletion clears the member-set avatar | **PASS** | `integration.txt` |
+| AC8 | Better Auth `/api/auth/update-user` cannot write the override column | **PASS** | `integration.txt` |
+| AC9 | Spec documents the rule; ADR-0022 records the decision | **PASS** | `0e38280` diff |
+| DoD1 | Static gates green | **PASS** | `static.txt` |
+| DoD2 | Contract regenerated and committed | **PASS** | `static.txt` |
+| DoD3 | SPA builds | **PASS** | `static.txt` |
+| DoD4 | Merge gate green (full suite) | **PASS** — 13 passed | `e2e.txt` |
+| DoD5 | `imageOverride` confined to `MeResponse` / `UpdateMeRequest` | **PASS** | `contract-shape.txt` |
+| DoD6 | PR open against `staging`; ID-4 `[~]` with plan pointer | **PASS** | PR #40 |
+
+### Deviations
+
+1. **`describe` renamed** — `"…cannot write app_role"` → `"…cannot reach the app's validated columns"`, keeping the original `app_role` case beside the new override case. D1 flagged the title/content mismatch rather than leaving it; orchestrator ruled the rename.
+2. **e2e ordering and synchronization** — the avatar round trip sits *before* the conflicting-username step, because that step deliberately leaves `#username` in a failed 409 state and the form does not remount, so any later Save would re-trigger the refusal and never reach the avatar assertions. Both saves sync on `page.waitForResponse` for the PATCH: the previous save's toast is still on screen and the button is already disabled while pending, so neither distinguishes this save's completion. D1 found both; orchestrator ruled both in.
+
+### Notes on `pnpm contract:check`
+
+D1 reported it failing and was right about the cause: the gate is `test -z "$(git status --porcelain -- openapi)"`, which asserts `openapi/` is **clean in git** and therefore cannot pass while a worker is instructed not to commit. It is a committed-state gate, not a staleness test. D1 proved the property that actually matters — regeneration is idempotent — by hashing before and after. It passes at `50b62f0`, recorded in `static.txt`.
+
+### Evidence not captured
+
+No visual artifact. `gh` cannot upload images and `docs/agents/testing.md` forbids committing them, so attaching a screenshot is not something this run could do without citing an uncommitted local file as evidence — which the same policy prohibits. AC6 is carried statically and the field is driven in a real browser by the e2e round trip. Flagged in the PR description for the owner.
+
+### Not done by this run
+
+ID-4 remains `[~]`. A human marks `[x]` after reviewing the PR.

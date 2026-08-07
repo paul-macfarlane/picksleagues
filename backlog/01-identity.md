@@ -9,4 +9,4 @@ Username claim, profile management, and the onboarding flow. Ref: spec §Users &
 
 ## Technical plan
 
-- ID-4: `docs/plans/id-4.md` (owner decisions ruled 2026-08-07; execution records live there).
+- ID-4: `docs/plans/id-4.md` (owner decisions ruled 2026-08-07; execution records live there). PR: https://github.com/paul-macfarlane/picksleagues/pull/40

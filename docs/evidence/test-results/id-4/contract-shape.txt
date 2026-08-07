@@ -1,0 +1,21 @@
+## Which components carry imageOverride (must be MeResponse + UpdateMeRequest only)
+  CARRIES imageOverride: MeResponse
+  CARRIES imageOverride: UpdateMeRequest
+
+## Member-facing schemas must carry image but NOT imageOverride
+  LeagueMember: image=true imageOverride=false
+  PickemStandingsRow: image=true imageOverride=false
+  PickemMemberPicks: image=true imageOverride=false
+
+## New components
+  ImageUrl: undefined
+  NullableImageUrl: {"type":["string","null"],"maxLength":2048,"format":"uri"}
+
+## $ref usage count across the whole spec
+  ImageUrl: 0 $ref(s)
+  NullableImageUrl: 2 $ref(s)
+  Username: 1 $ref(s)
+  NullableUsername: 1 $ref(s)
+
+## Username must NOT have been widened to nullable
+  Username: {"type":"string","pattern":"^[a-z0-9_]{3,20}$"}

@@ -1,0 +1,13 @@
+# ID-4 integration suite (real Postgres :5433) — commit 50b62f0, 2026-08-07T13:26:59Z
+$ pnpm test:integration
+$ vitest run --project integration
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  28 passed (28)
+      Tests  525 passed (525)
+   Start at  09:26:59
+   Duration  27.23s (transform 581ms, setup 0ms, import 13.35s, tests 11.41s, environment 1ms)
+
+EXIT=0
