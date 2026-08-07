@@ -1327,6 +1327,9 @@ see the execution structure note in this ticket's `[PROGRESS]` record above.
 | --- | --- | --- | --- |
 | `picksleagues` | `feat/elm-3-survivor-week-settlement` | `staging` (`b8efe37`) | `e3b7e02` implementation, `3e514f5` review fixes |
 
+PR: https://github.com/paul-macfarlane/picksleagues/pull/45 — awaiting human
+review. The ticket stays `[~]`; only a human writes `[x]`.
+
 ### Verdicts
 
 Every criterion in the `[PROGRESS]` verification map, verified at `3e514f5`:
