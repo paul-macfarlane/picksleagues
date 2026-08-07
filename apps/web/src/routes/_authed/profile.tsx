@@ -162,10 +162,6 @@ function ProfileForm({
             avatarSize="lg"
             className="flex-col"
           />
-          <CardDescription>
-            Your avatar comes from your sign-in provider unless you set an image URL below. This
-            preview updates as you type; clearing the field goes back to the provider&apos;s.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -243,6 +239,7 @@ function ProfileForm({
                   autoComplete="off"
                   spellCheck={false}
                   placeholder="https://…"
+                  hint="Comes from your sign-in provider unless you set one here. Clear the field to go back."
                 />
               )}
             </form.Field>

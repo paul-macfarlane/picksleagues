@@ -377,3 +377,43 @@ One lint finding was caught and fixed rather than suppressed: `react-hooks/set-s
 flagged a `setProbe(null)` reset at the top of the preload effect. It was genuinely redundant —
 the probe is keyed by URL, so a result for a superseded candidate already reads as "not probed
 yet" — and deleting it fixed the rule and removed a wasted render.
+
+## [SCOPE CHANGE] — avatar guidance moves onto the field (owner request, 2026-08-07)
+
+**Requested:** the card-header note explaining where avatars come from is field guidance, not
+form copy. Owner first suggested an "i" popover, then revised to brief helper text on the field
+itself as being more consistent with the repo's other forms, inviting contrary evidence.
+
+**Checked, and the revision is right.** `apps/web/src/components/admin/game-override-form.tsx`
+already does exactly this: a local `ProviderHint` wrapper renders
+`<p className="text-xs text-muted-foreground">` beneath a `FormTextField`, on five fields. No
+form in the repo puts per-field guidance in a card header, and nothing uses a popover or tooltip
+for help text — `popover.tsx` exists but only `date-time-picker.tsx` consumes it. The popover
+idea was dropped before implementation.
+
+Worth recording *why* a popover would have been the wrong reach even without that precedent: the
+repo is mobile-first, and a hover tooltip never opens on a tap.
+
+**Implemented on `FormTextField`, not as another local wrapper.** `ProviderHint` renders its
+`<p>` without associating it to the input, so a screen reader never announces it — the exact
+plumbing `FormTextField` exists to centralize (engineering.md: "Per-field Label/Input/error a11y
+wiring goes through `FormTextField`"). The new optional `hint` prop renders the same muted `<p>`
+and wires `aria-describedby`, composing hint and error ids when both are present rather than
+letting the error displace the hint. Adopting it in `game-override-form.tsx` would fix that
+file's silent gap; not done here as it is outside ID-4.
+
+Backward compatible: with no `hint`, `describedBy` collapses to the previous
+`error ? errorId : undefined`, which is what keeps `e2e/identity.spec.ts`'s `expectFieldError`
+green — it asserts `aria-describedby` **exactly**, and only for `username`, which has no hint.
+
+The card header now carries only the identity and its live preview; the field carries one brief
+line. The failed-load message stays a separate `role="status"` line, since it is state rather
+than standing guidance.
+
+**Files:** `apps/web/src/components/form-field.tsx`, `apps/web/src/routes/_authed/profile.tsx`.
+
+**Re-verified at `HEAD` (rev 3):** `typecheck` **0**, `lint` **0**, `format:check` **0**, web
+build **0**, `pnpm test` **462 passed**, `pnpm test:e2e` **13 passed** (full gate — `FormTextField`
+is shared across five forms, so the whole suite was run rather than the identity spec alone).
+API and schema layers are untouched by this change, so `test:integration` and `contract:check`
+evidence from rev 2 stands unmodified.

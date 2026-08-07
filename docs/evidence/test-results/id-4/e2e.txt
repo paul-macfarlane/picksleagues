@@ -1,4 +1,4 @@
-# ID-4 e2e merge gate (rev 2 — live avatar preview) — 2026-08-07T14:18:19Z
+# ID-4 e2e merge gate (rev 3 — field hint on FormTextField) — 2026-08-07T14:27:27Z
 $ pnpm test:e2e
 $ playwright test
 [WebServer] $ tsx watch --env-file=../../.env src/dev.ts
@@ -6,19 +6,18 @@ $ playwright test
 
 Running 13 tests using 5 workers
 
-  ✓   5 [chromium] › e2e/identity.spec.ts:70:3 › identity › preserves the intended destination through the claim-username gate (1.8s)
-  ✓   3 [chromium] › e2e/identity.spec.ts:44:3 › identity › unclaimed session is gated to /claim-username; invalid submit errors inline; a valid claim reaches the dashboard (2.2s)
-  ✓   2 [chromium] › e2e/identity.spec.ts:177:3 › identity › delete account signs out immediately and the session cannot return (2.2s)
-  ✓   7 [chromium] › e2e/smoke.spec.ts:10:1 › unauthenticated visit redirects to sign-in and the API is reachable (356ms)
-  ✓   1 [chromium] › e2e/identity.spec.ts:95:3 › identity › profile edit: Save gates on a real change, success toasts and updates the account menu, a taken username errors inline (2.7s)
-  ✓   8 [chromium] › e2e/sim-panel.spec.ts:109:3 › simulator › a non-admin cannot see the simulator route (528ms)
-  ✓   6 [chromium] › e2e/sim-panel.spec.ts:26:3 › simulator › an admin reaches the simulator section and every tab renders its cards (1.0s)
-  ✓   4 [chromium] › e2e/league-lifecycle.spec.ts:12:3 › league lifecycle › create → invite → second user joins → both appear on league home (3.7s)
-  ✓   9 [simulated] › e2e/pickem-journey.sim.spec.ts:276:3 › Pick'em merge-gate journey (mixed-week scenario) › commissioner creates a Pick'em league; a second member joins via invite (1.0s)
-  ✓  10 [simulated] › e2e/pickem-journey.sim.spec.ts:309:3 › Pick'em merge-gate journey (mixed-week scenario) › both members commit week 1 as one irreversible full set (1.3s)
-  ✓  11 [simulated] › e2e/pickem-journey.sim.spec.ts:363:3 › Pick'em merge-gate journey (mixed-week scenario) › before kickoff, another member's picks are hidden behind a count (308ms)
-  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (504ms)
-  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (566ms)
+  ✓   4 [chromium] › e2e/identity.spec.ts:70:3 › identity › preserves the intended destination through the claim-username gate (1.3s)
+  ✓   2 [chromium] › e2e/identity.spec.ts:44:3 › identity › unclaimed session is gated to /claim-username; invalid submit errors inline; a valid claim reaches the dashboard (1.5s)
+  ✓   1 [chromium] › e2e/identity.spec.ts:177:3 › identity › delete account signs out immediately and the session cannot return (2.1s)
+  ✓   7 [chromium] › e2e/sim-panel.spec.ts:109:3 › simulator › a non-admin cannot see the simulator route (555ms)
+  ✓   8 [chromium] › e2e/smoke.spec.ts:10:1 › unauthenticated visit redirects to sign-in and the API is reachable (335ms)
+  ✓   6 [chromium] › e2e/sim-panel.spec.ts:26:3 › simulator › an admin reaches the simulator section and every tab renders its cards (1.1s)
+  ✓   3 [chromium] › e2e/identity.spec.ts:95:3 › identity › profile edit: Save gates on a real change, success toasts and updates the account menu, a taken username errors inline (2.5s)
+  ✓   5 [chromium] › e2e/league-lifecycle.spec.ts:12:3 › league lifecycle › create → invite → second user joins → both appear on league home (3.2s)
+  ✓   9 [simulated] › e2e/pickem-journey.sim.spec.ts:276:3 › Pick'em merge-gate journey (mixed-week scenario) › commissioner creates a Pick'em league; a second member joins via invite (983ms)
+  ✓  10 [simulated] › e2e/pickem-journey.sim.spec.ts:309:3 › Pick'em merge-gate journey (mixed-week scenario) › both members commit week 1 as one irreversible full set (1.4s)
+  ✓  11 [simulated] › e2e/pickem-journey.sim.spec.ts:363:3 › Pick'em merge-gate journey (mixed-week scenario) › before kickoff, another member's picks are hidden behind a count (228ms)
+  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (491ms)
+  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (461ms)
 
-  13 passed (13.8s)
-EXIT=0
+  13 passed (12.8s)
