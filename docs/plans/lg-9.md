@@ -323,3 +323,155 @@ integrated candidate can prove them. The proof-artifact root
 - 2026-08-06 — Claimed LG-9 (`[ ]` → `[~]`), branch created off `staging` at
   `25a63f8`. Tracker guide reread before the claim; the work package has not
   modified any `docs/agents/*.md`, so the whole-file reread case did not apply.
+- 2026-08-06 — D1 delivered (`8864d47`, amended from `dc60401` with the
+  orchestrator fixes in the review below). Acceptance screen passed. AC1–AC5
+  and AC10 candidate evidence captured at that commit.
+- 2026-08-06 — D2 delivered (`8e4d815`). Acceptance screen passed, no fixes
+  required.
+
+## [AI CODE REVIEW]
+
+Single formal review of the complete branch diff (`staging...8e4d815`),
+performed by the frontier orchestrator. Static review only — verdicts against
+the criterion map are recorded separately under `[CLOSEOUT]`.
+
+**Scope containment.** The branch touches exactly the plan's in-scope file
+list, plus the tracker/plan files and the deletion of the previous work
+package's evidence artifacts. No file outside it was modified; no Elimination
+surface, renewal path, locked doc, or ADR was touched, matching the plan's
+stated exclusions.
+
+### Axis 1 — technical implementation and spec conformity
+
+All eight resolved decisions are implemented as approved. The load-bearing
+one — that availability be computed by the *same* functions the refusal path
+uses — holds concretely: `startablePickemSeasonRangePresets` calls
+`resolvePickemSeasonRange` → `nflWeekFirstKickoffAt` → `isPreStart`, and
+`leagueStartAt` now delegates its NFL branch to that same
+`nflWeekFirstKickoffAt`, so hint and enforcement share one derivation rather
+than two that agree today. Each wrapper passes the season its own refusal path
+uses (`latestSeasonForSport` for create, `getLeagueWithCurrentSeason` for the
+league-scoped read), which is what makes AC3's divergence correct rather than
+incidental.
+
+| # | Finding | Severity | Disposition |
+|---|---|---|---|
+| 1 | `PickemPickSummaryRefusal` became shared by two services while its name and doc comment still described only the pick summary; two neighbouring comments (`PICKEM_REFUSAL.NOT_COMMISSIONER`, `PickemWriteRefusal`) asserted the `not_commissioner` axis "belongs to the pick-summary read alone", which the new service falsified | Minor | **Fixed inline by the orchestrator** before the commit was accepted — renamed to `PickemSettingsEditorRefusal` and all three comments corrected. Recorded here so the commit's provenance stays honest |
+| 2 | The create form's no-startable-preset state replaces the **whole** Pick'em fieldset, where the plan said "an inline explanation where the select's guidance belongs" | Minor | **Accepted as a deviation with rationale.** Rendering pick-type and picks-per-week controls for a league that provably cannot be created is worse than omitting them, and Create is disabled in this state regardless. This is presentation policy, explicitly the owner's to change; no test binds to it |
+| 3 | `updateLeague` gates a settings PATCH on the **old** stored start (`league_started`) before it resolves the new preset — a behavioral fact the plan did not state, surfaced by AC4's fixture needing a league started on Postseason | Informational | **No change.** It cannot produce a surface inconsistency: the editor's hook is gated `isPickem && canEdit && !started`, so a started league never fetches availability at all. Recorded because the next change here will meet it again |
+| 4 | The create form fetches availability regardless of the selected mode, so an Elimination or March Madness creator makes one unused request | Informational | **Considered and kept.** Rules-of-hooks makes the unconditional call correct, and gating on mode would leave the member looking at an unfiltered list for one round trip after switching *to* Pick'em — the opposite of the ticket's intent, for one cheap authenticated GET |
+
+No blocking findings. The integration suite's two agreement loops (AC1, AC4)
+assert `0 < startablePresets.length < 3` before iterating, so neither can pass
+vacuously if the endpoint ever answered all-or-nothing — the failure mode that
+would make an agreement test worthless.
+
+### Axis 2 — coding standards
+
+Conformity confirmed against the rules this change is most exposed to:
+
+- **Time discipline (arch D13):** every "now" read goes through the injected
+  `Clock`; no `Date.now()`, bare `new Date()`, or SQL `now()` appears in any
+  added line (scanned). The SPA renders the server's answer verbatim and never
+  reaches for `useAppNow()` to re-derive it.
+- **Thin route handlers; services name reasons, not statuses.** Both handlers
+  validate → guard → delegate; the league-scoped service returns
+  `PICKEM_REFUSAL` values mapped by the existing `pickemRefusal`. The shared
+  401/403/404/500 descriptors are reused, not restated.
+- **Contract & codegen:** the new component is a fresh registration with an
+  inline `z.number().nullable()`, not a `.nullable()` wrap of an already
+  registered schema — the silent-widening hazard the rule names does not apply.
+  `openapi/` is regenerated and committed in the same change.
+- **Comments cite durable identifiers** (`ADR-0020`, `ADR-0009`, `LG-9`,
+  `LG-10`) and never a plan's internal numbering — scanned the added lines for
+  `(decision N)` / `(step N)` forms and found none, which is the specific
+  regression QLTY-5 existed to close.
+- **SPA boundaries:** both hooks live in `apps/web/src/api/pickem.ts` with
+  exported query keys; neither UI file contains an `api.*` call or a query-key
+  literal. Both forms stay inside the documented plain-`useState` carve-out.
+- **Presentation policy is not unit-tested** — no test was added for which
+  options a screen offers, per the rule reserving that judgment to the owner.
+  AC6–AC8 are proved by driven-simulator screenshots instead.
+- **Theme tokens only** (`text-foreground`, `text-muted-foreground`); the
+  inline explanation is a heading plus a paragraph, matching `QueryState`'s
+  existing idiom for inline query-derived messaging rather than introducing a
+  `role="status"` pattern the SPA uses nowhere else. Route layout unchanged.
+- `pnpm lint` exits 0 with no output, so the growth in `settings-section.tsx`
+  raised no max-lines warning. The plan's standing craft-debt flag on that file
+  remains open and is the owner's call, not this package's.
+
+## [CLOSEOUT]
+
+Repository delivery `picksleagues`, branch
+`feat/lg-9-startable-season-range-presets`, base `staging` at `25a63f8`.
+Verified at integrated commit `8e4d815`.
+
+| Deliverable | Worker / model | Commit | Outcome |
+|---|---|---|---|
+| D1 — server-side availability (DTO, extraction, core, two services, two routes, `openapi/`, integration suite) | `atlas-worker` / sonnet | `8864d47` (amended from `dc60401` with the orchestrator's inline review fixes) | Accepted |
+| D2 — SPA (two hooks, options prop, create-form filter/derived selection/empty state/gate, editor filter) | `atlas-worker` / sonnet | `8e4d815` | Accepted, no fixes needed |
+
+### Verdicts
+
+| # | Verdict | Evidence | Command |
+|---|---|---|---|
+| AC1 | **PASS** | Endpoint-vs-`createLeague` agreement asserted at one clock, both branches exercised | `pnpm test:integration` |
+| AC2 | **PASS** | All six clock scenarios green as an `it.each` table | `pnpm test:integration` |
+| AC3 | **PASS** | S1 league + later S2 ingested: league-scoped returns postseason+full/2026, create returns all three/2027 | `pnpm test:integration` |
+| AC4 | **PASS** | PATCH agreement plus the stored-preset invariant | `pnpm test:integration` |
+| AC5 | **PASS** | 403 / 404 / 400 `wrong_league_mode` (and 401) with exact wire slugs | `pnpm test:integration` |
+| AC6 | **PASS** | `docs/evidence/test-results/lg9-ac6-create-form-filtered/phone.png` — at simulated 9/19/99 the select offers Postseason and Full Season only, and the selection has moved off the unavailable Regular Season default | driven simulator, phone width |
+| AC7 | **PASS** | `docs/evidence/test-results/lg9-ac7-no-startable-preset/phone.png` — after the Super Bowl kickoff the fieldset is replaced by the explanation and Create is disabled; switching to Elimination re-enables it | driven simulator, phone width |
+| AC8 | **PASS** (criterion corrected — see below) | `docs/evidence/test-results/lg9-ac8-settings-editor-filtered/phone.png` — a pre-start league bound to 2099 offers Postseason and Full Season only, with its stored Postseason present and selected | driven simulator, phone width |
+| AC9 | **PASS** | 13 passed, specs unmodified (`git diff staging...HEAD -- e2e/ playwright.config.ts` is empty) | `pnpm test:e2e` |
+| AC10 | **PASS** | Clean `openapi/` tree after regeneration | `pnpm contract:check` |
+| DoD | **PASS** | typecheck, lint (exit 0, no warnings), 439 unit tests, format:check, web build — all green | `pnpm typecheck && pnpm lint && pnpm test && pnpm format:check && pnpm --filter @picksleagues/web build` |
+
+Raw output for the static, unit, integration, contract and e2e runs:
+`docs/evidence/test-results/gates/local-gate.txt`.
+
+### AC8 criterion correction
+
+The plan wrote AC8 against "the pre-start settings editor of a **Full Season**
+league, at a clock where the regular season has run". That state cannot exist:
+a Full Season league's stored start week is regular week 1, so once the regular
+season has run the league **has started**, and LG-10's window-disable owns the
+fieldset — there is no pre-start editor left to screenshot. The criterion's
+intent (the editor filters against the league's own bound season and still
+offers its stored selection) is exercised by a **Postseason** league at that
+same clock, whose stored start is Wild Card and therefore still ahead. That is
+the fixture the evidence uses, and the same shape D1's invariant test uses.
+Recorded rather than silently substituted: the plan's wording was wrong, not
+the implementation.
+
+### Deviations
+
+1. **AC8 fixture corrected** as above — a plan defect found at verification.
+2. **Create form's empty state replaces the whole Pick'em fieldset**, not just
+   the season-range control's guidance (review finding 2). Presentation policy,
+   owner-changeable, nothing binds to it.
+3. **`PickemPickSummaryRefusal` renamed to `PickemSettingsEditorRefusal`** with
+   three stale comments corrected — orchestrator fixes applied inline before
+   D1 was accepted (review finding 1).
+
+### Notes on execution
+
+- **Parallelism re-check.** D2 was kept as one deliverable on the prediction
+  that splitting create-form from settings-editor would collide. Checked
+  against the real diff: both halves land in one contiguous hook block in
+  `apps/web/src/api/pickem.ts` and on the single `PickemSettingsFields`
+  signature in `league-settings-fields.tsx` — the same lines, not merely the
+  same files. The prediction holds. D1 → D2 sequencing was likewise real: D2's
+  hooks do not typecheck until D1's regenerated client exists.
+- **Evidence harness.** AC6–AC8 were captured by a temporary Playwright spec
+  driving the isolated e2e stack (`picksleagues_e2e`, ports 5273/3100), seeding
+  a 2099 season with two regular and two postseason weeks and moving the
+  **simulated clock** across them — never by editing kickoff timestamps. The
+  harness was deleted after capture so it does not join the merge gate; the
+  server behavior it screenshots is permanently pinned by the committed
+  integration suite. The dev database was deliberately left untouched.
+- **Guardrail encounter.** The runbook's session-minting recipe
+  (`tsx --env-file=../../.env`) was blocked by the live-secret guard. Rather
+  than route around it, the evidence moved to the e2e harness, which loads the
+  environment inside its own process and never exposes a secret to the agent.
+  No guardrail was weakened and no `.env` was read.
