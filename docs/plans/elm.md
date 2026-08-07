@@ -775,8 +775,13 @@ Conforms to `.claude/rules/engineering.md` and the ADRs it references.
 
 ## [CLOSEOUT] — ELM-1
 
-**Run surface:** local only. **Evidence:** `docs/evidence/test-results/elm-1/`
-(text committed); screenshots attached to the PR per `docs/agents/testing.md`.
+**Pull request:** https://github.com/paul-macfarlane/picksleagues/pull/43
+(`picksleagues`, base `staging`). **Run surface:** local only.
+**Evidence:** `docs/evidence/test-results/elm-1/` (text committed). Screenshots
+of both settings surfaces were captured at phone width but **not** attached:
+this run had no path to upload an image to a PR, so the visual criterion rests
+on the committed role-level assertions in `form-shape/output.md` rather than on
+an uncommitted local file — which the evidence policy forbids citing as proof.
 
 | Criterion (source) | Verdict | Evidence |
 |---|---|---|
