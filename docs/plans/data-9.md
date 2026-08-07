@@ -418,7 +418,8 @@ file. Converting all six is a separate, mechanical change and is not in this wor
 
 ## [CLOSEOUT]
 
-Run surface: **local only**. Verified commit: see the PR head below.
+Run surface: **local only**. Pull request: https://github.com/paul-macfarlane/picksleagues/pull/39
+(`picksleagues`, base `staging`). Verified commit is that PR's head.
 
 | Criterion | Verdict | Command | Evidence |
 |---|---|---|---|
