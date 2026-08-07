@@ -43,12 +43,35 @@ export const ERROR_CODE = {
   WEEK_NOT_FOUND: "week_not_found",
   WEEK_HAS_NO_GAMES: "week_has_no_games",
   SEASON_NOT_AVAILABLE: "season_not_available",
+  WRONG_LEAGUE_MODE: "wrong_league_mode",
+  WEEK_OUT_OF_RANGE: "week_out_of_range",
+  GAME_NOT_IN_WEEK: "game_not_in_week",
+  GAME_NOT_PICKABLE: "game_not_pickable",
+  DUPLICATE_PICK: "duplicate_pick",
+  // A submission must be exactly the week's required size, so these two are
+  // exact mirrors: TOO_MANY_PICKS refuses a set larger than the week allows,
+  // PICK_SET_INCOMPLETE one smaller. ALREADY_SUBMITTED is the different
+  // refusal — a set of any size, from a member who already holds picks for the
+  // week and gets only one submission (ADR-0018).
+  TOO_MANY_PICKS: "too_many_picks",
+  PICK_SET_INCOMPLETE: "pick_set_incomplete",
+  ALREADY_SUBMITTED: "already_submitted",
+  // Adjacent and easy to confuse: PICK_LOCKED refuses a *pick mutation* whose
+  // game has kicked off; PICKS_LOCKED refuses a *settings change* that would
+  // discard picks which have already locked.
+  PICK_LOCKED: "pick_locked",
+  PICKS_LOCKED: "picks_locked",
+  SPREAD_STALE: "spread_stale",
+  SPREAD_UNAVAILABLE: "spread_unavailable",
+  OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
 
-// Shared error envelope for every non-2xx API response (validation failures,
-// auth failures, conflicts) — one shape the SPA's error handling can rely on.
+/**
+ * Shared error envelope for every non-2xx API response (validation failures,
+ * auth failures, conflicts) — one shape the SPA's error handling can rely on.
+ */
 export const ErrorResponseSchema = z
   .object({
     error: z.string(),

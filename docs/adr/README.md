@@ -21,3 +21,12 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0009](0009-multi-season-leagues.md)          | Leagues span seasons via `league_seasons` instances | Accepted |
 | [0010](0010-normalized-teams.md)              | Teams are normalized reference data  | Accepted |
 | [0011](0011-simulator-admin-ops-merge.md)     | Simulator & admin ops merge; UI-driven sim, admin-session auth | Accepted |
+| [0012](0012-simulated-provider-clock-projection.md) | Simulated data flows through real ingestion; fixtures project through the clock | Accepted |
+| [0013](0013-admin-role-in-database.md)        | Admin capability lives in `users.app_role` | Accepted |
+| [0014](0014-sim-enabled-env-toggle.md)        | `SIM_ENABLED` toggles the simulator; production overrides it | Accepted |
+| [0015](0015-pickem-pick-entry-semantics.md)   | Pick'em pick entry: whole-week replace, unplayable games unpickable, settings change resets picks | Accepted (rules 1–2 superseded in part by 0018/0019; rule 3 stands) |
+| [0016](0016-per-mode-result-and-standings-tables.md) | Results/standings are per-mode; mode-scoped naming repo-wide | Accepted |
+| [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
+| [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |
+| [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
+| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted |

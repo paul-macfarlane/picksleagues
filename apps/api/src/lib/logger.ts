@@ -11,6 +11,7 @@
 
 const LOG_LEVEL = {
   INFO: "info",
+  WARN: "warn",
   ERROR: "error",
 } as const;
 
@@ -30,6 +31,8 @@ function log(level: LogLevel, event: string, fields: Record<string, unknown> = {
   const line = JSON.stringify({ level, event, ...serializeFields(fields) });
   if (level === LOG_LEVEL.ERROR) {
     console.error(line);
+  } else if (level === LOG_LEVEL.WARN) {
+    console.warn(line);
   } else {
     console.log(line);
   }
@@ -37,6 +40,11 @@ function log(level: LogLevel, event: string, fields: Record<string, unknown> = {
 
 export function logInfo(event: string, fields?: Record<string, unknown>): void {
   log(LOG_LEVEL.INFO, event, fields);
+}
+
+/** Something worth a human's attention that isn't a failure — doesn't fail the job (ADR-0007: no in-app alerting). */
+export function logWarn(event: string, fields?: Record<string, unknown>): void {
+  log(LOG_LEVEL.WARN, event, fields);
 }
 
 export function logError(event: string, fields?: Record<string, unknown>): void {

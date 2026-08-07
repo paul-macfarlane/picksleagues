@@ -1,13 +1,13 @@
 import { z } from "@hono/zod-openapi";
-import { GameStatusSchema } from "./game-status";
+import { GameStatusSchema, NullableGameStatusSchema } from "./game-status";
 import { SportSchema } from "./sport";
 import { WeekTypeSchema } from "./week-type";
 
 /**
  * Read-only projections of the provider-synced reference tables for the admin
  * page's data browsers (arch §Manual Sports Data Overrides: "read-only
- * browsers over reference data — teams, seasons/weeks, games, odds
- * snapshots"). These are inspection surfaces whose whole point is showing the
+ * browsers over reference data — teams, seasons/weeks, games"). These are
+ * inspection surfaces whose whole point is showing the
  * raw stored truth, so DB columns are serialized flat rather than reshaped;
  * `AdminGame` is the exception and carries provider, override, and resolved
  * values side by side so an operator can see what ingestion wrote, what a human
@@ -92,15 +92,21 @@ export const AdminGameSchema = z
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
     awayScore: z.number().int().nullable(),
-    // Latest odds snapshot for this game; null until the odds sync captures one.
-    latestSpread: z.number().nullable(),
-    latestSpreadCapturedAt: z.iso.datetime().nullable(),
-    // Override block — admin corrections only (ADM-2 writes these).
+    // Live in-game state as ingestion last saw it (DATA-8): period, and seconds
+    // left in it. Null unless the game is in progress.
+    period: z.number().int().nullable(),
+    clockSeconds: z.number().int().nullable(),
+    // Home-team-relative; negative = home favored. Null until the odds sync
+    // finds a line for this game.
+    spread: z.number().nullable(),
+    // Override block — admin corrections only (written by PUT /admin/games/{id}/override).
     overrideKickoffAt: z.iso.datetime().nullable(),
-    overrideStatus: GameStatusSchema.nullable(),
+    overrideStatus: NullableGameStatusSchema,
     overrideHomeScore: z.number().int().nullable(),
     overrideAwayScore: z.number().int().nullable(),
     overrideSpread: z.number().nullable(),
+    overridePeriod: z.number().int().nullable(),
+    overrideClockSeconds: z.number().int().nullable(),
     overriddenBy: z.string().nullable(),
     overriddenAt: z.iso.datetime().nullable(),
     // Resolved block — `override_* ?? provider_*` (arch D15). Serialized rather
@@ -110,6 +116,8 @@ export const AdminGameSchema = z
     effectiveHomeScore: z.number().int().nullable(),
     effectiveAwayScore: z.number().int().nullable(),
     effectiveSpread: z.number().nullable(),
+    effectivePeriod: z.number().int().nullable(),
+    effectiveClockSeconds: z.number().int().nullable(),
   })
   .openapi("AdminGame");
 
@@ -121,24 +129,62 @@ export const AdminGamesResponseSchema = z
 
 export type AdminGamesResponse = z.infer<typeof AdminGamesResponseSchema>;
 
-export const AdminOddsSnapshotSchema = z
+// Same bound as the simulator's fixture editor: high enough that no real
+// football score is rejected, low enough that a fat-fingered digit is.
+const MAX_GAME_SCORE = 200;
+// Home-relative points, matching `games.spread`. No real line comes
+// near this; the bound exists so a mis-typed or mis-scaled number is refused
+// rather than silently regrading every pick on the game.
+const MAX_SPREAD = 100;
+// A period past regulation is legitimate — overtime keeps counting — so this
+// can't be 4; it is high enough that no real game reaches it (the longest NFL
+// game ever played ended in the 6th) and low enough to reject a fat-fingered
+// digit. Period 0 isn't a period at all: "no period" is expressed by null.
+const MAX_PERIOD = 10;
+// One hour, against a regulation NFL period of 15 minutes. Generous headroom
+// for any other period format, tight enough that a value in milliseconds — or
+// minutes mistaken for seconds the other way — is refused rather than stored.
+const MAX_CLOCK_SECONDS = 60 * 60;
+
+/**
+ * The admin override write (arch §Manual Sports Data Overrides, D15). Fields
+ * are unprefixed because the resource *is* the game's override layer — the path
+ * says `/override`, and these map 1:1 onto the `override_*` columns, never the
+ * provider ones.
+ *
+ * Three-state per field, which is the whole point of the shape:
+ * **omitted** leaves the stored override alone, **null** clears it back to
+ * provider truth ("clear override is a null-out", D15), and a value sets it.
+ * `.nullable().optional()` is what makes those two distinguishable over JSON —
+ * a partial-update body with an explicit null, not a full replacement.
+ */
+export const GameOverrideRequestSchema = z
   .object({
-    id: z.string(),
-    // Home-team-relative; negative = home favored (odds_snapshots.spread).
-    spread: z.number(),
-    capturedAt: z.iso.datetime(),
+    kickoffAt: z.iso.datetime().nullable().optional(),
+    status: NullableGameStatusSchema.optional(),
+    homeScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
+    awayScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
+    spread: z.number().min(-MAX_SPREAD).max(MAX_SPREAD).nullable().optional(),
+    period: z.number().int().min(1).max(MAX_PERIOD).nullable().optional(),
+    clockSeconds: z.number().int().min(0).max(MAX_CLOCK_SECONDS).nullable().optional(),
   })
-  .openapi("AdminOddsSnapshot");
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: "At least one field is required",
+  })
+  .openapi("GameOverrideRequest");
 
-export type AdminOddsSnapshot = z.infer<typeof AdminOddsSnapshotSchema>;
+export type GameOverrideRequest = z.infer<typeof GameOverrideRequestSchema>;
 
-// Snapshot history is unbounded over a season of 5-minute odds syncs, so the
-// browser reads the most recent page only — enough to see whether the spread is
-// moving and when it was last captured.
-export const ADMIN_ODDS_SNAPSHOT_LIMIT = 50;
+/**
+ * The override write's reply. `resettled` is false when the correction
+ * committed but the settlement recompute that follows it (outside the write's
+ * transaction, arch D10) threw: results and standings still show the
+ * pre-correction grading until the nightly sweep re-derives them. Reporting the
+ * whole request as failed instead would be a lie — the write is durable, the
+ * operator would be shown stale values, and a retry writes a second audit row.
+ */
+export const GameOverrideResponseSchema = z
+  .object({ game: AdminGameSchema, resettled: z.boolean() })
+  .openapi("GameOverrideResponse");
 
-export const AdminGameOddsResponseSchema = z
-  .object({ snapshots: z.array(AdminOddsSnapshotSchema) })
-  .openapi("AdminGameOddsResponse");
-
-export type AdminGameOddsResponse = z.infer<typeof AdminGameOddsResponseSchema>;
+export type GameOverrideResponse = z.infer<typeof GameOverrideResponseSchema>;

@@ -25,15 +25,34 @@ export const MeResponseSchema = z
     // from a 404 on an unregistered route — the sim routes' absence is the
     // actual gate, this only hides the UI.
     simEnabled: z.boolean(),
+    /**
+     * The application's current time, read from the injected `Clock` (arch
+     * D13) — **not** a profile field, and here on purpose.
+     *
+     * The SPA renders kickoffs relative to now ("Today 1:00 PM", "Sun 8:20
+     * PM"), and the browser's own clock is the wrong one to ask: under the
+     * simulator it runs at a different instant entirely, so a game the API has
+     * already locked would be labelled as kicking off tomorrow. Every derived
+     * time in the product comes from this clock, and now the labels do too.
+     *
+     * Carried on `/me` rather than a `/clock` endpoint of its own because this
+     * is the request every authenticated page already makes to bootstrap the
+     * session, so the reading costs no extra round trip. The SPA keeps the
+     * *offset* from its own clock rather than this instant, so time keeps
+     * moving between fetches.
+     */
+    now: z.iso.datetime(),
   })
   .openapi("MeResponse");
 
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
-// Claiming a username (first sign-in), changing it later (mvp-spec: username
-// is changeable anytime, old name released immediately), and editing the
-// freely-editable display name are all the same partial-update operation —
-// one PATCH /me. At least one field must be present or there's nothing to do.
+/**
+ * Claiming a username (first sign-in), changing it later (mvp-spec: username
+ * is changeable anytime, old name released immediately), and editing the
+ * freely-editable display name are all the same partial-update operation —
+ * one PATCH /me. At least one field must be present or there's nothing to do.
+ */
 export const UpdateMeRequestSchema = z
   .object({
     username: UsernameSchema.optional(),
@@ -46,9 +65,11 @@ export const UpdateMeRequestSchema = z
 
 export type UpdateMeRequest = z.infer<typeof UpdateMeRequestSchema>;
 
-// Account deletion (mvp-spec §Users & Identity, ID-3) anonymizes the user row
-// in place rather than removing it — future picks/results/standings FK to it
-// and must survive. This is the single home for the placeholder display name;
-// the API writes it on deletion and future UI (standings, league members)
-// renders deleted users with it.
+/**
+ * Account deletion (mvp-spec §Users & Identity, ID-3) anonymizes the user row
+ * in place rather than removing it — future picks/results/standings FK to it
+ * and must survive. This is the single home for the placeholder display name;
+ * the API writes it on deletion and future UI (standings, league members)
+ * renders deleted users with it.
+ */
 export const DELETED_USER_DISPLAY_NAME = "Deleted User";

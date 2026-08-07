@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-// Bounds check shared between the field's own error rendering and callers
-// gating a submit button on it (new.tsx, settings-section.tsx) — one source
-// of truth for what counts as "invalid" for a NumberField's current value.
+/**
+ * Bounds check shared between the field's own error rendering and callers
+ * gating a submit button on it (new.tsx, settings-section.tsx) — one source
+ * of truth for what counts as "invalid" for a NumberField's current value.
+ */
 export function numberFieldInvalid(value: number, min: number, max?: number): boolean {
   return !Number.isInteger(value) || value < min || (max !== undefined && value > max);
 }
@@ -13,17 +15,19 @@ function numberFieldErrorMessage(min: number, max?: number): string {
   return max === undefined ? `Must be at least ${min}.` : `Must be between ${min} and ${max}.`;
 }
 
-// Shared numeric-input wiring for picksPerWeek / maxBracketsPerMember /
-// maxMembers / custom round values (league-settings-fields.tsx). A local
-// string draft holds "" / partial input without the controlled `value` prop
-// snapping it back. Any fully-parsed integer commits to the parent
-// immediately, even out of range — the server is the real gate (spec: 1-16
-// picksPerWeek, 2-100 maxMembers, etc.), so an out-of-range value commits
-// visibly with an inline error (mirrors the a11y idiom of form-field.tsx's
-// FormTextField) rather than being silently clamped. Free typing is allowed
-// while focused; on blur, a leftover draft that doesn't parse to an integer
-// is restored to the committed `value` so the field always displays exactly
-// what will be submitted — displayed state never drifts from submitted state.
+/**
+ * Shared numeric-input wiring for picksPerWeek / maxBracketsPerMember /
+ * maxMembers / custom round values (league-settings-fields.tsx). A local
+ * string draft holds "" / partial input without the controlled `value` prop
+ * snapping it back. Any fully-parsed integer commits to the parent
+ * immediately, even out of range — the server is the real gate (spec: 1-16
+ * picksPerWeek, 2-100 maxMembers, etc.), so an out-of-range value commits
+ * visibly with an inline error (mirrors the a11y idiom of form-field.tsx's
+ * FormTextField) rather than being silently clamped. Free typing is allowed
+ * while focused; on blur, a leftover draft that doesn't parse to an integer
+ * is restored to the committed `value` so the field always displays exactly
+ * what will be submitted — displayed state never drifts from submitted state.
+ */
 export function NumberField({
   id,
   label,

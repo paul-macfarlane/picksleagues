@@ -9,6 +9,7 @@ import {
   fixtureFormSeed,
   isFixtureFormDirty,
 } from "@/components/sim/fixture-patch";
+import { FormDateTimeField } from "@/components/form-date-time-field";
 import { FormTextField } from "@/components/form-field";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
@@ -67,12 +68,7 @@ function FixtureEditForm({ game }: { game: SimFixtureGame }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <form.Field name="kickoffAt">
           {(field) => (
-            <FormTextField
-              field={field}
-              id={`fixture-${game.id}-kickoffAt`}
-              label="Kickoff"
-              type="datetime-local"
-            />
+            <FormDateTimeField field={field} id={`fixture-${game.id}-kickoffAt`} label="Kickoff" />
           )}
         </form.Field>
         <form.Field name="weekType">

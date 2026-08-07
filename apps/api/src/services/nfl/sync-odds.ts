@@ -1,18 +1,37 @@
-import { and, asc, eq, gt, lte } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, oddsSnapshots, sportSeasons, weeks } from "@picksleagues/db";
+import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
-import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import {
+  JOB_SKIP_REASON,
+  SPORT,
+  UNSTARTED_GAME_STATUSES,
+  WEEK_TYPE,
+  type WeekType,
+} from "@picksleagues/schemas";
+import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
 
 /**
- * Captures a point-in-time odds snapshot for each unstarted game in the
- * current NFL week (arch §External Data). Each run appends a new snapshot per
- * game — history is intentional (the spread a pick locked against is the
- * latest snapshot at kickoff), so this is not idempotent in row count but is
- * safe to re-run: nothing else is mutated.
+ * Maintains the current spread on each unstarted game in the current NFL week
+ * **and the week after it** (arch §Spread strategy): one number per game,
+ * overwritten in place. No history is kept — the audit that matters is what a
+ * member accepted, which is denormalized onto the pick as
+ * `pickem_picks.spread_at_pick` (ADR-0018). Re-running is a true no-op when the
+ * line hasn't moved: the same provider response leaves identical row state.
  *
- * Never inserts or updates `games`/`weeks` (that is schedule-sync's job) and
- * never writes any `override_*` column (arch D15).
+ * Two weeks, not one (SIMP-16). Verified against the live ESPN core API on
+ * 2026-08-05: after the opening week, an ESPN week runs Wednesday ~07:00Z to
+ * the following Wednesday ~06:59Z and the windows are contiguous. So on a
+ * Tuesday the week matching `startsAt <= now < endsAt` is the one whose games
+ * were all played the preceding Thursday/Sunday/Monday — every one of them
+ * fails the `kickoff > now` filter, and a current-week-only target priced
+ * nothing at all. Locking is `kickoff > now`, so members can already pick the
+ * coming weekend; without a line an ATS league refuses every one of those picks
+ * with `spread_unavailable` until Wednesday ~3am ET.
+ *
+ * Never *creates* `games`/`weeks` (that is schedule-sync's job) and never
+ * writes any `override_*` column (arch D15) — a correction outlives every
+ * re-sync.
  */
 export async function syncNflOdds(
   db: Db,
@@ -20,10 +39,15 @@ export async function syncNflOdds(
   provider: GameDataProvider,
   opts?: { seasonYear?: number; weekType?: WeekType; weekNumber?: number },
 ): Promise<Record<string, string | number | boolean>> {
-  // One `now` per run: season derivation, every comparison, and capturedAt all
-  // share one instant, reaching SQL as a bound parameter (arch D13).
+  // One `now` per run: season derivation, every comparison, and every
+  // `updated_at` share one instant, reaching SQL as a bound parameter (arch D13).
   const now = clock.now();
-  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
+  // An explicit `?season=` always wins; otherwise the derived label rolls
+  // forward to next season once this one's weeks are all behind us, so
+  // offseason runs price the games members can already pick against
+  // (an ATS league refuses picks on a game with no spread).
+  const seasonYear =
+    opts?.seasonYear ?? (await resolveRecurringSyncSeasonYear(db, nflSeasonYearFor(now), now));
 
   const [season] = await db
     .select({ id: sportSeasons.id })
@@ -32,106 +56,165 @@ export async function syncNflOdds(
   if (!season) {
     // Sync jobs never create reference data — schedule-sync owns season/week
     // creation (feedback: recurring syncs query reference data, don't upsert it).
-    return { skipped: true, reason: "season_not_synced" };
+    return { skipped: true, reason: JOB_SKIP_REASON.SEASON_NOT_SYNCED };
   }
 
   // An explicit week defaults its type to REGULAR — a bare week number is the
   // regular-season case; postseason narrowing must name `weekType`.
-  const targetWeek = await resolveTargetWeek(
+  const targetWeeks = await resolveTargetWeeks(
     db,
     season.id,
     now,
     opts?.weekNumber,
     opts?.weekType ?? WEEK_TYPE.REGULAR,
   );
-  if (!targetWeek) {
+  const [anchorWeek] = targetWeeks;
+  if (!anchorWeek) {
     // An explicitly requested week that isn't synced is a distinct condition
     // from "no current week" on the derived path — surface the sibling jobs'
     // term (sync-scores/sync-schedule) so the two never blur together.
     return {
       skipped: true,
-      reason: opts?.weekNumber !== undefined ? "week_not_synced" : "no_current_week",
+      reason:
+        opts?.weekNumber !== undefined
+          ? JOB_SKIP_REASON.WEEK_NOT_SYNCED
+          : JOB_SKIP_REASON.NO_CURRENT_WEEK,
     };
   }
 
+  let unstartedGames = 0;
+  let spreadsUpdated = 0;
+  let gamesWithoutOdds = 0;
+  for (const week of targetWeeks) {
+    const counts = await priceUnstartedGames(db, provider, seasonYear, week, now);
+    unstartedGames += counts.unstartedGames;
+    spreadsUpdated += counts.spreadsUpdated;
+    gamesWithoutOdds += counts.gamesWithoutOdds;
+  }
+
+  return {
+    seasonYear,
+    // The anchor week the run resolved. The counters below are totals across
+    // every week the run covered — `weeksTargeted` says how many that was.
+    weekType: anchorWeek.weekType,
+    weekNumber: anchorWeek.weekNumber,
+    weeksTargeted: targetWeeks.length,
+    unstartedGames,
+    // Rows actually written, matching `sync-scores`' `gamesUpdated`: a re-run
+    // over an unmoved line reports 0, which is the no-op saying so.
+    spreadsUpdated,
+    gamesWithoutOdds,
+  };
+}
+
+/** Prices one week's unstarted games in place, reporting what it touched. */
+async function priceUnstartedGames(
+  db: Db,
+  provider: GameDataProvider,
+  seasonYear: number,
+  week: TargetWeek,
+  now: Date,
+): Promise<{ unstartedGames: number; spreadsUpdated: number; gamesWithoutOdds: number }> {
   // Our tables are the source of truth for what's unstarted — lock state is
-  // derived, never stored (arch D11): kickoff still in the future and status
-  // untouched by any in-progress/final transition.
+  // derived, never stored (arch D11): kickoff still in the future, and a status
+  // that is neither started nor abandoned.
+  //
+  // `UNSTARTED_GAME_STATUSES`, not `= scheduled`. A postponed game is announced
+  // ahead of time and played later, so picks on it are legitimate — but keying
+  // on `scheduled` alone left it with no spread, and an ATS league then refused
+  // every pick on it with `spread_unavailable`, permanently. The slate calls
+  // such a game pickable; this must agree, or the app offers a pick it will
+  // always reject.
   const unstartedGames = await db
-    .select({ id: games.id, providerGameId: games.providerGameId })
+    .select({ id: games.id, providerGameId: games.providerGameId, spread: games.spread })
     .from(games)
     .where(
       and(
-        eq(games.weekId, targetWeek.id),
+        eq(games.weekId, week.id),
         gt(games.kickoffAt, now),
-        eq(games.status, GAME_STATUS.SCHEDULED),
+        inArray(games.status, [...UNSTARTED_GAME_STATUSES]),
       ),
     );
 
+  // Nothing to price is nothing to fetch — a spent week costs no provider call.
   if (unstartedGames.length === 0) {
-    return {
-      seasonYear,
-      weekType: targetWeek.weekType,
-      weekNumber: targetWeek.weekNumber,
-      unstartedGames: 0,
-      snapshotsInserted: 0,
-      gamesWithoutOdds: 0,
-    };
+    return { unstartedGames: 0, spreadsUpdated: 0, gamesWithoutOdds: 0 };
   }
 
   // Network read outside any transaction (engineering rules: never hold a
   // transaction open across a network call).
   const providerGames = await provider.fetchNflWeekGames(
     seasonYear,
-    targetWeek.weekType,
-    targetWeek.weekNumber,
+    week.weekType,
+    week.weekNumber,
   );
   const spreadByProviderId = new Map(
     providerGames.map((game) => [game.providerGameId, game.spread]),
   );
 
   let gamesWithoutOdds = 0;
-  const snapshotRows = [];
+  let spreadsUpdated = 0;
   for (const game of unstartedGames) {
     const spread = spreadByProviderId.get(game.providerGameId);
     // Missing from the provider response (undefined) or no line yet (null /
-    // non-finite) both count as "no odds" — no snapshot, never a games write.
-    if (typeof spread === "number" && Number.isFinite(spread)) {
-      snapshotRows.push({ gameId: game.id, spread, capturedAt: now, createdAt: now });
-    } else {
+    // non-finite) both count as "no odds". A game we can't price is left
+    // exactly as it was rather than nulled: the provider dropping a line for one
+    // response is a blip, and clearing the number would refuse every ATS pick on
+    // that game until the next run put it back.
+    if (typeof spread !== "number" || !Number.isFinite(spread)) {
       gamesWithoutOdds += 1;
+      continue;
     }
+    // Skip the write when the line hasn't moved — this is what makes a re-run a
+    // true no-op rather than one that merely lands the same number. `updated_at`
+    // is served as the row's as-of instant (DATA-8), so rewriting an unchanged
+    // row would restamp it with nothing to show for it.
+    if (game.spread === spread) continue;
+
+    await db
+      // Provider field only — every `override_*` column is deliberately absent
+      // (arch D15), so a correction survives every re-sync.
+      .update(games)
+      .set({ spread, updatedAt: now })
+      .where(eq(games.id, game.id));
+    spreadsUpdated += 1;
   }
 
-  if (snapshotRows.length > 0) {
-    await db.insert(oddsSnapshots).values(snapshotRows);
-  }
-
-  return {
-    seasonYear,
-    weekType: targetWeek.weekType,
-    weekNumber: targetWeek.weekNumber,
-    unstartedGames: unstartedGames.length,
-    snapshotsInserted: snapshotRows.length,
-    gamesWithoutOdds,
-  };
+  return { unstartedGames: unstartedGames.length, spreadsUpdated, gamesWithoutOdds };
 }
 
+type TargetWeek = { id: string; weekType: WeekType; weekNumber: number; startsAt: Date };
+
 /**
- * Resolves the week to snapshot from OUR `weeks` table (never the provider):
- * an explicit (type, number), else the week currently in progress
- * (`startsAt <= now < endsAt`), else the next upcoming week (pre-season odds).
+ * Resolves the weeks to price from OUR `weeks` table (never the provider).
+ *
+ * An explicit (type, number) targets that week **alone** — naming a week is the
+ * narrow manual/simulator path, and widening it would make a backfill of one
+ * week quietly rewrite another. Otherwise the anchor is the week currently in
+ * progress (`startsAt <= now < endsAt`), else the next upcoming week (pre-season
+ * odds) — and the week following the anchor comes with it, because ESPN's
+ * window rolls over on Wednesday while members can pick the coming weekend from
+ * the moment the previous one ends (see `syncNflOdds`).
+ *
  * The window-based paths need no type filter — regular and postseason windows
- * never overlap, so `startsAt <= now < endsAt` picks out exactly one week.
+ * never overlap, so `startsAt <= now < endsAt` picks out exactly one week. The
+ * follower is found by start time for the same reason: the week after regular
+ * 18 is postseason 1, and a type filter would leave the Wild Card slate
+ * unpriced through the last regular week.
  */
-async function resolveTargetWeek(
+async function resolveTargetWeeks(
   db: Db,
   seasonId: string,
   now: Date,
   weekNumber: number | undefined,
   weekType: WeekType,
-): Promise<{ id: string; weekType: WeekType; weekNumber: number } | null> {
-  const selection = { id: weeks.id, weekType: weeks.weekType, weekNumber: weeks.weekNumber };
+): Promise<TargetWeek[]> {
+  const selection = {
+    id: weeks.id,
+    weekType: weeks.weekType,
+    weekNumber: weeks.weekNumber,
+    startsAt: weeks.startsAt,
+  };
 
   if (weekNumber !== undefined) {
     const [week] = await db
@@ -144,7 +227,7 @@ async function resolveTargetWeek(
           eq(weeks.weekNumber, weekNumber),
         ),
       );
-    return week ?? null;
+    return week ? [week] : [];
   }
 
   const [current] = await db
@@ -155,15 +238,24 @@ async function resolveTargetWeek(
     // claim be load-bearing: pick the earliest-starting match deterministically.
     .orderBy(asc(weeks.startsAt))
     .limit(1);
-  if (current) {
-    return current;
-  }
 
-  const [next] = await db
+  let anchor: TargetWeek | undefined = current;
+  if (!anchor) {
+    [anchor] = await db
+      .select(selection)
+      .from(weeks)
+      .where(and(eq(weeks.seasonId, seasonId), gt(weeks.startsAt, now)))
+      .orderBy(asc(weeks.startsAt))
+      .limit(1);
+  }
+  if (!anchor) return [];
+
+  const [following] = await db
     .select(selection)
     .from(weeks)
-    .where(and(eq(weeks.seasonId, seasonId), gt(weeks.startsAt, now)))
+    .where(and(eq(weeks.seasonId, seasonId), gt(weeks.startsAt, anchor.startsAt)))
     .orderBy(asc(weeks.startsAt))
     .limit(1);
-  return next ?? null;
+
+  return following ? [anchor, following] : [anchor];
 }

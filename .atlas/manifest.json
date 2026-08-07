@@ -1,0 +1,31 @@
+{
+  "atlas_version": "0.1.0",
+  "human_only_states": [],
+  "managed_files": {
+    ".claude/hooks/atlas/guard.py": "620a3b14ce2588815e99d80d6d94e3f63db01cb659346bb9eedd5dc802476e19",
+    ".githooks/commit-msg": "bdb83555533e7b09ab2753cdb0d30135a2a98dd9a56a954fdb265bfe37e869db",
+    ".githooks/pre-commit": "070c54093c2a9bb0f274cc4e3d1f75043cd59d2bbb3884bf9262424a350e10af",
+    ".githooks/pre-push": "94b6f2efb9becfd15c5a4d92c437ca2fadc72722f50564b662fd07c545e0ff09"
+  },
+  "managed_sections": {
+    ".gitignore": "gitignore",
+    "CLAUDE.md": "guidance",
+    "docs/agents/guardrails.md": "guardrails",
+    "docs/agents/issue-tracker.md": "tracker",
+    "docs/agents/planning.md": "planning",
+    "docs/agents/testing.md": "testing",
+    "docs/agents/tooling.md": "tooling"
+  },
+  "mattpocock_skills_marketplace": "claude-plugins-official",
+  "mattpocock_skills_tested": "1.2.0",
+  "repositories": [
+    {
+      "id": "picksleagues",
+      "path": ".",
+      "protected_branches": [
+        "staging",
+        "main"
+      ]
+    }
+  ]
+}

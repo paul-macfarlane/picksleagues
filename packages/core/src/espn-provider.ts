@@ -18,15 +18,17 @@ const ESPN_SEASON_TYPE_BY_WEEK_TYPE: Record<WeekType, number> = {
   [WEEK_TYPE.POSTSEASON]: 3,
 };
 
-// ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the "Pro Bowl", which
-// is not a competitive game and is excluded (by label) below, leaving a gap.
-// Our domain model numbers the four real rounds contiguously (Wild Card=1 …
-// Super Bowl=4), matching `NflWeekRefSchema` and `estimatedNflWeeks`. This
-// adapter owns that translation so ESPN's gapped numbering never leaks
-// (engineering rules: "provider shapes never leak"). A *static* map (never
-// positional/dynamic renumbering) is deliberate: an ESPN postseason number not
-// in it throws — a provider-contract break we want surfaced as a 500, not
-// silently renumbered. Verified against 2025-26 ESPN data (2026-07-23).
+/**
+ * ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the "Pro Bowl", which
+ * is not a competitive game and is excluded (by label) below, leaving a gap.
+ * Our domain model numbers the four real rounds contiguously (Wild Card=1 …
+ * Super Bowl=4), matching `NflWeekRefSchema` and `estimatedNflWeeks`. This
+ * adapter owns that translation so ESPN's gapped numbering never leaks
+ * (engineering rules: "provider shapes never leak"). A *static* map (never
+ * positional/dynamic renumbering) is deliberate: an ESPN postseason number not
+ * in it throws — a provider-contract break we want surfaced as a 500, not
+ * silently renumbered. Verified against 2025-26 ESPN data (2026-07-23).
+ */
 export const ESPN_POSTSEASON_NUMBER_BY_DOMAIN: Record<number, number> = {
   1: 1, // Wild Card
   2: 2, // Divisional Round
@@ -93,6 +95,13 @@ const CompetitionSchema = z.looseObject({
       name: z.string(),
       state: z.string(),
     }),
+    // Live state, siblings of `type`: `period` is the quarter (5+ in overtime)
+    // and `clock` the seconds remaining in it — a float in some of ESPN's
+    // sports feeds. Optional because ESPN omits them on some payloads (and
+    // sends period 0 pre-game). Its preformatted `displayClock` is deliberately
+    // not declared: a provider display string must not leak past this adapter.
+    period: z.number().optional(),
+    clock: z.number().optional(),
   }),
   competitors: z.array(CompetitorSchema),
   odds: z.array(z.looseObject({ spread: z.number().optional() })).optional(),
@@ -182,6 +191,34 @@ function mapStatus(statusType: { name: string; state: string }): GameStatus {
   }
 }
 
+/**
+ * ESPN's live period/clock, normalized to `ProviderGame`'s two integer fields.
+ * Only a game in progress has live state: ESPN reports period 0 with a full
+ * clock pre-game and leaves the last period frozen at 0:00 once a game is over,
+ * neither of which is a clock worth storing. A value ESPN omits, or one outside
+ * its own domain (period below 1, negative clock), reports as null rather than
+ * as a fabricated 0 — the same conservative default `mapStatus` takes.
+ */
+function mapLiveState(
+  status: z.infer<typeof CompetitionSchema>["status"],
+  isInProgress: boolean,
+): { period: number | null; clockSeconds: number | null } {
+  if (!isInProgress) {
+    return { period: null, clockSeconds: null };
+  }
+  const { period, clock } = status;
+  return {
+    // Both rounded rather than trusted to be whole: ESPN's clock is a float in
+    // some feeds, and these land in integer columns.
+    period:
+      typeof period === "number" && Number.isFinite(period) && period >= 1
+        ? Math.round(period)
+        : null,
+    clockSeconds:
+      typeof clock === "number" && Number.isFinite(clock) && clock >= 0 ? Math.round(clock) : null,
+  };
+}
+
 function parseDateStrict(raw: string, context: string): Date {
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) {
@@ -213,6 +250,7 @@ function mapCompetitionToGame(
 
   const status = mapStatus(competition.status.type);
   const scoresAreMeaningful = status === GAME_STATUS.IN_PROGRESS || status === GAME_STATUS.FINAL;
+  const liveState = mapLiveState(competition.status, status === GAME_STATUS.IN_PROGRESS);
 
   // ESPN's spread is home-relative (negative = home favored), matching our
   // convention — verified against live ESPN data (2026 season week 1
@@ -242,6 +280,8 @@ function mapCompetitionToGame(
       scoresAreMeaningful && away.score !== undefined
         ? parseScoreStrict(away.score, `competition ${competition.id} away score`)
         : null,
+    period: liveState.period,
+    clockSeconds: liveState.clockSeconds,
     spread,
   };
 }

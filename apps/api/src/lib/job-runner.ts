@@ -18,11 +18,13 @@ type JobResult = Record<string, string | number | boolean>;
  * — it measures duration, not a domain timestamp, so it's exempt from the
  * Clock discipline (arch D13).
  */
-// No explicit return type annotation: `c.json(body, status)` returns a
-// `Response & TypedResponse<...>` narrowed to `body`'s type and the literal
-// status code, and inference is what lets `app.openapi` handlers return this
-// helper's result directly — annotating a wider type (e.g. `Response`) would
-// erase that narrowing and break every call site's route-response check.
+/**
+ * No explicit return type annotation: `c.json(body, status)` returns a
+ * `Response & TypedResponse<...>` narrowed to `body`'s type and the literal
+ * status code, and inference is what lets `app.openapi` handlers return this
+ * helper's result directly — annotating a wider type (e.g. `Response`) would
+ * erase that narrowing and break every call site's route-response check.
+ */
 export async function runJob(c: Context, jobName: string, fn: () => Promise<JobResult>) {
   const startedAt = performance.now();
   try {
@@ -31,7 +33,12 @@ export async function runJob(c: Context, jobName: string, fn: () => Promise<JobR
     logInfo("job.completed", { job: jobName, durationMs, ...details });
     const body: JobRunResponse = {
       job: jobName,
-      status: JOB_RUN_STATUS.OK,
+      // A job that had nothing to do says so in its own result (`details.skipped`
+      // + a `JOB_SKIP_REASON`); promoting it to the envelope's status is what
+      // lets the admin page distinguish a no-op from real work. Deliberately
+      // still 200 — a skip is not a failure, and only real failures may trip the
+      // cron scheduler's notifications (ADR-0007).
+      status: details.skipped === true ? JOB_RUN_STATUS.SKIPPED : JOB_RUN_STATUS.OK,
       durationMs,
       details,
     };

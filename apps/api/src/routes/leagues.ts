@@ -105,7 +105,7 @@ const patchLeague = createRoute({
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
     409: errorResponse(
-      "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), or a maxMembers below the league's current member count (max_members_below_member_count)",
+      "Visibility/settings/maxMembers edit after league start (league_started), new settings whose start week has already begun (start_week_passed), a maxMembers below the league's current member count (max_members_below_member_count), or a settings change that would discard already-locked picks (picks_locked)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -189,7 +189,10 @@ export function leagueRoutes(deps: AppDeps) {
       const messages = {
         cap_exceeded: "You already run 10 active leagues — conclude or delete one first.",
         no_active_season: "That game mode has no season available yet.",
-        start_week_passed: "That start week has already begun — choose a later start.",
+        // Deliberately names no control: Pick'em chooses its range by preset
+        // (ADR-0020) and Elimination still picks weeks, so "choose a later
+        // start week" would name a dropdown half the callers no longer have.
+        start_week_passed: "That season range has already begun — choose one that starts later.",
       } as const;
       return c.json(
         ErrorResponseSchema.parse({ error: result.reason, message: messages[result.reason] }),
@@ -263,7 +266,7 @@ export function leagueRoutes(deps: AppDeps) {
           return c.json(
             ErrorResponseSchema.parse({
               error: ERROR_CODE.START_WEEK_PASSED,
-              message: "That start week has already begun — choose a later start.",
+              message: "That season range has already begun — choose one that starts later.",
             }),
             409,
           );
@@ -277,6 +280,15 @@ export function leagueRoutes(deps: AppDeps) {
             ErrorResponseSchema.parse({
               error: ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT,
               message: "maxMembers can't be lower than the league's current member count.",
+            }),
+            409,
+          );
+        case "picks_locked":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.PICKS_LOCKED,
+              message:
+                "This change would discard picks that have already locked — settings are frozen once picking has started.",
             }),
             409,
           );

@@ -2,13 +2,15 @@ import { expect, test, type BrowserContext } from "@playwright/test";
 import { cleanup, mintSession, uniqueUsername } from "./setup/session";
 import { APP_ROLE } from "../packages/schemas/src/app-role";
 
-// Read-only by design. Every mutating sim control (load a scenario, move the
+// Read-only by design, and it stays that way even though simulator-driven
+// specs are now possible. Every mutating sim control (load a scenario, move the
 // clock, reset) writes the *environment-wide* `app_state` singleton — the
 // simulated now that every other spec's join cutoffs and lock checks resolve
-// against. Playwright runs `fullyParallel` against one shared local database
-// (playwright.config.ts), so driving those here would silently corrupt the
-// suite running beside it. The mutating paths are verified manually through
-// the panel instead (SIM-7 report).
+// against. This file runs in the `fullyParallel` project, so driving those here
+// would still corrupt the suite beside it. A spec that needs to move time
+// belongs in the `simulated` project — name it `*.sim.spec.ts` and it runs
+// strictly after this one (playwright.config.ts); `pickem-journey.sim.spec.ts`
+// is the worked example.
 // A username is minted too: an unclaimed session is gated to /claim-username
 // by the _authed layout, so it would never reach the simulator surface at all.
 async function signInAsAdmin(context: BrowserContext) {
@@ -54,9 +56,11 @@ test.describe("simulator", () => {
       // /sim (Clock tab, default): the clock card's status block is fed by
       // GET /api/sim/state — proving it rendered proves the whole SPA -> proxy
       // -> admin-gated sim route chain, which is the thing a mock would have
-      // hidden (arch D14).
-      await expect(page.getByText("Simulated now")).toBeVisible();
-      await expect(page.getByText("Offset")).toBeVisible();
+      // hidden (arch D14). Bound to the *readings* rather than their labels,
+      // which also raises the bar: a rendered label with an empty value beside
+      // it used to pass this.
+      await expect(page.getByTestId("sim-now")).not.toBeEmpty();
+      await expect(page.getByTestId("sim-offset")).not.toBeEmpty();
       // The clock's own controls, not just its readout — this is the
       // simulator's primary surface and its buttons could otherwise stop
       // rendering with the suite still green.
@@ -76,7 +80,7 @@ test.describe("simulator", () => {
       await expect(page.getByRole("heading", { name: "Edge-case scenarios" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Imported seasons" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Load" }).first()).toBeVisible();
-      await expect(page.getByText("Import a replay season", { exact: true })).toBeVisible();
+      await expect(page.getByTestId("replay-import-card")).toBeVisible();
       await expect(page.getByRole("button", { name: "Import" })).toBeVisible();
 
       // /sim/fixtures: renders its card and controls regardless of whether a
@@ -110,8 +114,8 @@ test.describe("simulator", () => {
       // Deep-linked, not navigated: the nav link is already invisible to a
       // non-admin, so the guard worth proving is the one on the route itself.
       await page.goto("/sim");
-      await expect(page.getByText("Page not found.")).toBeVisible();
-      await expect(page.getByText("Simulated now")).toBeHidden();
+      await expect(page.getByTestId("page-not-found")).toBeVisible();
+      await expect(page.getByTestId("sim-now")).toHaveCount(0);
     } finally {
       await cleanup([user.id]);
     }

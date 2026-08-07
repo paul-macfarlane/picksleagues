@@ -9,10 +9,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// This SPA has no SSR pass, so there's no hydration mismatch to guard
-// against: next-themes reads localStorage synchronously in its initial
-// render, so `theme` is already correct on first paint.
 export function ThemeToggle() {
+  // This SPA has no SSR pass, so there's no hydration mismatch to guard
+  // against: next-themes reads localStorage synchronously in its initial
+  // render, so `theme` is already correct on first paint.
   const { theme, setTheme } = useTheme();
 
   return (

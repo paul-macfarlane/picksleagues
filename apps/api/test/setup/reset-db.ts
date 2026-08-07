@@ -1,16 +1,19 @@
 import type { Db } from "@picksleagues/db";
 import {
   accounts,
+  adminAudit,
   appState,
   games,
   leagueInvites,
   leagueMembers,
   leagueSeasons,
   leagues,
-  oddsSnapshots,
+  pickemPicks,
+  pickemPickResults,
   sessions,
   simScenarios,
   sportSeasons,
+  pickemStandings,
   teams,
   users,
   weeks,
@@ -25,15 +28,21 @@ import {
  * drift out of sync.
  */
 export async function resetDb(db: Db): Promise<void> {
+  // Picks/results reference members, seasons, weeks, and games — deepest first.
+  await db.delete(pickemPickResults);
+  await db.delete(pickemStandings);
+  await db.delete(pickemPicks);
   await db.delete(leagueInvites);
   await db.delete(leagueMembers);
   await db.delete(leagueSeasons);
   await db.delete(leagues);
-  await db.delete(oddsSnapshots);
   await db.delete(games);
   await db.delete(weeks);
   await db.delete(sportSeasons);
   await db.delete(teams);
+  // Before users: the actor FK is RESTRICT, so a leaked audit row blocks every
+  // later file's user cleanup.
+  await db.delete(adminAudit);
   await db.delete(sessions);
   await db.delete(accounts);
   await db.delete(users);

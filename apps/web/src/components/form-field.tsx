@@ -3,11 +3,13 @@ import type { AnyFieldApi } from "@tanstack/react-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-// Shared per-field Label + Input + error-<p> wiring for TanStack Form text
-// fields — claim-username and profile otherwise hand-roll identical
-// aria-invalid/aria-describedby plumbing per field. `AnyFieldApi` (not the
-// form's own generics) is the documented shape for a field component reused
-// across different `useForm` instances.
+/**
+ * Shared per-field Label + Input + error-<p> wiring for TanStack Form text
+ * fields — claim-username and profile otherwise hand-roll identical
+ * aria-invalid/aria-describedby plumbing per field. `AnyFieldApi` (not the
+ * form's own generics) is the documented shape for a field component reused
+ * across different `useForm` instances.
+ */
 export function FormTextField({
   field,
   label,
@@ -49,10 +51,12 @@ export function FormTextField({
   );
 }
 
-// A field error is either a plain string (server-set via `form.setErrorMap`,
-// e.g. the 409 "username taken" case) or a Standard Schema issue object (from
-// a Zod validator) — normalize both to the message text rendered above.
-function fieldErrorMessage(error: unknown): string {
+/**
+ * A field error is either a plain string (server-set via `form.setErrorMap`,
+ * e.g. the 409 "username taken" case) or a Standard Schema issue object (from
+ * a Zod validator) — normalize both to the message text rendered above.
+ */
+export function fieldErrorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error) {
     return String((error as { message: unknown }).message);

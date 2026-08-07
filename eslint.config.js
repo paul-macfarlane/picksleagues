@@ -48,6 +48,10 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/.vercel/**",
+      // Agent worktrees are nested checkouts of this same repo (CLAUDE.md puts
+      // them here by convention). Without this, root `eslint .` sees two
+      // candidate TSConfig roots and dies in the parser before any rule runs.
+      ".claude/worktrees/**",
       "**/routeTree.gen.ts",
       "openapi/client/**",
       "packages/db/migrations/**",

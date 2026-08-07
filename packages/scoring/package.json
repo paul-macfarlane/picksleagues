@@ -9,6 +9,9 @@
   "scripts": {
     "typecheck": "tsc"
   },
+  "dependencies": {
+    "@picksleagues/schemas": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "~6.0.3"
   }

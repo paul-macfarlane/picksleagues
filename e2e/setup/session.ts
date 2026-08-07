@@ -4,6 +4,7 @@ import { loadEnv } from "../../packages/core/src/env";
 import { createAuth } from "../../apps/api/src/auth";
 import { createAuthenticatedUser } from "../../apps/api/test/setup/auth-helpers";
 import type { AppRole } from "../../packages/schemas/src/app-role";
+import { loadE2eEnv } from "./e2e-env";
 
 // Bare specifiers like "better-auth" or "@picksleagues/db" only resolve from
 // inside the package that actually declares them as a dependency — pnpm gives
@@ -15,11 +16,12 @@ import type { AppRole } from "../../packages/schemas/src/app-role";
 // then resolve against the node_modules colocated with *them*.
 const SESSION_COOKIE_NAME = "better-auth.session_token";
 
-// Mirrors what apps/api's dev script does (`tsx watch --env-file=../../.env`):
-// mint against the exact DATABASE_URL/BETTER_AUTH_SECRET the running dev API
-// reads, so a minted cookie authenticates against the same server a spec's
-// `page.goto` will hit. Runs once per worker process at module load.
-process.loadEnvFile(new URL("../../.env", import.meta.url));
+// The root .env with the E2E overrides applied — the same values
+// playwright.config.ts hands the API server it starts, so a minted cookie
+// authenticates against the exact server a spec's `page.goto` will hit, and
+// against the E2E database rather than the dev one. Runs once per worker
+// process at module load.
+loadE2eEnv();
 
 const env = loadEnv(process.env);
 const db = createDb(env.DATABASE_URL);
@@ -71,8 +73,8 @@ export async function mintSession(
   };
 }
 
-// Specs must remove what they create — this runs against the real local dev
-// database, not an ephemeral test DB. Cascades to sessions/accounts (FK
+// Specs must remove what they create — the E2E database persists between runs
+// rather than being torn down after each. Cascades to sessions/accounts (FK
 // ON DELETE CASCADE), including the anonymized row left behind by a delete-
 // account spec, which by design survives the API call itself.
 export async function cleanup(userIds: string[]): Promise<void> {

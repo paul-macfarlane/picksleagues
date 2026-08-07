@@ -53,9 +53,10 @@ export function useKickMember(leagueId: string) {
   });
 }
 
-// Moved from the Danger Zone (item 4/5 consolidation) — every member,
-// regardless of role, can leave from here; a sole member leaving deletes
-// the league (server-enforced, unchanged).
+/**
+ * Every member, regardless of role, can leave from here; a sole member
+ * leaving deletes the league (server-enforced).
+ */
 export function useLeaveLeague(leagueId: string) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -119,8 +120,10 @@ function useJoinMutation<T extends { id: string; name: string }>(
   });
 }
 
-// A blocked join can mean the invite preview is stale (e.g. someone else just
-// took the last spot) — join.$code.tsx passes `onBlocked` to refetch it.
+/**
+ * A blocked join can mean the invite preview is stale (e.g. someone else just
+ * took the last spot) — join.$code.tsx passes `onBlocked` to refetch it.
+ */
 export function useJoinByCode(code: string, onBlocked?: () => void | Promise<void>) {
   return useJoinMutation(
     () => api.POST("/api/join/{code}", { params: { path: { code } } }),

@@ -5,8 +5,8 @@ import { WEEK_1, kickoffOffsetMs } from "./timing";
 
 /**
  * The happy-path baseline: an ordinary week with no pushes, ties,
- * cancellations, postponements, or week moves — the control fixture the
- * edge-case scenarios are contrasted against.
+ * cancellations, or postponements — the control fixture the edge-case scenarios
+ * are contrasted against.
  */
 export const mixedWeekScenario: SimScenarioDefinition = {
   slug: "mixed-week",

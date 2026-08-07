@@ -4,7 +4,6 @@ import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
-  LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
@@ -15,7 +14,10 @@ import {
   type LeagueSummary,
   type LeagueVisibility,
 } from "@picksleagues/schemas";
+import { logInfo } from "../../lib/logger";
+import { resetPicksInvalidatedBySettings } from "../pickem/settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
+import { resolveLeagueSettings } from "./season-range";
 import { lockLeagueRow, lockUserRow } from "./locks";
 import {
   authorizeLeagueAction,
@@ -53,8 +55,16 @@ export async function createLeague(
   }
 
   // Second line of defense behind the route's discriminated union; also
-  // applies schema defaults if the service is ever called directly.
-  const settings = LEAGUE_SETTINGS_SCHEMAS[input.mode].parse(input.settings);
+  // applies schema defaults if the service is ever called directly. Pick'em's
+  // season-range preset resolves to concrete week refs here (ADR-0020) — the
+  // stored settings are the resolved fact, never the request.
+  const resolved = await resolveLeagueSettings(db, clock, input.mode, season.id, input.settings);
+  if (!resolved.ok) {
+    throw new Error(
+      `League settings failed validation after the route accepted them: ${resolved.message}`,
+    );
+  }
+  const settings = resolved.settings;
 
   // Spec §Creation: a league exists in a PRE-start state. A start week whose
   // kickoff already passed would be born started — joins closed, settings
@@ -142,7 +152,8 @@ export type UpdateLeagueResult =
       reason: "league_not_found" | "not_commissioner" | "league_started" | "start_week_passed";
     }
   | { ok: false; reason: "invalid_settings"; message: string }
-  | { ok: false; reason: "max_members_below_member_count" };
+  | { ok: false; reason: "max_members_below_member_count" }
+  | { ok: false; reason: "picks_locked" };
 
 /**
  * Commissioner edits (spec §Commissioner Powers): name is cosmetic and
@@ -218,30 +229,72 @@ export async function updateLeague(
 
     const now = clock.now();
     if (input.settings !== undefined) {
-      const parsed = LEAGUE_SETTINGS_SCHEMAS[league.mode].safeParse(input.settings);
-      if (!parsed.success) {
-        return {
-          ok: false,
-          reason: "invalid_settings",
-          message: parsed.error.issues[0]?.message ?? "Invalid settings.",
-        };
+      // Re-resolves against the clock as it stands now (ADR-0020): a preset
+      // change is the one edit that can move the range, and this is the last
+      // moment it can happen, since settings lock at league start.
+      const resolved = await resolveLeagueSettings(
+        tx,
+        clock,
+        league.mode,
+        season.seasonId,
+        input.settings,
+      );
+      if (!resolved.ok) {
+        return { ok: false, reason: "invalid_settings", message: resolved.message };
       }
+      const nextSettings = resolved.settings;
       // The gate above checked the OLD start week; the new settings must not
       // move the start into the past either — that would instantly start (and
       // permanently freeze) the league, same trap as creating one post-start.
       const newStartsAt = await leagueStartAt(
         tx,
         { mode: league.mode, seasonId: season.seasonId },
-        parsed.data,
+        nextSettings,
       );
       if (!isPreStart(newStartsAt, clock)) {
         return { ok: false, reason: "start_week_passed" };
       }
+      // A rule change can strand picks made under the old rules (a pick with no
+      // spread in a now-ATS league is unsettleable), so clearing them commits
+      // with the settings write and the two can never disagree — but only while
+      // no pick has locked, since a locked pick is already revealed and possibly
+      // settled.
+      //
+      // Under submit-once (ADR-0018) this reset carries a second job: it is the
+      // ONLY path by which a member re-submits a week, because it deletes the
+      // very picks `already_submitted` keys on. It is therefore also the only
+      // remedy for a submission a member regrets — deliberately narrow, since it
+      // is a commissioner action, pre-start-only, and refused once anything has
+      // locked.
+      //
+      // Ordered BEFORE the settings write on purpose: every refusal in this
+      // transaction *returns* rather than throws, and Drizzle commits whenever
+      // the callback resolves normally. A refusal after a write would therefore
+      // return 409 and still persist the change. Every `return { ok: false }`
+      // here must stay ahead of every write.
+      const pickReset = await resetPicksInvalidatedBySettings(
+        tx,
+        clock,
+        league.mode,
+        season.id,
+        season.settings,
+        nextSettings,
+      );
+      if (!pickReset.ok) return { ok: false, reason: pickReset.reason };
+
       // Settings live on the current instance now (ADR-0009).
       await tx
         .update(leagueSeasons)
-        .set({ settings: parsed.data, updatedAt: now })
+        .set({ settings: nextSettings, updatedAt: now })
         .where(eq(leagueSeasons.id, season.id));
+
+      if (pickReset.cleared > 0) {
+        logInfo("league.settings-reset-picks", {
+          leagueId,
+          leagueSeasonId: season.id,
+          clearedPicks: pickReset.cleared,
+        });
+      }
     }
 
     if (

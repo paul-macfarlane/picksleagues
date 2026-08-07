@@ -52,6 +52,15 @@ function competitor(overrides: {
   };
 }
 
+/**
+ * Week windows in this file follow the real ESPN shape, verified against the
+ * live core API on 2026-08-05 for the 2025 season: an opening regular week
+ * anchored to the season-opener Thursday, then contiguous Wednesday →
+ * Wednesday windows (07:00Z under EDT, 08:00Z under EST) with no gap between
+ * them, postseason rounds included. Dates below are those windows shifted onto
+ * the season each case uses. They were previously Thursday-anchored and
+ * plausible-looking rather than real, which hid the SIMP-16 odds gap.
+ */
 const REGULAR_INDEX_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2/weeks?limit=32`;
 const POSTSEASON_INDEX_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks?limit=32`;
 
@@ -72,13 +81,13 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         number: 1,
         text: "Week 1",
         startDate: "2026-09-10T07:00Z",
-        endDate: "2026-09-17T06:59Z",
+        endDate: "2026-09-16T06:59Z",
       }),
       [week2Ref]: jsonResponse({
         number: 2,
         text: "Week 2",
-        startDate: "2026-09-17T07:00Z",
-        endDate: "2026-09-24T06:59Z",
+        startDate: "2026-09-16T07:00Z",
+        endDate: "2026-09-23T06:59Z",
       }),
     });
 
@@ -92,14 +101,14 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         weekNumber: 1,
         label: "Week 1",
         startsAt: new Date("2026-09-10T07:00Z"),
-        endsAt: new Date("2026-09-17T06:59Z"),
+        endsAt: new Date("2026-09-16T06:59Z"),
       },
       {
         weekType: WEEK_TYPE.REGULAR,
         weekNumber: 2,
         label: "Week 2",
-        startsAt: new Date("2026-09-17T07:00Z"),
-        endsAt: new Date("2026-09-24T06:59Z"),
+        startsAt: new Date("2026-09-16T07:00Z"),
+        endsAt: new Date("2026-09-23T06:59Z"),
       },
     ]);
   });
@@ -125,32 +134,32 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
       [wildCardRef]: jsonResponse({
         number: 1,
         text: "Wild Card",
-        startDate: "2027-01-09T07:00Z",
-        endDate: "2027-01-13T06:59Z",
+        startDate: "2027-01-06T08:00Z",
+        endDate: "2027-01-13T07:59Z",
       }),
       [divisionalRef]: jsonResponse({
         number: 2,
         text: "Divisional Round",
-        startDate: "2027-01-16T07:00Z",
-        endDate: "2027-01-20T06:59Z",
+        startDate: "2027-01-13T08:00Z",
+        endDate: "2027-01-20T07:59Z",
       }),
       [conferenceRef]: jsonResponse({
         number: 3,
         text: "Conference Championship",
-        startDate: "2027-01-23T07:00Z",
-        endDate: "2027-01-27T06:59Z",
+        startDate: "2027-01-20T08:00Z",
+        endDate: "2027-01-27T07:59Z",
       }),
       [proBowlRef]: jsonResponse({
         number: 4,
         text: "Pro Bowl",
-        startDate: "2027-02-01T07:00Z",
-        endDate: "2027-02-02T06:59Z",
+        startDate: "2027-01-27T08:00Z",
+        endDate: "2027-02-03T07:59Z",
       }),
       [superBowlRef]: jsonResponse({
         number: 5,
         text: "Super Bowl",
-        startDate: "2027-02-08T07:00Z",
-        endDate: "2027-02-09T06:59Z",
+        startDate: "2027-02-03T08:00Z",
+        endDate: "2027-02-10T07:59Z",
       }),
     });
 
@@ -164,29 +173,29 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 1,
         label: "Wild Card",
-        startsAt: new Date("2027-01-09T07:00Z"),
-        endsAt: new Date("2027-01-13T06:59Z"),
+        startsAt: new Date("2027-01-06T08:00Z"),
+        endsAt: new Date("2027-01-13T07:59Z"),
       },
       {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 2,
         label: "Divisional Round",
-        startsAt: new Date("2027-01-16T07:00Z"),
-        endsAt: new Date("2027-01-20T06:59Z"),
+        startsAt: new Date("2027-01-13T08:00Z"),
+        endsAt: new Date("2027-01-20T07:59Z"),
       },
       {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 3,
         label: "Conference Championship",
-        startsAt: new Date("2027-01-23T07:00Z"),
-        endsAt: new Date("2027-01-27T06:59Z"),
+        startsAt: new Date("2027-01-20T08:00Z"),
+        endsAt: new Date("2027-01-27T07:59Z"),
       },
       {
         weekType: WEEK_TYPE.POSTSEASON,
         weekNumber: 4,
         label: "Super Bowl",
-        startsAt: new Date("2027-02-08T07:00Z"),
-        endsAt: new Date("2027-02-09T06:59Z"),
+        startsAt: new Date("2027-02-03T08:00Z"),
+        endsAt: new Date("2027-02-10T07:59Z"),
       },
     ]);
   });
@@ -222,13 +231,13 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
         number: 1,
         text: "Week 1",
         startDate: "2026-09-10T07:00Z",
-        endDate: "2026-09-17T06:59Z",
+        endDate: "2026-09-16T06:59Z",
       }),
       [postRef]: jsonResponse({
         number: 1,
         text: "Wild Card",
-        startDate: "2027-01-09T07:00Z",
-        endDate: "2027-01-13T06:59Z",
+        startDate: "2027-01-06T08:00Z",
+        endDate: "2027-01-13T07:59Z",
       }),
     });
 
@@ -266,8 +275,8 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
       [wildCardRef]: jsonResponse({
         number: 1,
         text: "Wild Card",
-        startDate: "2028-01-08T07:00Z",
-        endDate: "2028-01-12T06:59Z",
+        startDate: "2028-01-05T08:00Z",
+        endDate: "2028-01-12T07:59Z",
       }),
     });
 
@@ -281,8 +290,8 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
           weekType: WEEK_TYPE.POSTSEASON,
           weekNumber: 1,
           label: "Wild Card",
-          startsAt: new Date("2028-01-08T07:00Z"),
-          endsAt: new Date("2028-01-12T06:59Z"),
+          startsAt: new Date("2028-01-05T08:00Z"),
+          endsAt: new Date("2028-01-12T07:59Z"),
         },
       ],
     });
@@ -397,6 +406,8 @@ describe("EspnProvider.fetchNflWeekGames", () => {
         status: GAME_STATUS.SCHEDULED,
         homeScore: null,
         awayScore: null,
+        period: null,
+        clockSeconds: null,
         spread: -3.5,
       },
     ]);
@@ -520,6 +531,99 @@ describe("EspnProvider.fetchNflWeekGames", () => {
     await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1)).rejects.toThrow(
       /invalid score "abc"/,
     );
+  });
+
+  /**
+   * Live in-game state (DATA-8). ESPN carries `period`/`clock` as siblings of
+   * `status.type`, alongside a preformatted `displayClock` this adapter must
+   * never read — every case below ships that string to prove it doesn't.
+   */
+  describe("live period and clock", () => {
+    function liveScoreboard(status: Record<string, unknown>) {
+      return stubFetch({
+        [scoreboardUrl]: jsonResponse({
+          events: [
+            {
+              id: "410",
+              competitions: [
+                {
+                  id: "410",
+                  date: "2026-09-14T17:00Z",
+                  status,
+                  competitors: [
+                    competitor({ homeAway: "home", abbreviation: "BUF", displayName: "Bills" }),
+                    competitor({ homeAway: "away", abbreviation: "NYJ", displayName: "Jets" }),
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      });
+    }
+
+    const IN_PROGRESS = { name: "STATUS_IN_PROGRESS", state: "in" };
+
+    it.each([
+      {
+        name: "an in-progress game carries its period and seconds remaining",
+        status: { type: IN_PROGRESS, period: 3, clock: 421, displayClock: "7:01" },
+        expected: { period: 3, clockSeconds: 421 },
+      },
+      {
+        name: "a fractional clock rounds to whole seconds",
+        status: { type: IN_PROGRESS, period: 2, clock: 60.6, displayClock: "1:00" },
+        expected: { period: 2, clockSeconds: 61 },
+      },
+      {
+        name: "overtime periods pass through — nothing caps at 4",
+        status: { type: IN_PROGRESS, period: 5, clock: 0, displayClock: "0:00" },
+        expected: { period: 5, clockSeconds: 0 },
+      },
+      {
+        name: "an in-progress game whose status carries neither key",
+        status: { type: IN_PROGRESS },
+        expected: { period: null, clockSeconds: null },
+      },
+      {
+        name: "ESPN's pre-game period 0 is not a period",
+        status: { type: IN_PROGRESS, period: 0, clock: 900, displayClock: "15:00" },
+        expected: { period: null, clockSeconds: 900 },
+      },
+      {
+        name: "a scheduled game has no live state, even when ESPN sends one",
+        status: {
+          type: { name: "STATUS_SCHEDULED", state: "pre" },
+          period: 0,
+          clock: 900,
+          displayClock: "15:00",
+        },
+        expected: { period: null, clockSeconds: null },
+      },
+      {
+        name: "a scheduled game whose status carries neither key",
+        status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+        expected: { period: null, clockSeconds: null },
+      },
+      {
+        // A finished game's frozen 0:00 is not live state: the app would render
+        // it as a running clock beside "Final".
+        name: "a final game reports no live state",
+        status: {
+          type: { name: "STATUS_FINAL", state: "post" },
+          period: 4,
+          clock: 0,
+          displayClock: "0:00",
+        },
+        expected: { period: null, clockSeconds: null },
+      },
+    ])("$name", async ({ status, expected }) => {
+      const provider = makeProvider(liveScoreboard(status));
+
+      const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
+
+      expect(game).toMatchObject(expected);
+    });
   });
 
   it("maps STATUS_POSTPONED to postponed regardless of state", async () => {

@@ -30,7 +30,7 @@ describe("synthesizeSpread", () => {
     expect(Math.abs(spread as number)).toBeLessThanOrEqual(28);
   });
 
-  // Home-relative, matching odds_snapshots.spread: negative = home favored.
+  // Home-relative, matching games.spread: negative = home favored.
   it("favors the side that won by a wide margin", () => {
     // Averaged over seeds so the assertion tests the margin term, not one draw
     // of the jitter.

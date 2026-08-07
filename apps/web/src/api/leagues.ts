@@ -10,9 +10,11 @@ import {
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
-// Single home for the "current user's leagues" cache key + query — readers
-// (dashboard, navbar switcher) and every invalidation call site share this
-// constant so the key can never drift.
+/**
+ * Single home for the "current user's leagues" cache key + query — readers
+ * (dashboard, navbar switcher) and every invalidation call site share this
+ * constant so the key can never drift.
+ */
 export const MY_LEAGUES_QUERY_KEY = ["my-leagues"];
 
 export function useMyLeagues() {
@@ -26,16 +28,20 @@ export function useMyLeagues() {
   });
 }
 
-// A single home for the query key so every mutation across the league page's
-// components invalidates (and the top-level query subscribes to) the exact
-// same cache entry.
+/**
+ * A single home for the query key so every mutation across the league page's
+ * components invalidates (and the top-level query subscribes to) the exact
+ * same cache entry.
+ */
 export function leagueQueryKey(leagueId: string) {
   return ["league", leagueId];
 }
 
-// Shared by the league layout route and its tab children so they all read
-// the same cache entry (populated once by the layout's loading/error/404
-// handling) instead of each issuing their own fetch.
+/**
+ * Shared by the league layout route and its tab children so they all read
+ * the same cache entry (populated once by the layout's loading/error/404
+ * handling) instead of each issuing their own fetch.
+ */
 export function useLeague(leagueId: string) {
   return useQuery({
     queryKey: leagueQueryKey(leagueId),
@@ -51,9 +57,9 @@ export function useLeague(leagueId: string) {
         throw error;
       }
       // The generated openapi types mark defaulted settings fields (e.g.
-      // pushTieResolution) as optional even though the server always
-      // serializes them — LeagueResponseSchema (packages/schemas) is the
-      // real source of truth for the response shape.
+      // picksPerWeek) as optional even though the server always serializes
+      // them — LeagueResponseSchema (packages/schemas) is the real source of
+      // truth for the response shape.
       return data as LeagueResponse;
     },
   });
@@ -85,10 +91,12 @@ export function useCreateLeague() {
   });
 }
 
-// The merged settings form (settings-section.tsx) has one Save button for
-// name/visibility/maxMembers/settings together, so it calls this hook once —
-// a single `isPending` is enough to gate that one button (async-button
-// standard).
+/**
+ * The merged settings form (settings-section.tsx) has one Save button for
+ * name/visibility/maxMembers/settings together, so it calls this hook once —
+ * a single `isPending` is enough to gate that one button (async-button
+ * standard).
+ */
 export function useUpdateLeague(leagueId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -126,10 +134,12 @@ export function useUpdateLeague(leagueId: string) {
   });
 }
 
-// Renewal mints the league's next season instance (ADR-0009). One button, one
-// `isPending` gate (async-button standard) — the button only renders when the
-// server says the league is renewable, so the 409 no_newer_season path is a
-// defensive fallback (e.g. a concurrent renewal won the race).
+/**
+ * Renewal mints the league's next season instance (ADR-0009). One button, one
+ * `isPending` gate (async-button standard) — the button only renders when the
+ * server says the league is renewable, so the 409 no_newer_season path is a
+ * defensive fallback (e.g. a concurrent renewal won the race).
+ */
 export function useRenewLeague(leagueId: string) {
   const queryClient = useQueryClient();
   return useMutation({

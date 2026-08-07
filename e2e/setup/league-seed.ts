@@ -1,13 +1,14 @@
 import { createDb } from "../../packages/db/src/client";
 import { loadEnv } from "../../packages/core/src/env";
 import { GAME_STATUS, SPORT, WEEK_TYPE } from "../../packages/schemas/src/index";
+import { loadE2eEnv } from "./e2e-env";
 
 // Same relative-import + env-loading rationale as ./session.ts — seed against
-// the exact DATABASE_URL the running dev API reads. Statements go through the
+// the exact DATABASE_URL the E2E API server reads. Statements go through the
 // raw pool (`db.$client`) like session.ts's cleanup: e2e/ declares no deps of
 // its own, so drizzle-orm's query-builder operators can't be bare-imported
 // from here.
-process.loadEnvFile(new URL("../../.env", import.meta.url));
+loadE2eEnv();
 
 const env = loadEnv(process.env);
 const pool = createDb(env.DATABASE_URL).$client;

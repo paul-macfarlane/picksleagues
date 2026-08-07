@@ -134,12 +134,28 @@ export const games = pgTable(
     // Null until the game is in progress or final.
     homeScore: integer("home_score"),
     awayScore: integer("away_score"),
+    // The current line, home-team-relative; negative = home favored. Half-points
+    // are exactly representable in doubles, so no numeric/decimal column is
+    // needed. Nullable: a game legitimately has no line yet. Only the current
+    // number is kept — the odds sync overwrites it (ADR-0018); the audit that
+    // matters is `pickem_picks.spread_at_pick`, what the member accepted.
+    spread: doublePrecision("spread"),
+    // Live in-game state (DATA-8): the 1-based period (5+ in overtime) and the
+    // seconds remaining in it, normalized by the provider adapter — never its
+    // display string. Both null unless the game is in progress, so they go back
+    // to null when it ends. `updated_at` is their as-of instant: score sync only
+    // writes the row when something it observes changed, so the last write is
+    // the moment this clock reading was true (reads serve it as `stateAsOf`).
+    period: integer("period"),
+    clockSeconds: integer("clock_seconds"),
     // Override parallels (admin corrections only — never written by ingestion, arch D15).
     overrideHomeScore: integer("override_home_score"),
     overrideAwayScore: integer("override_away_score"),
     overrideStatus: text("override_status").$type<GameStatus>(),
     overrideKickoffAt: timestamp("override_kickoff_at", { withTimezone: true }),
     overrideSpread: doublePrecision("override_spread"),
+    overridePeriod: integer("override_period"),
+    overrideClockSeconds: integer("override_clock_seconds"),
     overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
     overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -150,25 +166,5 @@ export const games = pgTable(
     // Serves the sync-scores fast no-op query: any game with kickoff_at <= now
     // and status in (scheduled, in_progress)?
     index("games_status_kickoff_idx").on(table.status, table.kickoffAt),
-  ],
-);
-
-export const oddsSnapshots = pgTable(
-  "odds_snapshots",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    gameId: uuid("game_id")
-      .notNull()
-      .references(() => games.id, { onDelete: "cascade" }),
-    // Home-team-relative; negative = home favored. Half-points are exactly
-    // representable in doubles, so no numeric/decimal column is needed.
-    spread: doublePrecision("spread").notNull(),
-    // Clock value bound at insert (arch D13) — not the row's write time.
-    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    // Serves "latest snapshot per game".
-    index("odds_snapshots_game_captured_idx").on(table.gameId, table.capturedAt),
   ],
 );

@@ -13,8 +13,6 @@ const HOUR_MS = 60 * 60 * 1000;
 
 const WEEK1_STARTS_AT_OFFSET_MS = 0;
 const WEEK1_ENDS_AT_OFFSET_MS = 7 * DAY_MS;
-const WEEK2_STARTS_AT_OFFSET_MS = 7 * DAY_MS;
-const WEEK2_ENDS_AT_OFFSET_MS = 14 * DAY_MS;
 
 /**
  * Kickoff offset for the `gameIndex`-th (0-indexed) game of a week starting at
@@ -26,20 +24,17 @@ export function kickoffOffsetMs(weekStartOffsetMs: number, gameIndex: number): n
   return weekStartOffsetMs + 3 * DAY_MS + gameIndex * 4 * HOUR_MS;
 }
 
-/** Week 1 of the shared regular-season cast, reused by every scenario that needs it. */
+/**
+ * Week 1 of the shared regular-season cast, reused by every scenario.
+ *
+ * It is the only week the library declares: no scenario spans two, since week
+ * moves went out of scope (ADR-0019). A scenario that genuinely needs a second
+ * week adds it back with its own reason.
+ */
 export const WEEK_1: SimWeekDef = {
   weekType: WEEK_TYPE.REGULAR,
   weekNumber: 1,
   label: "Week 1",
   startsAtOffsetMs: WEEK1_STARTS_AT_OFFSET_MS,
   endsAtOffsetMs: WEEK1_ENDS_AT_OFFSET_MS,
-};
-
-/** Week 2, only declared by scenarios that span multiple weeks (e.g. `week-move`). */
-export const WEEK_2: SimWeekDef = {
-  weekType: WEEK_TYPE.REGULAR,
-  weekNumber: 2,
-  label: "Week 2",
-  startsAtOffsetMs: WEEK2_STARTS_AT_OFFSET_MS,
-  endsAtOffsetMs: WEEK2_ENDS_AT_OFFSET_MS,
 };

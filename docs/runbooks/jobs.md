@@ -13,8 +13,9 @@ the cron scheduler alerts on).
 | Endpoint                          | Work                                                                                          |
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
 | `/api/jobs/nfl/sync-schedule`     | Upsert NFL season, weeks (regular + postseason, Pro Bowl excluded), games, kickoffs, statuses |
-| `/api/jobs/nfl/sync-odds`         | Snapshot current spreads for unstarted games in the current/next week into `odds_snapshots`   |
-| `/api/jobs/nfl/sync-scores`       | Refresh live/final scores + statuses; fast no-op when no games are active                     |
+| `/api/jobs/nfl/sync-odds`         | Idempotently update `games.spread` for unstarted games in the current week **and the week after it** (see §Why sync-odds covers two weeks) |
+| `/api/jobs/nfl/sync-scores`       | Refresh live/final scores + statuses; fast no-op when no games are active. **Settles the affected league-weeks** when a game goes final — scores and standings move together |
+| `/api/jobs/settle-sweep`          | Nightly reconciliation: recompute `pickem_pick_results` + `pickem_standings` for every active league season from stored results (arch D10) |
 
 Query params (all optional; defaults derive from the Clock and our own tables):
 `season` (e.g. `2026`), `week`, `weekType` (`regular` | `postseason`; defaults to
@@ -59,11 +60,42 @@ header `x-job-secret: <production JOB_SECRET>`.
 | Job                | Schedule                            | cron pattern (UTC)      | Notes                                                     |
 | ------------------ | ----------------------------------- | ----------------------- | --------------------------------------------------------- |
 | `nfl-sync-schedule`| Daily 6am ET                        | `0 10 * * *`            | 10:00 UTC = 6am EDT; acceptable drift under EST           |
-| `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season   |
+| `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season. Covers two weeks per run — see below |
 | `nfl-sync-scores`  | Every 5 minutes                     | `*/5 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
+| `settle-sweep`     | Daily 3am ET                        | `0 7 * * *`             | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
 
-Future jobs (`settle-sweep` daily 3am ET, `ncaamb-sync-bracket` every 5 min on tournament
-days) follow the same pattern and get added here when their epics land.
+`settle-sweep` takes no query params — it derives its own scope (every active league
+season). It is a **safety net, not the main path**: `nfl-sync-scores` already settles a
+game's picks within ~5 minutes of it going final, so a missed sweep costs freshness of
+late corrections, never correctness of the day's results.
+
+### Why `sync-odds` covers two weeks
+
+**Observed ESPN week boundaries** (live core API, `.../seasons/2025/types/{2,3}/weeks/{n}`,
+checked 2026-08-05 — the same endpoint the provider reads):
+
+```
+reg wk  1: start=2025-09-04T07:00Z (Thu)  end=2025-09-10T06:59Z (Wed)
+reg wk  2: start=2025-09-10T07:00Z (Wed)  end=2025-09-17T06:59Z (Wed)
+reg wk  3: start=2025-09-17T07:00Z (Wed)  end=2025-09-24T06:59Z (Wed)
+reg wk 10: start=2025-11-05T08:00Z (Wed)  end=2025-11-12T07:59Z (Wed)
+post wk 1: start=2026-01-07T08:00Z (Wed)  end=2026-01-14T07:59Z (Wed)
+```
+
+After the opening week, an ESPN week runs **Wednesday ~3am ET → the following Wednesday
+~2:59am ET** (07:00Z under EDT, 08:00Z under EST), and consecutive windows are contiguous.
+So the week "in progress" on a Tuesday is the one whose games were all played the preceding
+Thursday/Sunday/Monday. Targeting only that week priced *nothing* on a Tuesday, while
+locking is `kickoff > now` — members can pick the coming weekend the moment the previous
+one ends, and in an ATS league every one of those picks was refused `spread_unavailable`
+until Wednesday morning. The job therefore prices the anchor week **plus the week after
+it**, found by start time so regular week 18 pulls in the Wild Card round.
+
+Naming a week (`?week=`) still targets that week alone — the manual/simulator path stays
+narrow so a one-week backfill never rewrites a neighbour.
+
+Future jobs (`ncaamb-sync-bracket`, every 5 min on tournament days) follow the same
+pattern and get added here when their epics land.
 
 **Failure alerting:** enable cron-job.org's failure notifications (Settings → Notify on
 failure) for each job. A failed run returns HTTP 500, which cron-job.org emails about —
@@ -98,6 +130,12 @@ postponements, cancellations, weekMoves, kickoffChanges }`. `gamesUpdated` count
 whose provider fields actually changed — a healthy no-op re-run reports zeros. Skipped
 runs return `{ skipped: true, reason }` (`no_active_games`, `no_current_week`,
 `week_not_synced`, `season_not_synced`).
+
+`sync-odds` returns `{ seasonYear, weekType, weekNumber, weeksTargeted, unstartedGames,
+spreadsUpdated, gamesWithoutOdds }`. `weekType`/`weekNumber` name the **anchor** week;
+the three counters are totals across every week the run covered. `weeksTargeted` says how
+many that was — 2 on the derived path, 1 when a week is named or the season has no week
+after the anchor.
 
 A bare (no-arg) sync-schedule run additionally carries the offseason self-heal outcome:
 `upcoming` (`"real"` | `"provisional"` | `"skipped_not_concluded"` | `"skipped_no_weeks"`)

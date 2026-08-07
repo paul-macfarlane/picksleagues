@@ -3,8 +3,10 @@ import { LeagueModeSchema } from "./league-mode";
 import { LeagueNameSchema } from "./leagues";
 import { LeagueVisibilitySchema } from "./league-visibility";
 
-// spec §Invites: expiry and max-use are both optional; a bare invite never
-// expires and has unlimited uses. Revocation is the only other lifecycle.
+/**
+ * spec §Invites: expiry and max-use are both optional; a bare invite never
+ * expires and has unlimited uses. Revocation is the only other lifecycle.
+ */
 export const CreateInviteRequestSchema = z
   .object({
     expiresAt: z.iso.datetime().optional(),
@@ -80,8 +82,10 @@ export type JoinBlockedReason = (typeof JOIN_BLOCKED_REASON)[keyof typeof JOIN_B
 
 export const JoinBlockedReasonSchema = z.enum(JOIN_BLOCKED_REASON).openapi("JoinBlockedReason");
 
-// One home for refusal copy so the API's 409 message and the join screen's
-// pre-flight explanation can't drift.
+/**
+ * One home for refusal copy so the API's 409 message and the join screen's
+ * pre-flight explanation can't drift.
+ */
 export const JOIN_BLOCKED_REASON_MESSAGES: Record<JoinBlockedReason, string> = {
   [JOIN_BLOCKED_REASON.INVITE_REVOKED]: "That invite link has been revoked.",
   [JOIN_BLOCKED_REASON.INVITE_EXPIRED]: "That invite link has expired.",
@@ -92,9 +96,11 @@ export const JOIN_BLOCKED_REASON_MESSAGES: Record<JoinBlockedReason, string> = {
   [JOIN_BLOCKED_REASON.LEAGUE_FULL]: "This league is full.",
 };
 
-// The subset of league fields a prospective member may see before joining —
-// mirrors what a public discovery entry shows (spec §Public Discovery), never
-// the member list.
+/**
+ * The subset of league fields a prospective member may see before joining —
+ * mirrors what a public discovery entry shows (spec §Public Discovery), never
+ * the member list.
+ */
 export const JoinPreviewResponseSchema = z
   .object({
     league: z.object({

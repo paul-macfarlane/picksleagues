@@ -9,11 +9,10 @@ import {
 import { useAdminSeasons } from "@/api/admin";
 import { useAdjustSimClock } from "@/api/sim";
 import { formatDateTime, toLocalDateTimeInputValue } from "@/lib/format";
+import { LabeledDateTimeField } from "@/components/labeled-date-time-field";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SimControlRow } from "@/components/sim/sim-control-row";
 
 const MINUTE_MS = 60_000;
@@ -56,11 +55,23 @@ function formatOffset(ms: number): string {
   return `${sign}${parts.join(" ")}`;
 }
 
-function StatusItem({ label, value }: { label: string; value: string }) {
+function StatusItem({
+  label,
+  value,
+  // On the value, not the label: what proves this card reached
+  // GET /api/sim/state is the reading, and the label beside it is copy.
+  testId,
+}: {
+  label: string;
+  value: string;
+  testId?: string;
+}) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium text-foreground">{value}</dd>
+      <dd data-testid={testId} className="text-sm font-medium text-foreground">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -117,9 +128,17 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatusItem label="Simulated now" value={formatDateTime(state.clock.now)} />
+          <StatusItem
+            label="Simulated now"
+            testId="sim-now"
+            value={formatDateTime(state.clock.now)}
+          />
           <StatusItem label="Real now" value={formatDateTime(state.clock.realNow)} />
-          <StatusItem label="Offset" value={formatOffset(state.clock.offsetMs)} />
+          <StatusItem
+            label="Offset"
+            testId="sim-offset"
+            value={formatOffset(state.clock.offsetMs)}
+          />
           <StatusItem
             label="Active scenario"
             value={
@@ -221,20 +240,18 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
 
         <SimControlRow
           title="Set an exact instant"
-          description="Type or pick any instant to position the clock at."
+          description="Pick any date (jump straight to a year via the dropdowns) and time to position the clock at."
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="sim-clock-instant">Instant</Label>
-              {/* A native datetime picker, not a TanStack Form field: there's
-                  no free-text validation surface here to wire a Zod schema
-                  against, and this is a sibling of the plain selects above,
-                  not a data-entry form. */}
-              <Input
+            <div className="flex-1">
+              {/* Not a TanStack Form field: there's no free-text validation
+                  surface here to wire a Zod schema against, and this is a
+                  sibling of the plain selects above, not a data-entry form. */}
+              <LabeledDateTimeField
                 id="sim-clock-instant"
-                type="datetime-local"
+                label="Instant"
                 value={instantValue}
-                onChange={(event) => setInstantValue(event.target.value)}
+                onChange={setInstantValue}
               />
             </div>
             <Button

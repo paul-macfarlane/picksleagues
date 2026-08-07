@@ -103,7 +103,9 @@ describe("POST /api/admin/jobs/nfl/{job}", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as JobRunResponse;
     expect(body.job).toBe("nfl-sync-scores");
-    expect(body.status).toBe("ok");
+    // Nothing is in flight in this fixture, so the run is a no-op — still 200,
+    // but the envelope says so rather than looking like real work happened.
+    expect(body.status).toBe("skipped");
     expect(body.details).toMatchObject({ skipped: true, reason: "no_active_games" });
   });
 });

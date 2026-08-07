@@ -2,8 +2,16 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, sportSeasons, weeks } from "@picksleagues/db";
 import { type Clock, type GameDataProvider, nflSeasonYearFor } from "@picksleagues/core";
-import { GAME_STATUS, SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  JOB_SKIP_REASON,
+  SPORT,
+  WEEK_TYPE,
+  type WeekType,
+} from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
+import { settlePicksForGames } from "../pickem/settlement";
 
 /** A refresh target: one provider week fetch mapped to our week row. */
 type ScoreTarget = {
@@ -38,7 +46,6 @@ export async function syncNflScores(
 ): Promise<Record<string, string | number | boolean>> {
   // One `now` per run, bound into SQL as a parameter (arch D13) — never SQL now().
   const now = clock.now();
-  const seasonYear = opts?.seasonYear ?? nflSeasonYearFor(now);
   // A week takes the explicit "refresh this week now" path (season is derived
   // when omitted, matching sync-schedule/sync-odds). Season alone stays on the
   // active-games gate — it only re-labels the season the gate's own join already
@@ -52,6 +59,11 @@ export async function syncNflScores(
     // An explicit admin/simulator trigger means "refresh this week now" — skip
     // the active-games gate and resolve the requested week from our tables. A
     // bare week number defaults to REGULAR; postseason must name `weekType`.
+    // Season resolution lives inside this branch: the gate path below derives
+    // every target's season from its own join, and the offseason roll-forward
+    // query would otherwise cost the 5-minute no-op path an extra round trip.
+    const seasonYear =
+      opts?.seasonYear ?? (await resolveRecurringSyncSeasonYear(db, nflSeasonYearFor(now), now));
     const weekNumber = opts!.weekNumber!;
     const weekType = opts?.weekType ?? WEEK_TYPE.REGULAR;
     const [week] = await db
@@ -69,7 +81,7 @@ export async function syncNflScores(
     if (!week) {
       // Sync jobs never create reference data — schedule-sync owns season/week
       // creation (feedback: recurring syncs query reference data, don't upsert).
-      return { skipped: true, reason: "week_not_synced" };
+      return { skipped: true, reason: JOB_SKIP_REASON.WEEK_NOT_SYNCED };
     }
     targets = [{ weekId: week.weekId, seasonYear, weekType: week.weekType, weekNumber }];
   } else {
@@ -81,7 +93,7 @@ export async function syncNflScores(
       .where(and(inArray(games.status, ACTIVE_STATUSES), lte(games.kickoffAt, now)));
     activeGames = activeRows.length;
     if (activeGames === 0) {
-      return { skipped: true, reason: "no_active_games", activeGames: 0 };
+      return { skipped: true, reason: JOB_SKIP_REASON.NO_ACTIVE_GAMES, activeGames: 0 };
     }
 
     // Distinct weeks of the active games → the (season, type, week) triples to
@@ -112,7 +124,13 @@ export async function syncNflScores(
 
   const weekIds = targets.map((target) => target.weekId);
 
-  return db.transaction(async (tx) => {
+  // Collected inside the ingest transaction, settled after it commits: holding
+  // the games transaction open across every affected league's settlement would
+  // make one slow league block score ingestion for all of them, and settlement
+  // is idempotent so it loses nothing by running separately.
+  const finalGameIds: string[] = [];
+
+  const ingested = await db.transaction(async (tx) => {
     const ourGames = await tx.select().from(games).where(inArray(games.weekId, weekIds));
 
     let gamesUpdated = 0;
@@ -129,10 +147,15 @@ export async function syncNflScores(
       }
       matchedProviderIds.add(ours.providerGameId);
 
+      // The game clock counts as a change on its own: `updated_at` is what
+      // reads serve as the live state's as-of instant (DATA-8), so a tick that
+      // didn't rewrite the row would be shown under a stale timestamp.
       const changed =
         ours.status !== providerGame.status ||
         ours.homeScore !== providerGame.homeScore ||
-        ours.awayScore !== providerGame.awayScore;
+        ours.awayScore !== providerGame.awayScore ||
+        ours.period !== providerGame.period ||
+        ours.clockSeconds !== providerGame.clockSeconds;
       if (!changed) continue;
 
       const becameFinal =
@@ -146,6 +169,8 @@ export async function syncNflScores(
           status: providerGame.status,
           homeScore: providerGame.homeScore,
           awayScore: providerGame.awayScore,
+          period: providerGame.period,
+          clockSeconds: providerGame.clockSeconds,
           updatedAt: now,
         })
         .where(eq(games.id, ours.id));
@@ -153,9 +178,8 @@ export async function syncNflScores(
 
       if (becameFinal) {
         wentFinal += 1;
+        finalGameIds.push(ours.id);
         logInfo("nfl-sync-scores.final", { providerGameId: providerGame.providerGameId });
-        // PKM-4 hookup site: settlement is invoked here once a game goes final
-        // (deferred to that task — sync-scores only ingests the final result).
       }
     }
 
@@ -175,4 +199,18 @@ export async function syncNflScores(
       unknownProviderGames,
     };
   });
+
+  // Scores and standings move together (arch §Background Jobs): a game going
+  // final resolves its picks and rebuilds the affected leagues' standings on
+  // the same tick.
+  const settled = await settlePicksForGames(db, clock, finalGameIds);
+
+  return {
+    ...ingested,
+    settledLeagueSeasons: settled.leagueSeasons,
+    settledResults: settled.results,
+    // Surfaced because a non-zero value here usually means a final game carries
+    // no score — the provider fault an admin override exists to correct.
+    settledUnsettled: settled.unsettled,
+  };
 }

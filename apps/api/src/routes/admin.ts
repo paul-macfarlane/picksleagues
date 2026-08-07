@@ -1,11 +1,12 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
-  AdminGameOddsResponseSchema,
   AdminGamesResponseSchema,
   AdminSeasonsResponseSchema,
   AdminTeamsResponseSchema,
   ERROR_CODE,
   ErrorResponseSchema,
+  GameOverrideRequestSchema,
+  GameOverrideResponseSchema,
   NflSyncJobSchema,
   SportSchema,
 } from "@picksleagues/schemas";
@@ -32,7 +33,11 @@ import {
   type DepsVariables,
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
-import { listGameOdds, listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import { listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import { setGameOverride } from "../services/admin-overrides";
+import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
+import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
+import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
 
 const AdminNflJobParamsSchema = z.object({ job: NflSyncJobSchema });
 
@@ -49,6 +54,35 @@ const runAdminNflJobRoute = createRoute({
     ),
     401: UNAUTHENTICATED_401,
     403: NOT_ADMIN_403,
+    500: jobRunResponses[500],
+  },
+});
+
+const runAdminSettleSweepRoute = createRoute({
+  method: "post",
+  path: "/admin/jobs/settle-sweep",
+  operationId: "runAdminSettleSweep",
+  summary: "Manually trigger the settlement reconciliation sweep",
+  responses: {
+    200: jobRunResponses[200],
+    401: UNAUTHENTICATED_401,
+    403: NOT_ADMIN_403,
+    500: jobRunResponses[500],
+  },
+});
+
+const rebuildLeagueRoute = createRoute({
+  method: "post",
+  path: "/admin/leagues/{leagueId}/rebuild",
+  operationId: "rebuildLeagueStandings",
+  summary: "Recompute one league's results and standings from stored picks and game results",
+  request: { params: z.object({ leagueId: z.uuid() }) },
+  responses: {
+    200: jobRunResponses[200],
+    400: errorResponse("The league id failed its format rule"),
+    401: UNAUTHENTICATED_401,
+    403: NOT_ADMIN_403,
+    404: errorResponse("No such league (league_not_found)"),
     500: jobRunResponses[500],
   },
 });
@@ -111,19 +145,29 @@ const listAdminGamesRoute = createRoute({
   },
 });
 
-const listAdminGameOddsRoute = createRoute({
-  method: "get",
-  path: "/admin/games/{gameId}/odds",
-  operationId: "listAdminGameOdds",
-  summary: "Browse a game's most recent odds snapshots",
-  request: { params: z.object({ gameId: z.uuid() }) },
+const setAdminGameOverrideRoute = createRoute({
+  method: "put",
+  path: "/admin/games/{gameId}/override",
+  operationId: "setAdminGameOverride",
+  summary: "Set or clear a game's manual overrides",
+  request: {
+    params: z.object({ gameId: z.uuid() }),
+    body: { content: { "application/json": { schema: GameOverrideRequestSchema } } },
+  },
   responses: {
     200: {
-      description: "The game's most recent spread snapshots, newest first",
-      content: { "application/json": { schema: AdminGameOddsResponseSchema } },
+      description:
+        "The corrected game with provider, override, and resolved values, plus whether the affected leagues were re-settled (a false `resettled` still means the override itself committed)",
+      content: { "application/json": { schema: GameOverrideResponseSchema } },
     },
     ...browserResponses,
+    400: errorResponse(
+      "No fields supplied, or a field fails its format rule (score range, status, spread range)",
+    ),
     404: errorResponse("No such game"),
+    409: errorResponse(
+      "The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game)",
+    ),
   },
 });
 
@@ -168,6 +212,35 @@ export function adminRoutes(deps: AppDeps) {
     );
   });
 
+  app.openapi(runAdminSettleSweepRoute, async (c) => {
+    const { db, clock: resolveClock } = deps;
+    if (!db || !resolveClock) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
+    const clock = await resolveClock();
+    return runJob(c, SETTLE_SWEEP_JOB_NAME, () => settleSweep(db, clock));
+  });
+
+  app.openapi(rebuildLeagueRoute, async (c) => {
+    const { db, clock: resolveClock } = deps;
+    if (!db || !resolveClock) return c.json(misconfiguredJob(REBUILD_JOB_NAME), 500);
+    const clock = await resolveClock();
+    const { leagueId } = c.req.valid("param");
+
+    // Rebuild targets the league's current instance (ADR-0009) — the one whose
+    // picks and standings are live.
+    const current = await getLeagueWithCurrentSeason(db, leagueId);
+    if (!current) {
+      return c.json(
+        ErrorResponseSchema.parse({
+          error: ERROR_CODE.LEAGUE_NOT_FOUND,
+          message: "League not found.",
+        }),
+        404,
+      );
+    }
+
+    return runJob(c, REBUILD_JOB_NAME, () => rebuildLeagueSeason(db, clock, current.season.id));
+  });
+
   app.openapi(listAdminTeamsRoute, async (c) => {
     const { sport } = c.req.valid("query");
     return c.json({ teams: await listTeams(c.get("db"), sport) }, 200);
@@ -183,16 +256,36 @@ export function adminRoutes(deps: AppDeps) {
     return c.json({ games: await listWeekGames(c.get("db"), weekId) }, 200);
   });
 
-  app.openapi(listAdminGameOddsRoute, async (c) => {
+  app.openapi(setAdminGameOverrideRoute, async (c) => {
     const { gameId } = c.req.valid("param");
-    const snapshots = await listGameOdds(c.get("db"), gameId);
-    if (!snapshots) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: ERROR_CODE.GAME_NOT_FOUND, message: "Game not found." }),
-        404,
-      );
+    const result = await setGameOverride(
+      c.get("db"),
+      c.get("clock"),
+      c.get("sessionUser").id,
+      gameId,
+      c.req.valid("json"),
+    );
+    if (!result.ok) {
+      // Exhaustive: a missing game and a refused unlock are different problems
+      // and must not inherit each other's status or copy.
+      switch (result.reason) {
+        case ERROR_CODE.GAME_NOT_FOUND:
+          return c.json(
+            ErrorResponseSchema.parse({ error: result.reason, message: "Game not found." }),
+            404,
+          );
+        case ERROR_CODE.OVERRIDE_UNLOCKS_GAME:
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: result.reason,
+              message:
+                "That would leave a game members can still pick on while its outcome is already knowable. Move the kickoff into the past, or — if the game genuinely hasn't been played — set the status back to scheduled and null both scores in the same edit. A score the provider itself reported can't be nulled away, so a game it has scored can't be re-opened.",
+            }),
+            409,
+          );
+      }
     }
-    return c.json({ snapshots }, 200);
+    return c.json({ game: result.game, resettled: result.resettled }, 200);
   });
 
   return app;

@@ -9,7 +9,7 @@
   "scripts": {
     "predev": "./scripts/kill-stale-dev.sh",
     "dev": "pnpm --parallel --filter @picksleagues/web --filter @picksleagues/api dev",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -28,6 +28,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
+    "@types/node": "^24.13.3",
     "esbuild": "^0.28.1",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",

@@ -1,9 +1,10 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import { games, pickemPicks, sportSeasons, teams, weeks } from "@picksleagues/db";
 import type { ProviderGame, ProviderTeam, ProviderWeek } from "@picksleagues/core";
 import { GAME_STATUS, SPORT, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { warnOnTeamCorrectionWithPicks } from "./team-correction-warning";
 
 /** Composite key: regular and postseason week numbers overlap (both restart at 1). */
 function weekKey(weekType: WeekType, weekNumber: number): string {
@@ -195,6 +196,15 @@ async function enrichTeamsFromListing(
 
 export type SeasonSnapshotResult = {
   seasonId: string;
+  /**
+   * Games whose status or week changed, so existing picks on them settle
+   * differently now. The caller re-settles their league-weeks — a cancellation
+   * must show as a push shortly after the schedule sync (spec §Data Freshness),
+   * not wait for the nightly sweep. A week change is included for the same
+   * reason even though nothing synthesizes an outcome from it any more
+   * (ADR-0019).
+   */
+  settlementAffectedGameIds: string[];
   weeksSynced: number;
   weeksDeleted: number;
   teamsCreated: number;
@@ -334,6 +344,7 @@ export async function ingestSeasonSnapshot(
   let postponements = 0;
   let cancellations = 0;
   let weekMoves = 0;
+  const settlementAffectedGameIds: string[] = [];
   let kickoffChanges = 0;
 
   // Teams are upserted before games so every game's FKs resolve against a
@@ -407,20 +418,42 @@ export async function ingestSeasonSnapshot(
         weekMoves += 1;
         logInfo("nfl-sync-schedule.week-move", { providerGameId: game.providerGameId });
       }
+      // A status change alters how existing picks on this game settle (a
+      // cancellation resolves them as a push, spec §Cancellations), so the
+      // caller re-settles them rather than leaving the push invisible until the
+      // nightly sweep. A week change is re-settled for the same reason even
+      // though nothing synthesizes an outcome from it any more (ADR-0019): the
+      // game's own status still decides, and it may have changed in the same
+      // run. A kickoff change does not: locking is derived at read time.
+      if (existing.status !== game.status || existing.weekId !== weekId) {
+        settlementAffectedGameIds.push(existing.id);
+      }
       if (existing.kickoffAt.getTime() !== game.kickoffAt.getTime()) {
         kickoffChanges += 1;
         logInfo("nfl-sync-schedule.kickoff-change", { providerGameId: game.providerGameId });
       }
 
+      const teamsChanged = existing.homeTeamId !== homeTeamId || existing.awayTeamId !== awayTeamId;
+
       const changed =
         existing.weekId !== weekId ||
         existing.kickoffAt.getTime() !== game.kickoffAt.getTime() ||
         existing.status !== game.status ||
-        existing.homeTeamId !== homeTeamId ||
-        existing.awayTeamId !== awayTeamId ||
+        teamsChanged ||
         existing.homeScore !== game.homeScore ||
         existing.awayScore !== game.awayScore;
       if (!changed) continue;
+
+      if (teamsChanged) {
+        await warnOnTeamCorrectionWithPicks(tx, {
+          gameId: existing.id,
+          providerGameId: game.providerGameId,
+          previousHomeTeamId: existing.homeTeamId,
+          previousAwayTeamId: existing.awayTeamId,
+          newHomeTeamId: homeTeamId,
+          newAwayTeamId: awayTeamId,
+        });
+      }
 
       await tx
         .update(games)
@@ -464,7 +497,22 @@ export async function ingestSeasonSnapshot(
         .from(games)
         .where(inArray(games.weekId, orphanWeekIds));
       const weekIdsWithGames = new Set(weeksStillHoldingGames.map((row) => row.weekId));
-      const deletableWeekIds = orphanWeekIds.filter((id) => !weekIdsWithGames.has(id));
+
+      // A pick outlives its game's departure from the week, so a week can be
+      // game-free yet still pick-referenced. Settlement no longer reads that
+      // divergence (ADR-0019 put week moves out of scope), but the guard below
+      // is not about settlement — it is about this transaction surviving. `pickem_picks.week_id` is RESTRICT,
+      // so deleting one would abort this whole transaction and keep aborting
+      // every tick, taking schedule sync down permanently.
+      const weeksStillHoldingPicks = await tx
+        .selectDistinct({ weekId: pickemPicks.weekId })
+        .from(pickemPicks)
+        .where(inArray(pickemPicks.weekId, orphanWeekIds));
+      const weekIdsWithPicks = new Set(weeksStillHoldingPicks.map((row) => row.weekId));
+
+      const deletableWeekIds = orphanWeekIds.filter(
+        (id) => !weekIdsWithGames.has(id) && !weekIdsWithPicks.has(id),
+      );
       if (deletableWeekIds.length > 0) {
         const deleted = await tx
           .delete(weeks)
@@ -477,6 +525,7 @@ export async function ingestSeasonSnapshot(
 
   return {
     seasonId,
+    settlementAffectedGameIds,
     weeksSynced: weekIdByKey.size,
     weeksDeleted,
     teamsCreated,

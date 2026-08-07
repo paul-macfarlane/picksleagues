@@ -15,9 +15,11 @@ const searchSchema = z.object({
   redirect: z.string().optional(),
 });
 
-// Top-level (not under _authed): claiming is session-required, but this route
-// is what satisfies the username gate — it must not itself be gated by it, and
-// onboarding shouldn't show the signed-in app shell/session menu.
+/**
+ * Top-level (not under _authed): claiming is session-required, but this route
+ * is what satisfies the username gate — it must not itself be gated by it, and
+ * onboarding shouldn't show the signed-in app shell/session menu.
+ */
 export const Route = createFileRoute("/claim-username")({
   validateSearch: searchSchema,
   beforeLoad: async ({ search }) => {

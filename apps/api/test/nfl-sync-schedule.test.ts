@@ -1,6 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createDb,
+  games,
+  leagueMembers,
+  leagueSeasons,
+  leagues,
+  pickemPicks,
+  pickemPickResults,
+  sportSeasons,
+  teams,
+  users,
+  weeks,
+} from "@picksleagues/db";
 import {
   FixedClock,
   estimatedNflWeeks,
@@ -12,6 +25,12 @@ import {
 } from "@picksleagues/core";
 import {
   GAME_STATUS,
+  LEAGUE_MODE,
+  LEAGUE_STATUS,
+  LEAGUE_VISIBILITY,
+  MEMBER_ROLE,
+  PICK_OUTCOME,
+  PICKEM_PICK_SIDE,
   SPORT,
   WEEK_TYPE,
   type WeekType,
@@ -19,7 +38,9 @@ import {
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
+import { settlePicksForGames } from "../src/services/pickem/settlement";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
+import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
@@ -101,12 +122,26 @@ function runSyncSchedule(query = "", secret: string | null = testEnv.JOB_SECRET)
   });
 }
 
-async function runOk(query = ""): Promise<Record<string, string | number | boolean>> {
+async function runExpecting(
+  expectedStatus: string,
+  query: string,
+): Promise<Record<string, string | number | boolean>> {
   const res = await runSyncSchedule(query);
+  // A skipped run is a 200 too — only real failures may trip the cron
+  // scheduler's failure notifications (ADR-0007).
   expect(res.status).toBe(200);
   const body = (await res.json()) as JobRunResponse;
-  expect(body.status).toBe("ok");
+  expect(body.status).toBe(expectedStatus);
   return body.details ?? {};
+}
+
+function runOk(query = ""): Promise<Record<string, string | number | boolean>> {
+  return runExpecting("ok", query);
+}
+
+/** A run that completed with nothing to do — the envelope says so. */
+function runSkipped(query = ""): Promise<Record<string, string | number | boolean>> {
+  return runExpecting("skipped", query);
 }
 
 /** Baseline: two regular weeks, two games in week 1, one in week 2. */
@@ -128,6 +163,78 @@ function seedBaselineProvider() {
     ],
     [weekKey(WEEK_TYPE.REGULAR, 2), [providerGame({ providerGameId: "g3", weekNumber: 2 })]],
   ]);
+}
+
+/**
+ * Arranges a Pick'em league + one member + one pick on an already-ingested
+ * game, via raw inserts (mirrors the "never deletes a week..." fixture below)
+ * — this file has no `insertLeague`/`createAuthenticatedUser` harness of its
+ * own since it exercises ingestion, not the league API.
+ */
+async function seedPickemPickOnGame(seasonId: string, weekId: string, gameId: string) {
+  const [league] = await db
+    .insert(leagues)
+    .values({
+      name: "Sync Settle Test League",
+      mode: LEAGUE_MODE.PICKEM,
+      visibility: LEAGUE_VISIBILITY.PRIVATE,
+      maxMembers: 10,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [leagueSeason] = await db
+    .insert(leagueSeasons)
+    .values({
+      leagueId: league!.id,
+      seasonId,
+      settings: DEFAULT_PICKEM_SETTINGS,
+      status: LEAGUE_STATUS.ACTIVE,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [user] = await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      display_name: "Picker",
+      email: `picker-${randomUUID()}@example.com`,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [member] = await db
+    .insert(leagueMembers)
+    .values({
+      leagueId: league!.id,
+      userId: user!.id,
+      role: MEMBER_ROLE.COMMISSIONER,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  const [pick] = await db
+    .insert(pickemPicks)
+    .values({
+      leagueSeasonId: leagueSeason!.id,
+      leagueMemberId: member!.id,
+      weekId,
+      gameId,
+      side: PICKEM_PICK_SIDE.HOME,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    })
+    .returning();
+  return { leagueSeasonId: leagueSeason!.id, pickId: pick!.id };
+}
+
+async function pickResultFor(pickId: string) {
+  const [row] = await db
+    .select()
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.pickemPickId, pickId));
+  return row;
 }
 
 beforeEach(async () => {
@@ -319,6 +426,61 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     );
   });
 
+  it("warns when a home/away correction lands on a game that already has a pick", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+        providerGame({
+          providerGameId: "g1",
+          weekNumber: 1,
+          homeTeamProviderId: "new-hom-id",
+          homeTeamAbbr: "NEW",
+          homeTeamName: "New Home Team",
+        }),
+        providerGame({ providerGameId: "g2", weekNumber: 1 }),
+      ]);
+      await runOk();
+
+      const warned = warnSpy.mock.calls
+        .map((call) => JSON.parse(call[0] as string) as Record<string, unknown>)
+        .find((line) => line.event === "nfl-sync-schedule.team-correction-with-picks");
+      expect(warned).toMatchObject({ level: "warn", gameId: g1!.id, affectedPicks: 1 });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not warn on a home/away correction when the game has no picks", async () => {
+    seedBaselineProvider();
+    await runOk();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+        providerGame({
+          providerGameId: "g1",
+          weekNumber: 1,
+          homeTeamProviderId: "new-hom-id",
+          homeTeamAbbr: "NEW",
+          homeTeamName: "New Home Team",
+        }),
+        providerGame({ providerGameId: "g2", weekNumber: 1 }),
+      ]);
+      await runOk();
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it("never clobbers admin override fields on re-sync (arch D15)", async () => {
     seedBaselineProvider();
     await runOk();
@@ -377,7 +539,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
   it("skips an explicit week the structure doesn't expose (e.g. the excluded Pro Bowl week)", async () => {
     seedBaselineProvider();
 
-    const details = await runOk("?weekType=postseason&week=4");
+    const details = await runSkipped("?weekType=postseason&week=4");
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
     // Nothing was written — the skip happens before any fetch or transaction.
     expect(await db.select().from(games)).toHaveLength(0);
@@ -509,7 +671,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
       ],
     ]);
 
-    const details = await runOk("?weekType=postseason&week=4");
+    const details = await runSkipped("?weekType=postseason&week=4");
     expect(details).toMatchObject({ skipped: true, reason: "week_not_synced" });
     expect(await db.select().from(games)).toEqual([]);
   });
@@ -659,6 +821,107 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(homeTeams).toHaveLength(1);
     expect(homeTeams[0]?.id).toBe(bootstrapTeam?.id);
     expect(homeTeams[0]?.providerTeamId).toBe("hom-id");
+  });
+});
+
+describe("sync-schedule re-settles affected weeks immediately (no separate settle call)", () => {
+  it("a cancelled game's pick becomes a push immediately after the sync", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    const { pickId } = await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    // g1 goes final and is already settled before the cancellation lands.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({
+        providerGameId: "g1",
+        weekNumber: 1,
+        status: GAME_STATUS.FINAL,
+        homeScore: 24,
+        awayScore: 10,
+      }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    const finalDetails = await runOk();
+    expect(finalDetails.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
+    expect(await pickResultFor(pickId)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
+
+    // The provider now reports the same game cancelled.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g1", weekNumber: 1, status: GAME_STATUS.CANCELLED }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    const details = await runOk();
+    expect(details.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
+
+    expect(await pickResultFor(pickId)).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
+  });
+
+  /**
+   * ADR-0019: a week move is no longer an event the product models. The sync
+   * still notices the repoint and re-settles the affected week, but there is
+   * no synthesized status behind it, so the pick simply grades by its game's
+   * own state — here, still unplayed, hence no result row. This is the
+   * accepted failure mode written down, not an oversight: the remedy is an
+   * admin `cancelled` override, and nothing in code detects the move.
+   */
+  it("a week move re-settles the original week but no longer synthesizes a push", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    const { pickId } = await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    // g1 leaves week 1 and reappears in week 2's fetch; the pick keeps week 1.
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 2), [
+      providerGame({ providerGameId: "g3", weekNumber: 2 }),
+      providerGame({ providerGameId: "g1", weekNumber: 2 }),
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ weekMoves: 1 });
+    expect(details.settledLeagueSeasons).toBeGreaterThanOrEqual(1);
+
+    expect(await pickResultFor(pickId)).toBeUndefined();
+
+    // An admin correcting the move the only way the product offers — a
+    // `cancelled` status override — makes the member whole on the next settle.
+    await db
+      .update(games)
+      .set({ overrideStatus: GAME_STATUS.CANCELLED })
+      .where(eq(games.id, g1!.id));
+    await settlePicksForGames(db, new FixedClock(FIXED_NOW), [g1!.id]);
+
+    expect(await pickResultFor(pickId)).toMatchObject({
+      outcome: PICK_OUTCOME.PUSH,
+      weekId: week1!.id,
+    });
+  });
+
+  it("a pure kickoff-time change does not resettle anything — settledLeagueSeasons stays 0", async () => {
+    seedBaselineProvider();
+    await runOk();
+    const [season] = await db.select().from(sportSeasons);
+    const [week1] = await db.select().from(weeks).where(eq(weeks.weekNumber, 1));
+    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    await seedPickemPickOnGame(season!.id, week1!.id, g1!.id);
+
+    // Locking is derived at read time from kickoffAt, never stored, so a
+    // kickoff-only change has nothing for settlement to react to.
+    const moved = new Date("2026-09-14T20:00:00.000Z");
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+      providerGame({ providerGameId: "g1", weekNumber: 1, kickoffAt: moved }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ]);
+
+    const details = await runOk();
+    expect(details).toMatchObject({ kickoffChanges: 1, settledLeagueSeasons: 0 });
   });
 });
 
@@ -1068,5 +1331,92 @@ describe("convergence sweep: stale weeks with zero games are dropped (ADR-0009)"
     expect(sbWeek4).toBeDefined();
     const [game] = await db.select().from(games).where(eq(games.providerGameId, "sb"));
     expect(game?.weekId).toBe(sbWeek4?.id);
+  });
+
+  it("never deletes a week that holds zero games but still holds a pick — the sync still succeeds despite the RESTRICT FK", async () => {
+    const week1 = providerWeek(1, "2026-09-08T00:00:00.000Z", "2026-09-15T00:00:00.000Z");
+    const week2 = providerWeek(2, "2026-09-15T00:00:00.000Z", "2026-09-22T00:00:00.000Z");
+    await ingest([week1, week2], [providerGame({ providerGameId: "g1", weekNumber: 1 })]);
+
+    const season = await seasonRow();
+    const week1Row = (await seasonWeeks()).find(
+      (w) => w.weekType === WEEK_TYPE.REGULAR && w.weekNumber === 1,
+    )!;
+    const [g1Before] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+
+    // A member picks g1 while it still belongs to week 1 — pickem_picks
+    // denormalizes the week the pick was made in independently of the game's
+    // own week_id (PKM-2), which is exactly what lets the two diverge below.
+    const [league] = await db
+      .insert(leagues)
+      .values({
+        name: "Sweep Test League",
+        mode: LEAGUE_MODE.PICKEM,
+        visibility: LEAGUE_VISIBILITY.PRIVATE,
+        maxMembers: 10,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    const [leagueSeason] = await db
+      .insert(leagueSeasons)
+      .values({
+        leagueId: league!.id,
+        seasonId: season!.id,
+        settings: DEFAULT_PICKEM_SETTINGS,
+        status: LEAGUE_STATUS.ACTIVE,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    const [user] = await db
+      .insert(users)
+      .values({
+        id: randomUUID(),
+        display_name: "Picker",
+        email: "picker@example.com",
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    const [member] = await db
+      .insert(leagueMembers)
+      .values({
+        leagueId: league!.id,
+        userId: user!.id,
+        role: MEMBER_ROLE.COMMISSIONER,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      })
+      .returning();
+    await db.insert(pickemPicks).values({
+      leagueSeasonId: leagueSeason!.id,
+      leagueMemberId: member!.id,
+      weekId: week1Row.id,
+      gameId: g1Before!.id,
+      side: PICKEM_PICK_SIDE.HOME,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+    });
+
+    // g1 moves to week 2 and week 1 drops out of the published structure —
+    // week 1 is now both game-free and orphaned, but the pick above still
+    // addresses it. Before the fix, deleting it would hit pickem_picks' own
+    // RESTRICT FK and abort (and keep aborting on every future tick) the
+    // whole sync transaction.
+    const result = await ingest([week2], [providerGame({ providerGameId: "g1", weekNumber: 2 })]);
+    expect(result.weeksDeleted).toBe(0);
+
+    const after = await seasonWeeks();
+    expect(after.some((w) => w.id === week1Row.id)).toBe(true);
+
+    const [pick] = await db
+      .select()
+      .from(pickemPicks)
+      .where(eq(pickemPicks.leagueMemberId, member!.id));
+    expect(pick?.weekId).toBe(week1Row.id);
+
+    const [g1After] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    expect(g1After?.weekId).not.toBe(week1Row.id);
   });
 });

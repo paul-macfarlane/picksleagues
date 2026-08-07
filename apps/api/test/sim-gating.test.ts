@@ -31,6 +31,7 @@ const SIM_ROUTE_CASES: { method: string; path: string; body?: unknown }[] = [
     body: { spread: 1 },
   },
   { method: "POST", path: "/api/sim/reset", body: { scope: "environment" } },
+  { method: "POST", path: "/api/sim/settle", body: {} },
 ];
 
 function requestRoute(

@@ -3,14 +3,14 @@ import {
   LEAGUE_VISIBILITY,
   MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
-  PICKEM_PUSH_TIE_RESOLUTION,
+  PICKEM_SEASON_RANGE_PRESET,
   WEEK_TYPE,
   type EliminationPushTieResolution,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type NflWeekRef,
   type PickType,
-  type PickemPushTieResolution,
+  type PickemSeasonRangePreset,
 } from "@picksleagues/schemas";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -43,12 +43,6 @@ export const PICK_TYPE_OPTIONS: { value: PickType; label: string }[] = [
   { value: PICK_TYPE.AGAINST_THE_SPREAD, label: "Against the Spread" },
 ];
 
-export const PICKEM_PUSH_TIE_OPTIONS: { value: PickemPushTieResolution; label: string }[] = [
-  { value: PICKEM_PUSH_TIE_RESOLUTION.HALF_POINT, label: "+0.5 (default)" },
-  { value: PICKEM_PUSH_TIE_RESOLUTION.ZERO_POINTS, label: "0" },
-  { value: PICKEM_PUSH_TIE_RESOLUTION.FULL_POINT, label: "+1" },
-];
-
 export const ELIMINATION_PUSH_TIE_OPTIONS: {
   value: EliminationPushTieResolution;
   label: string;
@@ -71,9 +65,33 @@ export const MM_ROUND_LABELS = [
   "Championship",
 ] as const;
 
-// NFL postseason rounds restart at 1 (spec §Pick'em League Settings), so week
-// selects encode both the regular/postseason weeks table's identity —
-// `type:number` — into one option value; decodeWeek reverses it.
+/**
+ * Pick'em names its season range by preset, never by week numbers (ADR-0020):
+ * the server resolves the concrete refs against the bound season and the clock,
+ * so there is nothing here for a commissioner to spell out week by week.
+ */
+export const PICKEM_SEASON_RANGE_OPTIONS: {
+  value: PickemSeasonRangePreset;
+  label: string;
+}[] = [
+  { value: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON, label: "Regular Season" },
+  { value: PICKEM_SEASON_RANGE_PRESET.POSTSEASON, label: "Postseason" },
+  { value: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON, label: "Full Season" },
+];
+
+/**
+ * Matches the range weeks 1-18 described before presets existed, so a league
+ * created without touching this control covers what it always did.
+ */
+export const DEFAULT_PICKEM_SEASON_RANGE = PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON;
+
+/**
+ * NFL postseason rounds restart at 1 (spec §Pick'em League Settings), so week
+ * selects encode both the regular/postseason weeks table's identity —
+ * `type:number` — into one option value; decodeWeek reverses it. Elimination is
+ * the only mode that still addresses weeks directly (ADR-0020 §Scope defers
+ * presets there to epic 06).
+ */
 export function encodeWeek(ref: NflWeekRef): string {
   return `${ref.type}:${ref.number}`;
 }
@@ -88,28 +106,18 @@ export const REGULAR_WEEK_OPTIONS = Array.from({ length: 18 }, (_, index) => {
   return { value: encodeWeek(ref), label: `Week ${index + 1}` };
 });
 
-const POSTSEASON_ROUND_LABELS = [
-  "Wild Card",
-  "Divisional",
-  "Conference Championship",
-  "Super Bowl",
-] as const;
+/**
+ * Elimination is regular-season only (spec §Elimination Core Rules), so its
+ * week selects never offer a postseason round.
+ */
+export const DEFAULT_ELIMINATION_START_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 1 });
+export const DEFAULT_ELIMINATION_END_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 18 });
 
-const POSTSEASON_WEEK_OPTIONS = POSTSEASON_ROUND_LABELS.map((label, index) => {
-  const ref: NflWeekRef = { type: WEEK_TYPE.POSTSEASON, number: index + 1 };
-  return { value: encodeWeek(ref), label };
-});
-
-// Pick'em may extend into the playoffs (mvp-spec); Elimination stays
-// regular-season, so its week select never offers the postseason options.
-export const PICKEM_WEEK_OPTIONS = [...REGULAR_WEEK_OPTIONS, ...POSTSEASON_WEEK_OPTIONS];
-
-export const DEFAULT_PICKEM_START_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 1 });
-export const DEFAULT_PICKEM_END_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 18 });
-
-// Shared radio-group wiring: a legend, then one Radio + Label pair per
-// option (with optional helper text) — used for mode, visibility, pick
-// type, and both modes' push/tie settings.
+/**
+ * Shared radio-group wiring: a legend, then one Radio + Label pair per
+ * option (with optional helper text) — used for mode, visibility, pick
+ * type, and Elimination's push/tie setting.
+ */
 export function RadioField<Value extends string>({
   legend,
   name,
@@ -149,47 +157,35 @@ export function RadioField<Value extends string>({
 }
 
 export function PickemSettingsFields({
-  startWeek,
-  onStartWeekChange,
-  endWeek,
-  onEndWeekChange,
+  seasonRange,
+  onSeasonRangeChange,
+  seasonRangeOptions = PICKEM_SEASON_RANGE_OPTIONS,
   pickType,
   onPickTypeChange,
   picksPerWeek,
   onPicksPerWeekChange,
-  pushTie,
-  onPushTieChange,
 }: {
-  startWeek: string;
-  onStartWeekChange: (value: string) => void;
-  endWeek: string;
-  onEndWeekChange: (value: string) => void;
+  seasonRange: PickemSeasonRangePreset;
+  onSeasonRangeChange: (value: PickemSeasonRangePreset) => void;
+  // Caller-filtered to what the bound season can still start (LG-9) — the
+  // create form and the settings editor each answer against a different
+  // season (ADR-0009), so neither can share the other's filtered list.
+  seasonRangeOptions?: { value: PickemSeasonRangePreset; label: string }[];
   pickType: PickType;
   onPickTypeChange: (value: PickType) => void;
   picksPerWeek: number;
   onPicksPerWeekChange: (value: number) => void;
-  pushTie: PickemPushTieResolution;
-  onPushTieChange: (value: PickemPushTieResolution) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Pick&apos;em settings</h2>
-      <div className="grid grid-cols-2 gap-3">
-        <LabeledSelect
-          id="pickem-start-week"
-          label="Start week"
-          value={startWeek}
-          onValueChange={onStartWeekChange}
-          options={PICKEM_WEEK_OPTIONS}
-        />
-        <LabeledSelect
-          id="pickem-end-week"
-          label="End week"
-          value={endWeek}
-          onValueChange={onEndWeekChange}
-          options={PICKEM_WEEK_OPTIONS}
-        />
-      </div>
+      <LabeledSelect
+        id="pickem-season-range"
+        label="Season range"
+        value={seasonRange}
+        onValueChange={onSeasonRangeChange}
+        options={seasonRangeOptions}
+      />
       <RadioField
         legend="Pick type"
         name="pickem-pick-type"
@@ -204,13 +200,6 @@ export function PickemSettingsFields({
         max={16}
         value={picksPerWeek}
         onValueChange={onPicksPerWeekChange}
-      />
-      <LabeledSelect
-        id="pickem-push-tie"
-        label="Push / tie value"
-        value={pushTie}
-        onValueChange={onPushTieChange}
-        options={PICKEM_PUSH_TIE_OPTIONS}
       />
     </div>
   );

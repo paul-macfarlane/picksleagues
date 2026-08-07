@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ADMIN_ODDS_SNAPSHOT_LIMIT, SPORT, type AdminGame } from "@picksleagues/schemas";
-import { useAdminGameOdds, useAdminGames, useAdminSeasons } from "@/api/admin";
+import { SPORT, type AdminGame } from "@picksleagues/schemas";
+import { useAdminGames, useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
+import { GameOverrideForm } from "@/components/admin/game-override-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
-import { AdminQueryState } from "@/components/admin/query-state";
+import { QueryState } from "@/components/query-state";
 
 // `LabeledSelect` renders one label string for both the closed trigger and
 // the open list — a single source keeps a selected provisional season
@@ -66,7 +67,7 @@ export function GamesBrowser({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AdminQueryState
+        <QueryState
           isPending={seasons.isPending}
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
@@ -103,7 +104,7 @@ export function GamesBrowser({
             {/* A season with no weeks leaves the games query skipped, which
                 reports `isPending` forever — treat "nothing to ask for" as an
                 empty state rather than a load that never resolves. */}
-            <AdminQueryState
+            <QueryState
               isPending={Boolean(effectiveWeekId) && games.isPending}
               isError={games.isError}
               onRetry={() => games.refetch()}
@@ -120,9 +121,9 @@ export function GamesBrowser({
                   <GameRow key={game.id} game={game} />
                 ))}
               </ul>
-            </AdminQueryState>
+            </QueryState>
           </div>
-        </AdminQueryState>
+        </QueryState>
       </CardContent>
     </Card>
   );
@@ -149,8 +150,7 @@ function ResolvedField({
 
 function GameRow({ game }: { game: AdminGame }) {
   const overridden = isOverridden(game);
-  const [oddsOpen, setOddsOpen] = useState(false);
-  const odds = useAdminGameOdds(game.id, oddsOpen);
+  const [editOpen, setEditOpen] = useState(false);
 
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
@@ -191,50 +191,24 @@ function GameRow({ game }: { game: AdminGame }) {
         <ResolvedField
           label="Spread"
           resolved={game.effectiveSpread === null ? "no line" : String(game.effectiveSpread)}
-          provider={game.latestSpread === null ? "no line" : String(game.latestSpread)}
+          provider={game.spread === null ? "no line" : String(game.spread)}
           showProvider={game.overrideSpread !== null}
         />
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Spread captured{" "}
-        {game.latestSpreadCapturedAt ? formatDateTime(game.latestSpreadCapturedAt) : "never"} ·
-        provider game id {game.providerGameId}
-      </p>
+      <p className="text-xs text-muted-foreground">provider game id {game.providerGameId}</p>
 
-      <details open={oddsOpen} onToggle={(event) => setOddsOpen(event.currentTarget.open)}>
+      {/* Never rendered hidden, so opening always mounts against the current
+          `game` prop. `GameOverrideForm` itself now re-seeds on every
+          server-side change to the override values (fingerprint-keyed
+          remount, game-override-form.tsx), including while this stays open
+          across a save — a stale seed is what turns a diff-based save into a
+          stale write. */}
+      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-          Odds history
+          Edit override
         </summary>
-        {oddsOpen && (
-          <div className="mt-2">
-            <AdminQueryState
-              isPending={odds.isPending}
-              isError={odds.isError}
-              onRetry={() => odds.refetch()}
-              errorMessage="Couldn't load odds history."
-              isEmpty={odds.data?.snapshots.length === 0}
-              emptyMessage="No odds captured yet."
-            >
-              <ul className="flex flex-col gap-1">
-                {odds.data?.snapshots.map((snapshot) => (
-                  <li
-                    key={snapshot.id}
-                    className="flex justify-between gap-2 text-xs text-muted-foreground"
-                  >
-                    <span>{snapshot.spread}</span>
-                    <span>{formatDateTime(snapshot.capturedAt)}</span>
-                  </li>
-                ))}
-              </ul>
-              {odds.data?.snapshots.length === ADMIN_ODDS_SNAPSHOT_LIMIT && (
-                <p className="mt-1 text-xs text-muted-foreground/70">
-                  Only the most recent {ADMIN_ODDS_SNAPSHOT_LIMIT} snapshots are shown.
-                </p>
-              )}
-            </AdminQueryState>
-          </div>
-        )}
+        {editOpen && <GameOverrideForm game={game} />}
       </details>
     </li>
   );

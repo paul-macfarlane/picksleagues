@@ -1,7 +1,9 @@
 import type { ComponentProps } from "react";
 
-// Official multi-color "G" mark, required unaltered by Google's Sign-In branding
-// guidelines: https://developers.google.com/identity/branding-guidelines
+/**
+ * Official multi-color "G" mark, required unaltered by Google's Sign-In branding
+ * guidelines: https://developers.google.com/identity/branding-guidelines
+ */
 export function GoogleIcon(props: ComponentProps<"svg">) {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true" {...props}>
@@ -25,8 +27,10 @@ export function GoogleIcon(props: ComponentProps<"svg">) {
   );
 }
 
-// Official Discord "Clyde" mark, required unaltered (white glyph on Blurple) by
-// Discord's Brand Guidelines: https://discord.com/branding
+/**
+ * Official Discord "Clyde" mark, required unaltered (white glyph on Blurple) by
+ * Discord's Brand Guidelines: https://discord.com/branding
+ */
 export function DiscordIcon(props: ComponentProps<"svg">) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>

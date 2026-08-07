@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 
-// Shared bordered-row chrome for a labelled simulator control (rule of
-// three: the clock card's four adjustment rows plus the reset card's two
-// scope rows all needed this) — mirrors sync-jobs-card.tsx's row without
-// restating it per card.
+/**
+ * Shared bordered-row chrome for a labelled simulator control (rule of
+ * three: the clock card's four adjustment rows plus the reset card's two
+ * scope rows all needed this) — mirrors sync-jobs-card.tsx's row without
+ * restating it per card.
+ */
 export function SimControlRow({
   title,
   description,
