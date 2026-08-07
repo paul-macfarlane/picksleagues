@@ -291,7 +291,7 @@ existing dev leagues keep parsing).
 | Criterion (source) | Check / command | Expected | Evidence | Earliest checkpoint | Invalidated by |
 |---|---|---|---|---|---|
 | Rename complete (decision 10): stored leagues parse as `"survivor"`; no stale mode-name references | integration (leagues.test.ts) + `git grep -iw elimination` | data migration rewrites rows; grep hits only historical records (ADRs, plans, evidence) and member-state vocabulary | `elm-1/rename/` | after step 1 | any rename edit |
-| Input schema rejects a range; stored schema still parses refs (epic: "stored, not chosen") | unit: `pnpm test` (league-settings.test.ts cases) | input with `startWeek` rejected; stored round-trips | `elm-1/schemas-unit/` | after step 2 | any schema edit |
+| Input schema carries no range; stored schema still parses refs (epic: "stored, not chosen") | unit: `pnpm test` (league-settings.test.ts cases) | input **strips** a supplied `startWeek` (owner ruled for symmetry with Pick'em, 2026-08-07); stored round-trips | `elm-1/suites/` | after step 2 | any schema edit |
 | Mid-week resolution: create in sim-advanced clock → startWeek = next future-kickoff week; end = reg 18 (ADR-0020 rule) | integration: `pnpm test:integration` (leagues.test.ts) | stored settings carry resolved refs | `elm-1/leagues-integration/` | after step 3 | crud/renew edits |
 | No-games fallback → reg week 1 (ADR-0020) | integration, provisional-season case | startWeek = reg 1 | same | after step 3 | same |
 | League never born already-started (spec §Membership) | integration: create after week 1 kickoff → `leagueStartAt` in future | join still allowed pre-start | same | after step 3 | same |
@@ -733,14 +733,16 @@ headers, and plan decisions 1, 7 and 10 as ruled at plan review.
 - **Every caller of both dispatch maps was checked** — three branches in
   `season-range.ts`, one client-side pre-save gate in `settings-section.tsx`, and
   the schema tests. No caller was left assembling the old shape.
-- **Non-blocking, flagged for the owner:** `SurvivorSettingsInputSchema` is a
-  `z.strictObject` where `PickemSettingsInputSchema` merely strips unknown keys.
-  This is deliberate and reasoned in the schema's own doc comment (a Pick'em
-  request survives stripping with its preset intact; a Survivor request naming
-  week refs would have nothing left of its intent), and the plan's verification
-  map specified rejection. The accepted consequence is that a **stale SPA build**
-  posting the pre-ADR-0024 shape gets a 400 rather than a silently-resolved
-  league. Correct for a single-deploy app; worth knowing.
+- **Flagged to the owner and resolved the same day.** `SurvivorSettingsInputSchema`
+  first shipped as a `z.strictObject` where `PickemSettingsInputSchema` merely
+  strips unknown keys, so a client naming week refs was refused outright. The
+  **owner ruled for symmetry (2026-08-07)** and it now strips, matching Pick'em:
+  a client cannot dictate the range either way, so refusing buys no safety the
+  omission hasn't already bought — it only turns an out-of-date client into a
+  failed league creation. The unit cases became strip assertions and the create
+  test now proves the server's week 18 wins over the request's week 10, which is
+  the property that actually matters. `additionalProperties: false` left the
+  `SurvivorSettingsInput` OpenAPI component as a result.
 - No scope leak: no pick surface, no settlement, no Pick'em behaviour change. The
   Pick'em journey and its integration suites stay green through the shared
   extraction, which was the regression that mattered.
@@ -786,7 +788,7 @@ an uncommitted local file — which the evidence policy forbids citing as proof.
 | Criterion (source) | Verdict | Evidence |
 |---|---|---|
 | Rename complete; stored league rows rewritten | PASS | `migration-0022/`, `static-gates/` |
-| Input schema rejects a range; stored schema still parses refs | PASS | `suites/` (unit) |
+| Input schema carries no range (strips one supplied); stored schema still parses refs | PASS | `suites/` (unit + integration) |
 | Mid-week resolution → next future-kickoff week; end = reg 18 | PASS | `suites/` (integration) |
 | No-games fallback → reg week 1 | PASS | `suites/` (integration) |
 | League never born already-started (join still allowed pre-start) | PASS | `suites/` (integration) |
@@ -818,9 +820,9 @@ strength of ADR-0023.
    was pre-approved (the owner's mode-name decision names the epic file, title and
    ticket wording explicitly), but the exact write was not shown first. Recorded
    as a deviation rather than glossed.
-3. **`SurvivorSettingsInputSchema` is strict where Pick'em's strips** — see the
-   review's Axis 1 flag. Reverting to strip is a two-character change plus one
-   test rewrite if the owner prefers symmetry.
+3. ~~**`SurvivorSettingsInputSchema` is strict where Pick'em's strips.**~~
+   **Resolved 2026-08-07:** the owner chose symmetry, and it now strips like
+   Pick'em's input. See the review's Axis 1 entry.
 4. **Two owner-decision header blocks were edited** in the epic file, beyond a
    word swap: the playoffs block said "ELM-1's settings keep Start/End Week within
    regular-season weeks 1–18", which would have contradicted the block directly

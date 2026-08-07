@@ -375,8 +375,8 @@ describe("SurvivorSettingsInputSchema", () => {
   });
 
   // ADR-0024: the range is resolved server-side against the clock, so a client
-  // that names one is refused outright rather than having its intent silently
-  // dropped.
+  // naming its own gets the resolved one anyway — same as Pick'em's input,
+  // which strips stray refs supplied alongside the preset.
   it.each([
     { label: "a start week", input: { pickType: "straight_up", startWeek: regular(5) } },
     { label: "an end week", input: { pickType: "straight_up", endWeek: regular(10) } },
@@ -388,8 +388,11 @@ describe("SurvivorSettingsInputSchema", () => {
       label: "a season-range preset it has no vocabulary for",
       input: { pickType: "straight_up", seasonRangePreset: "regular_season" },
     },
-  ])("rejects an input carrying $label", ({ input }) => {
-    expect(SurvivorSettingsInputSchema.safeParse(input).success).toBe(false);
+  ])("strips $label from the wire", ({ input }) => {
+    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({
+      pickType: "straight_up",
+      pushTieResolution: "advance",
+    });
   });
 });
 

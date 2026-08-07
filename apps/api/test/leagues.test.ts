@@ -235,9 +235,10 @@ describe("POST /api/leagues", () => {
     });
   });
 
-  it("400s a survivor create that tries to name its own week range", async () => {
-    // ADR-0024: the range is resolved server-side, so a client naming one is
-    // refused outright rather than having its whole intent silently dropped.
+  it("ignores week refs a client supplies on a survivor create", async () => {
+    // ADR-0024: the range is decided server-side against the clock, so a client
+    // naming its own gets the resolved one anyway rather than the range it
+    // asked for — the same wire/stored divergence Pick'em rests on.
     await seedDefaultSeason();
     const { cookie } = await createAuthenticatedUser(auth);
 
@@ -251,8 +252,12 @@ describe("POST /api/leagues", () => {
         pickType: "straight_up",
       },
     });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "validation" });
+    expect(res.status).toBe(201);
+    // Week 18, not the 10 the request named.
+    expect(((await res.json()) as LeagueResponse).settings).toMatchObject({
+      startWeek: { type: "regular", number: 1 },
+      endWeek: { type: "regular", number: 18 },
+    });
   });
 
   it("409s march-madness creation while no NCAAMB season is ingested", async () => {

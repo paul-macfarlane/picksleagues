@@ -254,14 +254,13 @@ export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
  * (ADR-0007), so its one legal range is implicit in the mode and the server
  * resolves the concrete refs it stores against the bound season and the clock.
  *
- * Strict, where Pick'em's input merely strips unknown keys: a Survivor request
- * naming week refs comes from a client that believes it chose a range, and
- * discarding that silently would create a league covering weeks nobody asked
- * for. Pick'em's request still carries its `seasonRangePreset` when stray refs
- * are stripped alongside it; here there would be nothing left of the intent.
+ * As with Pick'em's input, the omission is the point and stray keys are simply
+ * stripped: a client cannot dictate the range either way, so refusing the
+ * request buys no safety the omission hasn't already bought — it only turns a
+ * client that is merely out of date into a failed league creation.
  */
 export const SurvivorSettingsInputSchema = z
-  .strictObject({
+  .object({
     pickType: PickTypeSchema,
     pushTieResolution: SurvivorPushTieResolutionSchema.default(
       SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
