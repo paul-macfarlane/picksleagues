@@ -5,6 +5,14 @@ import { usePickemStandings } from "@/api/pickem";
 import { formatDateTime } from "@/lib/format";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { QueryState } from "@/components/query-state";
 import { UserIdentity } from "@/components/user-identity";
 
@@ -121,7 +129,7 @@ function SortableHeader({
   return (
     // `aria-sort` belongs on the header cell, and only the sorted one carries a
     // direction — "none" everywhere else.
-    <th scope="col" aria-sort={isActive ? sort.direction : "none"} className="p-0">
+    <TableHead scope="col" aria-sort={isActive ? sort.direction : "none"} className="h-auto p-0">
       <button
         type="button"
         onClick={() => onSort(next)}
@@ -137,7 +145,7 @@ function SortableHeader({
         <span className="truncate">{label}</span>
         {isActive ? <Indicator aria-hidden="true" className="size-3 shrink-0" /> : null}
       </button>
-    </th>
+    </TableHead>
   );
 }
 
@@ -164,22 +172,24 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
           </p>
         ) : (
           // `table-fixed` with explicit widths on the narrow columns (rather
-          // than a wider table inside an `overflow-x-auto` wrapper) so the
-          // numbers stay on-screen at phone width instead of sitting past an
-          // unscrolled edge. The record column is a single "W-L-P" cell for the
-          // same reason: three more numeric columns would not fit, and the
-          // widths here are sized for the sorted column's arrow as well as the
-          // label.
+          // than a wider table that scrolls) so the numbers stay on-screen at
+          // phone width instead of sitting past an unscrolled edge. `Table`
+          // brings its own `overflow-x-auto`, which stays inert here precisely
+          // because the fixed layout never exceeds the container — keep
+          // `table-fixed` and the colgroup or that guarantee is gone. The record
+          // column is a single "W-L-P" cell for the same reason: three more
+          // numeric columns would not fit, and the widths here are sized for the
+          // sorted column's arrow as well as the label.
           <div className="overflow-hidden rounded-lg border border-border">
-            <table className="w-full table-fixed text-sm">
+            <Table className="table-fixed">
               <colgroup>
                 <col className="w-14" />
                 <col />
                 <col className="w-16" />
                 <col className="w-14" />
               </colgroup>
-              <thead>
-                <tr className="border-b border-border bg-muted/50 text-left text-xs font-medium text-muted-foreground">
+              <TableHeader>
+                <TableRow className="bg-muted/50 text-left text-xs font-medium text-muted-foreground">
                   <SortableHeader
                     label="Rank"
                     column={STANDINGS_SORT_COLUMN.RANK}
@@ -210,30 +220,24 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                     onSort={setSort}
                     align="right"
                   />
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((row) => (
-                  <tr
-                    key={row.leagueMemberId}
-                    className={cn(
-                      "border-b border-border last:border-0",
-                      row.isViewer && "bg-accent/40",
-                    )}
-                  >
+                  <TableRow key={row.leagueMemberId} className={cn(row.isViewer && "bg-accent/40")}>
                     {/* The three value cells carry testids because a table cell
                         has no accessible name of its own: without them the only
                         way to address one is by column index, which is exactly
                         the binding a re-ordered or re-labelled board is allowed
                         to break. The merge-gate journey reads all three to prove
                         two tied members share a rank with nothing behind it. */}
-                    <td
+                    <TableCell
                       data-testid="standings-rank"
-                      className="px-2 py-2 text-xs font-medium tabular-nums"
+                      className="text-xs font-medium tabular-nums"
                     >
                       {rankLabel(row.rank, sharedCounts)}
-                    </td>
-                    <td className="px-2 py-2">
+                    </TableCell>
+                    <TableCell>
                       {/* Compact: the numeric columns claim fixed width, so the
                           username is dropped rather than truncating the name
                           (repo owner's decided rule). */}
@@ -245,23 +249,23 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
                         variant="compact"
                         avatarSize="sm"
                       />
-                    </td>
-                    <td
+                    </TableCell>
+                    <TableCell
                       data-testid="standings-record"
-                      className="px-2 py-2 text-right text-xs tabular-nums"
+                      className="text-right text-xs tabular-nums"
                     >
                       {row.wins}-{row.losses}-{row.pushes}
-                    </td>
-                    <td
+                    </TableCell>
+                    <TableCell
                       data-testid="standings-points"
-                      className="px-2 py-2 text-right text-xs tabular-nums"
+                      className="text-right text-xs tabular-nums"
                     >
                       {row.points}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
 
