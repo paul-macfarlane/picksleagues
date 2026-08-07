@@ -46,7 +46,7 @@ across two positions. Directory order is wrong here and cannot be fixed by renam
 
 Read §Build order before selecting work; it is dated and changes. As of 2026-08-03:
 `12-simplification` → `13-quality` → `09-launch` (visual + legal slice) →
-`06-elimination` → `09-launch` (remainder) → `07-march-madness` → `10-trust-safety`.
+`06-survivor` → `09-launch` (remainder) → `07-march-madness` → `10-trust-safety`.
 `ID-4` and `ADM-3` are open stragglers in otherwise-complete epics — take them when
 they block something, not for tidiness.
 

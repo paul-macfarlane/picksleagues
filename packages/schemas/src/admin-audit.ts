@@ -25,7 +25,7 @@ export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTION)[keyof typeof ADMIN_AU
 export const ADMIN_AUDIT_TARGET_TABLE = {
   GAMES: "games",
   // A rebuild's target is the league *season* whose derived state it wipes and
-  // recomputes, not the league: per-mode sibling tables (elimination, March
+  // recomputes, not the league: per-mode sibling tables (survivor, March
   // Madness) hang off the same row without a second vocabulary.
   LEAGUE_SEASONS: "league_seasons",
 } as const;

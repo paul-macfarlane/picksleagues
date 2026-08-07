@@ -214,21 +214,50 @@ describe("POST /api/leagues", () => {
     expect(((await res.json()) as LeagueResponse).maxMembers).toBe(10);
   });
 
-  it("400s on an elimination league with a postseason week", async () => {
+  it("creates a survivor league from the two settings it still accepts", async () => {
     await seedDefaultSeason();
     const { cookie } = await createAuthenticatedUser(auth);
 
     const res = await postLeague(cookie, {
-      mode: "elimination",
+      mode: "survivor",
+      name: "Survivors",
+      visibility: "private",
+      settings: { pickType: "straight_up" },
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as LeagueResponse;
+    // The range is the server's answer, not the request's (ADR-0024); the
+    // push/tie default is the schema's.
+    expect(body.settings).toMatchObject({
+      startWeek: { type: "regular", number: 1 },
+      endWeek: { type: "regular", number: 18 },
+      pushTieResolution: "advance",
+    });
+  });
+
+  it("ignores week refs a client supplies on a survivor create", async () => {
+    // ADR-0024: the range is decided server-side against the clock, so a client
+    // naming its own gets the resolved one anyway rather than the range it
+    // asked for — the same wire/stored divergence Pick'em rests on.
+    await seedDefaultSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postLeague(cookie, {
+      mode: "survivor",
       name: "Survivors",
       visibility: "private",
       settings: {
         startWeek: { type: "regular", number: 1 },
-        endWeek: { type: "postseason", number: 1 },
+        endWeek: { type: "regular", number: 10 },
         pickType: "straight_up",
       },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    // Week 18, not the 10 the request named.
+    expect(((await res.json()) as LeagueResponse).settings).toMatchObject({
+      startWeek: { type: "regular", number: 1 },
+      endWeek: { type: "regular", number: 18 },
+    });
   });
 
   it("409s march-madness creation while no NCAAMB season is ingested", async () => {

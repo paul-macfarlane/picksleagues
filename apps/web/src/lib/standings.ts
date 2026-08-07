@@ -10,7 +10,7 @@
 // built the counts a second way to feed it.
 //
 // Deliberately mode-agnostic (a rank with ties is not a Pick'em idea), matching
-// `packages/scoring/src/standings.ts`, so Elimination and March Madness render
+// `packages/scoring/src/standings.ts`, so Survivor and March Madness render
 // their boards through the same rule.
 
 /** How many members hold each rank — the input `rankLabel` needs to spot a tie. */

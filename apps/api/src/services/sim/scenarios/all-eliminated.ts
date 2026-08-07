@@ -5,7 +5,7 @@ import { WEEK_1, kickoffOffsetMs } from "./timing";
 
 /**
  * Every favorite loses outright, so a member picking straight-up favorites
- * every week busts in the same week (spec §Elimination: "Incorrect or no
+ * every week busts in the same week (spec §Survivor: "Incorrect or no
  * pick -> eliminated"; "If multiple members are still alive, they are
  * co-winners" only applies when *someone* survives — this fixture is the
  * case where nobody plausibly does).
@@ -14,7 +14,7 @@ export const allEliminatedScenario: SimScenarioDefinition = {
   slug: "all-eliminated",
   name: "All favorites lose",
   description: "Every favorite loses its game outright, so any favorite-only pick set busts.",
-  covers: "Elimination week where every plausible pick is wrong",
+  covers: "Survivor week where every plausible pick is wrong",
   sport: SPORT.NFL,
   teams: SIM_LIBRARY_TEAMS,
   weeks: [WEEK_1],

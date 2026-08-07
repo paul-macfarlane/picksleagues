@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FixedClock } from "@picksleagues/core";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   MEMBER_ROLE,
   PICK_TYPE,
@@ -21,7 +21,7 @@ import { resetDb } from "./setup/reset-db";
 /**
  * LG-9 / ADR-0020: the create form and the pre-start settings editor both need
  * to know, from the server, which season-range presets a season can still
- * start — the same `resolvePickemSeasonRange` → `nflWeekFirstKickoffAt` →
+ * start — the same `resolveNflSeasonRange` → `nflWeekFirstKickoffAt` →
  * `isPreStart` derivation `createLeague`/`updateLeague` run for the one preset
  * a request names, run here for all three. These assert the two endpoints
  * agree with what a create/update against the same clock would actually do,
@@ -433,12 +433,12 @@ describe("League-scoped endpoint gating (AC5)", () => {
     const commissioner = await createAuthenticatedUser(auth, { username: "elim_commish" });
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: commissioner.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

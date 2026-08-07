@@ -32,3 +32,5 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted (amended by 0021) |
 | [0021](0021-unseeded-playoff-games-excluded-at-ingestion.md) | Unseeded playoff games are excluded at ingestion | Accepted |
 | [0022](0022-member-set-avatar-url.md)         | Member-set avatar is an `https:` URL in an `image_override` column | Accepted |
+| [0023](0023-survivor-is-the-mode-name.md)     | Game Mode 2 is named Survivor, not Elimination | Accepted |
+| [0024](0024-survivor-settings-carry-a-resolved-range.md) | Survivor settings carry a resolved season range, not a chosen one | Accepted |

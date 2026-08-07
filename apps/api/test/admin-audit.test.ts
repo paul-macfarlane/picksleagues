@@ -5,7 +5,7 @@ import { FixedClock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
   ADMIN_AUDIT_TARGET_TABLE,
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   MEMBER_ROLE,
@@ -233,12 +233,12 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
     });
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId, role: MEMBER_ROLE.COMMISSIONER }],
     });

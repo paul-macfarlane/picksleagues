@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
-  EliminationSettingsSchema,
+  NFL_REGULAR_SEASON_RANGE,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
+  SurvivorSettingsInputSchema,
+  SurvivorSettingsSchema,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
@@ -312,7 +314,7 @@ describe("changing the season-range preset", () => {
   });
 });
 
-describe("EliminationSettingsSchema", () => {
+describe("SurvivorSettingsSchema", () => {
   const base = {
     startWeek: regular(1),
     endWeek: regular(18),
@@ -320,7 +322,7 @@ describe("EliminationSettingsSchema", () => {
   };
 
   it("applies default: advance on push", () => {
-    expect(EliminationSettingsSchema.parse(base).pushTieResolution).toBe("advance");
+    expect(SurvivorSettingsSchema.parse(base).pushTieResolution).toBe("advance");
   });
 
   it.each([
@@ -328,7 +330,7 @@ describe("EliminationSettingsSchema", () => {
     { label: "single week", input: { ...base, startWeek: regular(7), endWeek: regular(7) } },
     { label: "eliminate on push", input: { ...base, pushTieResolution: "eliminate" } },
   ])("accepts $label", ({ input }) => {
-    expect(EliminationSettingsSchema.safeParse(input).success).toBe(true);
+    expect(SurvivorSettingsSchema.safeParse(input).success).toBe(true);
   });
 
   it.each([
@@ -341,7 +343,56 @@ describe("EliminationSettingsSchema", () => {
     { label: "week 0", input: { ...base, startWeek: regular(0) } },
     { label: "week 19", input: { ...base, endWeek: regular(19) } },
   ])("rejects $label", ({ input }) => {
-    expect(EliminationSettingsSchema.safeParse(input).success).toBe(false);
+    expect(SurvivorSettingsSchema.safeParse(input).success).toBe(false);
+  });
+
+  // The stored shape is unchanged by ADR-0024 — only the wire shape lost the
+  // range — so everything downstream keeps reading the refs it always did.
+  it("round-trips the resolved refs the server stores, including a mid-season start", () => {
+    const stored = {
+      startWeek: regular(5),
+      endWeek: regular(18),
+      pickType: "straight_up" as const,
+      pushTieResolution: "advance" as const,
+    };
+    expect(SurvivorSettingsSchema.parse(stored)).toEqual(stored);
+  });
+
+  it("accepts the regular-season nominal range both modes resolve from", () => {
+    expect(
+      SurvivorSettingsSchema.safeParse({
+        ...NFL_REGULAR_SEASON_RANGE,
+        pickType: "straight_up",
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe("SurvivorSettingsInputSchema", () => {
+  it("carries only the two settings a commissioner still chooses", () => {
+    const parsed = SurvivorSettingsInputSchema.parse({ pickType: "straight_up" });
+    expect(parsed).toEqual({ pickType: "straight_up", pushTieResolution: "advance" });
+  });
+
+  // ADR-0024: the range is resolved server-side against the clock, so a client
+  // naming its own gets the resolved one anyway — same as Pick'em's input,
+  // which strips stray refs supplied alongside the preset.
+  it.each([
+    { label: "a start week", input: { pickType: "straight_up", startWeek: regular(5) } },
+    { label: "an end week", input: { pickType: "straight_up", endWeek: regular(10) } },
+    {
+      label: "the whole pre-ADR-0024 range",
+      input: { pickType: "straight_up", startWeek: regular(1), endWeek: regular(18) },
+    },
+    {
+      label: "a season-range preset it has no vocabulary for",
+      input: { pickType: "straight_up", seasonRangePreset: "regular_season" },
+    },
+  ])("strips $label from the wire", ({ input }) => {
+    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({
+      pickType: "straight_up",
+      pushTieResolution: "advance",
+    });
   });
 });
 
@@ -413,28 +464,29 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
   it("dispatches every league mode to its settings schema", () => {
     expect(Object.keys(LEAGUE_SETTINGS_SCHEMAS).sort()).toEqual(Object.values(LEAGUE_MODE).sort());
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM]).toBe(PickemSettingsSchema);
-    expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.ELIMINATION]).toBe(EliminationSettingsSchema);
+    expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR]).toBe(SurvivorSettingsSchema);
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(MarchMadnessSettingsSchema);
   });
 
-  // Only Pick'em's two entries differ (ADR-0020 §Scope) — an Elimination or
-  // March Madness entry drifting apart would mean a wire shape nothing
-  // resolves into the stored one.
-  it("dispatches every league mode to its input schema, diverging only for Pick'em", () => {
+  // Both NFL modes' entries differ from the stored map (ADR-0020, ADR-0024):
+  // each has its season range resolved rather than chosen. March Madness has
+  // no range, and an entry of its drifting apart would mean a wire shape
+  // nothing resolves into the stored one.
+  it("dispatches every league mode to its input schema, diverging for both NFL modes", () => {
     expect(Object.keys(LEAGUE_SETTINGS_INPUT_SCHEMAS).sort()).toEqual(
       Object.values(LEAGUE_MODE).sort(),
     );
     expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.PICKEM]).toBe(PickemSettingsInputSchema);
-    expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.ELIMINATION]).toBe(EliminationSettingsSchema);
+    expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.SURVIVOR]).toBe(SurvivorSettingsInputSchema);
     expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(
       MarchMadnessSettingsSchema,
     );
   });
 
   it("pins the wire values other packages build on", () => {
-    expect(Object.values(LEAGUE_MODE).sort()).toEqual(["elimination", "march_madness", "pickem"]);
+    expect(Object.values(LEAGUE_MODE).sort()).toEqual(["march_madness", "pickem", "survivor"]);
     expect(Object.values(PICK_TYPE).sort()).toEqual(["against_the_spread", "straight_up"]);
-    expect(Object.values(ELIMINATION_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
+    expect(Object.values(SURVIVOR_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
     expect(Object.values(WEEK_TYPE).sort()).toEqual(["postseason", "regular"]);
     expect(Object.values(PICKEM_SEASON_RANGE_PRESET).sort()).toEqual([
       "full_season",

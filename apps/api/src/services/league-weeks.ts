@@ -19,7 +19,7 @@ import { getMembership } from "./leagues/authz";
  * to move between weeks; the admin season browser is not reachable to them, and
  * it wouldn't answer the "which weeks does MY league cover" question anyway.
  *
- * Mode-agnostic surface, Pick'em-only gate for now: Elimination configures the
+ * Mode-agnostic surface, Pick'em-only gate for now: Survivor configures the
  * same start/end week range and will share this endpoint, so the
  * `wrong_league_mode` refusal below widens to accept it when ELM lands.
  */

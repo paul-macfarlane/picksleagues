@@ -155,6 +155,13 @@
       "when": 1786108664743,
       "tag": "0021_nostalgic_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786125201483,
+      "tag": "0022_survivor_mode_rename",
+      "breakpoints": true
     }
   ]
 }

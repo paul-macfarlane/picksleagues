@@ -757,12 +757,12 @@ export interface components {
         };
         LeagueName: string;
         /** @enum {string} */
-        LeagueMode: "pickem" | "elimination" | "march_madness";
+        LeagueMode: "pickem" | "survivor" | "march_madness";
         /** @enum {string} */
         LeagueVisibility: "public" | "private";
         /** @enum {string} */
         LeagueStatus: "active" | "concluded";
-        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["EliminationSettings"] | {
+        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | {
             /** @default 5 */
             maxBracketsPerMember: number;
             /** @enum {string} */
@@ -795,7 +795,7 @@ export interface components {
         };
         /** @enum {string} */
         PickType: "straight_up" | "against_the_spread";
-        EliminationSettings: {
+        SurvivorSettings: {
             startWeek: {
                 /** @enum {string} */
                 type: "regular";
@@ -807,13 +807,13 @@ export interface components {
                 number: number;
             };
             pickType: components["schemas"]["PickType"];
-            pushTieResolution?: components["schemas"]["EliminationPushTieResolution"];
+            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         /**
          * @default advance
          * @enum {string}
          */
-        EliminationPushTieResolution: "advance" | "eliminate";
+        SurvivorPushTieResolution: "advance" | "eliminate";
         /** @enum {string} */
         MemberRole: "commissioner" | "member";
         LeagueMember: {
@@ -835,11 +835,11 @@ export interface components {
             settings: components["schemas"]["PickemSettingsInput"];
         } | {
             /** @enum {string} */
-            mode: "elimination";
+            mode: "survivor";
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
             maxMembers?: components["schemas"]["MaxMembers"];
-            settings: components["schemas"]["EliminationSettings"];
+            settings: components["schemas"]["SurvivorSettingsInput"];
         } | {
             /** @enum {string} */
             mode: "march_madness";
@@ -855,6 +855,10 @@ export interface components {
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
+        };
+        SurvivorSettingsInput: {
+            pickType: components["schemas"]["PickType"];
+            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         MarchMadnessSettings: {
             /** @default 5 */

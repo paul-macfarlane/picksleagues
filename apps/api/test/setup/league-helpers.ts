@@ -21,6 +21,7 @@ import {
   PICK_TYPE,
   PICKEM_SEASON_RANGE_PRESET,
   SPORT,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type LeagueMode,
   type LeagueSettings,
@@ -30,6 +31,7 @@ import {
   type PickemSettings,
   type PickemPickSide,
   type Sport,
+  type SurvivorSettings,
   type WeekType,
 } from "@picksleagues/schemas";
 import { WEEK1_KICKOFF } from "./league-app";
@@ -166,6 +168,18 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
   picksPerWeek: 5,
+};
+
+/**
+ * The shape `createLeague` resolves a Survivor request into (ADR-0024) — the
+ * regular season, since that is the only range the mode allows. Fixtures that
+ * care about a *stale* stored range override `startWeek`.
+ */
+export const DEFAULT_SURVIVOR_SETTINGS: SurvivorSettings = {
+  startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+  endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
+  pickType: PICK_TYPE.STRAIGHT_UP,
+  pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
 };
 
 /** Four unstarted games, spread an hour apart — a slate long enough to exceed a modest Picks Per Week cap. */

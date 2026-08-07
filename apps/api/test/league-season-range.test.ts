@@ -5,15 +5,18 @@ import { leagueSeasons } from "@picksleagues/db";
 import {
   PICKEM_SEASON_RANGE_PRESET,
   PickemSettingsSchema,
+  SurvivorSettingsSchema,
   WEEK_TYPE,
   type LeagueResponse,
   type PickemSettings,
+  type SurvivorSettings,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { seedSeason } from "./setup/league-helpers";
 import {
   makeLeagueTestHarness,
+  POST_START_NOW,
   PRE_START_NOW,
   WEEK1_KICKOFF,
   withCookie,
@@ -22,9 +25,11 @@ import { resetDb } from "./setup/reset-db";
 
 /**
  * ADR-0020: a Pick'em request names a season-range preset and the server
- * resolves it, once, against the bound season and the injected clock. These
- * assert the *stored* range — the fact every downstream derivation reads —
- * rather than what the request asked for.
+ * resolves it, once, against the bound season and the injected clock.
+ * ADR-0024: a Survivor request names nothing at all and the same rule runs
+ * against the mode's one legal range. These assert the *stored* range — the
+ * fact every downstream derivation reads — rather than what the request asked
+ * for.
  */
 const { db, auth, app, appAfterKickoff } = makeLeagueTestHarness();
 
@@ -50,6 +55,28 @@ function postLeague(cookie: string, settings: unknown, on: App = app) {
   });
 }
 
+function postSurvivorLeague(cookie: string, settings: unknown, on: App = app) {
+  return on.request("/api/leagues", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...withCookie(cookie) },
+    body: JSON.stringify({
+      mode: "survivor",
+      name: "Survivor Range Test",
+      // Public so the join cutoff can be exercised without minting an invite —
+      // "never born already started" is only observable as someone joining.
+      visibility: "public",
+      settings,
+    }),
+  });
+}
+
+function joinLeague(cookie: string, leagueId: string, on: App = app) {
+  return on.request(`/api/leagues/${leagueId}/join`, {
+    method: "POST",
+    headers: withCookie(cookie),
+  });
+}
+
 function patchLeague(cookie: string, leagueId: string, settings: unknown, on: App = app) {
   return on.request(`/api/leagues/${leagueId}`, {
     method: "PATCH",
@@ -63,10 +90,18 @@ function patchLeague(cookie: string, leagueId: string, settings: unknown, on: Ap
  * path can never leave an unresolved shape in the JSONB, since the stored
  * schema requires the week refs the preset alone doesn't carry.
  */
-async function storedSettings(leagueId: string): Promise<PickemSettings> {
+async function storedSettingsBlob(leagueId: string): Promise<unknown> {
   const [row] = await db.select().from(leagueSeasons).where(eq(leagueSeasons.leagueId, leagueId));
   if (!row) throw new Error(`no league_seasons row for league ${leagueId}`);
-  return PickemSettingsSchema.parse(row.settings);
+  return row.settings;
+}
+
+async function storedSettings(leagueId: string): Promise<PickemSettings> {
+  return PickemSettingsSchema.parse(await storedSettingsBlob(leagueId));
+}
+
+async function storedSurvivorSettings(leagueId: string): Promise<SurvivorSettings> {
+  return SurvivorSettingsSchema.parse(await storedSettingsBlob(leagueId));
 }
 
 /** A full season's shape in miniature: two regular weeks and two playoff rounds. */
@@ -450,6 +485,123 @@ describe("PATCH /api/leagues/:leagueId — the pre-start editor re-resolves", ()
       seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON,
       startWeek: regular(2),
       endWeek: postseason(4),
+    });
+  });
+});
+
+/**
+ * ADR-0024: Survivor's request carries no range and no preset, so these assert
+ * the same mid-week rule Pick'em's Regular Season preset gets, reached without
+ * anything on the wire to reach it by.
+ */
+describe("POST /api/leagues — Survivor's range is resolved, never chosen", () => {
+  const SURVIVOR_SETTINGS = { pickType: "straight_up", pushTieResolution: "advance" };
+
+  it("stores the regular season while every week is still ahead", async () => {
+    await seedFullSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postSurvivorLeague(cookie, SURVIVOR_SETTINGS);
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as LeagueResponse;
+
+    expect(await storedSurvivorSettings(id)).toMatchObject({
+      startWeek: regular(1),
+      endWeek: regular(18),
+      pickType: "straight_up",
+      pushTieResolution: "advance",
+    });
+  });
+
+  it("advances the start to the next week whose first kickoff is still ahead", async () => {
+    await seedFullSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    // One millisecond past week 1's kickoff. The end never moves: Survivor's
+    // nominal end is regular week 18 whatever the clock says.
+    const res = await postSurvivorLeague(cookie, SURVIVOR_SETTINGS, appAfterKickoff);
+    expect(res.status).toBe(201);
+    const { id, startsAt } = (await res.json()) as LeagueResponse;
+
+    expect(await storedSurvivorSettings(id)).toMatchObject({
+      startWeek: regular(2),
+      endWeek: regular(18),
+    });
+    expect(startsAt).toBe(WEEK2_KICKOFF.toISOString());
+  });
+
+  it("falls back to regular week 1 on a provisional season whose weeks hold no games", async () => {
+    await seedSeason(db, {
+      year: 2027,
+      provisional: true,
+      weeks: [{ weekNumber: 1, kickoffs: [] }],
+    });
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postSurvivorLeague(cookie, SURVIVOR_SETTINGS);
+    expect(res.status).toBe(201);
+    const { id, startsAt } = (await res.json()) as LeagueResponse;
+
+    expect(await storedSurvivorSettings(id)).toMatchObject({
+      startWeek: regular(1),
+      endWeek: regular(18),
+    });
+    expect(startsAt).toBeNull();
+  });
+
+  it("is never born already started — a league created mid-season is still joinable", async () => {
+    // The whole reason resolution isn't just "pin week 1" (ADR-0024): pinned,
+    // this league's join cutoff would already have passed at creation and the
+    // members it was created for could never get in.
+    await seedFullSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
+
+    const created = await postSurvivorLeague(cookie, SURVIVOR_SETTINGS, appAfterKickoff);
+    expect(created.status).toBe(201);
+    const { id, startsAt } = (await created.json()) as LeagueResponse;
+    expect(new Date(startsAt!).getTime()).toBeGreaterThan(POST_START_NOW.getTime());
+
+    const joined = await joinLeague(joiner.cookie, id, appAfterKickoff);
+    expect(joined.status).toBe(201);
+  });
+
+  it("refuses a season whose regular-season range has already run", async () => {
+    // Created once the last ingested regular week has kicked off: nothing left
+    // to advance to, so resolution falls back to a nominal start in the past
+    // and `createLeague`'s existing refusal catches it (ADR-0024 §Decision).
+    await seedSeason(db, {
+      year: 2026,
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
+    });
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postSurvivorLeague(cookie, SURVIVOR_SETTINGS, appAfterKickoff);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "start_week_passed" });
+  });
+
+  it("keeps the resolved range through a settings edit that carries none", async () => {
+    // The wire shape has nothing to say about the range, so a save must leave
+    // the stored refs intact rather than dropping them — the edit re-resolves
+    // against the same clock and lands on the same weeks. (Re-resolution
+    // *moving* the range needs a season whose weeks changed underneath the
+    // league, which is renewal — renewal.test.ts pins that half.)
+    await seedFullSeason();
+    const { cookie } = await createAuthenticatedUser(auth);
+    const created = await postSurvivorLeague(cookie, SURVIVOR_SETTINGS);
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as LeagueResponse;
+
+    const res = await patchLeague(cookie, id, {
+      pickType: "straight_up",
+      pushTieResolution: "eliminate",
+    });
+    expect(res.status).toBe(200);
+    expect(await storedSurvivorSettings(id)).toMatchObject({
+      startWeek: regular(1),
+      endWeek: regular(18),
+      pushTieResolution: "eliminate",
     });
   });
 });
