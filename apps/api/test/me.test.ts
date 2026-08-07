@@ -103,6 +103,7 @@ describe("GET /api/me", () => {
       email: user.email,
       image: null,
       imageOverride: null,
+      providerImage: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -183,6 +184,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       imageOverride: null,
+      providerImage: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -258,6 +260,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       imageOverride: null,
+      providerImage: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -284,6 +287,7 @@ describe("PATCH /api/me", () => {
       email: user.email,
       image: null,
       imageOverride: null,
+      providerImage: null,
       isAdmin: false,
       simEnabled: false,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
@@ -336,6 +340,9 @@ describe("PATCH /api/me", () => {
       await patchMeBody(cookie, { imageOverride: MEMBER_IMAGE })
     ).json()) as MeResponse;
     expect(setBody.image).toBe(MEMBER_IMAGE);
+    // Still exposed while the override is set — this is what lets the profile
+    // editor preview what clearing would revert to (ADR-0022).
+    expect(setBody.providerImage).toBe(PROVIDER_IMAGE);
 
     const clearRes = await patchMeBody(cookie, { imageOverride: null });
     expect(clearRes.status).toBe(200);

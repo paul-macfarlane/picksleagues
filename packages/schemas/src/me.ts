@@ -31,6 +31,17 @@ export const MeResponseSchema = z
     // would be inexpressible. Only `/me` carries it; every other surface shows
     // other members the resolved value alone.
     imageOverride: NullableImageUrlSchema,
+    // The OAuth provider's own avatar, unresolved — what the member would get
+    // back if they cleared their override (ADR-0022). The profile editor
+    // previews the avatar the member is about to save, and previewing the
+    // *clear* needs the value the clear reverts to; once an override is set,
+    // `image` equals it and the provider's is otherwise invisible to the SPA.
+    //
+    // This is the pre-resolution input, not a second resolution: `image` above
+    // stays the one resolved value every surface renders. Nothing in the SPA
+    // may recompute `imageOverride ?? providerImage` — that coalesce has one
+    // home and it is server-side.
+    providerImage: z.string().nullable(),
     // Admin capability = the caller's `users.app_role` (ADR-0013) — the SPA uses
     // this to show/hide the admin surface.
     isAdmin: z.boolean(),

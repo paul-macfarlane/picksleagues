@@ -674,6 +674,7 @@ export interface components {
             email: string;
             image: string | null;
             imageOverride: components["schemas"]["NullableImageUrl"];
+            providerImage: string | null;
             isAdmin: boolean;
             simEnabled: boolean;
             /** Format: date-time */

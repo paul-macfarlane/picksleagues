@@ -49,10 +49,16 @@ validation never sees — the same reasoning that keeps `app_role` off Better Au
 provider truth, and stops a later provider-image refresh clobbering a member's choice.
 **This does not close the write path to the fallback itself** — see Consequences.
 
-**Wire shape:** `MeResponse` carries the resolved `image` *and* the raw `imageOverride`; every
-other surface carries only the resolved `image`. The form must echo what the member typed;
-nobody else has a use for the distinction, and shipping it would tell every league member
-whether another member's avatar is provider-supplied.
+**Wire shape:** `MeResponse` carries the resolved `image` plus the two unresolved inputs —
+`imageOverride` (the member's raw value) and `providerImage` (the OAuth provider's). Every
+other surface carries only the resolved `image`. The form must echo what the member typed, and
+the editor previews the avatar about to be saved — previewing the *clear* needs the value the
+clear reverts to, which is invisible once an override is set because `image` then equals the
+override. None of it is anyone else's business: shipping the distinction league-wide would tell
+every member whether another member's avatar is provider-supplied.
+
+These are pre-resolution inputs, not a second resolution. `image` remains the one resolved
+value every surface renders, and no client recomputes `imageOverride ?? providerImage`.
 
 ## Consequences
 

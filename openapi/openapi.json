@@ -44,6 +44,12 @@
           "imageOverride": {
             "$ref": "#/components/schemas/NullableImageUrl"
           },
+          "providerImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "isAdmin": {
             "type": "boolean"
           },
@@ -62,6 +68,7 @@
           "email",
           "image",
           "imageOverride",
+          "providerImage",
           "isAdmin",
           "simEnabled",
           "now"

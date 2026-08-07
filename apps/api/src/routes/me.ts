@@ -31,6 +31,7 @@ function serializeMe(
     // this is the caller's own profile, and the editor needs to tell "unset,
     // inheriting" from "set" (ADR-0022).
     imageOverride: user.imageOverride,
+    providerImage: user.image,
     // Admin capability is the user's own role column (ADR-0013), so it travels
     // with the row rather than being resolved from env alongside `simEnabled`.
     isAdmin: user.appRole === APP_ROLE.ADMIN,

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
 import {
   DisplayNameSchema,
@@ -12,6 +12,7 @@ import {
 } from "@picksleagues/schemas";
 import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
+import { useAvatarPreview } from "@/lib/avatar-preview";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -135,6 +136,17 @@ function ProfileForm({
     },
   });
 
+  // `useStore` rather than this file's `form.Subscribe` idiom: a render prop
+  // can't host the preview hook, and two subscriptions (header avatar, hint
+  // below the field) would run two independent probes of the same URL. Same
+  // store either way.
+  const draftImage = useStore(form.store, (state) => state.values.imageOverride);
+  const preview = useAvatarPreview({
+    draft: draftImage,
+    savedImage: profile.image,
+    providerImage: profile.providerImage,
+  });
+
   return (
     <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
       {/* Every top-level page carries this heading in this style — the identity
@@ -146,13 +158,13 @@ function ProfileForm({
           <UserIdentity
             displayName={profile.displayName}
             username={profile.username}
-            image={profile.image}
+            image={preview.src}
             avatarSize="lg"
             className="flex-col"
           />
           <CardDescription>
-            Your avatar comes from your sign-in provider unless you set an image URL below. Clearing
-            the field goes back to the provider&apos;s.
+            Your avatar comes from your sign-in provider unless you set an image URL below. This
+            preview updates as you type; clearing the field goes back to the provider&apos;s.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -234,6 +246,15 @@ function ProfileForm({
                 />
               )}
             </form.Field>
+            {/* The avatar silently holding at its old image is ambiguous — it
+                reads as "the preview is slow" when it actually means the URL
+                won't render for anyone. `role="status"` so it's announced,
+                since the preview itself is purely visual. */}
+            {preview.failed && (
+              <p role="status" className="text-xs text-muted-foreground">
+                We couldn&apos;t load that image. Saving it will show your initials instead.
+              </p>
+            )}
             <form.Subscribe selector={(state) => state.values}>
               {(values) => {
                 // Compare trimmed: the server stores the trimmed value, so a
