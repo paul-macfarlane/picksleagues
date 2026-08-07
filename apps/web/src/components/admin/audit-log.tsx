@@ -10,6 +10,14 @@ import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { QueryState } from "@/components/query-state";
 import { UserIdentity } from "@/components/user-identity";
 
@@ -69,37 +77,25 @@ export function AuditLog({
         >
           {page && (
             <div className="flex flex-col gap-3">
-              {/* Five columns don't fit a phone; the table keeps its width and
-                  scrolls inside this container rather than wrapping cells into
-                  unreadable stacks. */}
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-3xl text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs font-medium text-muted-foreground">
-                      <th scope="col" className="px-2 py-2">
-                        When
-                      </th>
-                      <th scope="col" className="px-2 py-2">
-                        Admin
-                      </th>
-                      <th scope="col" className="px-2 py-2">
-                        Action
-                      </th>
-                      <th scope="col" className="px-2 py-2">
-                        Target
-                      </th>
-                      <th scope="col" className="px-2 py-2">
-                        Prior value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {page.entries.map((entry) => (
-                      <AuditRow key={entry.id} entry={entry} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {/* Five columns don't fit a phone, so the table keeps its width
+                  and scrolls rather than wrapping cells into unreadable stacks.
+                  The scroll container is `Table`'s own — do not add one here. */}
+              <Table className="min-w-3xl text-xs">
+                <TableHeader>
+                  <TableRow className="text-xs font-medium text-muted-foreground">
+                    <TableHead>When</TableHead>
+                    <TableHead>Admin</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Target</TableHead>
+                    <TableHead>Prior value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {page.entries.map((entry) => (
+                    <AuditRow key={entry.id} entry={entry} />
+                  ))}
+                </TableBody>
+              </Table>
 
               <AuditPager
                 total={page.total}
@@ -128,11 +124,9 @@ function AuditSkeleton() {
 
 function AuditRow({ entry }: { entry: AdminAuditEntry }) {
   return (
-    <tr className="border-b border-border align-top last:border-0">
-      <td className="px-2 py-2 text-xs whitespace-nowrap text-muted-foreground">
-        {formatDateTime(entry.createdAt)}
-      </td>
-      <td className="px-2 py-2">
+    <TableRow className="align-top">
+      <TableCell className="text-muted-foreground">{formatDateTime(entry.createdAt)}</TableCell>
+      <TableCell>
         {/* An admin is a user like any other here: name over @username, never a
             bare email. Compact because the columns beside it need the room. */}
         <UserIdentity
@@ -141,15 +135,17 @@ function AuditRow({ entry }: { entry: AdminAuditEntry }) {
           variant="compact"
           showAvatar={false}
         />
-      </td>
-      <td className="px-2 py-2 text-xs text-foreground">{ACTION_LABEL[entry.action]}</td>
-      <td className="px-2 py-2 text-xs">
+      </TableCell>
+      <TableCell className="text-foreground">{ACTION_LABEL[entry.action]}</TableCell>
+      {/* Two stacked lines, so this cell opts out of the primitive's
+          `whitespace-nowrap`. */}
+      <TableCell className="whitespace-normal">
         {/* A null label means the target row is gone — audit rows outlive their
             targets by design, so this is expected state, not missing data. */}
         <span className="text-foreground">{entry.targetLabel ?? "No longer exists"}</span>
         <span className="block text-muted-foreground">{TARGET_TABLE_LABEL[entry.targetTable]}</span>
-      </td>
-      <td className="px-2 py-2 text-xs">
+      </TableCell>
+      <TableCell className="whitespace-normal">
         {/* Collapsed by default: the shape differs per action and a row is
             scanned far more often than a prior value is read. */}
         <details>
@@ -158,8 +154,8 @@ function AuditRow({ entry }: { entry: AdminAuditEntry }) {
             {JSON.stringify(entry.priorValue, null, 2)}
           </pre>
         </details>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
