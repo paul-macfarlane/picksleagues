@@ -1,5 +1,5 @@
-DATA-9 DoD gates — 2026-08-07T03:46:14Z on feat/data-9-unseeded-playoff-games @ d7983ca
-Run surface: local only (docs/agents/testing.md).
+DATA-9 DoD gates — 2026-08-07T03:49:07Z on feat/data-9-unseeded-playoff-games
+Run surface: local only (docs/agents/testing.md). Verified commit is recorded in the plan's [CLOSEOUT].
 
 === pnpm typecheck — exit 0 ===
 $ pnpm -r typecheck && tsc -p e2e/tsconfig.json

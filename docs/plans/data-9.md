@@ -3,10 +3,11 @@
 Work package: `DATA-9` (`backlog/02-game-data.md`). Status at planning time: `[ ]`, deps none,
 tagged `_(needs-triage)_`.
 
-**Plan status: DRAFT — unapproved.** Written by `/atlas-plan` (2026-08-06) under the owner's
-delegated boundary decision ("I just want to make sure the game isn't pickable. I'll lean on
-your discretion here"). Per the Atlas planning contract, invoking `/atlas-implement DATA-9`
-approves this plan; ADR-0021 is drafted as step 1 of implementation, not pre-written here.
+**Plan status: APPROVED AND DELIVERED** — `/atlas-implement DATA-9` (2026-08-06) was the
+approval; see `[PROGRESS]`, `[AI CODE REVIEW]`, and `[CLOSEOUT]` at the end of this file.
+Written by `/atlas-plan` (2026-08-06) under the owner's delegated boundary decision ("I just
+want to make sure the game isn't pickable. I'll lean on your discretion here"). ADR-0021 was
+drafted as step 1 of implementation rather than pre-written here.
 
 **Revision 2026-08-06 — season-range resolver fallback folded in.** The first draft accepted a
 consequence the owner rejected on review: a Postseason (or Full Season) league could not be
@@ -328,3 +329,131 @@ against real data at deploy time.
   reverting the adapter (rows recreate); stored-row compatibility n/a (no shape change).
 - *Jobs:* `sync-schedule` stays idempotent — skipping is stateless; re-runs converge.
 - *Scoring/settlement:* untouched.
+
+---
+
+## [PROGRESS]
+
+Delivered 2026-08-06 on `feat/data-9-unseeded-playoff-games`, base `staging` @ `7e82de6`.
+
+**Execution structure: sequential, direct checkout, no worktrees, no delegation.**
+
+- *Isolation:* the five deliverables' file sets are disjoint — confirmed at closeout against the
+  real per-deliverable diffs, no file appears in two commits — so worktrees were never needed to
+  prevent interference. They were declined on cost: a git worktree in this pnpm-workspaces
+  monorepo has no `node_modules`, so every parallel worker would need its own `pnpm install`
+  before it could typecheck or run vitest, against deliverables of a few tens of lines each.
+- *Delegation:* none. The owner's standing preference is that the session model implements
+  directly, with delegation reserved as a cost valve; the full plan and every resolved decision
+  were already in orchestrator context, so a worker packet would have re-explained what was
+  already held. Each deliverable still landed as its own commit, so the acceptance screen and the
+  review below read per-deliverable diffs rather than one undifferentiated change.
+
+| # | Deliverable | Criteria | Commit |
+|---|---|---|---|
+| D1 | ADR-0021 + ADR-0010/0020 amendment pointers + README index | AC6 | `a759393` |
+| D2 | Adapter boundary, `GameDataProvider` contract, unit tests | AC1 | `f85d990` |
+| D3 | Season-range resolver fallback + resolution/availability tests | AC4 | `818794e` |
+| D4 | Seeding-transition coverage; reframed comments and test titles | AC2, AC3 | `95c4761` |
+| D5 | Guarded cleanup data migration | AC5 | `8b7039e` |
+
+Setup commit `d877761` carried the claim (`[ ]` → `[~]`), the plan file, and the evidence-root
+clear required before capturing this work package's proof.
+
+## [AI CODE REVIEW]
+
+Single formal review, performed statically over the complete repository diff
+(`git diff staging...HEAD`) plus the cross-file design. No blocking findings. Both axes below
+were assessed against the ticket, this plan, `CLAUDE.md`, and `.claude/rules/engineering.md`.
+
+### Axis 1 — technical implementation and spec conformity
+
+Conforms to the contract. Every AC has an implementing change and a test; declared exclusions
+held (no DB schema change, no `slate.ts`/`pickable` change, no `apps/web` change, no second
+placeholder guard in `ingest-season.ts`, no new e2e specs).
+
+Findings, all resolved:
+
+1. **Guard message double-counted affected picks** (`0021_remove-placeholder-playoff-games.sql`).
+   `count(*)` over a join that matches `teams` twice when *both* competitors are placeholders —
+   the normal case — reported 2 for a single pick. Caught by running the migration proof rather
+   than by reading the SQL. Fixed to `count(DISTINCT p."id")` and re-proved; the transcript in
+   `docs/evidence/test-results/migration-cleanup/` shows the corrected message.
+2. **Migration comment overstated its own predicate.** It claimed to "mirror the adapter's"
+   predicate, but the adapter parses the provider id as a number while the SQL matches a leading
+   `-`. Rewritten to state the difference, so a future edit to one is not assumed to cover the
+   other. Fixed inline by the orchestrator; the deliverable commit was amended.
+3. **Comments that would have started lying** — the `teams` table header and
+   `enrichTeamsFromListing`, both of which presented TBD ingestion as live provider behavior, and
+   two `nfl-sync-schedule.test.ts` titles built on the same premise. Reframed in D4: the partial
+   abbreviation unique and the enrichment skip are properties of the constraint and the service,
+   which is why they survive the placeholder rows going away.
+4. **A test comment made under-stated by D3** (`members.test.ts`, `start_week_passed` on PATCH).
+   It attributed the refusal to "week 2 has no games", which is no longer sufficient — a
+   games-less week with an open window is now a legitimate advance target. The fixture relied on
+   a helper default (`SEED_AT`) for the other half; it now states its own assumption explicitly
+   and the comment names both halves.
+
+Design notes, no change required: the exclusion sits in one place with the contract published on
+`GameDataProvider`, so `SimulatedProvider` and any future adapter inherit the obligation without a
+second guard; `leagueStartAt` is deliberately untouched, and its "null ⇒ pre-start" behavior is
+what makes an unseeded start week joinable and editable rather than an error state.
+
+### Axis 2 — coding standards
+
+Conforms. Time discipline unchanged (no new "now" reads; the resolver still reads the injected
+clock once). Provider shapes stay inside the ESPN adapter. No `any`, no `@ts-ignore`, no enum, no
+extension-suffixed relative imports. Comments state whys, not narration. `packages/scoring`
+untouched. Tests assert outcomes — returned games, stored settings, HTTP refusals — not call
+sequences.
+
+**One recorded deviation.** `isPlaceholderCompetitor` is not exported but carries a `/** */`
+comment, where the engineering rules assign `//` to non-exported declarations. Its five immediate
+neighbors in `espn-provider.ts` (`mapStatus`, `mapLiveState`, `findLogoUrl`,
+`domainPostseasonNumberFromEspn`, `espnPostseasonNumberFromDomain`) are all non-exported and all
+use `/** */`. The rule's stated failure — a caller obligation invisible at the call site — does
+not apply to a module-local helper, while introducing the sixth form into a file carrying five of
+the other would create exactly the two-idiom file the consistency rule warns about. Matched the
+file. Converting all six is a separate, mechanical change and is not in this work package.
+
+## [CLOSEOUT]
+
+Run surface: **local only**. Verified commit: see the PR head below.
+
+| Criterion | Verdict | Command | Evidence |
+|---|---|---|---|
+| AC1 — adapter never returns an undetermined-competitor game; seeded games pass through | PASS | `pnpm vitest run --project unit packages/core/src/espn-provider.test.ts` | `docs/evidence/test-results/espn-provider-unit/output.txt` |
+| AC2 — no rows for an unseeded round; the game appears on the sync after seeding | PASS | `pnpm test:integration` (`nfl-sync-schedule.test.ts`, "a round the provider serves empty, then serves seeded…"); AC2's adapter half is proved at the unit layer, since the integration suite injects a fake `GameDataProvider` | `docs/evidence/test-results/integration/output.txt` |
+| AC3 — a league whose start week has no games is pre-start: joinable, editable, startable | PASS | `pnpm test:integration` — `invites-join.test.ts` "treats a league whose start week has no games as pre-start (joinable)", `members.test.ts` pre-start settings edits, and D3's `startsAt: null` assertions | same |
+| AC4 — Postseason and Full Season advance to the unseeded round and are reported startable; Regular Season unchanged; nothing startable once every window closed | PASS | `pnpm test:integration` (`league-season-range.test.ts`, `pickem-season-range-presets.test.ts`) | same |
+| AC5 — migration removes placeholder games and teams; raises and applies nothing when a pick references one | PASS | `drizzle-kit migrate` on a throwaway scratch database, then the migration body against seeded rows, both cases | `docs/evidence/test-results/migration-cleanup/transcript.txt` |
+| AC6 — ADR-0021 exists and records both halves; ADR-0010/0020 carry amendment pointers | PASS | `grep -l "ADR-0021" docs/adr/` | PR diff |
+| DoD — typecheck, lint, test, format:check | PASS | `pnpm typecheck` / `lint` / `test` / `format:check`, each exit 0 | `docs/evidence/test-results/gates/output.txt` |
+| DoD — contract:check leaves `openapi/` clean | PASS | `pnpm contract:check`, exit 0, working tree clean afterwards — this change adds no schema or route | same |
+| DoD — e2e merge gate | PASS | `pnpm test:e2e`, exit 0, 13 passed, no new specs | `docs/evidence/test-results/e2e/output.txt` |
+
+**Deviations from the plan.** One, and it is an addition rather than a reduction: the plan's
+in-scope list did not name `apps/api/test/members.test.ts`, whose fixture and comment D3's change
+made under-stated (finding 4 above). Everything the plan scoped was delivered; nothing was
+dropped. The plan's proposed `_(needs-triage)_` → `_(ready-for-agent)_` relabel of the DATA-9
+ticket line was **not** applied: it changes ticket text, which `docs/agents/issue-tracker.md`
+requires a human preview for, and `/atlas-implement`'s standing approval does not extend to it.
+
+**Human gate — not yet satisfied; it is a merge/deploy gate, not a code gate.** Migrations apply
+to staging and prod through GitHub Actions on merge (ADR-0003), so the cleanup runs against real
+data at deploy time. Before merging, run against **staging and prod**:
+
+```sql
+SELECT count(*) FROM pickem_picks p
+JOIN games g ON p.game_id = g.id
+JOIN teams t ON t.id IN (g.home_team_id, g.away_team_id)
+WHERE t.provider_team_id LIKE '-%' OR upper(t.abbreviation) = 'TBD';
+```
+
+Expected `0`. If nonzero, stop — the migration will correctly fail the deploy, and those picks
+need a decision first. After the deploy, re-check on **each** environment that
+`SELECT count(*) FROM teams WHERE provider_team_id LIKE '-%' OR upper(abbreviation) = 'TBD'`
+returns `0`. The prod re-check is not ceremony: `migrate.yml` and the Vercel deploy race, so if
+the daily 06:00 ET `nfl-sync-schedule` tick lands between the migration and the new adapter
+serving, the old code re-ingests placeholders and no migration removes them again. Remedy is to
+re-run the cleanup statements manually against that environment, guard included.
