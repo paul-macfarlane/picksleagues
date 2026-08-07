@@ -563,3 +563,18 @@ committed, per the evidence policy. They could not be uploaded to the PR from
 this environment either — `gh` has no image-upload path — so the committed
 `ui-drive/transcript.md` is the durable record, and the images are attachable by
 hand from the session scratchpad if a reviewer wants them.
+
+### Collision prediction, re-checked against the real diffs
+
+The sequential structure was justified by a *prediction* about file ownership
+made before any deliverable existed. Checked at closeout against the three
+commits, every predicted collision materialized:
+
+| Files touched by >1 deliverable | Count |
+|---|---|
+| `apps/api/src/routes/admin.ts` | 3 |
+| `packages/schemas/src/admin-audit.ts`, `apps/api/src/services/admin-data.ts`, `apps/web/src/api/admin.ts`, `apps/web/src/routes/_authed/admin/audit.tsx`, `apps/api/test/admin-audit.test.ts`, `openapi/openapi.json`, `openapi/client/schema.d.ts` | 2 each |
+
+So the serialization was right, and right for the stated reason rather than by
+luck — worth recording, because a sequential plan that happened to be correct
+teaches the next run nothing about when to parallelize.
