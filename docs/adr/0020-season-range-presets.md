@@ -1,6 +1,6 @@
 # 0020. Season-range presets replace explicit Start Week / End Week
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by ADR-0021 (the mid-week resolution rule now judges a games-less week in range by its own `weeks.ends_at`, so a not-yet-seeded playoff round is still a selectable start week; range confinement is unchanged)
 - **Date:** 2026-08-04
 - **Related:** [0008](0008-league-season-binding.md) (`leagueStartAt` derivation),
   [0009](0009-multi-season-leagues.md) (per-instance settings, provisional seasons); `docs/mvp-spec.md`

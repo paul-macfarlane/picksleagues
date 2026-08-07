@@ -1,6 +1,6 @@
 # 0010. Teams are normalized reference data, not text columns on games
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by ADR-0021 (placeholder "TBD" teams no longer ingest at all; the partial unique index below stays, because it also covers provider-id-less bootstrap rows)
 - **Date:** 2026-07-23
 - **Related:** architecture.md §Domain Model, §Game Data (D15); mvp-spec.md §Elimination (unique team per member), §March Madness; backlog SF-4, epics 06–07
 
