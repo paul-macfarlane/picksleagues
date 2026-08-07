@@ -18,4 +18,4 @@ League lifecycle, membership, invites, discovery, and commissioner powers — th
 
 LG-9: `docs/plans/lg-9.md` (approved 2026-08-06; execution records live there). PR: https://github.com/paul-macfarlane/picksleagues/pull/36
 LG-10: `docs/plans/lg-10.md` (approved 2026-08-06; execution records live there).
-LG-11: `docs/plans/lg-11.md` (approved 2026-08-06; execution records live there).
+LG-11: `docs/plans/lg-11.md` (approved 2026-08-06; execution records live there). PR: https://github.com/paul-macfarlane/picksleagues/pull/37
