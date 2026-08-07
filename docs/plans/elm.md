@@ -1037,7 +1037,8 @@ Conforms to `.claude/rules/engineering.md` and the ADRs it references.
 
 ## [CLOSEOUT] — ELM-2
 
-**Pull request:** _(added at PR creation)_ — `picksleagues`, base `staging`.
+**Pull request:** https://github.com/paul-macfarlane/picksleagues/pull/44
+(`picksleagues`, base `staging`).
 **Run surface:** local only. **Evidence:** `docs/evidence/test-results/elm-2/`
 (text committed; phone-width screenshots attached to the PR, not committed, per
 `docs/agents/testing.md`).
