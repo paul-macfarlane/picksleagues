@@ -18,4 +18,4 @@ Post-review scope addition (owner feedback, ADR-0007): ingestion covers the NFL 
 
 ## Technical plan
 
-- **DATA-9** — `docs/plans/data-9.md` (draft, red-team reviewed; approval = `/atlas-implement DATA-9`)
+- **DATA-9** — `docs/plans/data-9.md` (approved and delivered; carries the execution record, AI code review, and closeout)
