@@ -31,3 +31,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
 | [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted (amended by 0021) |
 | [0021](0021-unseeded-playoff-games-excluded-at-ingestion.md) | Unseeded playoff games are excluded at ingestion | Accepted |
+| [0022](0022-member-set-avatar-url.md)         | Member-set avatar is an `https:` URL in an `image_override` column | Accepted |

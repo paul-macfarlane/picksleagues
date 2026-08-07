@@ -29,7 +29,7 @@ A web app where friends create and compete in sports pick'em leagues. MVP ships 
 **Profile:** every user has a **unique username** and a **display name**.
 - Username rules: 3–20 characters; letters, numbers, and underscores only; uniqueness is case-insensitive (stored and displayed lowercase). Chosen at first sign-in; changeable at any time to any unclaimed name; the old name is released immediately.
 - Display name: prefilled from the OAuth provider; freely editable.
-- Avatar: pulled from the OAuth provider; no custom uploads.
+- Avatar: prefilled from the OAuth provider; a user may override it from the profile screen with an `https:` image URL of their own, and clearing the override reverts to the provider's. The app stores a link, never image bytes — there are still no uploads. (ADR-0022)
 
 **Onboarding flow:** OAuth → claim username (first time only) → dashboard. If the user arrived via an invite link, they return to the join flow immediately after.
 
@@ -38,7 +38,7 @@ A web app where friends create and compete in sports pick'em leagues. MVP ships 
 - A user may be **commissioner of at most 10 active leagues** (active = created and not yet concluded). Creating a league — or being promoted to commissioner — beyond the cap is blocked with a clear message. Deleting a pre-start league, a league concluding, or being demoted frees a slot. (ADR-0004)
 
 **Account deletion:** permanent and immediate; the profile is **anonymized in place** rather than removed, so picks, results, and standings history survive in every league.
-- Username is released (immediately claimable by others); display name is replaced with a "Deleted User" placeholder; the email is replaced with a non-identifying placeholder; avatar, OAuth identities, and all sessions are removed.
+- Username is released (immediately claimable by others); display name is replaced with a "Deleted User" placeholder; the email is replaced with a non-identifying placeholder; avatar (both the provider value and any member-set override, ADR-0022) is removed, along with OAuth identities and all sessions.
 - Signing in again with the same provider afterward creates a brand-new account — there is no undelete or reconnection.
 - Deletion is **blocked** while the user is the last commissioner of any non-empty active league — they must promote a replacement first (same ≥1-commissioner guard as leaving; ADR-0004).
 
