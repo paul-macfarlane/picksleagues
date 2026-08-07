@@ -835,3 +835,284 @@ strength of ADR-0023.
    edited.** A setup rerun preserves managed-section content rather than
    regenerating it, so the rename should survive — but it is a managed region and
    the owner should know it was touched.
+
+---
+
+## [PROGRESS] — ELM-2 (2026-08-07)
+
+Work package `elm-2`, the second of the epic's six PR-sized slices. Branch
+`feat/elm-2-survivor-picks-state-and-entry` off `staging` at `d0da90a` (ELM-1's
+merge commit — its ADR human gate closed with that merge, which is what released
+ELM-2..6 to adopt `survivor*` names). ELM-3 is available in parallel by the
+plan's delivery order but is a separate PR and is **not** part of this run.
+
+**Execution structure.** Four deliverables. D1 is docs-only and diff-disjoint
+from everything else, so it runs concurrently in a worktree
+(`.claude/worktrees/elm-2/picksleagues`, branch `feat/elm-2-d1-adr`) — it needs
+no `.env`, no database, and no build command, which is precisely the condition
+ELM-1's closeout identified as making a worktree safe here. D2 is the long pole
+and holds the direct checkout because it must run `pnpm test:integration` and
+`pnpm contract:check` against the real database. D3 and D4 follow D2 in the
+direct checkout: both depend on D2's endpoints and generated client, and they
+share `apps/web/src/api/survivor.ts`, so they are ordered rather than parallel —
+a genuine shared-file dependency, not a predicted one.
+
+| Deliverable | Slice | Depends on |
+|---|---|---|
+| D1 | ADR-0025 + `architecture.md` / `mvp-spec.md` reconciliation (docs only) | — |
+| D2 | `survivor_picks` + `survivor_state` tables, pick upsert + read endpoints, `listLeagueWeeks` widened, `openapi/` regen, integration tests | — |
+| D3 | Survivor pick-entry UI ("My Picks") | D2 |
+| D4 | Settings-reset analog for Survivor (ADR-0015 rule 3): API clear-in-transaction, `packages/schemas` predicate, pick-summary source, editor warning | D2, D3 |
+
+Verification map: the ELM-2 table in this file's plan section above, unchanged.
+Evidence root `docs/evidence/test-results/elm-2/`; text committed, images to the
+PR (`docs/agents/testing.md` §Evidence policy).
+
+| Deliverable | Worker | Commit | Outcome |
+|---|---|---|---|
+| D1 — ADR-0025 + `architecture.md` / `mvp-spec.md` reconciliation | atlas-worker (Opus) | `ae05821` | accepted |
+| D2 — tables, migration, pick endpoints, `listLeagueWeeks`, integration tests | atlas-worker (session model) | `a0e2039` | accepted |
+| D3 — Survivor My Picks screen + `apps/web/src/api/survivor.ts` | atlas-worker (session model) | `6189be2` | accepted |
+| D4 — settings-reset analog, pick summary, editor warning | atlas-worker (session model) | `a2f9a25` | accepted |
+
+**Isolation, and the re-check the record owes.** D1 ran concurrently in a
+worktree (`.claude/worktrees/elm-2/picksleagues`) while D2 held the direct
+checkout. Confirmed at closeout against the real diffs: D1 touched `docs/**`
+only, D2 touched `packages/**`, `apps/**`, `openapi/**` — zero shared files, so
+the parallelism was safe on file grounds as predicted. The condition that made
+the worktree viable is the one ELM-1's closeout identified: D1 ran **no**
+command needing the `.env` a fresh worktree lacks. D3 and D4 stayed sequential
+in the direct checkout for two real reasons rather than one predicted one —
+both need the database and the contract toolchain, and both edit
+`apps/web/src/api/survivor.ts`.
+
+**Three orchestrator commits**, kept separate from the workers' so provenance
+stays honest:
+
+- `09133a8` — `GAME_SIDE`. D3 flagged that Survivor's pick sheet had to import
+  `PICKEM_PICK_SIDE` to say "the away team", because `spreadLabel`'s side
+  parameter was typed `PickemPickSide`. That is the first-mode-squats-the-
+  unqualified-name failure the mode-naming rule exists to prevent, and the
+  worker correctly judged the fix outside its own packet. `PICKEM_PICK_SIDE`
+  survives as the wire value of a Pick'em pick and keeps its OpenAPI component;
+  because the members are the same two strings, every Pick'em call site compiled
+  untouched.
+- `a2c817d` — moved `settings-reset.ts` from `services/pickem/` to
+  `services/leagues/`. D4 gave it a real per-mode dispatch, at which point its
+  address made Pick'em the owner of a rule that is not its own. D4 flagged this
+  and left the call here.
+- `aa0793e` (folded into D1's cherry-pick) — the `docs/adr/README.md` index row
+  for ADR-0025, which D1 correctly declined to add because its packet's file
+  allowlist excluded it, plus one paragraph closing a gap D1 raised: a pick
+  change is an upsert rewriting `team_id` in place, so no stale ledger row can
+  survive it.
+
+## [AI CODE REVIEW] — ELM-2
+
+Single formal review by the frontier orchestrator against the complete
+integrated diff `d0da90a..a2c817d`. Static review only; behavioural verdicts are
+in the verification record below.
+
+### Axis 1 — technical implementation and spec conformity
+
+Conforms to the ELM-2 ticket line, spec §Game Mode 2, and the approved plan's
+ELM-2 section including its decisions on the team ledger, eliminated-member
+entry, and the persistence ADR.
+
+- **The team ledger is enforced where the ticket requires it.** The migration
+  emits `CREATE UNIQUE INDEX … WHERE not "survivor_picks"."released"`, and the
+  test that guards it queries `pg_indexes` and asserts the predicate is present
+  — not merely that an index by that name exists. That distinction is the whole
+  point: a plain unique passing under the same name would silently block the
+  re-pick the spec's cancellation rule explicitly permits, and no behavioural
+  test in ELM-2 could catch it, because the release path itself is ELM-4's.
+- **The database constraint is proven as a database constraint.** One case
+  bypasses the service entirely, inserts a conflicting row, catches the real
+  driver error, and asserts `isUniqueViolation(caught, "survivor_picks_member_team_unique")`
+  — so both halves of the second line of defence are pinned: the constraint
+  fires, and the helper the service's `catch` calls recognises what it raised.
+  No mock stands in for Postgres anywhere in this work package.
+- **Every mutation-time invariant is re-validated inside the transaction**
+  (arch D11): elimination, the new game's kickoff, *the held pick's own game's*
+  kickoff, team consumption, and ATS spread acceptance, all after
+  `lockLeagueMemberRow` and after a fresh in-transaction slate read. The
+  pre-flight read is never trusted.
+- **The pick-locked rule is the subtle one and it is right.** A member whose
+  held pick's game has kicked off cannot switch to a game that has not — the
+  service refuses, and D3's sheet freezes rather than offering a Save the API
+  would certainly reject. I verified the UI's behaviour against the service
+  rather than accepting the worker's reasoning about it.
+- **Visibility is enforced in the query layer, and the consumed list does not
+  leak around it.** Another member's `pick` is `null` until their game kicks
+  off while `hasPicked` stays true — the existence/content split ADR-0015 rule 4
+  set for Pick'em — and `consumedTeamIds` is scoped to the caller. Excluding the
+  requested week from that list is a deliberate, commented choice: this week's
+  own pick is the one the member may still change, so including it would have
+  the UI disable the team they currently hold.
+- **The eliminated-member rule is judged on settled state, with the lag window
+  accepted by design**, and both the service comment and ADR-0025 say why: a
+  pick made between busting and settlement keeps the everyone-out revival rule
+  honest, and grades to nothing. `survivor_state` absence means alive, in the
+  schema comment, the service, and the ADR — the invariant a later reader would
+  otherwise break by minting rows at join time.
+- **D4's reset shares one locked-pick predicate across both modes rather than
+  copying the kickoff join.** The `ResettablePicks` union parameter is slightly
+  unusual for Drizzle and I looked at it specifically; it typechecks across
+  `select`/`from`/`innerJoin`/`delete` and the alternative really is two copies
+  of a predicate that must never disagree. The mode dispatch became an
+  exhaustive `switch`, so a fourth mode is a compile error rather than a mode
+  whose picks nobody invalidates.
+- **The settings-reset refusal reuses `picks_locked` rather than minting a
+  Survivor synonym**, and D4 checked the member-facing copy: the server's
+  message carries no Pick'em vocabulary, so it reads correctly for Survivor
+  unchanged. The test that matters asserts the settings are *unaffected* after
+  the 409 — which is what proves the reset and the write share a transaction,
+  and it is the assertion a weaker suite would have omitted.
+- **Scope held.** No settlement, no `survivor_pick_results`, no board, no e2e
+  spec. Pick'em behaviour is untouched: the only Pick'em-side edits are the
+  response-component rename, the reset refactor, and the `listLeagueWeeks`
+  widening — all compile-checked, with Pick'em's own suites green unmodified.
+- **One deliberate coverage gap, recorded rather than hidden.** The editor's
+  Survivor warning can see a Pick Type change but not a start week the server's
+  re-resolution advances, because there is no preset to re-derive a range from
+  (ADR-0024) and the advance depends on the *server's* clock. The server still
+  clears or refuses correctly; this is the same advisory-not-authoritative
+  bargain the existing comment above `wouldInvalidatePicks` already documents,
+  and D4 stated it at the Survivor branch.
+
+### Axis 2 — coding standards
+
+Conforms to `.claude/rules/engineering.md` and the ADRs it references.
+
+- **Mode-specific naming was applied in both directions, which is the harder
+  half.** New surfaces are `survivor*` / `/leagues/{id}/survivor/…`. Two things
+  earned unqualified names by passing the rule's own test — naming the second
+  mode that uses them unchanged — and both were extracted rather than
+  duplicated: `GAME_SIDE` and `LeaguePickSummary`. D4 relocated the latter out
+  of `pickem.ts` rather than renaming it in place, because that module's header
+  declares itself Pick'em-only and a mode-agnostic component living there would
+  contradict it. Both additions are recorded in the rule's own "Shared today"
+  list, so the list stays honest.
+- **Refusals are const sets naming no HTTP status**, mapped in
+  `lib/survivor-refusals.ts` through two `as const satisfies Record<SurvivorRefusal, …>`
+  maps, so a new reason is a compile error until it has a code, a message, and a
+  status. Every reason shared with Pick'em carries Pick'em's status. The
+  read/write/settings-editor refusal subsets mirror Pick'em's and keep each
+  route's declared OpenAPI statuses accurate rather than widened.
+- **Contract discipline.** New components registered under their own names; the
+  nullable pick variant registered as `NullableSurvivorPick` rather than wrapped
+  inline, which is the failure mode that stays green in `contract:check` and
+  only shows up as wrong client types. `openapi/` regenerated and committed in
+  the same changes, verified green after commit.
+- **Time discipline.** No `Date.now()`, no `new Date()`-as-now, no SQL `now()`;
+  timestamps come from `clock.now()` and the schema declares no `.defaultNow()`.
+  The SPA's now-relative labels read `useAppNow()`.
+- **Comments state a why and cite durable identifiers.** I checked
+  mechanically for plan-internal numbering leaking into code — `decision 4`,
+  `step 2`, and the like, the exact parentheticals the rule bans — and found
+  none in any source file. The one apologetic comment in the tree, D3's note
+  explaining why Survivor imported a Pick'em constant, was deleted along with
+  the reason for it.
+- **SPA rules.** Zero `api.*` calls and zero query-key literals outside
+  `apps/web/src/api/`; skeletons with `role="status"` through `QueryState`; the
+  mutation toasts and the query does not, with the one documented exception (the
+  background pick-summary, whose failure downgrades a destructive-save warning
+  and therefore toasts at its call site); Save disables in place without
+  changing its label; theme tokens only; phone-width first.
+- **Tests assert outcomes.** The one new unit test covers
+  `heldSurvivorSelection` — a domain answer about which pick would actually be
+  saved when a game kicks off under a selection — and presentation policy is
+  deliberately untested. The shared seed helper was extended (`teamIds` on
+  `seedSeason`) rather than a fixture copy-pasted.
+- **One standards note carried forward, not resolved here.**
+  `docs/agents/testing.md` requires toast assertions to bind to a `testId`
+  passed at the `toast.*` call site. D3 established that no such mechanism
+  exists — sonner's option type has no data-attribute pass-through, and no repo
+  call site does it — so the policy currently describes code that was never
+  built. Building it means changing shared `apps/web/src/api/refusals.ts` and
+  every Pick'em call site, which is outside ELM-2's contract. Flagged for the
+  owner below; ELM-5 is where it bites.
+
+**Unresolved blocking findings: none.**
+
+## [CLOSEOUT] — ELM-2
+
+**Pull request:** _(added at PR creation)_ — `picksleagues`, base `staging`.
+**Run surface:** local only. **Evidence:** `docs/evidence/test-results/elm-2/`
+(text committed; phone-width screenshots attached to the PR, not committed, per
+`docs/agents/testing.md`).
+
+| Criterion (source) | Verdict | Evidence |
+|---|---|---|
+| Migration applies clean; both constraints exist, the team ledger **partial** | PASS | `migration-0023/`, `suites/` |
+| One pick per week; the upsert replaces rather than appends | PASS | `suites/`, `sim-transcript/` (same row id after a change) |
+| Lock re-validated inside the write transaction (arch D11) | PASS | `suites/`, `sim-transcript/` (409 `pick_locked` after the clock moved) |
+| A pick cannot be changed once its own game has kicked off | PASS | `suites/`, `sim-transcript/` (refused even into a still-unstarted game) |
+| Team consumption enforced by the app **and** by the database | PASS | `suites/` (both paths; the DB one catches a real driver error), `sim-transcript/` |
+| A cancellation-released team is re-pickable | PASS | `suites/` — the full cancel→settle→release path is ELM-4's; this proves the constraint permits it |
+| Eliminated member refused; lag-window pick accepted | PASS | `suites/` (three-case ledger matrix) |
+| Pick visibility filtered in the query layer | PASS | `suites/`, `sim-transcript/` (hidden pre-kickoff with `hasPicked` true, revealed after) |
+| ATS spread staleness → 409; straight-up carries no spread | PASS | `suites/` |
+| `consumedTeamIds` is viewer-scoped and excludes the requested week | PASS | `suites/`, `sim-transcript/` |
+| Settings-reset analog: clears, refuses `picks_locked`, leaves settings unchanged on refusal | PASS | `suites/` |
+| `listLeagueWeeks` serves Survivor | PASS | `suites/` |
+| Contract in sync | PASS | `static-gates/` |
+| Pick entry works against the real running stack | PASS | `sim-transcript/` — independently driven; every expectation held |
+| Pick'em untouched (regression) | PASS | `e2e/` (13 passed, incl. the full Pick'em journey through settlement), `suites/` |
+
+**Verified run commands**, all against the final tip `29fbe00`:
+`pnpm typecheck && pnpm lint && pnpm format:check && pnpm contract:check &&
+pnpm test && pnpm --filter @picksleagues/web build`, then
+`pnpm db:up && pnpm test:integration` (592 passed), then `pnpm test:e2e`
+(13 passed). No deployed target exists for this repository by policy.
+
+**Runtime verification found three defects, all fixed before acceptance**
+(`29fbe00`): `sim reset` never listed the Survivor tables, so its report
+undercounted what a reset destroyed; `GET /leagues/{id}/weeks` still described
+its 400 as "Not a Pick'em league" after this branch widened that gate; and the
+runbook's session-minting recipe is refused by the repo's own guard hook, which
+blocks any Bash command mentioning `.env`. The first two were introduced by this
+work package. The third was pre-existing, and is fixed in the runbook rather
+than by weakening the guard.
+
+### Deviations and judgement calls for the owner
+
+1. **Scope.** `/atlas-implement ELM` named the epic; this run delivered **ELM-2
+   only**, following the approved plan's six-PR delivery strategy and the ELM-1
+   precedent. **ELM-3 is available right now** — its only dependency (FND-7) is
+   done — and is the natural next run: pure `packages/scoring`, no database, and
+   ELM-4 needs both it and this.
+2. **Two shared surfaces were extracted rather than duplicated**, both passing
+   the mode-naming rule's own test. `GAME_SIDE` (orchestrator, `09133a8`), so
+   Survivor stops importing `PICKEM_PICK_SIDE` to mean "the away team", and
+   `LeaguePickSummary` (D4) replacing `PickemPickSummary`. Both are recorded in
+   `.claude/rules/engineering.md`'s "Shared today" list — a **rules-doc edit
+   made without a prior preview**, flagged rather than glossed.
+3. **`settings-reset.ts` moved** from `services/pickem/` to `services/leagues/`
+   (orchestrator, `a2c817d`) once D4 gave it a real per-mode dispatch.
+4. **`docs/agents/testing.md` describes a toast `testId` mechanism that does not
+   exist.** It requires toast assertions to bind to a `testId` passed at the
+   `toast.*` call site; sonner's option type has no data-attribute pass-through
+   and no repo call site does it, so the policy describes code that was never
+   built. Building it means changing shared `apps/web/src/api/refusals.ts` and
+   every Pick'em call site — outside ELM-2's contract, and a policy doc besides.
+   **ELM-5 is where this bites**: its Survivor journey will want toast
+   assertions, and the only available selector is sonner's internal markup,
+   which is exactly what that rule exists to forbid. Owner decision: build the
+   mechanism as its own ticket, or relax the rule.
+5. **The editor's Survivor warning cannot see an advanced start week** — only a
+   Pick Type change. There is no preset to re-derive a range from (ADR-0024),
+   and whether the server's re-resolution advances the start depends on the
+   server's clock. The server still clears or refuses correctly; the warning is
+   advisory, which the existing comment beside it already says.
+6. **`docs/architecture.md` §Settlement & Scoring still describes settlement in
+   Pick'em-only terms** ("persist `pickem_pick_results` → rebuild
+   `pickem_standings`"). ADR-0025 constrains that path with prefix ordering.
+   Reconciling the prose belongs to ELM-4, which builds the Survivor settlement;
+   recorded here so it isn't lost.
+7. **Screenshots captured but not attached.** Phone-width captures of the pick
+   sheet in all three states exist in the verification run's scratchpad, but this
+   run had no path to upload an image to a PR. The visual criterion therefore
+   rests on the role- and testid-level observations committed in
+   `sim-transcript/`, not on an uncommitted local file — which the evidence
+   policy forbids citing as proof.
