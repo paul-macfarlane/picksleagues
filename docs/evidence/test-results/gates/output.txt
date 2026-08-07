@@ -1,0 +1,47 @@
+DATA-9 DoD gates — 2026-08-07T03:46:14Z on feat/data-9-unseeded-playoff-games @ d7983ca
+Run surface: local only (docs/agents/testing.md).
+
+=== pnpm typecheck — exit 0 ===
+$ pnpm -r typecheck && tsc -p e2e/tsconfig.json
+Scope: 7 of 8 workspace projects
+packages/schemas typecheck$ tsc
+packages/schemas typecheck: Done
+packages/db typecheck$ tsc
+packages/core typecheck$ tsc
+packages/scoring typecheck$ tsc
+packages/scoring typecheck: Done
+packages/core typecheck: Done
+packages/db typecheck: Done
+apps/api typecheck$ tsc
+apps/web typecheck$ tsc -b
+apps/web typecheck: Done
+apps/api typecheck: Done
+
+=== pnpm lint — exit 0 ===
+$ eslint .
+
+=== pnpm test — exit 0 ===
+$ vitest run --project unit
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
+
+
+ Test Files  26 passed (26)
+      Tests  447 passed (447)
+   Start at  23:45:06
+   Duration  929ms (transform 1.40s, setup 0ms, import 3.47s, tests 277ms, environment 1ms)
+
+
+=== pnpm format:check — exit 0 ===
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+
+=== pnpm contract:check — exit 0 ===
+$ pnpm contract:generate && test -z "$(git status --porcelain -- openapi)" || (git status --porcelain -- openapi && echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)
+$ pnpm --filter @picksleagues/api generate:openapi
+$ tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts
+Wrote /Users/paulmacfarlane/code/picksleagues/openapi/openapi.json
+✨ openapi-typescript 7.13.0
+🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [68ms]
+
