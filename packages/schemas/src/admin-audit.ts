@@ -10,6 +10,7 @@
  */
 export const ADMIN_AUDIT_ACTION = {
   GAME_OVERRIDE: "game_override",
+  LEAGUE_REBUILD: "league_rebuild",
 } as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTION)[keyof typeof ADMIN_AUDIT_ACTION];
@@ -21,6 +22,10 @@ export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTION)[keyof typeof ADMIN_AU
  */
 export const ADMIN_AUDIT_TARGET_TABLE = {
   GAMES: "games",
+  // A rebuild's target is the league *season* whose derived state it wipes and
+  // recomputes, not the league: per-mode sibling tables (elimination, March
+  // Madness) hang off the same row without a second vocabulary.
+  LEAGUE_SEASONS: "league_seasons",
 } as const;
 
 export type AdminAuditTargetTable =

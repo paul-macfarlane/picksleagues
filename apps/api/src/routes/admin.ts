@@ -238,7 +238,11 @@ export function adminRoutes(deps: AppDeps) {
       );
     }
 
-    return runJob(c, REBUILD_JOB_NAME, () => rebuildLeagueSeason(db, clock, current.season.id));
+    return runJob(c, REBUILD_JOB_NAME, () =>
+      rebuildLeagueSeason(db, clock, current.season.id, {
+        adminUserId: c.get("sessionUser").id,
+      }),
+    );
   });
 
   app.openapi(listAdminTeamsRoute, async (c) => {
