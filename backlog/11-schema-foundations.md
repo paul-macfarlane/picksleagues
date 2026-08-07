@@ -1,7 +1,7 @@
 # Epic: Schema Foundations (SF)
 
 Mini-epic making the schema season- and team-scalable **before the picks epics build
-on it** — SF-1/SF-2 block `05-pickem`; SF-4 blocks `06-elimination`'s unique-team
+on it** — SF-1/SF-2 block `05-pickem`; SF-4 blocks `06-survivor`'s unique-team
 constraint. Ref: ADR-0009 (multi-season leagues, offseason seasons), ADR-0010
 (normalized teams); arch §Domain Model.
 

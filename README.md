@@ -1,6 +1,6 @@
 # Picks Leagues
 
-A web app where friends create and compete in sports pick'em leagues. MVP: NFL Pick'em, NFL Elimination, and March Madness Pools — private invite-link leagues, public discovery, standings fresh within ~5 minutes on game days.
+A web app where friends create and compete in sports pick'em leagues. MVP: NFL Pick'em, NFL Survivor, and March Madness Pools — private invite-link leagues, public discovery, standings fresh within ~5 minutes on game days.
 
 - **What we're building:** [`docs/mvp-spec.md`](docs/mvp-spec.md)
 - **How it's built:** [`docs/architecture.md`](docs/architecture.md)

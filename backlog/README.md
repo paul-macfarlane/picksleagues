@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Pick'em ships today end-to-end (epics 00–05, 11). What stands between that and a launchable product is epic 12's rule simplification, epic 13's quality pass, and the visual/legal slice of `09-launch`. Elimination follows.
+Pick'em ships today end-to-end (epics 00–05, 11). What stands between that and a launchable product is epic 12's rule simplification, epic 13's quality pass, and the visual/legal slice of `09-launch`. Survivor follows.
 
 ## Task format
 
@@ -30,7 +30,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `03-leagues.md`        | `LG`   | Leagues, settings, invites, membership, discovery           |
 | `04-simulator-admin.md` | `SIM`/`ADM` | Admin page + simulator: data browsers, sim clock/replay UI, overrides, audit (merged per ADR-0011) |
 | `05-pickem.md`         | `PKM`  | Pick'em mode + shared settlement core (results, standings)  |
-| `06-elimination.md`    | `ELM`  | Elimination mode, survivor board                            |
+| `06-survivor.md`       | `ELM`  | Survivor mode, survivor board                               |
 | `07-march-madness.md`  | `MM`   | Bracket ingestion, builder, scoring, pool leaderboard       |
 | `09-launch.md`         | `LNCH` | Rules guide, prod cron, mobile QA, launch                   |
 | `10-trust-safety.md`   | `TS`   | Post-MVP: public-league abuse resistance, member notifications |
@@ -46,7 +46,7 @@ written. The order work is actually taken (owner, 2026-08-03):
 1. **`12-simplification`** — the Pick'em rules the app ships on. Everything downstream is cheaper once the rule surface is smaller, and the deletions remove a large share of what epic 13 would otherwise have to fix.
 2. **`13-quality`** — justify or cut the standards, then de-brittle the tests. Deliberately after 12 (which deletes much of the brittle surface) and before the facelift (which those tests would otherwise veto).
 3. **`09-launch`, visual + legal slice** — LNCH-7 branding, LNCH-9 design pass, LNCH-10 ToS/privacy, LNCH-11 splash. This is what makes it look like a product rather than a project.
-4. **`06-elimination`** — the second game mode, on a rule surface and a UI that have both settled.
+4. **`06-survivor`** — the second game mode, on a rule surface and a UI that have both settled.
 5. **`09-launch`, remainder** — cron schedules, mobile QA, production cutover.
 6. **`07-march-madness`**, then **`10-trust-safety`** — not needed until Feb/March 2027 and post-MVP respectively.
 

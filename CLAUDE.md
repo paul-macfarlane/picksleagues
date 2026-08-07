@@ -1,6 +1,6 @@
 # Picks Leagues
 
-Web app where friends create and compete in sports pick'em leagues. Solo project, <50 users year one. MVP: NFL Pick'em, NFL Elimination, March Madness Pool. Full spec lives in `docs/`.
+Web app where friends create and compete in sports pick'em leagues. Solo project, <50 users year one. MVP: NFL Pick'em, NFL Survivor, March Madness Pool. Full spec lives in `docs/`.
 
 ## Read first
 
@@ -62,7 +62,7 @@ repository keeps its own base SHA, branch, verification result, and pull request
 
 ## Repository framing
 
-**picksleagues** — Web app where friends create and compete in sports pick'em leagues. Solo project, under 50 users in year one. MVP game modes: NFL Pick'em, NFL Elimination, March Madness Pool.
+**picksleagues** — Web app where friends create and compete in sports pick'em leagues. Solo project, under 50 users in year one. MVP game modes: NFL Pick'em, NFL Survivor, March Madness Pool.
 
 ### Structure
 
