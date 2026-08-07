@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 
-// NCAAMB teams arrive with the March Madness epic; only NFL data exists
-// today (ADM-4 spec) — no sport picker until there's a second sport to pick.
+/**
+ * NCAAMB teams arrive with the March Madness epic; only NFL data exists
+ * today (ADM-4 spec) — no sport picker until there's a second sport to pick.
+ */
 export function TeamsBrowser() {
   const teams = useAdminTeams(SPORT.NFL);
 

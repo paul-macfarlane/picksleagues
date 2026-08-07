@@ -28,11 +28,13 @@ function skipMessage(job: string, reason: unknown): string {
   return `Skipped ${job} — ${copy}.`;
 }
 
-// Each job row mounts its own instance and scopes pending state off
-// `mutation.variables` (async-button standard). SyncJobsCard, SeasonsBrowser,
-// GamesBrowser, and TeamsBrowser are siblings on the same admin page reading
-// exactly the tables these jobs write, so a successful run invalidates all
-// four — otherwise a real sync and a no-op look identical to the operator.
+/**
+ * Each job row mounts its own instance and scopes pending state off
+ * `mutation.variables` (async-button standard). SyncJobsCard, SeasonsBrowser,
+ * GamesBrowser, and TeamsBrowser are siblings on the same admin page reading
+ * exactly the tables these jobs write, so a successful run invalidates all
+ * four — otherwise a real sync and a no-op look identical to the operator.
+ */
 export function useRunNflSyncJob() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -105,9 +107,11 @@ export function adminGamesQueryKey(weekId: string | undefined) {
   return [...ADMIN_QUERY_KEY_PREFIX, "games", weekId];
 }
 
-// `skipToken` rather than `enabled` for the not-yet-selected week: it narrows
-// `weekId` to a string inside the queryFn, so the required query param needs no
-// non-null assertion.
+/**
+ * `skipToken` rather than `enabled` for the not-yet-selected week: it narrows
+ * `weekId` to a string inside the queryFn, so the required query param needs no
+ * non-null assertion.
+ */
 export function useAdminGames(weekId: string | undefined) {
   return useQuery({
     queryKey: adminGamesQueryKey(weekId),

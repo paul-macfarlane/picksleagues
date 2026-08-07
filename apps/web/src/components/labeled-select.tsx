@@ -7,12 +7,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Generic labeled select over `{ value, label }[]` — shared by the league
-// settings fieldsets' week/push-tie pickers and the admin games browser's
-// season/week pickers, so a labeled Select is written once.
-// Generic over the option's literal union (same idiom as RadioField) so a
-// caller whose values are a const-object union keeps that type through the
-// callback instead of casting a bare string back to it.
+/**
+ * Generic labeled select over `{ value, label }[]` — shared by the league
+ * settings fieldsets' week/push-tie pickers and the admin games browser's
+ * season/week pickers, so a labeled Select is written once.
+ * Generic over the option's literal union (same idiom as RadioField) so a
+ * caller whose values are a const-object union keeps that type through the
+ * callback instead of casting a bare string back to it.
+ */
 export function LabeledSelect<Value extends string>({
   id,
   label,

@@ -1,12 +1,14 @@
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 
-// Label + DateTimePicker composition for the two plain-`useState` sites
-// (sim-clock-card.tsx's "Instant" control, invite-panel.tsx's invite expiry)
-// — same Label-wiring idiom as LabeledSelect, just fronting DateTimePicker
-// instead of Select. The TanStack Form site (sim-fixture-row.tsx) goes
-// through FormDateTimeField instead, which adapts a field the way
-// FormTextField adapts one for a plain Input.
+/**
+ * Label + DateTimePicker composition for the two plain-`useState` sites
+ * (sim-clock-card.tsx's "Instant" control, invite-panel.tsx's invite expiry)
+ * — same Label-wiring idiom as LabeledSelect, just fronting DateTimePicker
+ * instead of Select. The TanStack Form site (sim-fixture-row.tsx) goes
+ * through FormDateTimeField instead, which adapts a field the way
+ * FormTextField adapts one for a plain Input.
+ */
 export function LabeledDateTimeField({
   id,
   label,

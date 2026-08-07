@@ -18,15 +18,17 @@ const ESPN_SEASON_TYPE_BY_WEEK_TYPE: Record<WeekType, number> = {
   [WEEK_TYPE.POSTSEASON]: 3,
 };
 
-// ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the "Pro Bowl", which
-// is not a competitive game and is excluded (by label) below, leaving a gap.
-// Our domain model numbers the four real rounds contiguously (Wild Card=1 …
-// Super Bowl=4), matching `NflWeekRefSchema` and `estimatedNflWeeks`. This
-// adapter owns that translation so ESPN's gapped numbering never leaks
-// (engineering rules: "provider shapes never leak"). A *static* map (never
-// positional/dynamic renumbering) is deliberate: an ESPN postseason number not
-// in it throws — a provider-contract break we want surfaced as a 500, not
-// silently renumbered. Verified against 2025-26 ESPN data (2026-07-23).
+/**
+ * ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the "Pro Bowl", which
+ * is not a competitive game and is excluded (by label) below, leaving a gap.
+ * Our domain model numbers the four real rounds contiguously (Wild Card=1 …
+ * Super Bowl=4), matching `NflWeekRefSchema` and `estimatedNflWeeks`. This
+ * adapter owns that translation so ESPN's gapped numbering never leaks
+ * (engineering rules: "provider shapes never leak"). A *static* map (never
+ * positional/dynamic renumbering) is deliberate: an ESPN postseason number not
+ * in it throws — a provider-contract break we want surfaced as a 500, not
+ * silently renumbered. Verified against 2025-26 ESPN data (2026-07-23).
+ */
 export const ESPN_POSTSEASON_NUMBER_BY_DOMAIN: Record<number, number> = {
   1: 1, // Wild Card
   2: 2, // Divisional Round

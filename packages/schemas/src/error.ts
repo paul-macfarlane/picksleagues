@@ -68,8 +68,10 @@ export const ERROR_CODE = {
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
 
-// Shared error envelope for every non-2xx API response (validation failures,
-// auth failures, conflicts) — one shape the SPA's error handling can rely on.
+/**
+ * Shared error envelope for every non-2xx API response (validation failures,
+ * auth failures, conflicts) — one shape the SPA's error handling can rely on.
+ */
 export const ErrorResponseSchema = z
   .object({
     error: z.string(),

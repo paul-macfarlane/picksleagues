@@ -9,12 +9,14 @@ import { QueryState } from "@/components/query-state";
 // can be a normal option value in LabeledSelect.
 const SEASON_SCOPE = "season";
 
-// Pick'em's standings: a season/week toggle over one board (spec §Standings).
-//
-// This scope selector once also revealed the week/pick detail below it, which
-// made the whole league's picks a side effect of a standings control — and made
-// season standings + this week's picks an unreachable combination. That section
-// now has its own tab (`/league-picks`), so this selector does one thing.
+/**
+ * Pick'em's standings: a season/week toggle over one board (spec §Standings).
+ *
+ * This scope selector once also revealed the week/pick detail below it, which
+ * made the whole league's picks a side effect of a standings control — and made
+ * season standings + this week's picks an unreachable combination. That section
+ * now has its own tab (`/league-picks`), so this selector does one thing.
+ */
 export function PickemStandingsSection({
   leagueId,
   weekId,

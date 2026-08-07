@@ -84,8 +84,10 @@ export function useAdjustSimClock() {
   });
 }
 
-// Variables are the slug so a scenario list can scope its pending button off
-// `mutation.variables` rather than disabling every row (async-button standard).
+/**
+ * Variables are the slug so a scenario list can scope its pending button off
+ * `mutation.variables` rather than disabling every row (async-button standard).
+ */
 export function useLoadSimScenario() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -156,9 +158,11 @@ export function simFixtureGamesQueryKey(
   return [...SIM_QUERY_KEY_PREFIX, "fixtures", scenarioId, weekType, weekNumber];
 }
 
-// `skipToken` rather than `enabled` for the not-yet-chosen scenario: it narrows
-// `scenarioId` to a string inside the queryFn, so the required query param needs
-// no non-null assertion (same idiom as useAdminGames).
+/**
+ * `skipToken` rather than `enabled` for the not-yet-chosen scenario: it narrows
+ * `scenarioId` to a string inside the queryFn, so the required query param needs
+ * no non-null assertion (same idiom as useAdminGames).
+ */
 export function useSimFixtureGames(
   scenarioId: string | undefined,
   weekType?: WeekType,

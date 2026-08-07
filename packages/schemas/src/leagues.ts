@@ -10,34 +10,46 @@ import { LeagueStatusSchema } from "./league-status";
 import { LeagueVisibilitySchema } from "./league-visibility";
 import { MemberRoleSchema } from "./member-role";
 
-// mvp-spec §Leagues names no length rule for league names; 1-50 trimmed is
-// our chosen sanity bound, mirroring DisplayName.
+/**
+ * mvp-spec §Leagues names no length rule for league names; 1-50 trimmed is
+ * our chosen sanity bound, mirroring DisplayName.
+ */
 export const LeagueNameSchema = z.string().trim().min(1).max(50).openapi("LeagueName");
 
-// spec §Users & Identity Limits: commissioner of at most 10 active leagues,
-// enforced by counted queries inside the create/promote transactions
-// (ADR-0004). Single home so the API guard and UI messaging can't drift.
+/**
+ * spec §Users & Identity Limits: commissioner of at most 10 active leagues,
+ * enforced by counted queries inside the create/promote transactions
+ * (ADR-0004). Single home so the API guard and UI messaging can't drift.
+ */
 export const MAX_ACTIVE_COMMISSIONER_LEAGUES = 10;
 
-// spec §Membership: 2-100 members. The max is enforced in the join
-// transaction; the min is aspirational (a league that never reaches 2 simply
-// proceeds), so only the max is a guard.
+/**
+ * spec §Membership: 2-100 members. The max is enforced in the join
+ * transaction; the min is aspirational (a league that never reaches 2 simply
+ * proceeds), so only the max is a guard.
+ */
 export const MAX_LEAGUE_SIZE = 100;
 
-// spec-adjacent default (feedback item 11): a league that omits maxMembers on
-// create gets a friend-group-sized cap rather than the global ceiling.
+/**
+ * spec-adjacent default: a league that omits maxMembers on create gets a
+ * friend-group-sized cap rather than the global ceiling.
+ */
 export const DEFAULT_MAX_MEMBERS = 10;
 
-// Commissioners may cap their league below the global ceiling (never above
-// it) — mode-agnostic, so it lives beside name/visibility rather than inside
-// any per-mode settings schema.
+/**
+ * Commissioners may cap their league below the global ceiling (never above
+ * it) — mode-agnostic, so it lives beside name/visibility rather than inside
+ * any per-mode settings schema.
+ */
 export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).openapi("MaxMembers");
 
-// Settings are validated against the mode's schema at the boundary — the
-// discriminated union makes an invalid mode/settings pairing unrepresentable
-// rather than a service-layer check. Pick'em takes its *input* schema: the
-// request names a season-range preset and the server resolves the week refs it
-// stores (ADR-0020), so a client can't supply them here at all.
+/**
+ * Settings are validated against the mode's schema at the boundary — the
+ * discriminated union makes an invalid mode/settings pairing unrepresentable
+ * rather than a service-layer check. Pick'em takes its *input* schema: the
+ * request names a season-range preset and the server resolves the week refs it
+ * stores (ADR-0020), so a client can't supply them here at all.
+ */
 export const CreateLeagueRequestSchema = z
   .discriminatedUnion("mode", [
     z.object({
@@ -66,10 +78,12 @@ export const CreateLeagueRequestSchema = z
 
 export type CreateLeagueRequest = z.infer<typeof CreateLeagueRequestSchema>;
 
-// spec §Commissioner Powers: name is cosmetic (anytime); visibility and mode
-// settings lock at league start. `settings` is deliberately unknown here —
-// its schema depends on the league's stored mode, which only the service
-// knows; it validates via LEAGUE_SETTINGS_SCHEMAS and 400s on mismatch.
+/**
+ * spec §Commissioner Powers: name is cosmetic (anytime); visibility and mode
+ * settings lock at league start. `settings` is deliberately unknown here —
+ * its schema depends on the league's stored mode, which only the service
+ * knows; it validates via LEAGUE_SETTINGS_SCHEMAS and 400s on mismatch.
+ */
 export const UpdateLeagueRequestSchema = z
   .object({
     name: LeagueNameSchema.optional(),
@@ -89,8 +103,10 @@ export const UpdateLeagueRequestSchema = z
 
 export type UpdateLeagueRequest = z.infer<typeof UpdateLeagueRequestSchema>;
 
-// Promote/demote are the same partial update on the membership's role
-// (ADR-0004: transfer = promote + self-demote; no dedicated transfer power).
+/**
+ * Promote/demote are the same partial update on the membership's role
+ * (ADR-0004: transfer = promote + self-demote; no dedicated transfer power).
+ */
 export const UpdateMemberRoleRequestSchema = z
   .object({ role: MemberRoleSchema })
   .openapi("UpdateMemberRoleRequest");
@@ -113,11 +129,13 @@ export const LeagueMemberSchema = z
 
 export type LeagueMember = z.infer<typeof LeagueMemberSchema>;
 
-// `startsAt` is the clock-derived league start (first game kickoff of the
-// start week / first R64 tip — arch §Locking Model): null while the schedule
-// for that week hasn't been ingested yet, in which case the league is
-// pre-start. Serialized rather than a boolean so the UI can render countdowns
-// in the user's local timezone.
+/**
+ * `startsAt` is the clock-derived league start (first game kickoff of the
+ * start week / first R64 tip — arch §Locking Model): null while the schedule
+ * for that week hasn't been ingested yet, in which case the league is
+ * pre-start. Serialized rather than a boolean so the UI can render countdowns
+ * in the user's local timezone.
+ */
 export const LeagueResponseSchema = z
   .object({
     id: z.string(),
@@ -160,8 +178,10 @@ export const LeagueSummarySchema = z
 
 export type LeagueSummary = z.infer<typeof LeagueSummarySchema>;
 
-// Envelope (not a bare array) so list-level fields can be added without a
-// breaking contract change.
+/**
+ * Envelope (not a bare array) so list-level fields can be added without a
+ * breaking contract change.
+ */
 export const MyLeaguesResponseSchema = z
   .object({ leagues: z.array(LeagueSummarySchema) })
   .openapi("MyLeaguesResponse");

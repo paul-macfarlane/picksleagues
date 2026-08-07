@@ -35,8 +35,10 @@ const drawerLinkClassName = cn(
   "rounded-md px-2 py-1.5 hover:bg-muted hover:text-foreground",
 );
 
-// Pathless layout gating every signed-in route (mvp-spec has no anonymous browsing):
-// beforeLoad re-checks the session on every navigation into this subtree.
+/**
+ * Pathless layout gating every signed-in route (mvp-spec has no anonymous browsing):
+ * beforeLoad re-checks the session on every navigation into this subtree.
+ */
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ location }) => {
     const { data: session } = await authClient.getSession();

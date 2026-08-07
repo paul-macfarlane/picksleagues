@@ -19,12 +19,14 @@ export type GameStatus = (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
 
 export const GameStatusSchema = z.enum(GAME_STATUS).openapi("GameStatus");
 
-// Registered under its own component name for the same reason as
-// `NullableUsername` (me.ts): `.nullable()` on an already-registered node folds
-// `null` into that shared component instead of producing a nullable $ref, and
-// the generated client then types the field as an unusable intersection. Used
-// wherever "no override recorded" is a value — the override block on AdminGame
-// and the clear half of GameOverrideRequest.
+/**
+ * Registered under its own component name for the same reason as
+ * `NullableUsername` (me.ts): `.nullable()` on an already-registered node folds
+ * `null` into that shared component instead of producing a nullable $ref, and
+ * the generated client then types the field as an unusable intersection. Used
+ * wherever "no override recorded" is a value — the override block on AdminGame
+ * and the clear half of GameOverrideRequest.
+ */
 export const NullableGameStatusSchema = GameStatusSchema.nullable().openapi("NullableGameStatus");
 
 /**

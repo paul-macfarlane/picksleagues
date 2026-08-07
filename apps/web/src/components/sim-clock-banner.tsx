@@ -29,11 +29,11 @@ export function SimClockBanner() {
 
   return (
     <div className="border-t border-border bg-muted text-muted-foreground">
-      {/* The link is a sibling of the wrapping text rather than a member of it
-          (feedback round 5): as one flex-wrap row, `ml-auto` pushed it onto a
-          line of its own at phone width, right-aligned under nothing and
-          reading as a stray third row. Now the text block wraps inside its own
-          column and the link stays put beside it, vertically centred. */}
+      {/* The link is a sibling of the wrapping text rather than a member of it:
+          as one flex-wrap row, `ml-auto` pushed it onto a line of its own at
+          phone width, right-aligned under nothing and reading as a stray third
+          row. Now the text block wraps inside its own column and the link stays
+          put beside it, vertically centred. */}
       <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-1.5 text-xs sm:px-6">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
           <span className="font-medium text-foreground">Simulated time</span>

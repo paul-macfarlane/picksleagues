@@ -33,8 +33,10 @@ export const JOB_SKIP_REASON = {
 
 export type JobSkipReason = (typeof JOB_SKIP_REASON)[keyof typeof JOB_SKIP_REASON];
 
-// The NFL data-sync jobs an admin can trigger manually from the admin page —
-// same set the cron scheduler fires on a timer (apps/api/src/routes/jobs.ts).
+/**
+ * The NFL data-sync jobs an admin can trigger manually from the admin page —
+ * same set the cron scheduler fires on a timer (apps/api/src/routes/jobs.ts).
+ */
 export const NFL_SYNC_JOB = {
   SYNC_SCHEDULE: "sync-schedule",
   SYNC_ODDS: "sync-odds",

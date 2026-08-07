@@ -83,11 +83,13 @@ export type PickemReadRefusal = Extract<
 export type PickemResult<T, R extends PickemRefusal = PickemRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
 
-// The role axis (`not_commissioner`) belongs to the pick-summary read alone —
-// every write path here authorizes through `loadContext`'s membership-only
-// gate and can never produce it. Naming the exclusion explicitly (rather than
-// leaving the writes on the full `PickemRefusal` default) keeps each write
-// route's declared OpenAPI response statuses accurate.
+/**
+ * The role axis (`not_commissioner`) belongs to the pick-summary read alone —
+ * every write path here authorizes through `loadContext`'s membership-only
+ * gate and can never produce it. Naming the exclusion explicitly (rather than
+ * leaving the writes on the full `PickemRefusal` default) keeps each write
+ * route's declared OpenAPI response statuses accurate.
+ */
 export type PickemWriteRefusal = Exclude<PickemRefusal, "not_commissioner">;
 
 interface PickemContext {
@@ -277,11 +279,13 @@ export async function getPickemWeekPicks(
   return { ok: true, value: { weekId, picksAllowed, members: serialized } };
 }
 
-// The pick-summary read has a role axis the member-only `loadContext` gate
-// doesn't (it's only ever consumed by the settings editor, which is
-// commissioner-only), so its refusal set names `not_commissioner` alongside
-// the two `loadContext` produces — never `week_out_of_range`, since this
-// isn't scoped to a week.
+/**
+ * The pick-summary read has a role axis the member-only `loadContext` gate
+ * doesn't (it's only ever consumed by the settings editor, which is
+ * commissioner-only), so its refusal set names `not_commissioner` alongside
+ * the two `loadContext` produces — never `week_out_of_range`, since this
+ * isn't scoped to a week.
+ */
 export type PickemPickSummaryRefusal = Extract<
   PickemRefusal,
   "league_not_found" | "wrong_league_mode" | "not_commissioner"

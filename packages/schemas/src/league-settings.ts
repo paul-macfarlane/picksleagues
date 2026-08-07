@@ -189,9 +189,11 @@ export const EliminationPushTieResolutionSchema = z
   .enum(ELIMINATION_PUSH_TIE_RESOLUTION)
   .openapi("EliminationPushTieResolution");
 
-// Elimination is regular-season only (spec §Elimination Core Rules) — the
-// week refs still carry `type` so both NFL modes' settings address weeks with
-// one shape, but only the regular member is admitted.
+/**
+ * Elimination is regular-season only (spec §Elimination Core Rules) — the
+ * week refs still carry `type` so both NFL modes' settings address weeks with
+ * one shape, but only the regular member is admitted.
+ */
 export const EliminationSettingsSchema = z
   .object({
     startWeek: nflRegularWeekRef,
@@ -225,10 +227,12 @@ const marchMadnessBaseSettings = {
   maxBracketsPerMember: z.number().int().min(1).max(10).default(5),
 };
 
-// Custom scoring sets each round's per-correct-pick value independently
-// (spec §MM League Settings): six values, R64 → Championship, any
-// non-negative integer. `roundValues` exists only under the custom model so
-// a standard-doubling league can't carry stale round values.
+/**
+ * Custom scoring sets each round's per-correct-pick value independently
+ * (spec §MM League Settings): six values, R64 → Championship, any
+ * non-negative integer. `roundValues` exists only under the custom model so
+ * a standard-doubling league can't carry stale round values.
+ */
 export const MarchMadnessSettingsSchema = z
   .discriminatedUnion("scoringModel", [
     z.object({
@@ -247,8 +251,10 @@ export type MarchMadnessSettings = z.infer<typeof MarchMadnessSettingsSchema>;
 
 export type LeagueSettings = PickemSettings | EliminationSettings | MarchMadnessSettings;
 
-// Read-side shape for responses, where the mode discriminant lives on the
-// league itself — clients narrow by `league.mode`, not by inspecting settings.
+/**
+ * Read-side shape for responses, where the mode discriminant lives on the
+ * league itself — clients narrow by `league.mode`, not by inspecting settings.
+ */
 export const LeagueSettingsSchema = z
   .union([PickemSettingsSchema, EliminationSettingsSchema, MarchMadnessSettingsSchema])
   .openapi("LeagueSettings");
