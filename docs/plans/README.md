@@ -28,5 +28,6 @@ path is in `docs/agents/issue-tracker.md` §Planning artifact storage.
 A plan is written before implementation and **drafts require owner approval**
 (`docs/agents/planning.md`). It stays in the repo after the work merges: it is
 the record of what was decided and why, and `/atlas-improve` reads it when
-auditing a finished run. Plans are not cleared between work packages — that rule
-applies to the evidence root (`docs/evidence/test-results`), not here.
+auditing a finished run. Plans are not cleared between work packages, and as of 2026-08-07 neither is the
+evidence root — it is scoped per work package instead
+(`docs/agents/testing.md` §Evidence policy).

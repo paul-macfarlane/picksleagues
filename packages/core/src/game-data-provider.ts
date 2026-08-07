@@ -90,6 +90,13 @@ export type ProviderTeam = {
 export interface GameDataProvider {
   // Regular season and postseason in one structure, Pro Bowl already excluded.
   fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure>;
+  /**
+   * Every returned game names determined competitors. An event whose teams the
+   * provider has not settled yet — an unseeded playoff round, which ESPN
+   * publishes months ahead against placeholder competitors — is not yet a game
+   * in our domain and must not be returned (ADR-0021). It arrives normally, on
+   * the same `providerGameId`, once the provider seeds the matchup.
+   */
   fetchNflWeekGames(
     seasonYear: number,
     weekType: WeekType,

@@ -492,7 +492,10 @@ describe("PATCH settings cannot move the start into the past", () => {
       year: 2026,
       weeks: [
         { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
-        { weekNumber: 2, kickoffs: [] },
+        // Week 2 has no games *and* its own window has closed — both halves
+        // matter since ADR-0021, because a games-less week whose window is
+        // still open is a week resolution can legitimately advance to.
+        { weekNumber: 2, endsAt: new Date(WEEK1_KICKOFF.getTime() - 1), kickoffs: [] },
       ],
     });
     const commish = await createAuthenticatedUser(auth, { username: "commish" });
@@ -510,10 +513,11 @@ describe("PATCH settings cannot move the start into the past", () => {
       members: [{ userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
 
-    // Re-resolving this preset now finds no week left with an upcoming kickoff
-    // (week 1 has begun, week 2 has no games), so it falls back to the nominal
-    // start — week 1, which has already started. The edit is refused rather
-    // than being allowed to start the league by saving its settings.
+    // Re-resolving this preset now finds nothing in range still ahead — week 1
+    // has begun, and week 2 has no games and no open window — so it falls back
+    // to the nominal start, week 1, which has already started. The edit is
+    // refused rather than being allowed to start the league by saving its
+    // settings.
     const res = await patchLeague(
       commish.cookie,
       league.id,

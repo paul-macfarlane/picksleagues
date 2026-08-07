@@ -52,15 +52,17 @@ export const sportSeasons = pgTable(
  * the pre-provider-id bootstrap key those rows are matched on (NFL
  * abbreviations are stable), and that bootstrap uniqueness is scoped to rows
  * WITHOUT a provider id (partial index below). Once a row is provider-linked,
- * provider identity is the only key: ESPN ships placeholder "TBD" teams for
- * undetermined playoff matchups as distinct provider ids sharing the same
- * abbreviation, so a full (sport, abbreviation) unique across all rows would
- * reject legitimate provider data. `providerTeamId` is declared unique per
- * sport; Postgres treats NULLs as distinct, so that nullable unique index
- * never blocks multiple not-yet-synced rows. `location`/`logo*Url` are filled
- * in by the same schedule sync from ESPN's separate teams-listing endpoint
- * (a provider team not yet in that listing — e.g. a TBD playoff placeholder —
- * simply keeps these null until it resolves to a real team).
+ * provider identity is the only key, and scoping the abbreviation unique to
+ * bootstrap rows is what stops it rejecting provider data that legitimately
+ * repeats an abbreviation. ESPN's placeholder "TBD" playoff teams were the case
+ * that found this; they no longer reach the database at all (ADR-0021 excludes
+ * unseeded rounds at the adapter), and the partial scope stays because it is
+ * what makes the bootstrap key coherent in general. `providerTeamId` is
+ * declared unique per sport; Postgres treats NULLs as distinct, so that
+ * nullable unique index never blocks multiple not-yet-synced rows.
+ * `location`/`logo*Url` are filled in by the same schedule sync from ESPN's
+ * separate teams-listing endpoint (a provider team not yet in that listing
+ * simply keeps these null until a later run finds it there).
  */
 export const teams = pgTable(
   "teams",
@@ -70,7 +72,7 @@ export const teams = pgTable(
     providerTeamId: text("provider_team_id"),
     abbreviation: text("abbreviation").notNull(),
     name: text("name").notNull(),
-    // City/market (ESPN's `location`) — nullable: bootstrap/TBD rows have no
+    // City/market (ESPN's `location`) — nullable: bootstrap rows have no
     // provider metadata until the teams-listing enrichment step links them.
     location: text("location"),
     logoLightUrl: text("logo_light_url"),

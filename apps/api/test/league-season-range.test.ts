@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { FixedClock } from "@picksleagues/core";
 import { leagueSeasons } from "@picksleagues/db";
 import {
   PICKEM_SEASON_RANGE_PRESET,
@@ -8,6 +9,7 @@ import {
   type LeagueResponse,
   type PickemSettings,
 } from "@picksleagues/schemas";
+import { createApp } from "../src/app";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { seedSeason } from "./setup/league-helpers";
 import {
@@ -86,6 +88,68 @@ async function seedFullSeason() {
       },
     ],
   });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Real ESPN calendar shape: each postseason round owns a week-long window
+// opening a few days after the previous round's games.
+const DIVISIONAL_WINDOW_OPENS = new Date(WILD_CARD_KICKOFF.getTime() + 3 * DAY_MS);
+const DIVISIONAL_WINDOW_CLOSES = new Date(WILD_CARD_KICKOFF.getTime() + 10 * DAY_MS);
+const CONFERENCE_WINDOW_CLOSES = new Date(WILD_CARD_KICKOFF.getTime() + 17 * DAY_MS);
+const SUPER_BOWL_WINDOW_CLOSES = new Date(WILD_CARD_KICKOFF.getTime() + 31 * DAY_MS);
+
+/**
+ * The DATA-9 shape (ADR-0021): Wild Card is seeded and has kicked off, and ESPN
+ * seeds each later round only once the previous one is decided — so Divisional,
+ * Conference, and the Super Bowl exist in the ingested season structure with
+ * their real windows and no games at all.
+ */
+async function seedPostseasonSeededThroughWildCard() {
+  return seedSeason(db, {
+    year: 2026,
+    weeks: [
+      { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+      { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK2_KICKOFF }] },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 1,
+        kickoffs: [{ kickoffAt: WILD_CARD_KICKOFF }],
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 2,
+        startsAt: DIVISIONAL_WINDOW_OPENS,
+        endsAt: DIVISIONAL_WINDOW_CLOSES,
+        kickoffs: [],
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 3,
+        startsAt: DIVISIONAL_WINDOW_CLOSES,
+        endsAt: CONFERENCE_WINDOW_CLOSES,
+        kickoffs: [],
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 4,
+        startsAt: CONFERENCE_WINDOW_CLOSES,
+        endsAt: SUPER_BOWL_WINDOW_CLOSES,
+        kickoffs: [],
+      },
+    ],
+  });
+}
+
+/**
+ * Inside the Divisional window but before ESPN has seeded it — Wild Card has
+ * kicked off *and* the next round's own window has already opened. That second
+ * fact is the point: this is precisely the instant a `starts_at` comparison
+ * would call Divisional "underway" and skip past it.
+ */
+const UNSEEDED_DIVISIONAL_NOW = new Date(DIVISIONAL_WINDOW_OPENS.getTime() + 1);
+
+function appAt(instant: Date) {
+  return createApp({ auth, db, clock: async () => new FixedClock(instant) });
 }
 
 beforeEach(async () => {
@@ -244,6 +308,74 @@ describe("POST /api/leagues — the preset resolves to a stored range", () => {
     expect(await storedSettings(id)).toMatchObject({
       startWeek: regular(1),
       endWeek: regular(18),
+    });
+  });
+
+  describe("a postseason round the provider has not seeded yet (ADR-0021)", () => {
+    it.each([
+      {
+        preset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
+        expectedStart: postseason(2),
+        expectedEnd: postseason(4),
+      },
+      {
+        preset: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON,
+        expectedStart: postseason(2),
+        expectedEnd: postseason(4),
+      },
+    ])(
+      "$preset advances the start to the unseeded round rather than refusing",
+      async ({ preset, expectedStart, expectedEnd }) => {
+        await seedPostseasonSeededThroughWildCard();
+        const { cookie } = await createAuthenticatedUser(auth);
+
+        const res = await postLeague(
+          cookie,
+          { seasonRangePreset: preset, pickType: "straight_up" },
+          appAt(UNSEEDED_DIVISIONAL_NOW),
+        );
+        expect(res.status).toBe(201);
+        const { id, startsAt } = (await res.json()) as LeagueResponse;
+
+        expect(await storedSettings(id)).toMatchObject({
+          startWeek: expectedStart,
+          endWeek: expectedEnd,
+        });
+        // No games in the start week yet, so there is no derivable start — the
+        // league is pre-start and adopts the round's real first kickoff once
+        // ESPN seeds it (ADR-0008).
+        expect(startsAt).toBeNull();
+      },
+    );
+
+    it("still refuses Regular Season at the same instant — range confinement is unchanged", async () => {
+      await seedPostseasonSeededThroughWildCard();
+      const { cookie } = await createAuthenticatedUser(auth);
+
+      const res = await postLeague(
+        cookie,
+        {
+          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
+          pickType: "straight_up",
+        },
+        appAt(UNSEEDED_DIVISIONAL_NOW),
+      );
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "start_week_passed" });
+    });
+
+    it("refuses Postseason once every round's window has closed with nothing ever seeded", async () => {
+      // The guard against `ends_at` letting a dead week qualify forever.
+      await seedPostseasonSeededThroughWildCard();
+      const { cookie } = await createAuthenticatedUser(auth);
+
+      const res = await postLeague(
+        cookie,
+        { seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON, pickType: "straight_up" },
+        appAt(new Date(SUPER_BOWL_WINDOW_CLOSES.getTime() + 1)),
+      );
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "start_week_passed" });
     });
   });
 

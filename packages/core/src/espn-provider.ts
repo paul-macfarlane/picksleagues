@@ -235,6 +235,23 @@ function parseScoreStrict(raw: string, context: string): number {
   return parsed;
 }
 
+/**
+ * ESPN publishes an unseeded playoff round months ahead as real events whose
+ * competitors are a shared placeholder: `team.id` `-1`/`-2`, abbreviation
+ * `TBD`. Both signals are checked because either alone identifies today's
+ * encoding while neither can match a real team — ESPN's team ids are positive
+ * and no real abbreviation is `TBD` — so the redundancy costs nothing and
+ * survives ESPN changing one of them. A non-numeric id is not a placeholder:
+ * `Number` yields NaN, which is not finite.
+ */
+function isPlaceholderCompetitor(competitor: z.infer<typeof CompetitorSchema>): boolean {
+  const providerId = Number(competitor.team.id);
+  return (
+    (Number.isFinite(providerId) && providerId < 0) ||
+    competitor.team.abbreviation.toUpperCase() === "TBD"
+  );
+}
+
 function mapCompetitionToGame(
   weekType: WeekType,
   weekNumber: number,
@@ -407,14 +424,22 @@ export class EspnProvider implements GameDataProvider {
     const url = `${this.#siteApiBaseUrl}/football/nfl/scoreboard?seasontype=${seasonType}&week=${espnWeekNumber}&dates=${seasonYear}`;
     const scoreboard = ScoreboardSchema.parse(await this.#fetchJson(url));
 
-    return scoreboard.events.map((event) => {
+    return scoreboard.events.flatMap((event) => {
       // `min(1)` on the schema guarantees this, but TS's noUncheckedIndexedAccess
       // can't see through that — guard explicitly rather than asserting.
       const [competition] = event.competitions;
       if (!competition) {
         throw new Error(`EspnProvider: event ${event.id} has no competitions`);
       }
-      return mapCompetitionToGame(weekType, weekNumber, competition);
+      // ADR-0021: an event whose competitors are undetermined is not yet a game
+      // in our domain. Excluded here rather than marked downstream because a
+      // Pick'em pick stores a side, not a team — seeding would silently convert
+      // a submitted pick into a pick on a team the member never chose, and
+      // ADR-0018's submit-once rule leaves them no remedy.
+      if (competition.competitors.some(isPlaceholderCompetitor)) {
+        return [];
+      }
+      return [mapCompetitionToGame(weekType, weekNumber, competition)];
     });
   }
 

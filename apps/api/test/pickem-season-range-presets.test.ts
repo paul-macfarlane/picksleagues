@@ -105,6 +105,65 @@ async function seedFullSeason(year: number, offsetMs = 0) {
   });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Real ESPN calendar shape: each postseason round owns a week-long window
+// opening a few days after the previous round's games.
+const DIVISIONAL_WINDOW_OPENS = new Date(WILD_CARD_KICKOFF.getTime() + 3 * DAY_MS);
+const DIVISIONAL_WINDOW_CLOSES = new Date(WILD_CARD_KICKOFF.getTime() + 10 * DAY_MS);
+const CONFERENCE_WINDOW_CLOSES = new Date(WILD_CARD_KICKOFF.getTime() + 17 * DAY_MS);
+const SUPER_BOWL_WINDOW_CLOSES = new Date(WILD_CARD_KICKOFF.getTime() + 31 * DAY_MS);
+
+/**
+ * The DATA-9 shape (ADR-0021): Wild Card is seeded and has kicked off, and ESPN
+ * seeds each later round only once the previous one is decided — so Divisional,
+ * Conference, and the Super Bowl exist in the ingested season structure with
+ * their real windows and no games at all.
+ */
+async function seedPostseasonSeededThroughWildCard() {
+  return seedSeason(db, {
+    year: 2026,
+    weeks: [
+      { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+      { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK2_KICKOFF }] },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 1,
+        kickoffs: [{ kickoffAt: WILD_CARD_KICKOFF }],
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 2,
+        startsAt: DIVISIONAL_WINDOW_OPENS,
+        endsAt: DIVISIONAL_WINDOW_CLOSES,
+        kickoffs: [],
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 3,
+        startsAt: DIVISIONAL_WINDOW_CLOSES,
+        endsAt: CONFERENCE_WINDOW_CLOSES,
+        kickoffs: [],
+      },
+      {
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 4,
+        startsAt: CONFERENCE_WINDOW_CLOSES,
+        endsAt: SUPER_BOWL_WINDOW_CLOSES,
+        kickoffs: [],
+      },
+    ],
+  });
+}
+
+/**
+ * Inside the Divisional window but before ESPN has seeded it — Wild Card has
+ * kicked off *and* the next round's own window has already opened, which is
+ * precisely the instant a `starts_at` comparison would skip past.
+ */
+const UNSEEDED_DIVISIONAL_NOW = new Date(DIVISIONAL_WINDOW_OPENS.getTime() + 1);
+const unseededDivisional = appAt(UNSEEDED_DIVISIONAL_NOW);
+const afterEveryPostseasonWindow = appAt(new Date(SUPER_BOWL_WINDOW_CLOSES.getTime() + 1));
+
 function sorted(presets: readonly PickemSeasonRangePreset[]): PickemSeasonRangePreset[] {
   return [...presets].sort();
 }
@@ -168,6 +227,24 @@ describe("GET /api/pickem/season-range-presets — create form availability (AC2
       on: app,
       seed: null,
       expected: { seasonYear: null, startablePresets: [] },
+    },
+    {
+      name: "Wild Card kicked off and no later round seeded yet (ADR-0021)",
+      on: unseededDivisional,
+      seed: seedPostseasonSeededThroughWildCard,
+      expected: {
+        seasonYear: 2026,
+        startablePresets: [
+          PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
+          PICKEM_SEASON_RANGE_PRESET.FULL_SEASON,
+        ],
+      },
+    },
+    {
+      name: "every postseason window closed with no round ever seeded",
+      on: afterEveryPostseasonWindow,
+      seed: seedPostseasonSeededThroughWildCard,
+      expected: { seasonYear: 2026, startablePresets: [] },
     },
   ])("$name", async ({ on, seed, expected }) => {
     if (seed) await seed();

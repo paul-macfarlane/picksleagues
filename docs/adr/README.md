@@ -19,7 +19,7 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0007](0007-game-data-ingestion-model.md)     | Game-data ingestion model            | Accepted |
 | [0008](0008-league-season-binding.md)         | Leagues bind to a sport season; start derived from games | Accepted (amended by 0009) |
 | [0009](0009-multi-season-leagues.md)          | Leagues span seasons via `league_seasons` instances | Accepted |
-| [0010](0010-normalized-teams.md)              | Teams are normalized reference data  | Accepted |
+| [0010](0010-normalized-teams.md)              | Teams are normalized reference data  | Accepted (amended by 0021) |
 | [0011](0011-simulator-admin-ops-merge.md)     | Simulator & admin ops merge; UI-driven sim, admin-session auth | Accepted |
 | [0012](0012-simulated-provider-clock-projection.md) | Simulated data flows through real ingestion; fixtures project through the clock | Accepted |
 | [0013](0013-admin-role-in-database.md)        | Admin capability lives in `users.app_role` | Accepted |
@@ -29,4 +29,5 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
 | [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |
 | [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
-| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted |
+| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted (amended by 0021) |
+| [0021](0021-unseeded-playoff-games-excluded-at-ingestion.md) | Unseeded playoff games are excluded at ingestion | Accepted |

@@ -910,6 +910,144 @@ describe("EspnProvider.fetchNflWeekGames", () => {
       /unexpected domain postseason week number 9/,
     );
   });
+
+  describe("unseeded playoff rounds (ADR-0021)", () => {
+    const divisionalUrl = `${SITE_API_BASE_URL}/football/nfl/scoreboard?seasontype=3&week=2&dates=2026`;
+
+    /**
+     * The real shape of an unseeded round: ESPN reuses one placeholder pair
+     * across every game in it, so the two competitors below carry the same
+     * provider ids in each event — verified 2026-08-06 against the ticket's
+     * live observation.
+     */
+    function placeholderCompetitors(): unknown[] {
+      return [
+        competitor({
+          homeAway: "home",
+          abbreviation: "TBD",
+          displayName: "TBD",
+          teamId: "-1",
+        }),
+        competitor({
+          homeAway: "away",
+          abbreviation: "TBD",
+          displayName: "TBD",
+          teamId: "-2",
+        }),
+      ];
+    }
+
+    function scoreboardOf(competitions: { id: string; competitors: unknown[] }[]): Response {
+      return jsonResponse({
+        events: competitions.map(({ id, competitors }) => ({
+          id,
+          competitions: [
+            {
+              id,
+              date: "2027-01-17T18:00Z",
+              status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+              competitors,
+            },
+          ],
+        })),
+      });
+    }
+
+    const seededHome = competitor({
+      homeAway: "home",
+      abbreviation: "KC",
+      displayName: "Kansas City Chiefs",
+      teamId: "12",
+    });
+    const seededAway = competitor({
+      homeAway: "away",
+      abbreviation: "BUF",
+      displayName: "Buffalo Bills",
+      teamId: "2",
+    });
+
+    it.each([
+      { name: "both competitors are placeholders", competitors: placeholderCompetitors() },
+      {
+        name: "only the home competitor is a placeholder",
+        competitors: [placeholderCompetitors()[0], seededAway],
+      },
+      {
+        name: "only the away competitor is a placeholder",
+        competitors: [seededHome, placeholderCompetitors()[1]],
+      },
+      {
+        name: "a negative provider id carries a non-TBD abbreviation",
+        competitors: [
+          competitor({
+            homeAway: "home",
+            abbreviation: "AFC",
+            displayName: "AFC Champion",
+            teamId: "-1",
+          }),
+          seededAway,
+        ],
+      },
+      {
+        name: "a TBD abbreviation carries a positive provider id",
+        competitors: [
+          competitor({ homeAway: "home", abbreviation: "TBD", displayName: "TBD", teamId: "99" }),
+          seededAway,
+        ],
+      },
+      {
+        name: "a TBD abbreviation arrives lowercased",
+        competitors: [
+          competitor({ homeAway: "home", abbreviation: "tbd", displayName: "TBD", teamId: "99" }),
+          seededAway,
+        ],
+      },
+    ])("excludes a competition where $name", async ({ competitors }) => {
+      const fetchImpl = stubFetch({
+        [divisionalUrl]: scoreboardOf([{ id: "700", competitors }]),
+      });
+
+      const provider = makeProvider(fetchImpl);
+
+      await expect(provider.fetchNflWeekGames(2026, WEEK_TYPE.POSTSEASON, 2)).resolves.toEqual([]);
+    });
+
+    it("returns only the seeded games of a round that is partly seeded", async () => {
+      const fetchImpl = stubFetch({
+        [divisionalUrl]: scoreboardOf([
+          { id: "701", competitors: [seededHome, seededAway] },
+          { id: "702", competitors: placeholderCompetitors() },
+          { id: "703", competitors: placeholderCompetitors() },
+        ]),
+      });
+
+      const provider = makeProvider(fetchImpl);
+      const games = await provider.fetchNflWeekGames(2026, WEEK_TYPE.POSTSEASON, 2);
+
+      expect(games.map((game) => game.providerGameId)).toEqual(["701"]);
+    });
+
+    it("passes a fully seeded round through unchanged", async () => {
+      const fetchImpl = stubFetch({
+        [divisionalUrl]: scoreboardOf([{ id: "704", competitors: [seededHome, seededAway] }]),
+      });
+
+      const provider = makeProvider(fetchImpl);
+      const games = await provider.fetchNflWeekGames(2026, WEEK_TYPE.POSTSEASON, 2);
+
+      expect(games).toMatchObject([
+        {
+          providerGameId: "704",
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 2,
+          homeTeamAbbr: "KC",
+          homeTeamProviderId: "12",
+          awayTeamAbbr: "BUF",
+          awayTeamProviderId: "2",
+        },
+      ]);
+    });
+  });
 });
 
 describe("EspnProvider.fetchNflTeams", () => {
