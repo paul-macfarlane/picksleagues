@@ -404,6 +404,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/picks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every member's pick for a week, filtered by kickoff visibility */
+        get: operations["getSurvivorWeekPicks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Make or change the caller's pick for a week — allowed until that game kicks off */
+        put: operations["submitSurvivorPick"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/jobs/nfl/{job}": {
         parameters: {
             query?: never;
@@ -1068,6 +1102,36 @@ export interface components {
             /** Format: uuid */
             gameId: string;
             side: components["schemas"]["PickemPickSide"];
+            /** @default null */
+            spread: number | null;
+        };
+        SurvivorWeekPicksResponse: {
+            members: components["schemas"]["SurvivorMemberPick"][];
+            consumedTeamIds: string[];
+        };
+        SurvivorMemberPick: {
+            leagueMemberId: string;
+            userId: string;
+            username: string | null;
+            displayName: string;
+            image: string | null;
+            isViewer: boolean;
+            hasPicked: boolean;
+            pick: components["schemas"]["NullableSurvivorPick"];
+            eliminated: boolean;
+        };
+        NullableSurvivorPick: {
+            id: string;
+            weekId: string;
+            gameId: string;
+            teamId: string;
+            spreadAtPick: number | null;
+        } | null;
+        SubmitSurvivorPickRequest: {
+            /** Format: uuid */
+            gameId: string;
+            /** Format: uuid */
+            teamId: string;
             /** @default null */
             spread: number | null;
         };
@@ -3128,6 +3192,137 @@ export interface operations {
                 };
             };
             /** @description The caller already submitted this week and a week is one immutable submission (already_submitted), a submitted game has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable — nothing to accept until the odds sync lands), or the season has concluded (league_concluded) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getSurvivorWeekPicks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                weekId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per member. The caller sees their own pick always; another member's appears only once that game has kicked off, with `hasPicked` reporting that one exists. `consumedTeamIds` is the caller's own burned teams, excluding this week's */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurvivorWeekPicksResponse"];
+                };
+            };
+            /** @description Not a Survivor league (wrong_league_mode), or the week is outside this league's season or resolved range, or is not a regular-season week (week_out_of_range) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submitSurvivorPick: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                weekId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SubmitSurvivorPickRequest"];
+            };
+        };
+        responses: {
+            /** @description Pick saved; the week is returned as the read endpoint would serve it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurvivorWeekPicksResponse"];
+                };
+            };
+            /** @description Not a Survivor league (wrong_league_mode), the week is outside this league's resolved regular-season range (week_out_of_range), or the game isn't in this week's slate (game_not_in_week) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable), or the season has concluded (league_concluded) */
             409: {
                 headers: {
                     [name: string]: unknown;

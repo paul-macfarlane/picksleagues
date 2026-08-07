@@ -14,6 +14,8 @@ import {
   simScenarios,
   sportSeasons,
   pickemStandings,
+  survivorPicks,
+  survivorState,
   teams,
   users,
   weeks,
@@ -32,6 +34,8 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(pickemPickResults);
   await db.delete(pickemStandings);
   await db.delete(pickemPicks);
+  await db.delete(survivorState);
+  await db.delete(survivorPicks);
   await db.delete(leagueInvites);
   await db.delete(leagueMembers);
   await db.delete(leagueSeasons);

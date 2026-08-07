@@ -25,5 +25,6 @@ export * from "./pickem-pick-side";
 export * from "./sim";
 export * from "./slate";
 export * from "./sport";
+export * from "./survivor";
 export * from "./username";
 export * from "./week-type";

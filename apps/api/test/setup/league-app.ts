@@ -67,6 +67,32 @@ export function makeLeagueTestHarness() {
     });
   }
 
+  function getSurvivorPicks(
+    cookie: string | undefined,
+    leagueId: string,
+    weekId: string,
+    on: App = app,
+  ) {
+    return on.request(`/api/leagues/${leagueId}/survivor/weeks/${weekId}/picks`, {
+      headers: withCookie(cookie),
+    });
+  }
+
+  // Singular path: the write is the caller's one pick, the read is the league's.
+  function putSurvivorPick(
+    cookie: string | undefined,
+    leagueId: string,
+    weekId: string,
+    body: unknown,
+    on: App = app,
+  ) {
+    return on.request(`/api/leagues/${leagueId}/survivor/weeks/${weekId}/pick`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", ...withCookie(cookie) },
+      body: JSON.stringify(body),
+    });
+  }
+
   function getStandings(cookie: string | undefined, leagueId: string, query = "", on: App = app) {
     return on.request(`/api/leagues/${leagueId}/pickem/standings${query}`, {
       headers: withCookie(cookie),
@@ -88,6 +114,8 @@ export function makeLeagueTestHarness() {
     getSlate,
     getPicks,
     putPicks,
+    getSurvivorPicks,
+    putSurvivorPick,
     getStandings,
     getPickSummary,
   };

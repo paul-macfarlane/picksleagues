@@ -19,9 +19,10 @@ import { getMembership } from "./leagues/authz";
  * to move between weeks; the admin season browser is not reachable to them, and
  * it wouldn't answer the "which weeks does MY league cover" question anyway.
  *
- * Mode-agnostic surface, Pick'em-only gate for now: Survivor configures the
- * same start/end week range and will share this endpoint, so the
- * `wrong_league_mode` refusal below widens to accept it when ELM lands.
+ * Mode-agnostic surface behind a gate that names the modes whose settings
+ * carry a start/end week range — both NFL modes do, and both read this same
+ * list. March Madness has no season range at all, so it is refused rather than
+ * served a week list its settings cannot clip.
  */
 
 export type LeagueWeeksResult =
@@ -40,11 +41,12 @@ export async function listLeagueWeeks(
   const membership = await getMembership(db, leagueId, userId);
   if (!membership) return { ok: false, reason: "league_not_found" };
 
-  if (current.league.mode !== LEAGUE_MODE.PICKEM) {
+  const mode = current.league.mode;
+  if (mode !== LEAGUE_MODE.PICKEM && mode !== LEAGUE_MODE.SURVIVOR) {
     return { ok: false, reason: "wrong_league_mode" };
   }
 
-  const settings = LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(current.season.settings);
+  const settings = LEAGUE_SETTINGS_SCHEMAS[mode].parse(current.season.settings);
   const startOrdinal = nflSeasonOrdinal(settings.startWeek);
   const endOrdinal = nflSeasonOrdinal(settings.endWeek);
 

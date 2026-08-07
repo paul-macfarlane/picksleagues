@@ -159,7 +159,14 @@ export async function seedSeason(
     gameIds.set(key, weekGameIds);
   }
 
-  return { seasonId: season.id, weekIds, gameIds };
+  // The two teams every seeded game is played between. Survivor fixtures need
+  // them by id — its ledger is keyed on the team, not the game.
+  return {
+    seasonId: season.id,
+    weekIds,
+    gameIds,
+    teamIds: { home: homeTeam.id, away: awayTeam.id },
+  };
 }
 
 export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
