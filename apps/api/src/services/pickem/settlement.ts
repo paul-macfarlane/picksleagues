@@ -1,6 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, max } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
+  adminAudit,
   games,
   leagueMembers,
   leagueSeasons,
@@ -11,6 +12,8 @@ import {
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ADMIN_AUDIT_ACTION,
+  ADMIN_AUDIT_TARGET_TABLE,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
@@ -305,17 +308,67 @@ async function weeksWithPicks(db: Db, leagueSeasonId: string): Promise<string[]>
 }
 
 /**
+ * Records an admin's rebuild against the league season whose derived state it
+ * is about to replace (engineering rules §Data: "every override/rebuild writes
+ * `admin_audit`").
+ *
+ * The prior value is a summary, not the rows: those are a whole season of a
+ * derivation arch D10 already defines as reproducible from (picks, results,
+ * settings), while what the trail must answer — what stood here, and when it
+ * last settled — is exactly what counts plus last-write instants answer, at
+ * constant size.
+ */
+async function recordRebuildAudit(
+  tx: Db,
+  clock: Clock,
+  leagueSeasonId: string,
+  adminUserId: string,
+): Promise<void> {
+  const [results] = await tx
+    .select({ rows: count(), lastSettledAt: max(pickemPickResults.settledAt) })
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.leagueSeasonId, leagueSeasonId));
+  const [standings] = await tx
+    .select({ rows: count(), lastUpdatedAt: max(pickemStandings.updatedAt) })
+    .from(pickemStandings)
+    .where(eq(pickemStandings.leagueSeasonId, leagueSeasonId));
+
+  await tx.insert(adminAudit).values({
+    adminUserId,
+    action: ADMIN_AUDIT_ACTION.LEAGUE_REBUILD,
+    targetTable: ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS,
+    targetId: leagueSeasonId,
+    priorValue: {
+      resultCount: results?.rows ?? 0,
+      standingsRowCount: standings?.rows ?? 0,
+      lastSettledAt: results?.lastSettledAt?.toISOString() ?? null,
+      lastStandingsUpdatedAt: standings?.lastUpdatedAt?.toISOString() ?? null,
+    },
+    createdAt: clock.now(),
+  });
+}
+
+/**
  * Settles the named weeks of one league season and rebuilds its standings, in
  * one transaction. Standings are rebuilt once at the end rather than per week —
  * they are a whole-season derivation either way.
+ *
+ * `audit` names the admin who asked for this recompute, and is supplied only by
+ * the admin rebuild endpoint: the nightly sweep, ingestion, and the simulator
+ * settle on their own schedule rather than on an operator's instruction, and a
+ * row per active season per night would bury the admin actions `admin_audit`
+ * exists to surface.
  */
 export async function settleLeagueSeasonWeeks(
   db: Db,
   clock: Clock,
   leagueSeasonId: string,
   weekIds: readonly string[],
+  audit?: { adminUserId: string },
 ): Promise<SettlementSummary> {
   const season = await loadSettleableSeason(db, leagueSeasonId);
+  // Nothing here is settleable, so nothing is wiped and there is no prior value
+  // to record honestly — an audited no-op would claim a recompute that never ran.
   if (!season) return EMPTY_SUMMARY;
 
   return db.transaction(async (tx) => {
@@ -323,6 +376,10 @@ export async function settleLeagueSeasonWeeks(
     // can all settle the same season at once, and delete-then-insert without
     // this collides on the unique constraints.
     await lockLeagueSeasonRow(tx, leagueSeasonId);
+
+    // Under the lock and before the first delete, so the recorded prior state is
+    // the one this transaction replaces and no concurrent settle can shift it.
+    if (audit) await recordRebuildAudit(tx, clock, leagueSeasonId, audit.adminUserId);
 
     let results = 0;
     let unsettled = 0;
@@ -336,14 +393,19 @@ export async function settleLeagueSeasonWeeks(
   });
 }
 
-/** Full recompute of one league season from scratch — the on-demand rebuild. */
+/**
+ * Full recompute of one league season from scratch — the on-demand rebuild.
+ * Pass `audit` when a named admin asked for it, so the recompute and its
+ * `admin_audit` row commit or roll back together.
+ */
 export async function rebuildLeagueSeason(
   db: Db,
   clock: Clock,
   leagueSeasonId: string,
+  audit?: { adminUserId: string },
 ): Promise<SettlementSummary> {
   const weekIds = await weeksWithPicks(db, leagueSeasonId);
-  return settleLeagueSeasonWeeks(db, clock, leagueSeasonId, weekIds);
+  return settleLeagueSeasonWeeks(db, clock, leagueSeasonId, weekIds, audit);
 }
 
 /**

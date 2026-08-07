@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
+  AdminAuditResponseSchema,
   AdminGamesResponseSchema,
   AdminSeasonsResponseSchema,
   AdminTeamsResponseSchema,
@@ -33,7 +34,13 @@ import {
   type DepsVariables,
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
-import { listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import {
+  listAnomalousGames,
+  listAuditEntries,
+  listSeasons,
+  listTeams,
+  listWeekGames,
+} from "../services/admin-data";
 import { setGameOverride } from "../services/admin-overrides";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
@@ -145,6 +152,45 @@ const listAdminGamesRoute = createRoute({
   },
 });
 
+const listAdminGameAnomaliesRoute = createRoute({
+  method: "get",
+  path: "/admin/games/anomalies",
+  operationId: "listAdminGameAnomalies",
+  summary: "List games left unlocked while their outcome is already knowable",
+  responses: {
+    200: {
+      description:
+        "Games whose resolved kickoff is still ahead of the server clock while their resolved status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is an override on exactly these rows.",
+      content: { "application/json": { schema: AdminGamesResponseSchema } },
+    },
+    ...browserResponses,
+  },
+});
+
+// Unlike the reference-data browsers, `admin_audit` only grows, so this list
+// pages. 25 is a screenful an operator can actually read; the 100 ceiling keeps
+// one request from asking for the whole trail.
+const AdminAuditQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const listAdminAuditRoute = createRoute({
+  method: "get",
+  path: "/admin/audit",
+  operationId: "listAdminAudit",
+  summary: "Browse the admin action log — overrides and rebuilds, newest first",
+  request: { query: AdminAuditQuerySchema },
+  responses: {
+    200: {
+      description:
+        "One page of audit rows newest-first, with the whole table's `total` and the `limit`/`offset` actually served — an offset past the end is an empty page, not an error",
+      content: { "application/json": { schema: AdminAuditResponseSchema } },
+    },
+    ...browserResponses,
+  },
+});
+
 const setAdminGameOverrideRoute = createRoute({
   method: "put",
   path: "/admin/games/{gameId}/override",
@@ -191,7 +237,13 @@ export function adminRoutes(deps: AppDeps) {
   app.use("/admin/*", requireAdmin(deps));
   // Scoped to the browser routes rather than `/admin/*`: the job route resolves
   // deps itself so its misconfiguration 500 keeps the JobRunResponse shape.
-  for (const path of ["/admin/teams", "/admin/seasons", "/admin/games", "/admin/games/*"]) {
+  for (const path of [
+    "/admin/teams",
+    "/admin/seasons",
+    "/admin/games",
+    "/admin/games/*",
+    "/admin/audit",
+  ]) {
     app.use(path, requireDbAndClock(deps));
   }
 
@@ -238,7 +290,11 @@ export function adminRoutes(deps: AppDeps) {
       );
     }
 
-    return runJob(c, REBUILD_JOB_NAME, () => rebuildLeagueSeason(db, clock, current.season.id));
+    return runJob(c, REBUILD_JOB_NAME, () =>
+      rebuildLeagueSeason(db, clock, current.season.id, {
+        adminUserId: c.get("sessionUser").id,
+      }),
+    );
   });
 
   app.openapi(listAdminTeamsRoute, async (c) => {
@@ -254,6 +310,16 @@ export function adminRoutes(deps: AppDeps) {
   app.openapi(listAdminGamesRoute, async (c) => {
     const { weekId } = c.req.valid("query");
     return c.json({ games: await listWeekGames(c.get("db"), weekId) }, 200);
+  });
+
+  app.openapi(listAdminGameAnomaliesRoute, async (c) => {
+    return c.json({ games: await listAnomalousGames(c.get("db"), c.get("clock").now()) }, 200);
+  });
+
+  app.openapi(listAdminAuditRoute, async (c) => {
+    const { limit, offset } = c.req.valid("query");
+    const { entries, total } = await listAuditEntries(c.get("db"), { limit, offset });
+    return c.json({ entries, total, limit, offset }, 200);
   });
 
   app.openapi(setAdminGameOverrideRoute, async (c) => {

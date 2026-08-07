@@ -1,0 +1,124 @@
+=== test (unit) ===
+$ vitest run --project unit
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues/.claude/worktrees/adm-3/picksleagues
+
+
+ Test Files  27 passed (27)
+      Tests  462 passed (462)
+   Start at  11:21:54
+   Duration  924ms (transform 1.30s, setup 0ms, import 3.47s, tests 263ms, environment 1ms)
+
+EXIT=0
+=== test:integration ===
+$ vitest run --project integration
+
+ RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues/.claude/worktrees/adm-3/picksleagues
+
+
+ Test Files  30 passed (30)
+      Tests  544 passed (544)
+   Start at  11:21:56
+   Duration  28.99s (transform 605ms, setup 0ms, import 14.41s, tests 11.89s, environment 1ms)
+
+EXIT=0
+=== web build ===
+$ tsc -b && vite build
+vite v8.1.5 building client environment for production...
+[2Ktransforming...✓ 3572 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              1.95 kB │ gzip:  0.76 kB
+dist/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2    7.42 kB
+dist/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2      8.00 kB
+dist/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2       15.08 kB
+dist/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2      16.51 kB
+dist/assets/geist-latin-wght-normal-BgDaEnEv.woff2          29.40 kB
+dist/assets/index-B6trXQMN.css                              64.56 kB │ gzip: 11.54 kB
+dist/assets/redirect-BoHOVlBn.js                             0.10 kB │ gzip:  0.10 kB
+dist/assets/chevron-right-3zbgq9X8.js                        0.11 kB │ gzip:  0.13 kB
+dist/assets/refusals-DlKJwGRY.js                             0.12 kB │ gzip:  0.13 kB
+dist/assets/x-D4_0szQU.js                                    0.14 kB │ gzip:  0.14 kB
+dist/assets/useRouter-CwlgUWnw.js                            0.15 kB │ gzip:  0.14 kB
+dist/assets/standings-V74tKtK0.js                            0.15 kB │ gzip:  0.14 kB
+dist/assets/useNavigate-DsGEn-XI.js                          0.22 kB │ gzip:  0.19 kB
+dist/assets/sim-state-gate-C6m_vDcr.js                       0.34 kB │ gzip:  0.25 kB
+dist/assets/app-clock-BWlqEWAt.js                            0.40 kB │ gzip:  0.28 kB
+dist/assets/labeled-date-time-field-lio8yvmo.js              0.41 kB │ gzip:  0.29 kB
+dist/assets/sim-control-row-Bmia303U.js                      0.43 kB │ gzip:  0.25 kB
+dist/assets/league-settings-Ztwgar2M.js                      0.44 kB │ gzip:  0.22 kB
+dist/assets/league-qy74riwh.js                               0.45 kB │ gzip:  0.32 kB
+dist/assets/status-pill-Dhb_Xh6c.js                          0.56 kB │ gzip:  0.35 kB
+dist/assets/matchContext-D_JZSke4.js                         0.58 kB │ gzip:  0.36 kB
+dist/assets/team-logo-BrI9hF4D.js                            0.61 kB │ gzip:  0.39 kB
+dist/assets/tab-nav-DxGbmZyP.js                              0.63 kB │ gzip:  0.40 kB
+dist/assets/form-date-time-field-lbiTeGFT.js                 0.65 kB │ gzip:  0.42 kB
+dist/assets/query-state-C8vjEaV1.js                          0.72 kB │ gzip:  0.38 kB
+dist/assets/format-BZw333sn.js                               0.73 kB │ gzip:  0.36 kB
+dist/assets/CompositeItem-D77OJKkF.js                        0.82 kB │ gzip:  0.51 kB
+dist/assets/useParams-DMURT2CR.js                            0.86 kB │ gzip:  0.47 kB
+dist/assets/me-Db8raXpB.js                                   0.88 kB │ gzip:  0.51 kB
+dist/assets/invites-pnydVH6t.js                              1.34 kB │ gzip:  0.58 kB
+dist/assets/admin-BmGwDvX8.js                                1.43 kB │ gzip:  0.70 kB
+dist/assets/card-BFbua5Th.js                                 1.47 kB │ gzip:  0.58 kB
+dist/assets/route-D50EIdzR.js                                1.52 kB │ gzip:  0.60 kB
+dist/assets/owner-DsmmxCM_.js                                1.53 kB │ gzip:  0.85 kB
+dist/assets/route-DHbOrxjH.js                                1.53 kB │ gzip:  0.62 kB
+dist/assets/teams-CerRZpij.js                                1.56 kB │ gzip:  0.74 kB
+dist/assets/with-selector-B5-y2CEB.js                        1.63 kB │ gzip:  0.72 kB
+dist/assets/claim-username-CTUFeUI8.js                       1.70 kB │ gzip:  0.90 kB
+dist/assets/store-CNDFVFvw.js                                1.81 kB │ gzip:  0.63 kB
+dist/assets/league-week-picker-zHDqCsIJ.js                   2.04 kB │ gzip:  1.02 kB
+dist/assets/game-C0ku9YMQ.js                                 2.06 kB │ gzip:  0.99 kB
+dist/assets/members-DoV7Cjuh.js                              2.11 kB │ gzip:  0.74 kB
+dist/assets/input-Dt2v3daj.js                                2.37 kB │ gzip:  1.21 kB
+dist/assets/seasons-DOj0e4Oa.js                              2.50 kB │ gzip:  1.03 kB
+dist/assets/leagues-CT_zSPva.js                              2.61 kB │ gzip:  0.95 kB
+dist/assets/admin-Bmo7T7In.js                                2.73 kB │ gzip:  1.14 kB
+dist/assets/useRegisterFieldControl-D3gFaGY2.js              2.86 kB │ gzip:  1.35 kB
+dist/assets/discovery-BMHOdXu1.js                            2.89 kB │ gzip:  1.20 kB
+dist/assets/sim-7-cupi53.js                                  3.01 kB │ gzip:  1.14 kB
+dist/assets/join._code-BcderMYJ.js                           3.05 kB │ gzip:  1.01 kB
+dist/assets/route-C1dIK5za.js                                3.30 kB │ gzip:  1.23 kB
+dist/assets/useTimeout-D6NfayOq.js                           3.30 kB │ gzip:  1.37 kB
+dist/assets/alert-dialog-BpD2VyPN.js                         3.40 kB │ gzip:  1.16 kB
+dist/assets/pickem-V9rxEeGS.js                               3.48 kB │ gzip:  1.20 kB
+dist/assets/reset-Bv4PzatD.js                                3.54 kB │ gzip:  1.29 kB
+dist/assets/sign-in-Bcinb288.js                              3.58 kB │ gzip:  1.68 kB
+dist/assets/_authed-jerBqgvc.js                              3.67 kB │ gzip:  1.33 kB
+dist/assets/scenarios-C5P8yTT4.js                            3.71 kB │ gzip:  1.39 kB
+dist/assets/user-identity-CI1ivgW9.js                        3.97 kB │ gzip:  1.73 kB
+dist/assets/new-DaHncket.js                                  4.11 kB │ gzip:  1.85 kB
+dist/assets/sim-BvHsDvsN.js                                  4.98 kB │ gzip:  2.01 kB
+dist/assets/preload-helper-BzJnQ73F.js                       5.03 kB │ gzip:  1.90 kB
+dist/assets/league-picks-BZAcF7SZ.js                         5.56 kB │ gzip:  2.24 kB
+dist/assets/audit-BsQwro1O.js                                6.09 kB │ gzip:  2.19 kB
+dist/assets/profile-DnTxPX-D.js                              6.53 kB │ gzip:  2.47 kB
+dist/assets/_leagueId-DyShBLpp.js                            6.64 kB │ gzip:  2.51 kB
+dist/assets/fixtures-Czyx6vYm.js                             6.75 kB │ gzip:  2.52 kB
+dist/assets/members-Cv2m2sb1.js                              7.31 kB │ gzip:  2.54 kB
+dist/assets/DialogTrigger-RYl4ylSm.js                        8.39 kB │ gzip:  3.22 kB
+dist/assets/my-picks-DSTPuWg9.js                             8.71 kB │ gzip:  3.07 kB
+dist/assets/games-DuzL--Wm.js                                8.79 kB │ gzip:  3.03 kB
+dist/assets/getPseudoElementBounds-B25QfXEM.js              10.82 kB │ gzip:  4.42 kB
+dist/assets/useTriggerFocusGuards-CCKK0hGF.js               11.18 kB │ gzip:  4.01 kB
+dist/assets/jsx-runtime-Bypl69v7.js                         12.01 kB │ gzip:  4.29 kB
+dist/assets/settings-DtDkm-Yz.js                            14.25 kB │ gzip:  5.33 kB
+dist/assets/league-settings-fields-BSW3Eg5N.js              15.81 kB │ gzip:  6.28 kB
+dist/assets/api-BMMTbROY.js                                 17.45 kB │ gzip:  6.16 kB
+dist/assets/link-B-lhMir-.js                                21.61 kB │ gzip:  8.12 kB
+dist/assets/auth-CgaLEmEp.js                                28.39 kB │ gzip: 10.73 kB
+dist/assets/useAnchoredPopupScrollLock-C8k6ZUuP.js          28.69 kB │ gzip: 10.95 kB
+dist/assets/labeled-select-DQgm99YD.js                      30.95 kB │ gzip: 11.17 kB
+dist/assets/_authed-BAVosumq.js                             38.89 kB │ gzip: 12.33 kB
+dist/assets/button-DVQXxmXL.js                              39.90 kB │ gzip: 13.43 kB
+dist/assets/useOpenInteractionType-CMwEoWTu.js              42.90 kB │ gzip: 14.72 kB
+dist/assets/Match-Dwiok2Jt.js                               48.57 kB │ gzip: 15.74 kB
+dist/assets/form-field-B7rGZxTF.js                          64.56 kB │ gzip: 16.09 kB
+dist/assets/date-time-picker-Bj7hjg1j.js                    85.44 kB │ gzip: 25.88 kB
+dist/assets/schemas-B7sqQlGY.js                            112.12 kB │ gzip: 30.28 kB
+dist/assets/src-qvcWtYYe.js                                193.53 kB │ gzip: 44.80 kB
+dist/assets/index-BVjtZ4a4.js                              260.84 kB │ gzip: 80.72 kB
+
+✓ built in 445ms
+EXIT=0
