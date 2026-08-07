@@ -59,3 +59,19 @@ export function resolveGameOverrides(game: GameOverrideFields): ResolvedGame {
  * agree with `resolveGameOverrides` — kept beside it so the two can't drift.
  */
 export const effectiveKickoffAtSql = sql<Date>`coalesce(${games.overrideKickoffAt}, ${games.kickoffAt})`;
+
+/**
+ * The status and score coalesces in SQL, for the same reason and under the same
+ * obligation as the kickoff one above. Their caller is the admin anomaly query,
+ * which re-expresses the override guard's "unlocked while the outcome is already
+ * knowable" predicate over every game in the database — a coalesce restated
+ * inside that service would be free to decide a corrected game's status one way
+ * for detection and another way everywhere else.
+ */
+export const effectiveStatusSql = sql<GameStatus>`coalesce(${games.overrideStatus}, ${games.status})`;
+export const effectiveHomeScoreSql = sql<
+  number | null
+>`coalesce(${games.overrideHomeScore}, ${games.homeScore})`;
+export const effectiveAwayScoreSql = sql<
+  number | null
+>`coalesce(${games.overrideAwayScore}, ${games.awayScore})`;

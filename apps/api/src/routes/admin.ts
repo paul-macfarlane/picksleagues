@@ -34,7 +34,13 @@ import {
   type DepsVariables,
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
-import { listAuditEntries, listSeasons, listTeams, listWeekGames } from "../services/admin-data";
+import {
+  listAnomalousGames,
+  listAuditEntries,
+  listSeasons,
+  listTeams,
+  listWeekGames,
+} from "../services/admin-data";
 import { setGameOverride } from "../services/admin-overrides";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
@@ -140,6 +146,21 @@ const listAdminGamesRoute = createRoute({
     200: {
       description:
         "The week's games ordered by resolved kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet",
+      content: { "application/json": { schema: AdminGamesResponseSchema } },
+    },
+    ...browserResponses,
+  },
+});
+
+const listAdminGameAnomaliesRoute = createRoute({
+  method: "get",
+  path: "/admin/games/anomalies",
+  operationId: "listAdminGameAnomalies",
+  summary: "List games left unlocked while their outcome is already knowable",
+  responses: {
+    200: {
+      description:
+        "Games whose resolved kickoff is still ahead of the server clock while their resolved status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is an override on exactly these rows.",
       content: { "application/json": { schema: AdminGamesResponseSchema } },
     },
     ...browserResponses,
@@ -289,6 +310,10 @@ export function adminRoutes(deps: AppDeps) {
   app.openapi(listAdminGamesRoute, async (c) => {
     const { weekId } = c.req.valid("query");
     return c.json({ games: await listWeekGames(c.get("db"), weekId) }, 200);
+  });
+
+  app.openapi(listAdminGameAnomaliesRoute, async (c) => {
+    return c.json({ games: await listAnomalousGames(c.get("db"), c.get("clock").now()) }, 200);
   });
 
   app.openapi(listAdminAuditRoute, async (c) => {

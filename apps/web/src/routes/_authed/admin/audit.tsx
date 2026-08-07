@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { AuditLog } from "@/components/admin/audit-log";
+import { GameAnomaliesCard } from "@/components/admin/game-anomalies-card";
 
 const searchSchema = z.object({
   // Paging lives in the URL, not in component state: an admin who reloads or
@@ -20,12 +21,17 @@ function AdminAudit() {
   const navigate = Route.useNavigate();
 
   return (
-    <AuditLog
-      offset={offset ?? 0}
-      // Deliberately not `replace` (unlike the games browser, where changing
-      // week refines one view): each page is a destination Back should return
-      // from.
-      onOffsetChange={(next) => navigate({ search: next === 0 ? {} : { offset: next } })}
-    />
+    <>
+      {/* First because it is the actionable one: the log records what was
+          already done, this names what still needs doing. */}
+      <GameAnomaliesCard />
+      <AuditLog
+        offset={offset ?? 0}
+        // Deliberately not `replace` (unlike the games browser, where changing
+        // week refines one view): each page is a destination Back should return
+        // from.
+        onOffsetChange={(next) => navigate({ search: next === 0 ? {} : { offset: next } })}
+      />
+    </>
   );
 }

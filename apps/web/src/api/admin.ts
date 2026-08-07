@@ -133,6 +133,27 @@ export function useAdminGames(weekId: string | undefined) {
   });
 }
 
+export function adminGameAnomaliesQueryKey() {
+  return [...ADMIN_QUERY_KEY_PREFIX, "game-anomalies"];
+}
+
+/**
+ * Games the API found unlocked while their outcome is already knowable. Under
+ * the admin prefix like every other browser here, so a sync job's invalidation
+ * refreshes it too — ingestion writing a final score off a provider kickoff is
+ * one of the two ways this list grows.
+ */
+export function useAdminGameAnomalies() {
+  return useQuery({
+    queryKey: adminGameAnomaliesQueryKey(),
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/admin/games/anomalies");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function adminAuditQueryKey(offset: number) {
   return [...ADMIN_QUERY_KEY_PREFIX, "audit", offset];
 }

@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@picksleagues/db";
 import {
   ADMIN_AUDIT_TARGET_TABLE,
+  STARTED_GAME_STATUSES,
   type AdminAuditEntry,
   type AdminAuditTargetTable,
   type AdminGame,
@@ -20,7 +21,13 @@ import {
   type AdminTeam,
   type Sport,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
+import {
+  effectiveAwayScoreSql,
+  effectiveHomeScoreSql,
+  effectiveKickoffAtSql,
+  effectiveStatusSql,
+  resolveGameOverrides,
+} from "./games";
 
 /**
  * Queries behind the admin page's read-only reference-data browsers and the
@@ -184,6 +191,44 @@ export async function loadAdminGame(db: Db, gameId: string): Promise<AdminGame |
   if (!row) return null;
 
   return serializeAdminGame(row);
+}
+
+/**
+ * Games left unlocked while their outcome is already knowable — the state
+ * `leavesOutcomeKnowableButUnlocked` (`services/admin-overrides.ts`) refuses to
+ * create but cannot prevent. Two routes reach it with no admin at fault: a
+ * provider bug, and a legitimately allowed later-kickoff override followed by
+ * score ingestion writing the final against the *provider* kickoff. Ingestion
+ * must never fail on account of a correction, so it cannot consult the guard,
+ * which makes this detection and repair rather than admission control.
+ *
+ * In SQL because the candidate set is every game in the database; the coalesces
+ * come from `services/games.ts` and the status set from `packages/schemas` so
+ * this can't drift from the predicate it backstops. `now` is bound as a
+ * parameter (arch D13) — a SQL `now()` here would read a clock the rest of the
+ * app, and the simulator, do not share.
+ */
+export async function listAnomalousGames(db: Db, now: Date): Promise<AdminGame[]> {
+  const rows = await selectAdminGameRows(
+    db,
+    and(
+      // Strictly greater: lock state is `kickoff <= now` (arch D11), so a game
+      // kicking off at exactly this instant is locked and consistent. A `>=`
+      // would match the guard on every other case and only ever be wrong at the
+      // boundary.
+      gt(effectiveKickoffAtSql, sql`${now}`),
+      or(
+        inArray(effectiveStatusSql, [...STARTED_GAME_STATUSES]),
+        // Not redundant with the status disjunct: a postponed or scheduled game
+        // carrying a score is knowable without ever having started, and the
+        // score is on the wire for every status.
+        isNotNull(effectiveHomeScoreSql),
+        isNotNull(effectiveAwayScoreSql),
+      ),
+    ),
+  );
+
+  return rows.map(serializeAdminGame);
 }
 
 function targetKey(targetTable: AdminAuditTargetTable, targetId: string) {
