@@ -324,3 +324,56 @@ No visual artifact. `gh` cannot upload images and `docs/agents/testing.md` forbi
 ### Not done by this run
 
 ID-4 remains `[~]`. A human marks `[x]` after reviewing the PR.
+
+## [SCOPE CHANGE] — live avatar preview (owner request, 2026-08-07)
+
+**Requested:** the member should see a preview of the image before saving. Owner's suggestion
+was to overwrite what the profile header shows; they invited a better approach if one existed.
+
+**Reverses a decision in this plan.** §Technical plan → SPA said "**No live preview** — binding
+the header `UserIdentity` to the field value makes the avatar 404 and flicker on every
+keystroke." That objection is about a *raw* binding, not about previewing, and it is solvable:
+the candidate is now settled for 400ms and loaded off-screen via `new Image()`, and only swapped
+into the header once it decodes. The avatar therefore never renders a broken state at all —
+strictly better than what the original decision was protecting against. The rejection did not
+survive contact with the requirement.
+
+**Carried a contract change with it, correcting a premise error.** The plan argued no
+`providerImage` field was needed because "`image` already shows what clearing reverts to." That
+holds only while no override is set; once one is, `image` *equals* the override and the
+provider's avatar is invisible to the SPA — so previewing the clear would have shown the member
+the very image they were removing. `MeResponse` now carries `providerImage` alongside `image`
+and `imageOverride`. It is `/me`-only (the caller's own data, no new exposure to league-mates),
+and it is a pre-resolution *input*: `image` remains the one resolved value, and no client
+recomputes `imageOverride ?? providerImage`. ADR-0022's wire-shape paragraph was amended to
+match rather than left describing two fields.
+
+**Deliberately not tested.** The preview is presentation policy — what a screen shows — which
+`.claude/rules/engineering.md` §Quality says not to freeze with tests. The rules underneath it
+(what validates, what persists, what clears) stay pinned in the API tests, and one new
+integration assertion pins the property the preview depends on: `providerImage` survives while
+an override is set. No new e2e; the preview is visual and the existing round trip already proves
+the field's journey.
+
+**Also:** `useStore` from `@tanstack/react-form` is new to this repo. The file's established
+`form.Subscribe` idiom can't host a hook in a render prop, and two subscriptions would run two
+independent probes of the same URL. Same store, and the reason is commented at the call site.
+
+**Files:** `packages/schemas/src/me.ts`, `apps/api/src/routes/me.ts`, `apps/api/test/me.test.ts`,
+`apps/web/src/lib/avatar-preview.ts` (new), `apps/web/src/routes/_authed/profile.tsx`,
+`docs/adr/0022-member-set-avatar-url.md`, `openapi/`.
+
+### Re-verification at `HEAD` (rev 2)
+
+Every gate re-run after the change, not carried over: `contract:check` **0**, `typecheck` **0**,
+`lint` **0**, `format:check` **0**, web build **pass**, `pnpm test` **462 passed**,
+`pnpm test:integration` **525 passed**, `pnpm test:e2e` **13 passed** (full merge gate).
+`contract-shape.txt` re-run: `imageOverride` and `providerImage` appear on `MeResponse` only,
+`UpdateMeRequest` carries `imageOverride`, and `LeagueMember` / `PickemStandingsRow` /
+`PickemMemberPicks` still carry `image` alone. Every AC and DoD verdict in [CLOSEOUT] above is
+re-proved at this commit; none was inherited from the pre-preview run.
+
+One lint finding was caught and fixed rather than suppressed: `react-hooks/set-state-in-effect`
+flagged a `setProbe(null)` reset at the top of the preload effect. It was genuinely redundant —
+the probe is keyed by URL, so a result for a superseded candidate already reads as "not probed
+yet" — and deleting it fixed the rule and removed a wasted render.
