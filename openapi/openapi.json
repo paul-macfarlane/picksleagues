@@ -1918,6 +1918,105 @@
           null
         ]
       },
+      "AdminAuditResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAuditEntry"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries",
+          "total",
+          "limit",
+          "offset"
+        ]
+      },
+      "AdminAuditEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "admin": {
+            "type": "object",
+            "properties": {
+              "displayName": {
+                "type": "string"
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "displayName",
+              "username"
+            ]
+          },
+          "action": {
+            "$ref": "#/components/schemas/AdminAuditAction"
+          },
+          "targetTable": {
+            "$ref": "#/components/schemas/AdminAuditTargetTable"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priorValue": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "admin",
+          "action",
+          "targetTable",
+          "targetId",
+          "targetLabel",
+          "priorValue",
+          "createdAt"
+        ]
+      },
+      "AdminAuditAction": {
+        "type": "string",
+        "enum": [
+          "game_override",
+          "league_rebuild"
+        ]
+      },
+      "AdminAuditTargetTable": {
+        "type": "string",
+        "enum": [
+          "games",
+          "league_seasons"
+        ]
+      },
       "GameOverrideResponse": {
         "type": "object",
         "properties": {
@@ -5166,6 +5265,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audit": {
+      "get": {
+        "operationId": "listAdminAudit",
+        "summary": "Browse the admin action log — overrides and rebuilds, newest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of audit rows newest-first, with the whole table's `total` and the `limit`/`offset` actually served — an offset past the end is an empty page, not an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuditResponse"
                 }
               }
             }

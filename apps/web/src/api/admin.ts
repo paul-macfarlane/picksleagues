@@ -1,4 +1,10 @@
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ERROR_CODE, JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
 import type { GameOverrideRequest, JobSkipReason, NflSyncJob, Sport } from "@picksleagues/schemas";
@@ -124,6 +130,34 @@ export function useAdminGames(weekId: string | undefined) {
           return data;
         }
       : skipToken,
+  });
+}
+
+export function adminAuditQueryKey(offset: number) {
+  return [...ADMIN_QUERY_KEY_PREFIX, "audit", offset];
+}
+
+/**
+ * The audit trail, one page at a time. The offset is part of the key so each
+ * page caches separately and a page already seen comes back instantly on Back;
+ * `keepPreviousData` then swaps the rows in place rather than blanking the
+ * table on every click — the skeleton rule is about a view that has no data
+ * yet, and a pager that re-skeletons loses the operator's place.
+ *
+ * `limit` stays the server default: the view offers no page-size control, and
+ * sending one from here would be a second copy of that number.
+ */
+export function useAdminAudit(offset: number) {
+  return useQuery({
+    queryKey: adminAuditQueryKey(offset),
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/admin/audit", {
+        params: { query: { offset } },
+      });
+      if (error) throw error;
+      return data;
+    },
+    placeholderData: keepPreviousData,
   });
 }
 

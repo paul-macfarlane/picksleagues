@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { adminAudit, createDb } from "@picksleagues/db";
+import { eq } from "drizzle-orm";
+import { adminAudit, createDb, leagues as leaguesTable } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
@@ -11,6 +12,7 @@ import {
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   WEEK_TYPE,
+  type AdminAuditResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
@@ -24,22 +26,35 @@ import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
 
 /**
- * The rebuild's audit row (ADM-3; engineering rules §Data: "every
- * override/rebuild writes `admin_audit`"). What the trail promises, and what is
- * pinned here: one row per admin rebuild naming the league season it
+ * The admin audit trail (ADM-3; engineering rules §Data: "every
+ * override/rebuild writes `admin_audit`") — both halves of it.
+ *
+ * The write half: one row per admin rebuild naming the league season it
  * recomputed, a prior value describing the derived state that rebuild was about
  * to wipe, and silence from every *other* caller of the same settlement path —
  * the nightly sweep, ingestion, and the simulator settle seasons on their own
  * schedule, and auditing them would bury the admin actions the trail exists to
  * show.
+ *
+ * The read half: `GET /admin/audit`, which must show who/what/when/prior value
+ * newest-first, keep returning a row whose target has since been deleted, and
+ * page the whole trail without dropping or repeating a row across a boundary.
  */
 
 const NOW = new Date("2026-09-20T00:00:00.000Z");
+// A second instant, so two admin actions can be ordered by *when* they happened
+// rather than by the id tiebreak — the fixed clock stamps everything a single
+// request does with the same `createdAt`.
+const LATER = new Date("2026-09-20T00:05:00.000Z");
 const KICKOFF = new Date("2026-09-13T17:00:00.000Z");
 
 const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: makeTestEnv(), db });
 const clock = new FixedClock(NOW);
+
+function buildAppAt(now: Date) {
+  return createApp({ auth, db, env: makeTestEnv(), clock: async () => new FixedClock(now) });
+}
 
 function buildApp() {
   return createApp({ auth, db, env: makeTestEnv(), clock: async () => clock });
@@ -47,8 +62,8 @@ function buildApp() {
 
 type App = ReturnType<typeof buildApp>;
 
-async function adminCaller() {
-  const { user, cookie } = await createAuthenticatedUser(auth);
+async function adminCaller(overrides: { displayName?: string; username?: string } = {}) {
+  const { user, cookie } = await createAuthenticatedUser(auth, overrides);
   await grantAdmin(db, user.id);
   return { app: buildApp(), cookie, userId: user.id };
 }
@@ -62,6 +77,44 @@ function rebuild(app: App, cookie: string, leagueId: string) {
     method: "POST",
     headers: { cookie },
   });
+}
+
+function setOverride(app: App, cookie: string, gameId: string, body: Record<string, unknown>) {
+  return app.request(`/api/admin/games/${gameId}/override`, {
+    method: "PUT",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function getAudit(app: App, cookie: string, query = "") {
+  return app.request(`/api/admin/audit${query}`, { headers: { cookie } });
+}
+
+async function readAudit(app: App, cookie: string, query = ""): Promise<AdminAuditResponse> {
+  const res = await getAudit(app, cookie, query);
+  expect(res.status).toBe(200);
+  return (await res.json()) as AdminAuditResponse;
+}
+
+/**
+ * N rows sharing one `createdAt`, inserted directly: the paging assertions are
+ * about the list query, and driving 30 real overrides through settlement would
+ * pay for that several times over. One instant across all of them is the point
+ * — it leaves the `id` tiebreak as the only thing ordering the page, which is
+ * exactly the ordering a page boundary depends on.
+ */
+async function insertAuditRows(adminUserId: string, targetId: string, howMany: number) {
+  await db.insert(adminAudit).values(
+    Array.from({ length: howMany }, (_unused, index) => ({
+      adminUserId,
+      action: ADMIN_AUDIT_ACTION.GAME_OVERRIDE,
+      targetTable: ADMIN_AUDIT_TARGET_TABLE.GAMES,
+      targetId,
+      priorValue: { seq: index },
+      createdAt: NOW,
+    })),
+  );
 }
 
 /**
@@ -214,5 +267,138 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
     expect(ingestion).toMatchObject({ leagueSeasons: 1 });
     expect(sim).toMatchObject({ ok: true, response: { leagues: [{ leagueSeasonId }] } });
     expect(await auditRows()).toHaveLength(1);
+  });
+});
+
+describe("GET /api/admin/audit", () => {
+  it("401s with no session cookie", async () => {
+    const res = await getAudit(buildApp(), "");
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "unauthenticated" });
+  });
+
+  it("403s for a signed-in non-admin caller", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await getAudit(buildApp(), cookie);
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "not_admin" });
+  });
+
+  it("lists both kinds of admin action newest-first, with actor, target label and prior value", async () => {
+    const { app, cookie } = await adminCaller({
+      displayName: "Ada Admin",
+      username: "ada_admin",
+    });
+    const seeded = await seedSettledLeague();
+
+    const overrideRes = await setOverride(app, cookie, seeded.secondGameId, {
+      homeScore: 31,
+      awayScore: 17,
+    });
+    expect(overrideRes.status).toBe(200);
+    // Five minutes later, so the two rows are ordered by when they happened.
+    const rebuildRes = await rebuild(buildAppAt(LATER), cookie, seeded.league.id);
+    expect(rebuildRes.status).toBe(200);
+
+    const body = await readAudit(app, cookie);
+
+    expect(body).toMatchObject({ total: 2, limit: 25, offset: 0 });
+    expect(body.entries).toHaveLength(2);
+    const [newest, oldest] = body.entries;
+    expect(newest).toMatchObject({
+      admin: { displayName: "Ada Admin", username: "ada_admin" },
+      action: "league_rebuild",
+      targetTable: "league_seasons",
+      targetId: seeded.leagueSeasonId,
+      // The league's own name plus its season year — a bare UUID answers
+      // "what happened" for nobody.
+      targetLabel: "Test League 2026",
+      createdAt: LATER.toISOString(),
+    });
+    expect(oldest).toMatchObject({
+      action: "game_override",
+      targetTable: "games",
+      targetId: seeded.secondGameId,
+      targetLabel: "AWY @ HOM",
+      createdAt: NOW.toISOString(),
+    });
+    // Round-tripped verbatim: the game had no override before this one, and the
+    // trail's whole job is saying what stood there.
+    expect(oldest?.priorValue).toMatchObject({
+      overrideHomeScore: null,
+      overrideAwayScore: null,
+      overrideStatus: null,
+      overrideKickoffAt: null,
+    });
+    expect(newest?.priorValue).toMatchObject({ resultCount: 2, standingsRowCount: 4 });
+  });
+
+  it("still returns a row whose target has been deleted, with no label", async () => {
+    const { app, cookie } = await adminCaller();
+    const seeded = await seedSettledLeague();
+    await rebuild(app, cookie, seeded.league.id);
+
+    // The league season cascades away with its league; the audit row does not
+    // (the restrict FK is on the actor, not the target). A label resolved by
+    // joining would drop exactly this row.
+    await db.delete(leaguesTable).where(eq(leaguesTable.id, seeded.league.id));
+
+    const body = await readAudit(app, cookie);
+
+    expect(body.total).toBe(1);
+    expect(body.entries[0]).toMatchObject({
+      action: "league_rebuild",
+      targetId: seeded.leagueSeasonId,
+      targetLabel: null,
+    });
+  });
+
+  it("pages the whole trail without dropping or repeating a row", async () => {
+    const { app, cookie, userId } = await adminCaller();
+    const { gameIds } = await seedSeason(db, {
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: KICKOFF }] }],
+    });
+    await insertAuditRows(userId, gameIds.get("regular:1")![0]!, 30);
+
+    const firstPage = await readAudit(app, cookie);
+    expect(firstPage).toMatchObject({ total: 30, limit: 25, offset: 0 });
+    expect(firstPage.entries).toHaveLength(25);
+
+    const everything = await readAudit(app, cookie, "?limit=100");
+    const allIds = everything.entries.map((entry) => entry.id);
+    expect(allIds).toHaveLength(30);
+
+    const pageOne = await readAudit(app, cookie, "?limit=10&offset=0");
+    const pageTwo = await readAudit(app, cookie, "?limit=10&offset=10");
+    expect(pageTwo).toMatchObject({ total: 30, limit: 10, offset: 10 });
+    // No gap and no overlap across the boundary: page two picks up exactly
+    // where page one stopped in the full ordering.
+    expect(pageOne.entries.map((entry) => entry.id)).toEqual(allIds.slice(0, 10));
+    expect(pageTwo.entries.map((entry) => entry.id)).toEqual(allIds.slice(10, 20));
+  });
+
+  it("serves an offset past the end as an empty page, not an error", async () => {
+    const { app, cookie, userId } = await adminCaller();
+    const { gameIds } = await seedSeason(db, {
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: KICKOFF }] }],
+    });
+    await insertAuditRows(userId, gameIds.get("regular:1")![0]!, 30);
+
+    const body = await readAudit(app, cookie, "?offset=100");
+
+    // The view needs `total` to get back — refusing here would strand a pager
+    // that overshot.
+    expect(body).toMatchObject({ entries: [], total: 30, limit: 25, offset: 100 });
+  });
+
+  it.each(["?limit=0", "?limit=101", "?offset=-1"])("400s on %s", async (query) => {
+    const { app, cookie } = await adminCaller();
+
+    const res = await getAudit(app, cookie, query);
+
+    expect(res.status).toBe(400);
   });
 });
