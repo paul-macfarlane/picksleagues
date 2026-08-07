@@ -35,3 +35,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0023](0023-survivor-is-the-mode-name.md)     | Game Mode 2 is named Survivor, not Elimination | Accepted |
 | [0024](0024-survivor-settings-carry-a-resolved-range.md) | Survivor settings carry a resolved season range, not a chosen one | Accepted |
 | [0025](0025-survivor-team-ledger-and-prefix-ordered-settlement.md) | Survivor team consumption is a partial unique index over a settlement-owned `released` flag; settlement is prefix-ordered | Accepted |
+| [0026](0026-survivor-is-straight-up-only.md) | Survivor is straight-up only; the Pick Type setting is removed | Accepted |
