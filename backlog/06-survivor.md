@@ -31,7 +31,7 @@ Survivor pool mode on top of the shared settlement core. Ref: spec §Game Mode 2
 
 - [x] **ELM-1** — `SurvivorSettings` Zod schema (straight-up, push/tie resolution: advance-and-consume vs eliminate; resolved regular-season week range stored, not chosen) + settings form. _(deps: LG-2, SIMP-18)_
 - [x] **ELM-2** — `survivor_picks` + `survivor_state` schema (lives default 1, revived flags; unique team per member per league as a DB constraint) + pick endpoint with team-consumption and clock-derived locking. _(deps: ELM-1, DATA-4, FND-6)_
-- [ ] **ELM-3** — `settleSurvivorWeek` pure function + table-driven tests: eliminations, missed-pick elimination, push resolution per setting, cancellation/week-move as push without team consumption, all-eliminated same-week revival, co-winners at End Week. _(deps: FND-7)_
+- [x] **ELM-3** — `settleSurvivorWeek` pure function + table-driven tests: eliminations, missed-pick elimination, push resolution per setting, cancellation/week-move as push without team consumption, all-eliminated same-week revival, co-winners at End Week. _(deps: FND-7)_
 - [ ] **ELM-4** — Settlement integration + survivor board UI: alive/eliminated status, week eliminated, per-kickoff-revealed pick history, teams consumed; eliminated members keep full visibility. _(deps: ELM-2, ELM-3, PKM-4)_
 - [ ] **ELM-5** — E2E journey: a full Survivor season including a revival week. _(deps: ELM-4, SIM-4)_
 - [ ] **ELM-6** — Dashboard pick-status glance for Survivor leagues: picks in / picks needed / locked at a glance (spec §Screens). _(deps: ELM-4)_

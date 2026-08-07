@@ -1171,3 +1171,215 @@ directly against ELM-1-shaped rows inside a rolled-back transaction —
 `migration-0024/output.md` — which pins that the strip is scoped to Survivor
 (Pick'em keeps its Pick Type), and that it removes one key rather than replacing
 the blob.
+
+## [PROGRESS] — ELM-3 (2026-08-07)
+
+Work package `elm-3`, the third of the epic's six PR-sized slices. Branch
+`feat/elm-3-survivor-week-settlement` off `staging` at `b8efe37` (ELM-2's merge
+commit). ELM-4 is the integrator and is **not** part of this run.
+
+**The plan's ELM-3 rule matrix predates ADR-0026** (Survivor is straight-up
+only), which names "the ATS half of ELM-3's grading matrix" among the surface it
+deletes. The ATS rows are therefore dropped and the straight-up rows stand;
+`pushTieResolution` now decides exactly one thing, a tied final score. That is
+the recorded ADR applying to a plan section written before it, not a scope
+change.
+
+**Execution structure: one deliverable, implemented directly by the
+orchestrator.** The ticket is a single pure module plus its table-driven tests
+in one package (`packages/scoring`) with no database, no stack, and no second
+file any other slice touches — there is no dependency edge to parallelise
+across and no shared mutable state to isolate. Splitting it would buy nothing
+and cost a packet round-trip; delegating it whole would cost the same round-trip
+to re-establish context this session already holds. Recorded here because the
+default posture is to delegate.
+
+| Deliverable | Slice | Depends on |
+|---|---|---|
+| D1 | `packages/scoring/src/survivor.ts` + `survivor.test.ts` + barrel export | — |
+
+**Verification map** (revised from the plan section above for ADR-0026; unit
+only — no database, no stack):
+
+| Criterion (source) | Check / command | Expected | Evidence | Earliest checkpoint | Invalidated by |
+|---|---|---|---|---|---|
+| Correct pick → advance, team consumed (spec §Game Mode 2) | `pnpm test --project unit` | `correct`, `advanced`, `teamConsumed: true` | `elm-3/scoring-unit/` | first green run | any `survivor.ts` edit |
+| Incorrect pick → eliminated, team consumed (plan decision 5) | same | `incorrect`, `eliminated`, `teamConsumed: true` | same | same | same |
+| Missed pick → eliminated, only for members alive entering (spec) | same | eliminated with no outcome row and nothing consumed | same | same | same |
+| Tie + `ADVANCE` → advance and consume (spec §Survivor League Settings) | same | `push`, `advanced`, `teamConsumed: true` | same | same | same |
+| Tie + `ELIMINATE` → eliminated (same source) | same | `push`, `eliminated`, `teamConsumed: true` | same | same | same |
+| Cancelled game → push, survive, team **not** consumed, regardless of setting (spec §Cancelled game) | same | `push`, `advanced`, `teamConsumed: false` under both resolutions | same | same | same |
+| Whole slate cancelled → every picker survives with teams returned; a non-picker is still a missed-pick elimination | same | both rules fire in one week | same | same | same |
+| All alive members eliminated same week → all revived; consumed teams stay consumed (spec §Everyone eliminated) | same | every entering member `revived` and alive after; `teamConsumed` unchanged | same | same | same |
+| Not all eliminated → no revival (boundary) | same | survivors `advanced`, busts stay `eliminated` | same | same | same |
+| Already-eliminated member produces nothing (no zombie grading, ADR-0025) | same | no outcome, no transition, no consumption | same | same | same |
+| Co-winners at End Week (spec §End of League) | same | a threaded short season leaves ≥2 alive, unordered | same | same | same |
+| A non-terminal game in the week blocks the whole week (ADR-0025 precondition (a)) | same | no outcomes, no transitions, the game listed unsettled | same | same | same |
+| Idempotence: same inputs → same outputs (arch D10) | same | deep-equal across repeated calls, inputs unmutated | same | same | same |
+| No I/O import boundary (`packages/scoring` package invariant) | `pnpm typecheck` + the package manifest's single dependency | compiles; only `@picksleagues/schemas` is depended on | `elm-3/gates/` | first green run | a new dependency |
+| Repo gates | `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test` | all green | `elm-3/gates/` | after implementation | any edit |
+| Merge gate (unconditional, plan §Delivery strategy) | `pnpm test:e2e` | green | `elm-3/gates/` | after implementation | any edit |
+
+`pnpm contract:check`, `pnpm test:integration`, and `pnpm --filter
+@picksleagues/web build` are **not** mapped: this slice adds no schema, no
+route, no database access, and no web file, so none of them can observe it, and
+the plan's delivery strategy conditions each of those three on exactly that
+surface (naming ELM-1, -2, -4 for the first two). `pnpm test:e2e` **is** mapped
+even though a package-internal pure module cannot move it: the same section
+makes it unconditional before every PR, and a gate stated without a condition is
+not one to reason a way out of.
+
+## [AI CODE REVIEW] — ELM-3
+
+Single formal review by the frontier orchestrator against the complete branch
+diff (`b8efe37..3e514f5`, three files: `packages/scoring/src/survivor.ts`,
+`survivor.test.ts`, `index.ts`). Performed statically; the verdicts below are
+about the code, not about whether the suite ran.
+
+The reviewer is also the implementer here, which is worth naming rather than
+glossing: the mitigation is that the review's findings were written before its
+fixes, each fix landed as its own commit (`3e514f5`) rather than being folded
+into the original, and the rule-level claims were checked by breaking each rule
+and watching the suite fail (`scoring-unit/mutation-probe.md`) rather than by
+re-reading the code that made them.
+
+### Axis 1 — technical implementation and spec conformity
+
+Every rule the ticket line names is implemented and covered: eliminations,
+missed-pick elimination, push resolution per setting, cancellation as a push
+without team consumption, all-eliminated same-week revival, and co-winners at
+the end week. The ATS half of the plan's matrix is absent by ADR-0026, which
+names it as surface that decision deletes.
+
+Three findings, all resolved in `3e514f5`:
+
+1. **The duplicate-pick guard contradicted its own contract** (blocking). The
+   `@throws` clause promised to surface a member holding two picks for the week,
+   but the check skipped members who were already eliminated, so exactly that
+   broken write passed silently for them. The constraint it backstops
+   (`survivor_picks_member_week_unique`) holds for every member regardless of
+   state, so the check now does too. A test covers the eliminated-member case.
+2. **Two non-exported declarations carried `/** */` doc comments** (minor, and
+   an Axis 2 item as much as this one) — `GradedSurvivorPick` and
+   `pickedTeamMargin`. Converted to `//`.
+3. **An unexplained non-null assertion** in `blockingGames` (minor). The
+   sibling assertion in `pickedTeamMargin` justified itself and this one did
+   not, which is the difference between a deliberate escape hatch and one
+   nobody dares remove. Commented.
+
+Judgement calls the reviewer accepted, each recorded because a later reader
+could reasonably have expected the other answer:
+
+- **A game nobody live-picked that is `final` with no scores does not hold the
+  week open.** A non-terminal game does, including an unpicked one — a member
+  with no pick can still legally make one, and eliminating them for a missed
+  pick before that game kicks off would end their season a week early. But a
+  scoreless final decides nothing if no live pick depends on it, and letting it
+  block would strand a whole league-season chain on a provider fault in a game
+  nobody chose. Both halves are tested.
+- **Lives are not modelled.** `survivor_state.lives_remaining` exists because
+  multi-life Survivor is a named deferred variant, but every member has exactly
+  one life in the MVP, so a life counter here would be arithmetic with no losing
+  case to test it against. The alive set in, the alive set out.
+- **No grading helper is shared with `pickem.ts`.** The plan left this open
+  ("if reuse beats restating"). With ATS gone from Survivor the whole arithmetic
+  is one subtraction against a team ID rather than a side, so an extraction
+  would share less code than the indirection costs.
+- **The surviving alive set is returned rather than left to be derived from
+  `transitions`.** Threading it week to week *is* ADR-0025's prefix ordering,
+  and re-deriving it at each call site is where that would quietly go wrong.
+
+### Axis 2 — coding standards
+
+- **Purity holds.** `packages/scoring/package.json` still declares
+  `@picksleagues/schemas` as its only dependency; the module imports nothing
+  else and reads no clock. Both facts are what the package invariant asks for,
+  and `pnpm typecheck` is what would fail on a `db`/`core` import — no lint rule
+  covers it.
+- **Time discipline**: no `Date.now()`, no `new Date()`, no timestamp of any
+  kind. Terminality arrives as a status the caller already resolved.
+- **Value sets** are const objects with derived literal unions
+  (`SURVIVOR_TRANSITION`, `SURVIVOR_UNSETTLED_REASON`); no `enum`. Both are
+  scoped to this package rather than `packages/schemas` because neither is a
+  wire value — the board renders `survivor_state`, which records an eliminating
+  week, not a transition.
+- **Mode-prefixed naming** throughout, so March Madness gets a symmetric home.
+  `PICK_OUTCOME` is reused unqualified, which is correct: it is on the rules
+  document's "shared today" list and Survivor uses it unchanged.
+- **Comments cite durable identifiers only** — ADR-0019, ADR-0025, ADR-0026,
+  arch D10 and D15, and spec section names. No plan-internal decision numbering,
+  which would point into a file that closes with this delivery.
+- **The module header earns its place**: it states a whole-module why (a
+  Survivor week grades as a unit where a Pick'em week grades pick by pick) that
+  no single export carries.
+- **Tests assert outcomes, not process**, are table-driven per the spec rule
+  set, and pin raw literals deliberately so editing a constant's value fails
+  loudly — the same stance `pickem.test.ts` takes and states.
+
+No unresolved blocking findings on either axis.
+
+## [CLOSEOUT] — ELM-3
+
+Delivered by the frontier orchestrator directly, one deliverable, no workers —
+see the execution structure note in this ticket's `[PROGRESS]` record above.
+
+| Repository | Branch | Base | Commits |
+| --- | --- | --- | --- |
+| `picksleagues` | `feat/elm-3-survivor-week-settlement` | `staging` (`b8efe37`) | `e3b7e02` implementation, `3e514f5` review fixes |
+
+PR: https://github.com/paul-macfarlane/picksleagues/pull/45 — awaiting human
+review. The ticket stays `[~]`; only a human writes `[x]`.
+
+### Verdicts
+
+Every criterion in the `[PROGRESS]` verification map, verified at `3e514f5`:
+
+| Criterion | Verdict | Evidence |
+| --- | --- | --- |
+| Correct pick → advance, team consumed | PASS | `elm-3/scoring-unit/output.md` |
+| Incorrect pick → eliminated, team consumed | PASS | same |
+| Missed pick → eliminated, only for members alive entering | PASS | same |
+| Tie + advance → advance and consume | PASS | same |
+| Tie + eliminate → eliminated | PASS | same |
+| Cancelled game → push, survive, team returned, either setting | PASS | same |
+| Whole slate cancelled: pickers survive, non-picker still eliminated | PASS | same |
+| All alive eliminated → all revived, consumed teams stay consumed | PASS | same |
+| Not all eliminated → no revival | PASS | same |
+| Already-eliminated member produces nothing | PASS | same |
+| Co-winners at end week, unordered | PASS | same |
+| A non-terminal game blocks the whole week | PASS | same |
+| Idempotence and input immutability | PASS | same |
+| No-I/O import boundary | PASS | `elm-3/gates/output.md` (typecheck) + the package's single dependency |
+| Repo gates (format, lint, typecheck, unit) | PASS | `elm-3/gates/output.md` |
+| Merge gate (`pnpm test:e2e`) | PASS | same — 13 tests |
+
+Unit suite 480 → 518 (+38). No test was removed or weakened.
+
+**Beyond the map: a mutation probe.** Each of the five load-bearing rules was
+broken in turn and the suite re-run; every one produced failures (2–5 tests
+each), and the source was restored from a byte copy and re-run green before
+anything was committed — `elm-3/scoring-unit/mutation-probe.md`. A green suite
+proves the tests ran, not that they would catch a regression, and this ticket is
+the one place in Survivor where that distinction decides whether a member's
+season ends correctly.
+
+### Deviations and judgement calls for the owner
+
+- **The ATS rows of the plan's ELM-3 rule matrix are gone**, along with
+  `pickType` from the settings slice. ADR-0026 names "the ATS half of ELM-3's
+  grading matrix" among the surface it deletes, so this is that decision
+  applying to a plan section written before it — recorded here rather than
+  treated as a scope change, because the stable contract (the ticket line, which
+  names "push resolution per setting" and not a pick type) is unchanged.
+- **`aliveMemberIds` is a plain array argument** rather than the plan's
+  `state` object. Cosmetic: the plan's parenthetical described that state as
+  "alive members, lives, consumed teams", and of the three only the alive set is
+  something this function can act on — lives are constant in the MVP and
+  consumed teams are enforced by the database at pick time, not at settlement.
+- **`unsettled` reports games, not picks**, which is where it diverges from
+  `settlePickemWeek`'s idiom the plan pointed at. A game nobody picked can still
+  hold a Survivor week open, so a per-pick list has nowhere to put it.
+- **ELM-4 inherits an explicit obligation**: `settleSurvivorWeek` grades one
+  week against the alive set it is given and returns the next one. It does not
+  and cannot check that prior weeks were settled — that is ADR-0025 precondition
+  (b), and it lives in the caller.
