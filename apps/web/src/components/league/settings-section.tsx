@@ -27,6 +27,7 @@ import {
   DEFAULT_PICKEM_SEASON_RANGE,
   EliminationSettingsFields,
   MarchMadnessSettingsFields,
+  PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
@@ -50,7 +51,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
-import { usePickemPickSummary } from "@/api/pickem";
+import { useLeaguePickemSeasonRangePresets, usePickemPickSummary } from "@/api/pickem";
 import {
   eliminationSettingsOf,
   marchMadnessSettingsOf,
@@ -145,6 +146,23 @@ function SettingsForm({
   // invalidation warning it feeds can no longer fire — no point fetching the
   // count.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
+
+  // The editor's answer: which presets the league's own bound season can
+  // still start (LG-9), which may not be the latest ingested season
+  // (ADR-0009). Filter only, no fallback and no empty state: a pre-start
+  // league's stored preset is provably still in this set (its stored start
+  // week's first kickoff is by definition still ahead), and once started,
+  // the Field.Root disable below already owns the whole fieldset. Pending or
+  // failed both fall back to the unfiltered list, same as the create form.
+  const seasonRangePresets = useLeaguePickemSeasonRangePresets(
+    league.id,
+    isPickem && canEdit && !started,
+  );
+  const pickemSeasonRangeOptions = seasonRangePresets.data
+    ? PICKEM_SEASON_RANGE_OPTIONS.filter((option) =>
+        seasonRangePresets.data.startablePresets.includes(option.value),
+      )
+    : PICKEM_SEASON_RANGE_OPTIONS;
 
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
@@ -425,6 +443,7 @@ function SettingsForm({
           <PickemSettingsFields
             seasonRange={pickemSeasonRange}
             onSeasonRangeChange={setPickemSeasonRange}
+            seasonRangeOptions={pickemSeasonRangeOptions}
             pickType={pickemPickType}
             onPickTypeChange={setPickemPickType}
             picksPerWeek={pickemPicksPerWeek}

@@ -159,6 +159,7 @@ export function RadioField<Value extends string>({
 export function PickemSettingsFields({
   seasonRange,
   onSeasonRangeChange,
+  seasonRangeOptions = PICKEM_SEASON_RANGE_OPTIONS,
   pickType,
   onPickTypeChange,
   picksPerWeek,
@@ -166,6 +167,10 @@ export function PickemSettingsFields({
 }: {
   seasonRange: PickemSeasonRangePreset;
   onSeasonRangeChange: (value: PickemSeasonRangePreset) => void;
+  // Caller-filtered to what the bound season can still start (LG-9) — the
+  // create form and the settings editor each answer against a different
+  // season (ADR-0009), so neither can share the other's filtered list.
+  seasonRangeOptions?: { value: PickemSeasonRangePreset; label: string }[];
   pickType: PickType;
   onPickTypeChange: (value: PickType) => void;
   picksPerWeek: number;
@@ -179,7 +184,7 @@ export function PickemSettingsFields({
         label="Season range"
         value={seasonRange}
         onValueChange={onSeasonRangeChange}
-        options={PICKEM_SEASON_RANGE_OPTIONS}
+        options={seasonRangeOptions}
       />
       <RadioField
         legend="Pick type"

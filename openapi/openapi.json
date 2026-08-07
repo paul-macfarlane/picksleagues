@@ -1222,6 +1222,27 @@
           "gameCount"
         ]
       },
+      "PickemSeasonRangePresetsResponse": {
+        "type": "object",
+        "properties": {
+          "seasonYear": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "startablePresets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PickemSeasonRangePreset"
+            }
+          }
+        },
+        "required": [
+          "seasonYear",
+          "startablePresets"
+        ]
+      },
       "PickemPickSummary": {
         "type": "object",
         "properties": {
@@ -4264,6 +4285,123 @@
           },
           "401": {
             "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pickem/season-range-presets": {
+      "get": {
+        "operationId": "getPickemSeasonRangePresets",
+        "summary": "Which of the three ADR-0020 season-range presets the latest ingested NFL season can still start (create form)",
+        "responses": {
+          "200": {
+            "description": "The latest ingested NFL season's year (null if none ingested) and which presets it can still start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickemSeasonRangePresetsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/pickem/season-range-presets": {
+      "get": {
+        "operationId": "getLeaguePickemSeasonRangePresets",
+        "summary": "Which presets the league's own bound season can still start (commissioner, settings editor only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The league's bound season year and which presets it can still start — the settings editor's availability hint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickemSeasonRangePresetsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pick'em league (wrong_league_mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
             "content": {
               "application/json": {
                 "schema": {

@@ -28,13 +28,12 @@ export async function leagueStartAt(
   league: { mode: LeagueMode; seasonId: string },
   settings: LeagueSettings,
 ): Promise<Date | null> {
-  // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
-  // string), so the aggregate maps its own value back to a Date.
-  const earliestKickoff = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
-    value === null ? null : new Date(value as string),
-  );
-
   if (league.mode === LEAGUE_MODE.MARCH_MADNESS) {
+    // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
+    // string), so the aggregate maps its own value back to a Date.
+    const earliestKickoff = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+      value === null ? null : new Date(value as string),
+    );
     const [row] = await db
       .select({ startsAt: earliestKickoff })
       .from(games)
@@ -44,15 +43,36 @@ export async function leagueStartAt(
   }
 
   const startWeek = (settings as { startWeek: NflWeekRef }).startWeek;
+  return nflWeekFirstKickoffAt(db, league.seasonId, startWeek);
+}
+
+/**
+ * The NFL branch of `leagueStartAt` — a season and a single week's first
+ * effective kickoff, with no `LeagueSettings` cast in the way. `leagueStartAt`
+ * delegates to this for its own NFL case; the season-range availability core
+ * (`services/leagues/season-range.ts`) calls it directly per candidate preset,
+ * where there is no settings object yet to cast a bare `{ startWeek }` from.
+ * Same query both callers would otherwise run separately, so they can't drift.
+ */
+export async function nflWeekFirstKickoffAt(
+  db: Db,
+  seasonId: string,
+  week: NflWeekRef,
+): Promise<Date | null> {
+  // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
+  // string), so the aggregate maps its own value back to a Date.
+  const earliestKickoff = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+    value === null ? null : new Date(value as string),
+  );
   const [row] = await db
     .select({ startsAt: earliestKickoff })
     .from(games)
     .innerJoin(weeks, eq(games.weekId, weeks.id))
     .where(
       and(
-        eq(weeks.seasonId, league.seasonId),
-        eq(weeks.weekType, startWeek.type),
-        eq(weeks.weekNumber, startWeek.number),
+        eq(weeks.seasonId, seasonId),
+        eq(weeks.weekType, week.type),
+        eq(weeks.weekNumber, week.number),
       ),
     );
   return row?.startsAt ?? null;

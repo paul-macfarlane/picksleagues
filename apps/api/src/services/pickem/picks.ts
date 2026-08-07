@@ -13,6 +13,7 @@ import {
   type PickemMemberPicks,
   type PickemPickSubmission,
   type PickemPickSummary,
+  type PickemSeasonRangePresetsResponse,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -23,6 +24,7 @@ import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
+import { startablePickemSeasonRangePresets } from "../leagues/season-range";
 import {
   getWeek,
   loadResolvedWeekGames,
@@ -61,7 +63,7 @@ export const PICKEM_REFUSAL = {
   PICK_LOCKED: "pick_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
-  // Only the pick-summary read (commissioner-gated, see below) can produce
+  // Only the settings-editor reads (commissioner-gated, see below) can produce
   // this — every other refusal in this file comes from the member-only
   // `loadContext` gate, which has no role axis.
   NOT_COMMISSIONER: "not_commissioner",
@@ -84,11 +86,12 @@ export type PickemResult<T, R extends PickemRefusal = PickemRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
 
 /**
- * The role axis (`not_commissioner`) belongs to the pick-summary read alone —
- * every write path here authorizes through `loadContext`'s membership-only
- * gate and can never produce it. Naming the exclusion explicitly (rather than
- * leaving the writes on the full `PickemRefusal` default) keeps each write
- * route's declared OpenAPI response statuses accurate.
+ * The role axis (`not_commissioner`) belongs to the settings-editor reads
+ * alone — every write path here authorizes through `loadContext`'s
+ * membership-only gate and can never produce it. Naming the exclusion
+ * explicitly (rather than leaving the writes on the full `PickemRefusal`
+ * default) keeps each write route's declared OpenAPI response statuses
+ * accurate.
  */
 export type PickemWriteRefusal = Exclude<PickemRefusal, "not_commissioner">;
 
@@ -280,13 +283,14 @@ export async function getPickemWeekPicks(
 }
 
 /**
- * The pick-summary read has a role axis the member-only `loadContext` gate
- * doesn't (it's only ever consumed by the settings editor, which is
- * commissioner-only), so its refusal set names `not_commissioner` alongside
- * the two `loadContext` produces — never `week_out_of_range`, since this
- * isn't scoped to a week.
+ * The refusal set shared by the reads only the settings editor consumes (the
+ * pick summary and the season-range availability hint). They have a role axis
+ * the member-only `loadContext` gate doesn't — the editor is commissioner-only
+ * — so the set names `not_commissioner` alongside the two `loadContext`
+ * produces, and never `week_out_of_range`, since neither read is scoped to a
+ * week.
  */
-export type PickemPickSummaryRefusal = Extract<
+export type PickemSettingsEditorRefusal = Extract<
   PickemRefusal,
   "league_not_found" | "wrong_league_mode" | "not_commissioner"
 >;
@@ -308,7 +312,7 @@ export async function getPickemPickSummary(
   db: Db,
   leagueId: string,
   userId: string,
-): Promise<PickemResult<PickemPickSummary, PickemPickSummaryRefusal>> {
+): Promise<PickemResult<PickemPickSummary, PickemSettingsEditorRefusal>> {
   const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
   if (!gate.ok) return gate;
 
@@ -329,6 +333,41 @@ export async function getPickemPickSummary(
   return {
     ok: true,
     value: { pickCount: row?.pickCount ?? 0, memberCount: row?.memberCount ?? 0 },
+  };
+}
+
+/**
+ * The settings editor's availability hint (LG-9, ADR-0020): which season-range
+ * presets the league's own *bound* season can still start, so a commissioner
+ * only sees a preset switch offered when it would not meet the identical
+ * `start_week_passed` refusal `updateLeague` gives it on save. Gated and
+ * mode-checked exactly like `getPickemPickSummary` above — same role axis,
+ * same refusal set — because both are settings-editor-only reads a member has
+ * no use for. Answers for `current.season.seasonId`, the same instance
+ * `updateLeague` re-resolves against, never the sport's latest season (a
+ * league may sit on a non-latest instance, ADR-0009).
+ */
+export async function getPickemSeasonRangePresets(
+  db: Db,
+  clock: Clock,
+  leagueId: string,
+  userId: string,
+): Promise<PickemResult<PickemSeasonRangePresetsResponse, PickemSettingsEditorRefusal>> {
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
+  if (!gate.ok) return gate;
+
+  const current = await getLeagueWithCurrentSeason(db, leagueId);
+  if (!current) return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_NOT_FOUND };
+  if (current.league.mode !== LEAGUE_MODE.PICKEM) {
+    return { ok: false, reason: PICKEM_REFUSAL.WRONG_LEAGUE_MODE };
+  }
+
+  return {
+    ok: true,
+    value: {
+      seasonYear: current.season.seasonYear,
+      startablePresets: await startablePickemSeasonRangePresets(db, clock, current.season.seasonId),
+    },
   };
 }
 
