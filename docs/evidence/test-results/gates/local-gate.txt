@@ -15,13 +15,12 @@ $ pnpm lint
 $ eslint .
 
 $ pnpm --filter @picksleagues/web build
-dist/assets/src-DzgFmEDt.js                                192.87 kB │ gzip: 44.58 kB
-dist/assets/index-CrT2P5N4.js                              260.38 kB │ gzip: 80.58 kB
+dist/assets/index-CHdnqk10.js                              260.38 kB │ gzip: 80.58 kB
 
-✓ built in 442ms
+✓ built in 421ms
 
 $ pnpm test:e2e
-  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (505ms)
-  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (477ms)
+  ✓  12 [simulated] › e2e/pickem-journey.sim.spec.ts:390:3 › Pick'em merge-gate journey (mixed-week scenario) › past one kickoff: that pick locks, is revealed, and the week refuses a second submission (497ms)
+  ✓  13 [simulated] › e2e/pickem-journey.sim.spec.ts:464:3 › Pick'em merge-gate journey (mixed-week scenario) › after every game goes final, settlement produces the expected standings (574ms)
 
-  13 passed (12.4s)
+  13 passed (12.9s)

@@ -34,9 +34,12 @@ function LeagueOverview() {
 
   return (
     <div className="flex flex-col gap-4">
-      {league.data.renewable && canActOnLeague(league.data, LEAGUE_ACTION.RENEW_SEASON, now) && (
-        <RenewSeasonBanner league={league.data} />
-      )}
+      {league.data.renewable &&
+        (canActOnLeague(league.data, LEAGUE_ACTION.RENEW_SEASON, now) ? (
+          <RenewSeasonBanner league={league.data} />
+        ) : (
+          <NextSeasonWaitingBanner league={league.data} />
+        ))}
       {league.data.mode === LEAGUE_MODE.PICKEM ? (
         <PickemStandingsSection
           leagueId={leagueId}
@@ -63,7 +66,8 @@ function LeagueOverview() {
 
 // Commissioner-only nudge (ADR-0009 "renewal is explicit"): the next season's
 // data exists, so offer to mint this league's next instance. Members without
-// the capability never see it (the route guards on canActOnLeague above).
+// the capability get the sibling below instead — never this one, since the
+// route guards on canActOnLeague above.
 function RenewSeasonBanner({ league }: { league: LeagueResponse }) {
   const renew = useRenewLeague(league.id);
   return (
@@ -79,6 +83,25 @@ function RenewSeasonBanner({ league }: { league: LeagueResponse }) {
           Start next season
         </Button>
       </CardContent>
+    </Card>
+  );
+}
+
+// The same fact without the action, so the dashboard pill that told a member a
+// season was waiting isn't contradicted by a silent league page. Deliberately
+// carries no link to the roster: the Members tab is already on screen here, and
+// naming a commissioner in the copy would be wrong anyway — a league may have
+// several with identical powers (spec §Commissioner Powers).
+function NextSeasonWaitingBanner({ league }: { league: LeagueResponse }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>The next season is available</CardTitle>
+        <CardDescription>
+          A commissioner can start the next season to carry {league.name} forward with its current
+          settings.
+        </CardDescription>
+      </CardHeader>
     </Card>
   );
 }
