@@ -175,9 +175,12 @@ export function settleSurvivorWeek(
   }
 
   const aliveEntering = new Set(aliveMemberIds);
+  // Keyed over every pick, not only the live ones: the database constraint this
+  // backstops holds for eliminated members too, so a second row there is the
+  // same write-path bug and is worth the same noise. Entries for members who
+  // are already out are simply never read.
   const pickByMemberId = new Map<string, SurvivorPickInput>();
   for (const pick of picks) {
-    if (!aliveEntering.has(pick.memberId)) continue;
     if (pickByMemberId.has(pick.memberId)) {
       throw new Error(
         `settleSurvivorWeek: member ${pick.memberId} holds more than one pick for this week`,
@@ -235,12 +238,10 @@ export function settleSurvivorWeek(
   };
 }
 
-/**
- * The week is settleable only once every game in it is terminal — final or
- * cancelled (ADR-0025 precondition (a)) — and every game a live pick depends on
- * carries the scores needed to grade it. A game nobody live picked may be a
- * data fault without holding the week: it decides nothing.
- */
+// The week is settleable only once every game in it is terminal — final or
+// cancelled (ADR-0025 precondition (a)) — and every game a live pick depends on
+// carries the scores needed to grade it. A game nobody live picked may be a data
+// fault without holding the week: it decides nothing.
 function blockingGames(
   picks: readonly SurvivorPickInput[],
   results: readonly SurvivorGameResult[],
@@ -257,6 +258,8 @@ function blockingGames(
 
   for (const pick of picks) {
     if (!aliveEntering.has(pick.memberId)) continue;
+    // Non-null because the caller rejects a pick with no matching result before
+    // reaching here.
     const result = resultsByGameId.get(pick.gameId)!;
     if (result.status !== GAME_STATUS.FINAL) continue;
     if (result.homeScore === null || result.awayScore === null) {
@@ -267,12 +270,10 @@ function blockingGames(
   return [...blocking].map(([gameId, reason]) => ({ gameId, reason }));
 }
 
-/**
- * The grade and its consequence together, because the two are decided by the
- * same fact and reading the consequence back off the grade would need the very
- * distinction this drops: a cancellation and a tie are both `push`, and only one
- * of them can end a season.
- */
+// The grade and its consequence together, because the two are decided by the
+// same fact and reading the consequence back off the grade would need the very
+// distinction this drops: a cancellation and a tie are both `push`, and only one
+// of them can end a season.
 interface GradedSurvivorPick {
   outcome: SurvivorPickOutcome;
   eliminates: boolean;
@@ -317,7 +318,7 @@ function gradePick(
   };
 }
 
-/** Positive if the picked team won, negative if it lost, zero on a tie. */
+// Positive if the picked team won, negative if it lost, zero on a tie.
 function pickedTeamMargin(pick: SurvivorPickInput, result: SurvivorGameResult): number {
   // Non-null by the completeness check above: a final game missing either score
   // blocks the week rather than reaching here.

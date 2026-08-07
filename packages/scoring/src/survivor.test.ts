@@ -637,4 +637,15 @@ describe("settleSurvivorWeek — loader and write-path bugs are surfaced, not gr
       ),
     ).toThrow(/more than one pick/);
   });
+
+  it("throws for a duplicate held by a member who is already out — same broken write", () => {
+    expect(() =>
+      settleSurvivorWeek(
+        [],
+        [pick(), pick({ pickId: "pick-2", gameId: CONTROL_GAME, teamId: CONTROL_TEAM })],
+        [result(), controlResult],
+        settings(),
+      ),
+    ).toThrow(/more than one pick/);
+  });
 });
