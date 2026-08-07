@@ -254,12 +254,20 @@ games                       # provider id, week FK, home/away team FKs, kickoff_
                             #   override_* parallels for all of it, overridden_by/at
 
 pickem_picks                # league_member FK, game FK, side, spread_at_pick
-survivor_picks              # league_member FK, week FK, game FK, team, spread_at_pick
-survivor_state              # lives_remaining (default 1), eliminated_at, revived flags
+survivor_picks              # league_member FK, week FK, game FK, team, spread_at_pick,
+                            #   released (settlement-only; true when the game resolves cancelled).
+                            #   Team consumption is a partial unique index
+                            #   (league_season, member, team) WHERE NOT released (ADR-0025)
+survivor_state              # league_season FK + member FK (unique pair), lives_remaining
+                            #   (default 1), eliminated_week FK?, revived_count, updated_at;
+                            #   settlement-maintained, no row = alive with one life (ADR-0025)
 brackets                    # league_member FK, label, champ_score_prediction
 bracket_picks               # bracket FK, slot id (1–63), picked team
 
 pickem_pick_results         # pickem_pick FK, outcome, points
+survivor_pick_results       # survivor_pick FK, league_season FK, member FK, week FK, outcome,
+                            #   settled_at; no points column — survive/eliminate does not score
+                            #   (ADR-0016, ADR-0025)
 pickem_standings            # materialized: league_season FK, member FK, week?, points, rank
                             #   (picks/results/standings key off league_seasons, ADR-0009)
                             #   Per-mode, not shared (ADR-0016): Survivor's board is
@@ -355,6 +363,7 @@ GET    /leagues/:id/pickem/pick-summary  pick/member counts a settings change wo
 PUT    /leagues/:id/pickem/weeks/:weekId/picks   the week's one submission (validates spreads, ADR-0018)
 GET    /leagues/:id/pickem/weeks/:weekId/picks   own always; others' filtered by kickoff
 PUT    /leagues/:id/survivor/weeks/:weekId/pick
+GET    /leagues/:id/survivor/weeks/:weekId/picks own always; others' filtered by kickoff
 POST   /leagues/:id/bracket/entries      submit bracket (all 63 + tiebreaker)
 GET/PATCH /me                            username claim/change, display name
 DELETE /me                               account deletion: anonymize in place (guarded by ADR-0004 once leagues exist)
@@ -373,7 +382,7 @@ GET    /openapi.json                     generated spec
 
 Architecture v0.3 is reconciled against MVP Spec v0.3. Every spec requirement maps to a design element: environments and simulator (Environments, Simulator & Time, D12–D13), automated testing (Automated Testing, D14), operational data corrections (Manual Sports Data Overrides, D15), rule scope (MVP Rule Scope table), identity and caps (Domain Model notes), rules guide (static SPA content), and freshness expectations (Background Jobs). No open questions remain in either document.
 
-**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), and **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
+**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule), and **ADR-0025** (Survivor persistence: team consumption is a partial unique index over a settlement-maintained `released` flag so a cancellation returns the team, `survivor_state` is a settlement-maintained ledger carrying `eliminated_week_id` and `revived_count`, and Survivor settles per completed week in prefix order). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
 
 ## Mobile Path (later, zero rework)
 
