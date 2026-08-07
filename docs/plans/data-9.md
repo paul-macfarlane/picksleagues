@@ -253,19 +253,20 @@ independent of 2 in code but is what makes 2 shippable, so neither merges withou
 
 ### Verification map (run surface: local only)
 
-Before capturing any evidence, **clear `docs/evidence/test-results`** (it currently holds LG-11
-directories; the root intentionally contains only the latest work package's evidence — red-team
-A6, `docs/agents/testing.md`).
+Evidence lands under `docs/evidence/test-results/data-9/`, one subdirectory per check. *As
+planned, this step cleared the whole evidence root (deleting LG-11's) per the policy in force at
+the time; the owner changed that policy mid-delivery — see `[SCOPE CHANGE]` — so the root is now
+scoped per work package and never cleared.*
 
 | Criterion | Surface / command | Real deps | Expected | Evidence (committed) | Earliest checkpoint | Invalidated by |
 |---|---|---|---|---|---|---|
-| AC1 | unit: `pnpm vitest run --project unit packages/core/src/espn-provider.test.ts` | none | all placeholder cases excluded, seeded pass through | `docs/evidence/test-results/espn-provider-unit/output.txt` | end of step 2 | edits to `espn-provider.ts`, its fixtures, or `game-data-provider.ts` |
-| AC2, AC3 | integration: `pnpm db:up && pnpm test:integration` | Docker Postgres :5433 (`picksleagues_test`, auto-created/migrated) | suite green incl. reframed TBD test, seeding-transition, pre-start assertions | `docs/evidence/test-results/integration/output.txt` | end of step 4 | any api service, db schema/migration, or test change |
+| AC1 | unit: `pnpm vitest run --project unit packages/core/src/espn-provider.test.ts` | none | all placeholder cases excluded, seeded pass through | `docs/evidence/test-results/data-9/espn-provider-unit/output.txt` | end of step 2 | edits to `espn-provider.ts`, its fixtures, or `game-data-provider.ts` |
+| AC2, AC3 | integration: `pnpm db:up && pnpm test:integration` | Docker Postgres :5433 (`picksleagues_test`, auto-created/migrated) | suite green incl. reframed TBD test, seeding-transition, pre-start assertions | `docs/evidence/test-results/data-9/integration/output.txt` | end of step 4 | any api service, db schema/migration, or test change |
 | AC4 | integration: same command, cases in `league-season-range.test.ts` + `pickem-season-range-presets.test.ts` (fixtures set the simulated clock and the seeded/unseeded week shape; no ESPN involved) | same | Postseason + Full Season advance and are startable; Regular Season unchanged | same file | end of step 3 | edits to `season-range.ts`, `start.ts`, or `PICKEM_NOMINAL_RANGE` |
 | AC6 | static: files exist, citations greppable (`grep -l "ADR-0021" docs/adr/`) | none | ADR + both pointers present | PR diff | end of step 1 | ADR edits |
-| DoD | `pnpm typecheck && pnpm lint && pnpm test && pnpm format:check` | none | green | `docs/evidence/test-results/gates/output.txt` | step 6 | any edit |
+| DoD | `pnpm typecheck && pnpm lint && pnpm test && pnpm format:check` | none | green | `docs/evidence/test-results/data-9/gates/output.txt` | step 6 | any edit |
 | DoD | `pnpm contract:check` | none | **no diff** — this change adds no schema/route; a dirty `openapi/` here is a scope violation, not a regeneration chore | same | step 6 | schema/route edits (none planned) |
-| DoD | `pnpm test:e2e` (merge gate; brings up its own stack/db/ports) | Docker Postgres server | green, no new specs | `docs/evidence/test-results/e2e/output.txt` | step 6 | any edit |
+| DoD | `pnpm test:e2e` (merge gate; brings up its own stack/db/ports) | Docker Postgres server | green, no new specs | `docs/evidence/test-results/data-9/e2e/output.txt` | step 6 | any edit |
 
 Fixtures: AC1 needs a canned ESPN scoreboard fixture with `-1`/`-2` competitors (modeled on the
 ticket's verified description; none exists in `espn-provider.test.ts` today) — checked in with
@@ -397,14 +398,14 @@ Run surface: **local only**. Pull request: https://github.com/paul-macfarlane/pi
 
 | Criterion | Verdict | Command | Evidence |
 |---|---|---|---|
-| AC1 — adapter never returns an undetermined-competitor game; seeded games pass through | PASS | `pnpm vitest run --project unit packages/core/src/espn-provider.test.ts` | `docs/evidence/test-results/espn-provider-unit/output.txt` |
-| AC2 — no rows for an unseeded round; the game appears on the sync after seeding | PASS | `pnpm test:integration` (`nfl-sync-schedule.test.ts`, "a round the provider serves empty, then serves seeded…"); AC2's adapter half is proved at the unit layer, since the integration suite injects a fake `GameDataProvider` | `docs/evidence/test-results/integration/output.txt` |
+| AC1 — adapter never returns an undetermined-competitor game; seeded games pass through | PASS | `pnpm vitest run --project unit packages/core/src/espn-provider.test.ts` | `docs/evidence/test-results/data-9/espn-provider-unit/output.txt` |
+| AC2 — no rows for an unseeded round; the game appears on the sync after seeding | PASS | `pnpm test:integration` (`nfl-sync-schedule.test.ts`, "a round the provider serves empty, then serves seeded…"); AC2's adapter half is proved at the unit layer, since the integration suite injects a fake `GameDataProvider` | `docs/evidence/test-results/data-9/integration/output.txt` |
 | AC3 — a league whose start week has no games is pre-start: joinable, editable, startable | PASS | `pnpm test:integration` — `invites-join.test.ts` "treats a league whose start week has no games as pre-start (joinable)", `members.test.ts` pre-start settings edits, and D3's `startsAt: null` assertions | same |
 | AC4 — Postseason and Full Season advance to the unseeded round and are reported startable; Regular Season unchanged; nothing startable once every window closed | PASS | `pnpm test:integration` (`league-season-range.test.ts`, `pickem-season-range-presets.test.ts`) | same |
 | AC6 — ADR-0021 exists and records both halves; ADR-0010/0020 carry amendment pointers | PASS | `grep -l "ADR-0021" docs/adr/` | PR diff |
-| DoD — typecheck, lint, test, format:check | PASS | `pnpm typecheck` / `lint` / `test` / `format:check`, each exit 0 | `docs/evidence/test-results/gates/output.txt` |
+| DoD — typecheck, lint, test, format:check | PASS | `pnpm typecheck` / `lint` / `test` / `format:check`, each exit 0 | `docs/evidence/test-results/data-9/gates/output.txt` |
 | DoD — contract:check leaves `openapi/` clean | PASS | `pnpm contract:check`, exit 0, working tree clean afterwards — this change adds no schema or route | same |
-| DoD — e2e merge gate | PASS | `pnpm test:e2e`, exit 0, 13 passed, no new specs | `docs/evidence/test-results/e2e/output.txt` |
+| DoD — e2e merge gate | PASS | `pnpm test:e2e`, exit 0, 13 passed, no new specs | `docs/evidence/test-results/data-9/e2e/output.txt` |
 
 **Deviations from the plan.** One, and it is an addition rather than a reduction: the plan's
 in-scope list did not name `apps/api/test/members.test.ts`, whose fixture and comment D3's change
@@ -453,3 +454,19 @@ to make legible.
 
 ADR-0021 records this under its own Decision section, so the reasoning is durable rather than
 living only in a plan file.
+
+**2026-08-07 — evidence storage policy changed mid-delivery.** The owner noticed that every PR
+was committing new evidence and deleting the previous work package's, and asked whether that was
+intentional. It was — `docs/agents/testing.md` required clearing the whole proof-artifact root
+per package — but the rule was withdrawn on review: scoping by work package prevents stale proof
+reading as current just as well, without putting unrelated deletions in every PR or letting two
+concurrent branches collide on one directory. Images and video now go in the pull request, where
+they render inline and stay out of git history; text evidence stays committed because it is small,
+greppable from a checkout, and survives a mirror.
+
+Applied here: this package's evidence moved to `docs/evidence/test-results/data-9/`. The LG-11
+screenshots this delivery deleted were not restored — under the new rule they would not be
+committed at all; they remain in git history and on their own PR. Policy updated in
+`docs/agents/testing.md`, `docs/evidence/README.md`, `docs/plans/README.md`, and
+`docs/atlas-experiment.md`, with `.gitignore` enforcing the image rule mechanically rather than
+leaving it to be remembered.

@@ -68,22 +68,38 @@ while believing it has not.
   tool calls spelunking `node_modules` to rediscover the shape each time.
   `e2e/identity.spec.ts` currently binds this way and is the one site to
   migrate.
-- Repository-local proof-artifact root: `docs/evidence/test-results`.
-- Clear the entire proof-artifact root before capturing evidence for each work
-  package. It intentionally contains only the latest work package's evidence.
-- For UI screenshots and videos, use one directory per test name beneath the
-  proof-artifact root. Rerunning a test replaces that test directory.
-- Visual/browser behavior: Screenshot when visual state matters, at phone width first since the product is mobile-first. Video only when motion, timing, or a multi-step interaction cannot be proved by a still image. One subdirectory per test name..
+- Repository-local proof-artifact root: `docs/evidence/test-results`, with **one
+  directory per work package**, lowercased: `docs/evidence/test-results/data-9/…`.
+- **Never clear the root, and never delete another work package's evidence.**
+  Scoping by work package already prevents stale proof being read as current,
+  which is the only thing clearing bought — and clearing costs real things:
+  every PR carries deletions unrelated to its change, two concurrent branches
+  collide on the same directory, and a PR about playoff ingestion ends up
+  removing the proof for a renewal pill. Within a package, one subdirectory per
+  test name; rerunning a test replaces that directory.
+- **Images and video are not committed. They go in the pull request.** Attach
+  screenshots and video to the PR description or a PR comment, where they render
+  inline for the reviewer instead of making them click through to a repo path. A
+  PNG is also the one artifact that cannot be cleaned up later without rewriting
+  history, so it is the one that must not accumulate there. `.gitignore` enforces
+  this — image and video extensions under the evidence root are ignored.
+  "Uploaded to the PR" is durable and reviewable, so it satisfies the
+  never-cite-an-uncommitted-local-file rule below; a path on your laptop does not.
+- Visual/browser behavior: Screenshot when visual state matters, at phone width first since the product is mobile-first. Video only when motion, timing, or a multi-step interaction cannot be proved by a still image. Attached to the PR, not committed.
 - Integration and non-UI behavior: Committed vitest output, or a driven-simulator transcript. The season simulator is this repo's primary verification harness, so a transcript proving the flow at a controlled instant is usually stronger proof than a screenshot -- mechanics in docs/agents/verification-runbook.md..
 - External integration: None. Request paths never call ESPN; external provider data arrives only through ingestion jobs, and local verification uses the SimulatedProvider. There is no real-target smoke test..
 - Sensitive data: Sanitize before storage. Never commit .env values, session tokens, the jobs shared secret, OAuth client secrets, or database URLs. Screenshots of authenticated pages show only seeded test identities..
-- Any screenshot, video, test report, captured output, or other artifact cited as
-  `PASS` evidence is saved beneath `docs/evidence/test-results` and committed
-  on the feature branch. The PR links to the committed path; it never describes
-  an uncommitted local file as attached evidence.
+- Any **text** artifact cited as `PASS` evidence — captured command output, a
+  vitest report, a driven-simulator transcript — is saved beneath
+  `docs/evidence/test-results/<work-package-id>/` and committed on the feature
+  branch, and the PR links that path. Text is small, greppable from a checkout,
+  and survives a mirror, which is why it stays in the repo. **Images and video
+  are uploaded to the PR instead** (see above). Either way, never describe an
+  uncommitted local file as attached evidence.
 - Screenshot is the default visual proof. Add video only when motion, timing, or
   a multi-step interaction is material and a still image cannot prove it. Do not
   require screenshots or video when the repository has no UI/browser surface.
+  Both are attached to the PR, not committed.
 - Failure-only diagnostics not cited as `PASS` evidence, such as large traces,
   may remain uncommitted when repository policy says so.
 - A blocked or skipped check records the attempted command and raw failure.
