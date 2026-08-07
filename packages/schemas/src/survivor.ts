@@ -25,14 +25,6 @@ export const SubmitSurvivorPickRequestSchema = z
     gameId: z.uuid(),
     /** Must be one of the game's two teams, and must not already be consumed. */
     teamId: z.uuid(),
-    /**
-     * The spread the member is accepting for this pick — same name, same
-     * nullability, and same rule as `PickemPickSubmission.spread` so the two
-     * modes cannot disagree about what "the spread I accepted" means on the
-     * wire. Required in ATS leagues and refused with `spread_stale` (409) when
-     * it no longer matches the current number; ignored in straight-up leagues.
-     */
-    spread: z.number().nullable().default(null),
   })
   .openapi("SubmitSurvivorPickRequest");
 
@@ -44,8 +36,6 @@ export const SurvivorPickSchema = z
     weekId: z.string(),
     gameId: z.string(),
     teamId: z.string(),
-    /** The spread of record this pick was locked in against (null in SU leagues). */
-    spreadAtPick: z.number().nullable(),
   })
   .openapi("SurvivorPick");
 

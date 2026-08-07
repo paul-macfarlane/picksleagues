@@ -4,7 +4,6 @@ export * from "./app-role";
 export * from "./discovery";
 export * from "./display-name";
 export * from "./error";
-export * from "./game-side";
 export * from "./game-status";
 export * from "./health";
 export * from "./image-url";

@@ -203,3 +203,25 @@ export const PickemWeekPicksResponseSchema = z
   .openapi("PickemWeekPicksResponse");
 
 export type PickemWeekPicksResponse = z.infer<typeof PickemWeekPicksResponseSchema>;
+
+/**
+ * How much a Pick'em settings edit would destroy — the settings editor's
+ * pre-save warning input (spec §Commissioner Powers). `memberCount` is the
+ * number of distinct members holding at least one pick, not the league's roster
+ * size, so "N members lose picks" reads accurately even when some members
+ * haven't picked yet.
+ *
+ * Named for its mode because Pick'em is the only mode that asks the question.
+ * It briefly carried a mode-agnostic name while Survivor had a settings change
+ * that stranded picks; ADR-0026 removed Survivor's Pick Type, and with it the
+ * only such change a Survivor commissioner could make in the form, so that
+ * mode's summary endpoint went away with it.
+ */
+export const PickemPickSummarySchema = z
+  .object({
+    pickCount: z.number().int(),
+    memberCount: z.number().int(),
+  })
+  .openapi("PickemPickSummary");
+
+export type PickemPickSummary = z.infer<typeof PickemPickSummarySchema>;

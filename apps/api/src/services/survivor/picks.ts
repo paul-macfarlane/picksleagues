@@ -1,16 +1,13 @@
-import { and, count, countDistinct, eq, ne } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, survivorPicks, survivorState } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
-  LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
-  PICK_TYPE,
   WEEK_TYPE,
   nflSeasonOrdinal,
-  type LeaguePickSummary,
   type LeagueStatus,
   type SubmitSurvivorPickRequest,
   type SurvivorMemberPick,
@@ -18,18 +15,13 @@ import {
   type SurvivorWeekPicksResponse,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
-import { authorizeLeagueAction, getMembership } from "../leagues/authz";
+import { getMembership } from "../leagues/authz";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import { resolveUserImage } from "../users";
-import {
-  getWeek,
-  loadResolvedWeekGames,
-  resolveLockStates,
-  type ResolvedSlateGame,
-} from "../slate";
+import { getWeek, loadResolvedWeekGames, resolveLockStates } from "../slate";
 
 /**
  * Survivor pick entry (spec §Game Mode 2 — Core Rules) and the kickoff-gated
@@ -39,12 +31,16 @@ import {
  * an append, and deliberately not Pick'em's one-atomic-immutable-submission
  * semantic (ADR-0018 is Pick'em-only). ADR-0025 records the design.
  *
- * Four invariants carry this module, and the three that can move underneath a
- * member are re-validated inside the write transaction rather than trusted from
- * the pre-flight read (arch §Locking Model): the member must not be eliminated,
- * neither the new pick's game nor the one it replaces may have kicked off, the
- * team must still be unconsumed, and in ATS leagues the spread written must be
- * the spread current at that instant.
+ * Three invariants carry this module, and all three can move underneath a
+ * member, so each is re-validated inside the write transaction rather than
+ * trusted from the pre-flight read (arch §Locking Model): the member must not be
+ * eliminated, neither the new pick's game nor the one it replaces may have
+ * kicked off, and the team must still be unconsumed.
+ *
+ * There is no spread invariant, because Survivor is straight-up only
+ * (ADR-0026): a pick is changeable until kickoff, so grading it against the line
+ * captured at pick time would let a member re-take the same team purely to
+ * ratchet onto a better number and never onto a worse one.
  */
 
 export const SURVIVOR_REFUSAL = {
@@ -58,12 +54,6 @@ export const SURVIVOR_REFUSAL = {
   TEAM_CONSUMED: "team_consumed",
   MEMBER_ELIMINATED: "member_eliminated",
   PICK_LOCKED: "pick_locked",
-  SPREAD_STALE: "spread_stale",
-  SPREAD_UNAVAILABLE: "spread_unavailable",
-  // Only the settings-editor read (commissioner-gated, see below) can produce
-  // this — every other refusal in this file comes from the member-only
-  // `loadContext` gate, which has no role axis.
-  NOT_COMMISSIONER: "not_commissioner",
 } as const;
 
 export type SurvivorRefusal = (typeof SURVIVOR_REFUSAL)[keyof typeof SURVIVOR_REFUSAL];
@@ -79,29 +69,8 @@ export type SurvivorReadRefusal = Extract<
   "league_not_found" | "wrong_league_mode" | "week_out_of_range"
 >;
 
-/**
- * The refusal set for the read only the settings editor consumes (the pick
- * summary). It has a role axis the member-only `loadContext` gate doesn't — the
- * editor is commissioner-only — so the set names `not_commissioner` alongside
- * the two `loadContext` produces, and never `week_out_of_range`, since the read
- * is not scoped to a week. Mirrors `PickemSettingsEditorRefusal`.
- */
-export type SurvivorSettingsEditorRefusal = Extract<
-  SurvivorRefusal,
-  "league_not_found" | "wrong_league_mode" | "not_commissioner"
->;
-
 export type SurvivorResult<T, R extends SurvivorRefusal = SurvivorRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
-
-/**
- * The role axis (`not_commissioner`) belongs to the settings-editor read alone
- * — the write path authorizes through `loadContext`'s membership-only gate and
- * can never produce it. Naming the exclusion explicitly (rather than leaving
- * the write on the full `SurvivorRefusal` default) keeps the write route's
- * declared OpenAPI response statuses accurate. Mirrors `PickemWriteRefusal`.
- */
-export type SurvivorWriteRefusal = Exclude<SurvivorRefusal, "not_commissioner">;
 
 interface SurvivorContext {
   leagueSeasonId: string;
@@ -169,28 +138,6 @@ async function isWeekInRange(
   return (
     ordinal >= nflSeasonOrdinal(settings.startWeek) && ordinal <= nflSeasonOrdinal(settings.endWeek)
   );
-}
-
-/**
- * The ATS spread-acceptance rule (spec §ATS spread acceptance), the same
- * handshake Pick'em runs: the line moves between page load and save, so a
- * submission states the spread it accepted and is refused when it has moved.
- *
- * The two refusals are deliberately distinct because the member's next move
- * differs: no line has been captured yet (wait for the odds sync — there is
- * nothing to re-accept), versus the line moved under a save in flight (refetch
- * and accept the new number). Straight-up leagues have no spread dependency at
- * all, so nothing is checked.
- */
-function checkSpreadAccepted(
-  settings: SurvivorSettings,
-  game: ResolvedSlateGame,
-  submitted: number | null,
-): SurvivorWriteRefusal | null {
-  if (settings.pickType !== PICK_TYPE.AGAINST_THE_SPREAD) return null;
-  if (game.spread === null) return SURVIVOR_REFUSAL.SPREAD_UNAVAILABLE;
-  if (submitted !== game.spread) return SURVIVOR_REFUSAL.SPREAD_STALE;
-  return null;
 }
 
 /** The member ids settlement has eliminated. A member with no row is alive. */
@@ -263,7 +210,6 @@ export async function getSurvivorWeekPicks(
               weekId: own.weekId,
               gameId: own.gameId,
               teamId: own.teamId,
-              spreadAtPick: own.spreadAtPick,
             }
           : null,
       eliminated: eliminated.has(member.id),
@@ -293,48 +239,6 @@ export async function getSurvivorWeekPicks(
 }
 
 /**
- * How many picks — and how many distinct members holding at least one — sit on
- * the league's current season instance. This is the settings editor's pre-save
- * warning input (spec §Commissioner Powers), so its scope must match
- * `resetPicksInvalidatedBySettings` exactly (same `leagueSeasonId`, same "every
- * pick on the instance" predicate, `released` rows included since the reset
- * deletes those too): a count that disagreed with what a save would actually
- * delete would just be a more convincing lie.
- *
- * Gated on `LEAGUE_ACTION.EDIT_SETTINGS`, not plain membership — an ordinary
- * member has no use for this number and showing it would leak how many picks
- * other members have submitted before their games kick off (spec §Pick
- * Visibility).
- */
-export async function getSurvivorPickSummary(
-  db: Db,
-  leagueId: string,
-  userId: string,
-): Promise<SurvivorResult<LeaguePickSummary, SurvivorSettingsEditorRefusal>> {
-  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
-  if (!gate.ok) return gate;
-
-  const current = await getLeagueWithCurrentSeason(db, leagueId);
-  if (!current) return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_NOT_FOUND };
-  if (current.league.mode !== LEAGUE_MODE.SURVIVOR) {
-    return { ok: false, reason: SURVIVOR_REFUSAL.WRONG_LEAGUE_MODE };
-  }
-
-  const [row] = await db
-    .select({
-      pickCount: count(),
-      memberCount: countDistinct(survivorPicks.leagueMemberId),
-    })
-    .from(survivorPicks)
-    .where(eq(survivorPicks.leagueSeasonId, current.season.id));
-
-  return {
-    ok: true,
-    value: { pickCount: row?.pickCount ?? 0, memberCount: row?.memberCount ?? 0 },
-  };
-}
-
-/**
  * The member's pick for one week — created or replaced (spec §Game Mode 2: a
  * pick "can be made or changed until the picked game's kickoff"). Returns the
  * week as the read endpoint would serve it.
@@ -346,7 +250,7 @@ export async function submitSurvivorPick(
   weekId: string,
   userId: string,
   submission: SubmitSurvivorPickRequest,
-): Promise<SurvivorResult<SurvivorWeekPicksResponse, SurvivorWriteRefusal>> {
+): Promise<SurvivorResult<SurvivorWeekPicksResponse>> {
   const preflight = await loadContext(db, leagueId, userId);
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, seasonId, membershipId, settings, status } = preflight.value;
@@ -359,7 +263,7 @@ export async function submitSurvivorPick(
     return { ok: false, reason: SURVIVOR_REFUSAL.WEEK_OUT_OF_RANGE };
   }
 
-  const refusal = await db.transaction(async (tx): Promise<SurvivorWriteRefusal | null> => {
+  const refusal = await db.transaction(async (tx): Promise<SurvivorRefusal | null> => {
     // Serializes this member's own concurrent writes, so the team-consumption
     // check below can't be passed twice against the same pre-write state.
     await lockLeagueMemberRow(tx, membershipId);
@@ -382,10 +286,10 @@ export async function submitSurvivorPick(
     // grades to nothing.
     if (state?.eliminatedWeekId) return SURVIVOR_REFUSAL.MEMBER_ELIMINATED;
 
-    // Re-read the slate inside the transaction: kickoffs and spreads are the
-    // two things that can have moved between the pre-flight read and here, and
-    // both are load-bearing (arch §Locking Model — every pick mutation
-    // re-validates `kickoff_at > clock.now()` inside its transaction).
+    // Re-read the slate inside the transaction: a kickoff can have moved between
+    // the pre-flight read and here, and it is load-bearing (arch §Locking Model
+    // — every pick mutation re-validates `kickoff_at > clock.now()` inside its
+    // transaction).
     const slate = await loadResolvedWeekGames(tx, clock, weekId);
     const game = slate.find((candidate) => candidate.id === submission.gameId);
     if (!game) return SURVIVOR_REFUSAL.GAME_NOT_IN_WEEK;
@@ -398,9 +302,6 @@ export async function submitSurvivorPick(
     if (submission.teamId !== game.homeTeam.id && submission.teamId !== game.awayTeam.id) {
       return SURVIVOR_REFUSAL.TEAM_NOT_IN_GAME;
     }
-
-    const spreadRefusal = checkSpreadAccepted(settings, game, submission.spread);
-    if (spreadRefusal) return spreadRefusal;
 
     const [existing] = await tx
       .select()
@@ -446,10 +347,6 @@ export async function submitSurvivorPick(
           weekId,
           gameId: submission.gameId,
           teamId: submission.teamId,
-          // SU leagues have no spread dependency (spec §ATS spread acceptance)
-          // — never store a number settlement would then be tempted to use.
-          spreadAtPick:
-            settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD ? submission.spread : null,
           createdAt: now,
           updatedAt: now,
         })
@@ -462,8 +359,6 @@ export async function submitSurvivorPick(
           set: {
             gameId: submission.gameId,
             teamId: submission.teamId,
-            spreadAtPick:
-              settings.pickType === PICK_TYPE.AGAINST_THE_SPREAD ? submission.spread : null,
             // A freshly chosen pick is never a released one: `released` records
             // that settlement handed a team back, and this row no longer holds
             // the team it was set for.

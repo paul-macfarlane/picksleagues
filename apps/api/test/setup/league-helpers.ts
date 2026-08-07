@@ -185,7 +185,6 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
 export const DEFAULT_SURVIVOR_SETTINGS: SurvivorSettings = {
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-  pickType: PICK_TYPE.STRAIGHT_UP,
   pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
 };
 

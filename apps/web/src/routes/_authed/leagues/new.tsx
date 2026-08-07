@@ -61,7 +61,6 @@ function NewLeague() {
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [survivorPickType, setSurvivorPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
     SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
@@ -117,12 +116,11 @@ function NewLeague() {
           picksPerWeek: pickemPicksPerWeek,
         };
       } else if (mode === LEAGUE_MODE.SURVIVOR) {
-        // No range on the wire at all (ADR-0024): the mode is regular-season
-        // only, so the server resolves the refs it stores against the clock.
-        settings = {
-          pickType: survivorPickType,
-          pushTieResolution: survivorPushTie,
-        };
+        // The push/tie rule is the whole of a Survivor settings request: no
+        // range on the wire (ADR-0024, the mode is regular-season only, so the
+        // server resolves the refs it stores against the clock) and no pick type
+        // (ADR-0026, the mode is straight-up only).
+        settings = { pushTieResolution: survivorPushTie };
       } else {
         settings =
           mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -238,8 +236,6 @@ function NewLeague() {
 
             {mode === LEAGUE_MODE.SURVIVOR && (
               <SurvivorSettingsFields
-                pickType={survivorPickType}
-                onPickTypeChange={setSurvivorPickType}
                 pushTie={survivorPushTie}
                 onPushTieChange={setSurvivorPushTie}
               />

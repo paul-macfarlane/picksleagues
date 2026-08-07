@@ -404,23 +404,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/leagues/{leagueId}/survivor/pick-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** How many picks — and distinct members holding one — sit on the league's current season (commissioner, settings editor only) */
-        get: operations["getSurvivorPickSummary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/leagues/{leagueId}/survivor/weeks/{weekId}/picks": {
         parameters: {
             query?: never;
@@ -857,7 +840,6 @@ export interface components {
                 type: "regular";
                 number: number;
             };
-            pickType: components["schemas"]["PickType"];
             pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         /**
@@ -908,7 +890,6 @@ export interface components {
             picksPerWeek: number;
         };
         SurvivorSettingsInput: {
-            pickType: components["schemas"]["PickType"];
             pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         MarchMadnessSettings: {
@@ -1061,7 +1042,7 @@ export interface components {
             seasonYear: number | null;
             startablePresets: components["schemas"]["PickemSeasonRangePreset"][];
         };
-        LeaguePickSummary: {
+        PickemPickSummary: {
             pickCount: number;
             memberCount: number;
         };
@@ -1142,15 +1123,12 @@ export interface components {
             weekId: string;
             gameId: string;
             teamId: string;
-            spreadAtPick: number | null;
         } | null;
         SubmitSurvivorPickRequest: {
             /** Format: uuid */
             gameId: string;
             /** Format: uuid */
             teamId: string;
-            /** @default null */
-            spread: number | null;
         };
         /** @enum {string} */
         NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
@@ -2987,7 +2965,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LeaguePickSummary"];
+                    "application/json": components["schemas"]["PickemPickSummary"];
                 };
             };
             /** @description Not a Pick'em league (wrong_league_mode) */
@@ -3228,73 +3206,6 @@ export interface operations {
             };
         };
     };
-    getSurvivorPickSummary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                leagueId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Pick and distinct-member counts on the league's current season instance — what a settings edit that invalidates picks would destroy */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LeaguePickSummary"];
-                };
-            };
-            /** @description Not a Survivor league (wrong_league_mode) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The caller is a member but not a commissioner */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     getSurvivorWeekPicks: {
         parameters: {
             query?: never;
@@ -3406,7 +3317,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable), or the season has concluded (league_concluded) */
+            /** @description The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), or the season has concluded (league_concluded) */
             409: {
                 headers: {
                     [name: string]: unknown;

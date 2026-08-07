@@ -30,10 +30,7 @@ const REFUSAL_STATUS = {
   team_consumed: 409,
   member_eliminated: 409,
   pick_locked: 409,
-  spread_stale: 409,
-  spread_unavailable: 409,
-  not_commissioner: 403,
-} as const satisfies Record<SurvivorRefusal, 400 | 403 | 404 | 409>;
+} as const satisfies Record<SurvivorRefusal, 400 | 404 | 409>;
 
 const REFUSAL_BODY = {
   league_not_found: { error: ERROR_CODE.LEAGUE_NOT_FOUND, message: "League not found." },
@@ -72,18 +69,6 @@ const REFUSAL_BODY = {
   pick_locked: {
     error: ERROR_CODE.PICK_LOCKED,
     message: "That game has already kicked off — its pick is locked.",
-  },
-  spread_stale: {
-    error: ERROR_CODE.SPREAD_STALE,
-    message: "The spread moved — review the latest number and pick again.",
-  },
-  spread_unavailable: {
-    error: ERROR_CODE.SPREAD_UNAVAILABLE,
-    message: "That game has no spread yet — it can't be picked until the line is posted.",
-  },
-  not_commissioner: {
-    error: ERROR_CODE.NOT_COMMISSIONER,
-    message: "Only a commissioner can view this.",
   },
 } as const satisfies Record<SurvivorRefusal, ErrorResponse>;
 

@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  PICK_TYPE,
-  type PickType,
-  type SlateGame,
-  type SlateTeam,
-  type SurvivorPick,
-  type WeekSlateResponse,
-} from "@picksleagues/schemas";
+import type { SlateGame, SlateTeam, SurvivorPick, WeekSlateResponse } from "@picksleagues/schemas";
 import { useSubmitSurvivorPick, useSurvivorWeekPicks } from "@/api/survivor";
 import { useWeekSlate } from "@/api/weeks";
 import { isClosedToPicks } from "@/lib/game";
@@ -79,15 +72,7 @@ function SurvivorPicksSkeleton() {
  * alone — so this screen is a single sheet whose Save replaces, plus the one
  * state a member can't pick from at all: eliminated.
  */
-export function SurvivorPicks({
-  leagueId,
-  weekId,
-  pickType,
-}: {
-  leagueId: string;
-  weekId: string;
-  pickType: PickType;
-}) {
+export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: string }) {
   const slate = useWeekSlate(weekId);
   const picks = useSurvivorWeekPicks(leagueId, weekId);
   // The endpoint refuses a non-member outright, so the viewer is always among
@@ -120,7 +105,6 @@ export function SurvivorPicks({
             key={weekId}
             leagueId={leagueId}
             weekId={weekId}
-            pickType={pickType}
             slate={slate.data}
             saved={selectionOf(viewer.pick)}
             consumedTeamIds={picks.data.consumedTeamIds}
@@ -172,14 +156,12 @@ function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: Survi
 function SurvivorPickSheet({
   leagueId,
   weekId,
-  pickType,
   slate,
   saved,
   consumedTeamIds,
 }: {
   leagueId: string;
   weekId: string;
-  pickType: PickType;
   slate: WeekSlateResponse;
   saved: SurvivorSelection | null;
   consumedTeamIds: string[];
@@ -192,7 +174,6 @@ function SurvivorPickSheet({
   const consumed = new Set(consumedTeamIds);
   const teams = teamsById(slate.games);
   const heldTeam = held ? (teams.get(held.teamId) ?? null) : null;
-  const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
 
   // The pick on record freezes at *its own* game's kickoff, which is the write
   // path's rule — so a member whose Thursday team has kicked off is done for the
@@ -205,15 +186,7 @@ function SurvivorPickSheet({
 
   function handleSave() {
     if (!held) return;
-    const game = slate.games.find((candidate) => candidate.id === held.gameId);
-    if (!game) return;
-    submit.mutate({
-      gameId: held.gameId,
-      teamId: held.teamId,
-      // The moment an ATS spread is accepted — settlement grades this pick
-      // against the number sent here, and a straight-up league has none.
-      spread: showSpread ? game.spread : null,
-    });
+    submit.mutate({ gameId: held.gameId, teamId: held.teamId });
   }
 
   return (
@@ -242,7 +215,6 @@ function SurvivorPickSheet({
               <SurvivorGameRow
                 key={game.id}
                 game={game}
-                showSpread={showSpread}
                 heldTeamId={held?.gameId === game.id ? held.teamId : null}
                 consumedTeamIds={consumed}
                 frozen={frozen}

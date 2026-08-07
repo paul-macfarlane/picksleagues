@@ -188,25 +188,3 @@ export const MyLeaguesResponseSchema = z
   .openapi("MyLeaguesResponse");
 
 export type MyLeaguesResponse = z.infer<typeof MyLeaguesResponseSchema>;
-
-/**
- * How much a settings edit would destroy — the settings editor's pre-save
- * warning input (spec §Commissioner Powers). `memberCount` is the number of
- * distinct members holding at least one pick, not the league's roster size, so
- * "N members lose picks" reads accurately even when some members haven't picked
- * yet.
- *
- * Mode-agnostic on purpose, and it earns the unqualified name by the second
- * mode using it unchanged: Pick'em and Survivor both answer this question with
- * these two numbers. Only the *routes* stay mode-specific
- * (`/leagues/{id}/pickem/pick-summary`, `/leagues/{id}/survivor/pick-summary`),
- * because their data sources are per-mode pick tables (arch D9).
- */
-export const LeaguePickSummarySchema = z
-  .object({
-    pickCount: z.number().int(),
-    memberCount: z.number().int(),
-  })
-  .openapi("LeaguePickSummary");
-
-export type LeaguePickSummary = z.infer<typeof LeaguePickSummarySchema>;

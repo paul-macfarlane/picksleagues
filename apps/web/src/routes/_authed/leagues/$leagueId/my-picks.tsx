@@ -53,13 +53,7 @@ function MyPicks() {
         pickem ? (
           <PickemPicks leagueId={leagueId} weekId={effectiveWeekId} pickType={pickem.pickType} />
         ) : (
-          survivor && (
-            <SurvivorPicks
-              leagueId={leagueId}
-              weekId={effectiveWeekId}
-              pickType={survivor.pickType}
-            />
-          )
+          survivor && <SurvivorPicks leagueId={leagueId} weekId={effectiveWeekId} />
         )
       }
     </LeagueWeekPicker>

@@ -99,7 +99,6 @@ export async function insertSurvivorPick(
     weekId: string;
     gameId: string;
     teamId: string;
-    spreadAtPick?: number | null;
     released?: boolean;
   },
 ) {
@@ -111,7 +110,6 @@ export async function insertSurvivorPick(
       weekId: opts.weekId,
       gameId: opts.gameId,
       teamId: opts.teamId,
-      spreadAtPick: opts.spreadAtPick ?? null,
       released: opts.released ?? false,
       createdAt: SEED_AT,
       updatedAt: SEED_AT,

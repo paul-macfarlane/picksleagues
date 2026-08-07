@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
-  doublePrecision,
   index,
   integer,
   pgTable,
@@ -55,12 +54,6 @@ export const survivorPicks = pgTable(
     teamId: uuid("team_id")
       .notNull()
       .references(() => teams.id, { onDelete: "restrict" }),
-    /**
-     * The home-relative spread accepted at pick time — the spread of record for
-     * this pick (arch §Spread strategy). Null in straight-up leagues, where no
-     * spread applies.
-     */
-    spreadAtPick: doublePrecision("spread_at_pick"),
     /**
      * The team was handed back: a cancelled game's pick pushes and does **not**
      * consume the team (spec §Game Mode 2 — Cancelled game), so the row must

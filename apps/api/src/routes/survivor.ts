@@ -1,7 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ErrorResponseSchema,
-  LeaguePickSummarySchema,
   SubmitSurvivorPickRequestSchema,
   SurvivorWeekPicksResponseSchema,
 } from "@picksleagues/schemas";
@@ -12,43 +11,13 @@ import {
   errorResponse,
   LEAGUE_NOT_FOUND_404,
   MISCONFIGURED_500,
-  NOT_COMMISSIONER_403,
   UNAUTHENTICATED_401,
 } from "../lib/route-responses";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
-import {
-  getSurvivorPickSummary,
-  getSurvivorWeekPicks,
-  submitSurvivorPick,
-} from "../services/survivor/picks";
+import { getSurvivorWeekPicks, submitSurvivorPick } from "../services/survivor/picks";
 
 const LeagueWeekParamsSchema = z.object({ leagueId: z.uuid(), weekId: z.uuid() });
-const LeagueIdParamsSchema = z.object({ leagueId: z.uuid() });
-
-// Mode-specific path for a mode-agnostic response shape: the counts mean the
-// same thing in both modes, but they come from this mode's own pick table
-// (arch D9), so Pick'em's route can't serve them.
-const getPickSummary = createRoute({
-  method: "get",
-  path: "/leagues/{leagueId}/survivor/pick-summary",
-  operationId: "getSurvivorPickSummary",
-  summary:
-    "How many picks — and distinct members holding one — sit on the league's current season (commissioner, settings editor only)",
-  request: { params: LeagueIdParamsSchema },
-  responses: {
-    200: {
-      description:
-        "Pick and distinct-member counts on the league's current season instance — what a settings edit that invalidates picks would destroy",
-      content: { "application/json": { schema: LeaguePickSummarySchema } },
-    },
-    400: errorResponse("Not a Survivor league (wrong_league_mode)"),
-    401: UNAUTHENTICATED_401,
-    403: NOT_COMMISSIONER_403,
-    404: LEAGUE_NOT_FOUND_404,
-    500: MISCONFIGURED_500,
-  },
-});
 
 const getLeagueWeekPicks = createRoute({
   method: "get",
@@ -94,7 +63,7 @@ const putLeagueWeekPick = createRoute({
     401: UNAUTHENTICATED_401,
     404: LEAGUE_NOT_FOUND_404,
     409: errorResponse(
-      "The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), the accepted spread is no longer current (spread_stale — refetch the slate and re-prompt), the game has no spread posted yet (spread_unavailable), or the season has concluded (league_concluded)",
+      "The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), or the season has concluded (league_concluded)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -110,20 +79,6 @@ export function survivorRoutes(deps: AppDeps) {
   // function of which route file mounts last.
   app.use("/leagues/:leagueId/survivor/*", requireSession(deps));
   app.use("/leagues/:leagueId/survivor/*", requireDbAndClock(deps));
-
-  app.openapi(getPickSummary, async (c) => {
-    const db = c.get("db");
-    const sessionUser = c.get("sessionUser");
-    const { leagueId } = c.req.valid("param");
-
-    const result = await getSurvivorPickSummary(db, leagueId, sessionUser.id);
-    if (!result.ok) {
-      const { body, status } = survivorRefusal(result.reason);
-      return c.json(ErrorResponseSchema.parse(body), status);
-    }
-
-    return c.json(result.value, 200);
-  });
 
   app.openapi(getLeagueWeekPicks, async (c) => {
     const db = c.get("db");

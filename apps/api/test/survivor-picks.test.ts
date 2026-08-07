@@ -5,7 +5,6 @@ import { isUniqueViolation } from "@picksleagues/db";
 import {
   GAME_STATUS,
   MEMBER_ROLE,
-  PICK_TYPE,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type SurvivorSettings,
@@ -46,20 +45,6 @@ const TWO_WEEK_SLATE: SeededWeek[] = [
   },
   { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK2_KICKOFF }] },
 ];
-
-/** The same two weeks with a line on week 1's first game — the ATS fixtures. */
-const ATS_SLATE: SeededWeek[] = [
-  {
-    weekNumber: 1,
-    kickoffs: [{ kickoffAt: WEEK1_KICKOFF, spread: -3.5 }, { kickoffAt: WEEK1_GAME2_KICKOFF }],
-  },
-  { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK2_KICKOFF, spread: 2.5 }] },
-];
-
-const ATS_SETTINGS: SurvivorSettings = {
-  ...DEFAULT_SURVIVOR_SETTINGS,
-  pickType: PICK_TYPE.AGAINST_THE_SPREAD,
-};
 
 async function seedLeague(opts: { settings?: SurvivorSettings; weeks?: SeededWeek[] } = {}) {
   const base = await seedSurvivorLeague(db, auth, {
@@ -400,69 +385,6 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       }
     },
   );
-
-  describe("ATS spread acceptance", () => {
-    it("409s a spread that has moved under the submission", async () => {
-      const { league, memberA, memberAId, leagueSeasonId, week1, week1Game1, teamIds } =
-        await seedLeague({ settings: ATS_SETTINGS, weeks: ATS_SLATE });
-
-      const response = await putSurvivorPick(memberA.cookie, league.id, week1, {
-        gameId: week1Game1,
-        teamId: teamIds.home,
-        spread: -7,
-      });
-
-      expect(response.status).toBe(409);
-      expect(((await response.json()) as { error: string }).error).toBe("spread_stale");
-      expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
-    });
-
-    it("stores the accepted spread when it is still current", async () => {
-      const { league, memberA, memberAId, leagueSeasonId, week1, week1Game1, teamIds } =
-        await seedLeague({ settings: ATS_SETTINGS, weeks: ATS_SLATE });
-
-      const response = await putSurvivorPick(memberA.cookie, league.id, week1, {
-        gameId: week1Game1,
-        teamId: teamIds.home,
-        spread: -3.5,
-      });
-
-      expect(response.status).toBe(200);
-      expect((await survivorPicksFor(db, leagueSeasonId, memberAId))[0]).toMatchObject({
-        spreadAtPick: -3.5,
-      });
-    });
-
-    it("409s a game with no line posted yet", async () => {
-      const { league, memberA, week1, week1Game2, teamIds } = await seedLeague({
-        settings: ATS_SETTINGS,
-        weeks: ATS_SLATE,
-      });
-
-      const response = await putSurvivorPick(memberA.cookie, league.id, week1, {
-        gameId: week1Game2,
-        teamId: teamIds.away,
-      });
-
-      expect(response.status).toBe(409);
-      expect(((await response.json()) as { error: string }).error).toBe("spread_unavailable");
-    });
-
-    it("accepts a straight-up pick with no spread at all", async () => {
-      const { league, memberA, memberAId, leagueSeasonId, week1, week1Game1, teamIds } =
-        await seedLeague();
-
-      const response = await putSurvivorPick(memberA.cookie, league.id, week1, {
-        gameId: week1Game1,
-        teamId: teamIds.home,
-      });
-
-      expect(response.status).toBe(200);
-      expect((await survivorPicksFor(db, leagueSeasonId, memberAId))[0]).toMatchObject({
-        spreadAtPick: null,
-      });
-    });
-  });
 });
 
 describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
@@ -566,7 +488,6 @@ describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-        pickType: PICK_TYPE.STRAIGHT_UP,
         pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
     });

@@ -39,37 +39,6 @@ export function useSurvivorWeekPicks(leagueId: string, weekId: string | undefine
   });
 }
 
-/**
- * The settings editor's pre-save warning input: how much a Survivor-invalidating
- * settings edit would destroy. Its own query key (not folded into the league
- * query) since it's fetched conditionally and on a different cadence — every
- * keystroke in the settings form re-derives whether the change would
- * invalidate, but the count itself only needs to be fetched once per visit.
- */
-export function survivorPickSummaryQueryKey(leagueId: string) {
-  return ["league", leagueId, "survivor", "pick-summary"];
-}
-
-export function useSurvivorPickSummary(leagueId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: survivorPickSummaryQueryKey(leagueId),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/leagues/{leagueId}/survivor/pick-summary", {
-        params: { path: { leagueId } },
-      });
-      if (error) throw error;
-      return data;
-    },
-    // Only a commissioner editing settings needs this — an ordinary member
-    // viewing (read-only) settings must never fire it (403 otherwise, and no
-    // reason to leak another member's pick activity). A failure here is the one
-    // query failure that toasts, and the toast lives at the call site
-    // (settings-section.tsx) because only there is it known whether the count
-    // was about to gate a destructive save.
-    enabled,
-  });
-}
-
 // Wire-slug → toast copy for the pick write's expected refusals. Each message
 // names what the member can do about it; anything not listed falls back to the
 // server's own message, which is already user-facing phrasing.
@@ -90,12 +59,6 @@ function survivorPickErrorMessage(error: ErrorResponse): string {
       return "You've already used that team this season — each team can only be picked once.";
     case ERROR_CODE.MEMBER_ELIMINATED:
       return "You've been eliminated, so you can't make any more picks.";
-    case ERROR_CODE.SPREAD_STALE:
-      return "The spread moved since you loaded this week — check the new line and save again.";
-    // Distinct from a stale spread: there is no line to accept yet, so saving
-    // again won't help until the odds sync posts one.
-    case ERROR_CODE.SPREAD_UNAVAILABLE:
-      return "That game has no spread posted yet — it can't be picked until the line is up.";
     case ERROR_CODE.LEAGUE_CONCLUDED:
       return "This league has concluded, so its picks are closed.";
     case ERROR_CODE.WEEK_OUT_OF_RANGE:
@@ -132,11 +95,10 @@ export function useSubmitSurvivorPick(leagueId: string, weekId: string) {
           (status) => status === 400 || status === 404 || status === 409,
           survivorPickErrorMessage,
         );
-        // Each of these means the slate the member chose against has already
-        // moved — a line changed, a game kicked off, or a game was pulled — so
-        // refetch it rather than leave them re-saving the same dead offer.
+        // Either means the slate the member chose against has already moved — a
+        // game kicked off, or a game was pulled — so refetch it rather than
+        // leave them re-saving the same dead offer.
         if (
-          error.error === ERROR_CODE.SPREAD_STALE ||
           error.error === ERROR_CODE.PICK_LOCKED ||
           error.error === ERROR_CODE.GAME_NOT_PICKABLE
         ) {

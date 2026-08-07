@@ -1,22 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueSeasons, survivorPicks } from "@picksleagues/db";
 import {
-  MEMBER_ROLE,
-  PICK_TYPE,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   type SurvivorSettings,
   type SurvivorSettingsInput,
 } from "@picksleagues/schemas";
-import { createAuthenticatedUser } from "./setup/auth-helpers";
-import {
-  DEFAULT_SURVIVOR_SETTINGS,
-  insertLeague,
-  membersOf,
-  seedSeason,
-  type SeededWeek,
-} from "./setup/league-helpers";
+import { DEFAULT_SURVIVOR_SETTINGS, type SeededWeek } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league-app";
 import { insertSurvivorPick, seedSurvivorLeague } from "./setup/survivor-league";
 import { resetDb } from "./setup/reset-db";
@@ -27,19 +17,40 @@ import { resetDb } from "./setup/reset-db";
  * refused once any pick has locked. Pick'em's own reset behaviour is pinned by
  * `pickem-picks.test.ts` and is deliberately not restated here — those tests
  * passing unchanged is what proves this delivery left it alone.
+ *
+ * The one edit that strands a Survivor pick is an advanced start week, and
+ * since ADR-0026 removed Pick Type it is the only one: nothing on the wire
+ * expresses it, because the server re-resolves the range against its own clock
+ * on every pre-start settings write (ADR-0024). Which is why the fixtures below
+ * are shaped around a *clock*, not around a field.
  */
 
-const { db, auth, app, appAfterKickoff, getSurvivorPickSummary, putSurvivorPick } =
-  makeLeagueTestHarness();
+const { db, auth, app, appAfterKickoff, putSurvivorPick } = makeLeagueTestHarness();
 
 type App = typeof app;
 
 const WEEK2_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
+const WEEK3_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 14 * 24 * 60 * 60 * 1000);
 
 /** Two regular weeks, both entirely ahead of the harness's pre-start clock. */
 const TWO_WEEK_SLATE: SeededWeek[] = [
   { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
   { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK2_KICKOFF }] },
+];
+
+/**
+ * The slate that makes a re-resolution move the start week. Week 1 holds no
+ * games, so `leagueStartAt` is null and `isPreStart` reports true whatever the
+ * clock says — the league keeps its pre-start powers (the "a league re-enters
+ * pre-start mid-season" state ADR-0015 names). Under the post-kickoff app,
+ * week 1 is behind its own `ends_at` and week 2 has kicked off, so resolution
+ * advances the stored start from week 1 to week 3, and every pick on the
+ * instance is stranded.
+ */
+const RESOLUTION_ADVANCES_SLATE: SeededWeek[] = [
+  { weekNumber: 1, kickoffs: [] },
+  { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+  { weekNumber: 3, kickoffs: [{ kickoffAt: WEEK3_KICKOFF }] },
 ];
 
 function patchLeague(
@@ -56,11 +67,7 @@ function patchLeague(
 }
 
 function settingsWith(overrides: Partial<SurvivorSettingsInput> = {}): SurvivorSettingsInput {
-  return {
-    pickType: DEFAULT_SURVIVOR_SETTINGS.pickType,
-    pushTieResolution: DEFAULT_SURVIVOR_SETTINGS.pushTieResolution,
-    ...overrides,
-  };
+  return { pushTieResolution: DEFAULT_SURVIVOR_SETTINGS.pushTieResolution, ...overrides };
 }
 
 /** Total Survivor pick rows on a league's current season instance. */
@@ -122,17 +129,38 @@ afterAll(async () => {
 });
 
 describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () => {
-  it("clears every pick on the instance when Pick Type changes, and commits the settings write with it", async () => {
-    const { league, memberA } = await seedLeagueWithPicks();
-    expect(await pickCountFor(league.id)).toBe(2);
-
-    const res = await patchLeague(memberA.cookie, league.id, {
-      settings: settingsWith({ pickType: PICK_TYPE.AGAINST_THE_SPREAD }),
+  it("clears every pick on the instance when re-resolution advances the start week, and commits the settings write with it", async () => {
+    const seeded = await seedSurvivorLeague(db, auth, {
+      weeks: RESOLUTION_ADVANCES_SLATE,
+      members: [{ username: "member_a" }],
     });
+    const memberA = seeded.users[0]!;
+    const [week3Game] = seeded.gameIds.get("regular:3") as [string];
+    // Week 3 is inside the stored range and still ahead of both clocks, so this
+    // is a pick the member made legally and has not locked — the state the
+    // reset exists for, as against the refusal the next case pins.
+    const picked = await putSurvivorPick(
+      memberA.cookie,
+      seeded.league.id,
+      seeded.weekIds.get("regular:3")!,
+      { gameId: week3Game, teamId: seeded.teamIds.home },
+      appAfterKickoff,
+    );
+    expect(picked.status).toBe(200);
+    expect(await pickCountFor(seeded.league.id)).toBe(1);
+
+    const res = await patchLeague(
+      memberA.cookie,
+      seeded.league.id,
+      { settings: settingsWith({ pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE }) },
+      appAfterKickoff,
+    );
 
     expect(res.status).toBe(200);
-    expect(await pickCountFor(league.id)).toBe(0);
-    expect((await storedSettingsFor(league.id)).pickType).toBe(PICK_TYPE.AGAINST_THE_SPREAD);
+    expect(await pickCountFor(seeded.league.id)).toBe(0);
+    const stored = await storedSettingsFor(seeded.league.id);
+    expect(stored.startWeek).toEqual({ type: "regular", number: 3 });
+    expect(stored.pushTieResolution).toBe(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE);
   });
 
   it("clears nothing when only Push/Tie Resolution changes — settlement reads it at grading time", async () => {
@@ -146,21 +174,16 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     expect(await pickCountFor(league.id)).toBe(2);
     const stored = await storedSettingsFor(league.id);
     expect(stored.pushTieResolution).toBe(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE);
-    expect(stored.pickType).toBe(PICK_TYPE.STRAIGHT_UP);
+    expect(stored.startWeek).toEqual({ type: "regular", number: 1 });
   });
 
   it("409s picks_locked — and leaves both the pick and the settings untouched — when a locked pick would be stranded", async () => {
-    // The league's start week (week 1) holds no games, so `leagueStartAt` is
-    // null and `isPreStart` reports true regardless of the clock — the
-    // commissioner keeps pre-start powers even though a later week's game has
-    // already kicked off and locked a pick (ADR-0015: trusting the pre-start
-    // boundary here would let a settings edit delete picks already locked and
-    // revealed to the league).
+    // Same slate as the clearing case, so the same re-resolution advances the
+    // start week — but the pick sits in week 2, which has already kicked off.
+    // ADR-0015: trusting the pre-start boundary here would let a settings edit
+    // delete picks already locked and revealed to the league.
     const seeded = await seedSurvivorLeague(db, auth, {
-      weeks: [
-        { weekNumber: 1, kickoffs: [] },
-        { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
-      ],
+      weeks: RESOLUTION_ADVANCES_SLATE,
       members: [{ username: "member_a" }],
     });
     const memberA = seeded.users[0]!;
@@ -178,7 +201,7 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     const res = await patchLeague(
       memberA.cookie,
       seeded.league.id,
-      { settings: settingsWith({ pickType: PICK_TYPE.AGAINST_THE_SPREAD }) },
+      { settings: settingsWith({ pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE }) },
       appAfterKickoff,
     );
 
@@ -187,105 +210,8 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     // The reset and the settings write share one transaction: a refusal must
     // roll the whole thing back, not merely skip the clear.
     expect(await pickCountFor(seeded.league.id)).toBe(1);
-    expect((await storedSettingsFor(seeded.league.id)).pickType).toBe(PICK_TYPE.STRAIGHT_UP);
-  });
-});
-
-describe("GET /api/leagues/:leagueId/survivor/pick-summary", () => {
-  it("401s without a session", async () => {
-    const { league } = await seedLeagueWithPicks();
-
-    const res = await getSurvivorPickSummary(undefined, league.id);
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ error: "unauthenticated" });
-  });
-
-  it("404s a non-member and an unknown league — private leagues stay hidden either way", async () => {
-    const { league, memberA } = await seedLeagueWithPicks();
-    const outsider = await createAuthenticatedUser(auth, { username: "outsider" });
-
-    const nonMember = await getSurvivorPickSummary(outsider.cookie, league.id);
-    expect(nonMember.status).toBe(404);
-    expect(await nonMember.json()).toMatchObject({ error: "league_not_found" });
-
-    const unknownLeague = await getSurvivorPickSummary(memberA.cookie, randomUUID());
-    expect(unknownLeague.status).toBe(404);
-    expect(await unknownLeague.json()).toMatchObject({ error: "league_not_found" });
-  });
-
-  it("403s not_commissioner for an ordinary member — the count would leak how many picks others have in", async () => {
-    const { league, memberB } = await seedLeagueWithPicks();
-
-    const res = await getSurvivorPickSummary(memberB.cookie, league.id);
-    expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({ error: "not_commissioner" });
-  });
-
-  it("400s wrong_league_mode for a Pick'em league", async () => {
-    const { seasonId } = await seedSeason(db, { weeks: TWO_WEEK_SLATE });
-    const commissioner = await createAuthenticatedUser(auth, { username: "commish" });
-    const league = await insertLeague(db, {
-      seasonId,
-      members: [{ userId: commissioner.user.id, role: MEMBER_ROLE.COMMISSIONER }],
-    });
-
-    const res = await getSurvivorPickSummary(commissioner.cookie, league.id);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "wrong_league_mode" });
-  });
-
-  it("counts exactly what a settings reset would delete — released rows included, non-pickers excluded", async () => {
-    const seeded = await seedSurvivorLeague(db, auth, {
-      weeks: TWO_WEEK_SLATE,
-      members: [{ username: "member_a" }, { username: "member_b" }, { username: "member_c" }],
-    });
-    const memberA = seeded.users[0]!;
-    const memberB = seeded.users[1]!;
-    const membersByUser = await membersOf(db, seeded.league.id);
-    const [week1Game] = seeded.gameIds.get("regular:1") as [string];
-    const [week2Game] = seeded.gameIds.get("regular:2") as [string];
-
-    // memberA holds two rows, one of them released by a cancellation —
-    // `resetPicksInvalidatedBySettings` deletes every row on the instance, so a
-    // summary that filtered `released` would under-report the damage. memberC
-    // never picks, which is what separates memberCount from roster size.
-    await insertSurvivorPick(db, {
-      leagueSeasonId: seeded.leagueSeasonId,
-      leagueMemberId: membersByUser.get(memberA.user.id)!,
-      weekId: seeded.weekIds.get("regular:1")!,
-      gameId: week1Game,
-      teamId: seeded.teamIds.home,
-      released: true,
-    });
-    await insertSurvivorPick(db, {
-      leagueSeasonId: seeded.leagueSeasonId,
-      leagueMemberId: membersByUser.get(memberA.user.id)!,
-      weekId: seeded.weekIds.get("regular:2")!,
-      gameId: week2Game,
-      teamId: seeded.teamIds.away,
-    });
-    await insertSurvivorPick(db, {
-      leagueSeasonId: seeded.leagueSeasonId,
-      leagueMemberId: membersByUser.get(memberB.user.id)!,
-      weekId: seeded.weekIds.get("regular:1")!,
-      gameId: week1Game,
-      teamId: seeded.teamIds.away,
-    });
-
-    const res = await getSurvivorPickSummary(memberA.cookie, seeded.league.id);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ pickCount: 3, memberCount: 2 });
-    expect(await pickCountFor(seeded.league.id)).toBe(3);
-  });
-
-  it("reads 0/0 for a league with no picks yet", async () => {
-    const seeded = await seedSurvivorLeague(db, auth, {
-      weeks: TWO_WEEK_SLATE,
-      members: [{ username: "member_a" }],
-    });
-
-    const res = await getSurvivorPickSummary(seeded.users[0]!.cookie, seeded.league.id);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ pickCount: 0, memberCount: 0 });
+    const stored = await storedSettingsFor(seeded.league.id);
+    expect(stored.startWeek).toEqual({ type: "regular", number: 1 });
+    expect(stored.pushTieResolution).toBe(SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE);
   });
 });

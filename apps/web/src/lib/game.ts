@@ -1,9 +1,8 @@
 import {
-  GAME_SIDE,
   GAME_STATUS,
   PICK_TYPE,
+  PICKEM_PICK_SIDE,
   WEEK_TYPE,
-  type GameSide,
   type GameStatus,
   type PickemPickSide,
   type PickOutcome,
@@ -245,13 +244,14 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
 
 /**
  * Home-relative spread, flipped for the away side (spec §ATS) — the sign a
- * member reads next to the team they'd be picking, not the raw stored number.
- * Shared by the pick entry grid and the week/pick detail view so the two
- * surfaces never drift on how a spread reads.
+ * member reads next to the side they'd be picking, not the raw stored number.
+ * Shared by the Pick'em entry grid and the week/pick detail view so the two
+ * surfaces never drift on how a spread reads. Pick'em-typed because Pick'em is
+ * the only mode with a spread to read: Survivor is straight-up only (ADR-0026).
  */
-export function spreadLabel(spread: number | null, side: GameSide): string | null {
+export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
   if (spread === null) return null;
-  const value = side === GAME_SIDE.HOME ? spread : -spread;
+  const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;
   return value > 0 ? `+${value}` : `${value}`;
 }
 

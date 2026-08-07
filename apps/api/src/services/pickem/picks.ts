@@ -13,7 +13,7 @@ import {
   type PickemMemberPicks,
   type PickemPickSubmission,
   type PickemSeasonRangePresetsResponse,
-  type LeaguePickSummary,
+  type PickemPickSummary,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -313,7 +313,7 @@ export async function getPickemPickSummary(
   db: Db,
   leagueId: string,
   userId: string,
-): Promise<PickemResult<LeaguePickSummary, PickemSettingsEditorRefusal>> {
+): Promise<PickemResult<PickemPickSummary, PickemSettingsEditorRefusal>> {
   const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
   if (!gate.ok) return gate;
 

@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ErrorResponseSchema,
-  LeaguePickSummarySchema,
+  PickemPickSummarySchema,
   PickemSeasonRangePresetsResponseSchema,
   PickemStandingsResponseSchema,
   PickemWeekPicksResponseSchema,
@@ -42,7 +42,7 @@ const getPickSummary = createRoute({
     200: {
       description:
         "Pick and distinct-member counts on the league's current season instance — what a settings edit that invalidates picks would destroy",
-      content: { "application/json": { schema: LeaguePickSummarySchema } },
+      content: { "application/json": { schema: PickemPickSummarySchema } },
     },
     400: errorResponse("Not a Pick'em league (wrong_league_mode)"),
     401: UNAUTHENTICATED_401,

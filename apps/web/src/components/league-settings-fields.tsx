@@ -87,8 +87,8 @@ export const DEFAULT_PICKEM_SEASON_RANGE = PICKEM_SEASON_RANGE_PRESET.REGULAR_SE
 
 /**
  * Shared radio-group wiring: a legend, then one Radio + Label pair per
- * option (with optional helper text) — used for mode, visibility, pick
- * type, and Survivor's push/tie setting.
+ * option (with optional helper text) — used for mode, visibility, Pick'em's
+ * pick type, and Survivor's push/tie setting.
  */
 export function RadioField<Value extends string>({
   legend,
@@ -200,16 +200,16 @@ function SurvivorSeasonRange({ seasonRange }: { seasonRange?: NflSeasonRange }) 
   );
 }
 
+/**
+ * No Pick Type control, and no plan for one: Survivor is straight-up only
+ * (ADR-0026).
+ */
 export function SurvivorSettingsFields({
   seasonRange,
-  pickType,
-  onPickTypeChange,
   pushTie,
   onPushTieChange,
 }: {
   seasonRange?: NflSeasonRange;
-  pickType: PickType;
-  onPickTypeChange: (value: PickType) => void;
   pushTie: SurvivorPushTieResolution;
   onPushTieChange: (value: SurvivorPushTieResolution) => void;
 }) {
@@ -217,13 +217,6 @@ export function SurvivorSettingsFields({
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Survivor settings</h2>
       <SurvivorSeasonRange seasonRange={seasonRange} />
-      <RadioField
-        legend="Pick type"
-        name="survivor-pick-type"
-        value={pickType}
-        onValueChange={onPickTypeChange}
-        options={PICK_TYPE_OPTIONS}
-      />
       <RadioField
         legend="Push / tie result"
         name="survivor-push-tie"
