@@ -13,8 +13,10 @@ import {
   pickemSettingsInvalidatePicks,
   PickemSettingsInputSchema,
   PickemSettingsSchema,
+  survivorSettingsInvalidatePicks,
   type PickemSeasonRangePreset,
   type PickemSettings,
+  type SurvivorSettings,
 } from "./league-settings";
 import { LEAGUE_MODE } from "./league-mode";
 import { PICK_TYPE } from "./pick-type";
@@ -212,6 +214,47 @@ describe("pickemSettingsInvalidatePicks", () => {
     },
   ])("does not invalidate when $label", ({ next, previous = base }) => {
     expect(pickemSettingsInvalidatePicks(previous, next)).toBe(false);
+  });
+});
+
+describe("survivorSettingsInvalidatePicks", () => {
+  const base: SurvivorSettings = {
+    startWeek: regular(1),
+    endWeek: regular(18),
+    pickType: "straight_up",
+    pushTieResolution: "advance",
+  };
+
+  it.each([
+    {
+      label: "pickType switches straight_up → against_the_spread",
+      next: { ...base, pickType: "against_the_spread" as const },
+    },
+    {
+      label: "pickType switches against_the_spread → straight_up",
+      previous: { ...base, pickType: "against_the_spread" as const },
+      next: base,
+    },
+    { label: "startWeek moves later in season order", next: { ...base, startWeek: regular(2) } },
+  ])("invalidates when $label", ({ next, previous = base }) => {
+    expect(survivorSettingsInvalidatePicks(previous, next)).toBe(true);
+  });
+
+  it.each([
+    { label: "nothing changes", next: base },
+    // Settlement reads this at grading time, so no stored pick becomes
+    // ungradeable — this is the case the whole predicate exists to spare.
+    {
+      label: "pushTieResolution changes",
+      next: { ...base, pushTieResolution: "eliminate" as const },
+    },
+    {
+      label: "startWeek moves earlier (widens the range)",
+      previous: { ...base, startWeek: regular(2) },
+      next: base,
+    },
+  ])("does not invalidate when $label", ({ next, previous = base }) => {
+    expect(survivorSettingsInvalidatePicks(previous, next)).toBe(false);
   });
 });
 

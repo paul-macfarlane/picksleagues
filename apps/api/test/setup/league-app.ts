@@ -105,6 +105,12 @@ export function makeLeagueTestHarness() {
     });
   }
 
+  function getSurvivorPickSummary(cookie: string | undefined, leagueId: string, on: App = app) {
+    return on.request(`/api/leagues/${leagueId}/survivor/pick-summary`, {
+      headers: withCookie(cookie),
+    });
+  }
+
   return {
     db,
     auth,
@@ -118,6 +124,7 @@ export function makeLeagueTestHarness() {
     putSurvivorPick,
     getStandings,
     getPickSummary,
+    getSurvivorPickSummary,
   };
 }
 

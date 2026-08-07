@@ -270,6 +270,40 @@ export const SurvivorSettingsInputSchema = z
 
 export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
 
+/**
+ * Whether a Survivor settings edit invalidates already-submitted picks — this
+ * mode's analog of `pickemSettingsInvalidatePicks` above, and the same rule
+ * ADR-0015 decision 3 states for Pick'em. Shared by the API's pre-start
+ * settings write (`resetPicksInvalidatedBySettings`, which clears invalidated
+ * picks) and the web settings editor (which warns before that happens), so the
+ * two surfaces can never disagree about what a save destroys.
+ *
+ * Each clause names the exact way it could strand a pick made legally under the
+ * old settings:
+ * - switching Pick Type to ATS leaves picks with no spread, which settlement
+ *   cannot grade at all;
+ * - advancing the start week orphans a pick in a week the league no longer
+ *   plays. Survivor's range is re-resolved server-side on every pre-start
+ *   settings write (ADR-0024), so a save can move the start forward without the
+ *   commissioner ever naming a week.
+ *
+ * Two Pick'em clauses have no counterpart here, and their absence is decided
+ * rather than overlooked. Push/Tie Resolution is read by settlement at grading
+ * time, so no stored pick becomes ungradeable when it changes. And the end week
+ * is fixed at regular week 18 (ADR-0024) with no path that lowers it, so a
+ * narrowing-end clause would be inert — a clause that can never be true reads
+ * as protection the code does not actually provide.
+ */
+export function survivorSettingsInvalidatePicks(
+  previous: SurvivorSettings,
+  next: SurvivorSettings,
+): boolean {
+  return (
+    previous.pickType !== next.pickType ||
+    nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek)
+  );
+}
+
 export const MARCH_MADNESS_SCORING_MODEL = {
   STANDARD_DOUBLING: "standard_doubling",
   CUSTOM: "custom",

@@ -1,14 +1,16 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, count, countDistinct, eq, ne } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, survivorPicks, survivorState } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   PICK_TYPE,
   WEEK_TYPE,
   nflSeasonOrdinal,
+  type LeaguePickSummary,
   type LeagueStatus,
   type SubmitSurvivorPickRequest,
   type SurvivorMemberPick,
@@ -16,7 +18,7 @@ import {
   type SurvivorWeekPicksResponse,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
-import { getMembership } from "../leagues/authz";
+import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
@@ -58,6 +60,10 @@ export const SURVIVOR_REFUSAL = {
   PICK_LOCKED: "pick_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
+  // Only the settings-editor read (commissioner-gated, see below) can produce
+  // this — every other refusal in this file comes from the member-only
+  // `loadContext` gate, which has no role axis.
+  NOT_COMMISSIONER: "not_commissioner",
 } as const;
 
 export type SurvivorRefusal = (typeof SURVIVOR_REFUSAL)[keyof typeof SURVIVOR_REFUSAL];
@@ -73,8 +79,29 @@ export type SurvivorReadRefusal = Extract<
   "league_not_found" | "wrong_league_mode" | "week_out_of_range"
 >;
 
+/**
+ * The refusal set for the read only the settings editor consumes (the pick
+ * summary). It has a role axis the member-only `loadContext` gate doesn't — the
+ * editor is commissioner-only — so the set names `not_commissioner` alongside
+ * the two `loadContext` produces, and never `week_out_of_range`, since the read
+ * is not scoped to a week. Mirrors `PickemSettingsEditorRefusal`.
+ */
+export type SurvivorSettingsEditorRefusal = Extract<
+  SurvivorRefusal,
+  "league_not_found" | "wrong_league_mode" | "not_commissioner"
+>;
+
 export type SurvivorResult<T, R extends SurvivorRefusal = SurvivorRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
+
+/**
+ * The role axis (`not_commissioner`) belongs to the settings-editor read alone
+ * — the write path authorizes through `loadContext`'s membership-only gate and
+ * can never produce it. Naming the exclusion explicitly (rather than leaving
+ * the write on the full `SurvivorRefusal` default) keeps the write route's
+ * declared OpenAPI response statuses accurate. Mirrors `PickemWriteRefusal`.
+ */
+export type SurvivorWriteRefusal = Exclude<SurvivorRefusal, "not_commissioner">;
 
 interface SurvivorContext {
   leagueSeasonId: string;
@@ -159,7 +186,7 @@ function checkSpreadAccepted(
   settings: SurvivorSettings,
   game: ResolvedSlateGame,
   submitted: number | null,
-): SurvivorRefusal | null {
+): SurvivorWriteRefusal | null {
   if (settings.pickType !== PICK_TYPE.AGAINST_THE_SPREAD) return null;
   if (game.spread === null) return SURVIVOR_REFUSAL.SPREAD_UNAVAILABLE;
   if (submitted !== game.spread) return SURVIVOR_REFUSAL.SPREAD_STALE;
@@ -266,6 +293,48 @@ export async function getSurvivorWeekPicks(
 }
 
 /**
+ * How many picks — and how many distinct members holding at least one — sit on
+ * the league's current season instance. This is the settings editor's pre-save
+ * warning input (spec §Commissioner Powers), so its scope must match
+ * `resetPicksInvalidatedBySettings` exactly (same `leagueSeasonId`, same "every
+ * pick on the instance" predicate, `released` rows included since the reset
+ * deletes those too): a count that disagreed with what a save would actually
+ * delete would just be a more convincing lie.
+ *
+ * Gated on `LEAGUE_ACTION.EDIT_SETTINGS`, not plain membership — an ordinary
+ * member has no use for this number and showing it would leak how many picks
+ * other members have submitted before their games kick off (spec §Pick
+ * Visibility).
+ */
+export async function getSurvivorPickSummary(
+  db: Db,
+  leagueId: string,
+  userId: string,
+): Promise<SurvivorResult<LeaguePickSummary, SurvivorSettingsEditorRefusal>> {
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
+  if (!gate.ok) return gate;
+
+  const current = await getLeagueWithCurrentSeason(db, leagueId);
+  if (!current) return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_NOT_FOUND };
+  if (current.league.mode !== LEAGUE_MODE.SURVIVOR) {
+    return { ok: false, reason: SURVIVOR_REFUSAL.WRONG_LEAGUE_MODE };
+  }
+
+  const [row] = await db
+    .select({
+      pickCount: count(),
+      memberCount: countDistinct(survivorPicks.leagueMemberId),
+    })
+    .from(survivorPicks)
+    .where(eq(survivorPicks.leagueSeasonId, current.season.id));
+
+  return {
+    ok: true,
+    value: { pickCount: row?.pickCount ?? 0, memberCount: row?.memberCount ?? 0 },
+  };
+}
+
+/**
  * The member's pick for one week — created or replaced (spec §Game Mode 2: a
  * pick "can be made or changed until the picked game's kickoff"). Returns the
  * week as the read endpoint would serve it.
@@ -277,7 +346,7 @@ export async function submitSurvivorPick(
   weekId: string,
   userId: string,
   submission: SubmitSurvivorPickRequest,
-): Promise<SurvivorResult<SurvivorWeekPicksResponse>> {
+): Promise<SurvivorResult<SurvivorWeekPicksResponse, SurvivorWriteRefusal>> {
   const preflight = await loadContext(db, leagueId, userId);
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, seasonId, membershipId, settings, status } = preflight.value;
@@ -290,7 +359,7 @@ export async function submitSurvivorPick(
     return { ok: false, reason: SURVIVOR_REFUSAL.WEEK_OUT_OF_RANGE };
   }
 
-  const refusal = await db.transaction(async (tx): Promise<SurvivorRefusal | null> => {
+  const refusal = await db.transaction(async (tx): Promise<SurvivorWriteRefusal | null> => {
     // Serializes this member's own concurrent writes, so the team-consumption
     // check below can't be passed twice against the same pre-write state.
     await lockLeagueMemberRow(tx, membershipId);

@@ -32,7 +32,8 @@ const REFUSAL_STATUS = {
   pick_locked: 409,
   spread_stale: 409,
   spread_unavailable: 409,
-} as const satisfies Record<SurvivorRefusal, 400 | 404 | 409>;
+  not_commissioner: 403,
+} as const satisfies Record<SurvivorRefusal, 400 | 403 | 404 | 409>;
 
 const REFUSAL_BODY = {
   league_not_found: { error: ERROR_CODE.LEAGUE_NOT_FOUND, message: "League not found." },
@@ -79,6 +80,10 @@ const REFUSAL_BODY = {
   spread_unavailable: {
     error: ERROR_CODE.SPREAD_UNAVAILABLE,
     message: "That game has no spread yet — it can't be picked until the line is posted.",
+  },
+  not_commissioner: {
+    error: ERROR_CODE.NOT_COMMISSIONER,
+    message: "Only a commissioner can view this.",
   },
 } as const satisfies Record<SurvivorRefusal, ErrorResponse>;
 

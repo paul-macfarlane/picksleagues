@@ -39,6 +39,37 @@ export function useSurvivorWeekPicks(leagueId: string, weekId: string | undefine
   });
 }
 
+/**
+ * The settings editor's pre-save warning input: how much a Survivor-invalidating
+ * settings edit would destroy. Its own query key (not folded into the league
+ * query) since it's fetched conditionally and on a different cadence — every
+ * keystroke in the settings form re-derives whether the change would
+ * invalidate, but the count itself only needs to be fetched once per visit.
+ */
+export function survivorPickSummaryQueryKey(leagueId: string) {
+  return ["league", leagueId, "survivor", "pick-summary"];
+}
+
+export function useSurvivorPickSummary(leagueId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: survivorPickSummaryQueryKey(leagueId),
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/leagues/{leagueId}/survivor/pick-summary", {
+        params: { path: { leagueId } },
+      });
+      if (error) throw error;
+      return data;
+    },
+    // Only a commissioner editing settings needs this — an ordinary member
+    // viewing (read-only) settings must never fire it (403 otherwise, and no
+    // reason to leak another member's pick activity). A failure here is the one
+    // query failure that toasts, and the toast lives at the call site
+    // (settings-section.tsx) because only there is it known whether the count
+    // was about to gate a destructive save.
+    enabled,
+  });
+}
+
 // Wire-slug → toast copy for the pick write's expected refusals. Each message
 // names what the member can do about it; anything not listed falls back to the
 // server's own message, which is already user-facing phrasing.
