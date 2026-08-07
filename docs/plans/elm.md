@@ -1,6 +1,6 @@
 # [EXECUTION PLAN] — ELM epic
 
-_Work package: the **ELM** epic (`backlog/06-elimination.md`, 6 tickets —
+_Work package: the **ELM** epic (`backlog/06-survivor.md`, 6 tickets —
 ELM-6 appended 2026-08-07 with owner approval, decision 6). The ticket list
 in that file, plus its three owner-decision headers (playoffs:
 regular-season only, recorded in ADR-0007; season range: preset resolution
@@ -18,7 +18,7 @@ locking, pick-visibility filtering, settlement/recompute, and database
 migrations. The review record is at the end of this file. Run surface: **local
 only**. Verification commands and evidence policy: `docs/agents/testing.md`;
 evidence root `docs/evidence/test-results/`, one directory per PR
-(`elm-1/` … `elm-5/`), never cleared. No plan-phase candidate evidence exists —
+(`elm-1/` … `elm-6/`), never cleared. No plan-phase candidate evidence exists —
 no verification command was run while planning._
 
 ### Intent
@@ -671,3 +671,160 @@ reports the index name on 23505); the visibility design (consumed teams from
 revealed picks only, has-picked existence only, eliminated-member parity);
 mode-prefixed naming; evidence policy conformance; the ELM-2 ∥ ELM-3
 parallelization; and contract fidelity of decisions 2, 3, 5, 6._
+
+---
+
+## [PROGRESS] — ELM-1 (2026-08-07)
+
+Work package `elm-1`, the first of the epic's six PR-sized slices. Branch
+`feat/elm-1-survivor-rename-and-settings` off `staging` at `0ae12e4`; direct
+checkout, sequential execution, no worktrees.
+
+| Deliverable | Worker | Commit | Outcome |
+|---|---|---|---|
+| D1 — ADR-0023 + ADR-0024, spec/arch/backlog/policy sweep (docs only) | atlas-worker (session model) | `0002a20` | accepted |
+| D2 — code rename + `leagues.mode` data migration + `openapi/` regen | atlas-worker (Sonnet) | `162a251` | accepted |
+| D3 — Survivor settings wire shape, resolution, form rework | atlas-worker (session model) | `71b3795` | accepted |
+
+**Isolation.** Direct checkout, not worktrees. D1 (docs) and D2 (code) are
+genuinely diff-disjoint — confirmed at closeout against the real diffs, which
+share no file — so the rejection was never about file conflicts. It was that D2
+must run `pnpm test:integration` and `pnpm contract:check`, which need the `.env`
+a fresh worktree lacks; two worktrees plus a merge to save one docs-sized slice
+of wall-clock is not worth that fragility. D3 depends on D2's renamed symbols and
+was ordered regardless.
+
+**Orchestrator fix at the D1 acceptance screen.** `docs/mvp-spec.md` §End of
+League still read "The league concludes after End Week resolves" — naming a
+setting the same commit deleted. Reworded in place to "once the last week of its
+resolved range has settled" rather than returned to the worker: a localized
+wording correction that changes no design.
+
+## [AI CODE REVIEW] — ELM-1
+
+Single formal review, performed by the frontier orchestrator against the complete
+integrated diff `0ae12e4..71b3795`. Static review only; verdicts on behaviour are
+in the verification record below.
+
+### Axis 1 — technical implementation and spec conformity
+
+Conforms to the fixed contract: the epic's ELM-1 line, its three owner-decision
+headers, and plan decisions 1, 7 and 10 as ruled at plan review.
+
+- **The one design change worth the reviewer's attention is correct and was not
+  in the ticket text.** `resolveLeagueSettings` decided whether to resolve by
+  duck-typing (`"seasonRangePreset" in parsed.data`). A Survivor input carries
+  neither week refs nor a preset, so that test would have passed it straight
+  through and stored settings with **no range at all** — surfacing as a 500 from
+  the stored schema, one layer too late to say anything useful. Replaced with an
+  exhaustive `switch` on `mode`, which also makes a fourth mode a compile error
+  here rather than a mode whose range nobody resolves.
+- **The clock-resolution core was extracted mode-neutral** (`resolveNflSeasonRange`,
+  taking a nominal range rather than a Pick'em preset) and both NFL modes now
+  route through it, so neither can drift on which week counts as already under
+  way. `PICKEM_SEASON_RANGE_PRESET` / `PICKEM_NOMINAL_RANGE` correctly stayed
+  Pick'em-named — the three-option preset set genuinely is Pick'em's — and the
+  regular-season week literals got a single home (`NFL_REGULAR_SEASON_RANGE`)
+  that `PICKEM_NOMINAL_RANGE` now reads from instead of restating.
+- **Every AC has a real test at the cheapest layer that can hold it.** Wire-shape
+  refusal is a unit test; all six range-resolution behaviours are integration
+  tests against real Postgres; the visual claim was driven in a browser. No
+  criterion is carried by a worker's self-report.
+- **Every caller of both dispatch maps was checked** — three branches in
+  `season-range.ts`, one client-side pre-save gate in `settings-section.tsx`, and
+  the schema tests. No caller was left assembling the old shape.
+- **Non-blocking, flagged for the owner:** `SurvivorSettingsInputSchema` is a
+  `z.strictObject` where `PickemSettingsInputSchema` merely strips unknown keys.
+  This is deliberate and reasoned in the schema's own doc comment (a Pick'em
+  request survives stripping with its preset intact; a Survivor request naming
+  week refs would have nothing left of its intent), and the plan's verification
+  map specified rejection. The accepted consequence is that a **stale SPA build**
+  posting the pre-ADR-0024 shape gets a 400 rather than a silently-resolved
+  league. Correct for a single-deploy app; worth knowing.
+- No scope leak: no pick surface, no settlement, no Pick'em behaviour change. The
+  Pick'em journey and its integration suites stay green through the shared
+  extraction, which was the regression that mattered.
+
+### Axis 2 — coding standards
+
+Conforms to `.claude/rules/engineering.md` and the ADRs it references.
+
+- **Mode-specific naming** — the rule's own test ("name the second mode that will
+  use it unchanged") is what licensed the one generic name introduced here, and it
+  was applied in exactly that direction rather than by convenience.
+- **Comments state a why and cite durable identifiers.** Verified mechanically:
+  no plan-internal numbering (`decision 3`, `step 2`) leaked into any code
+  comment — the rule those parentheticals exist to prevent.
+- **Contract discipline** — the new component is registered under its own name;
+  no `.nullable()`/`.optional()` wrapper on a registered schema; `openapi/`
+  regenerated and committed in the same change, and `contract:check` verified
+  green *after* the commit (it necessarily reports stale before one).
+- **Value sets, theme tokens, accessibility, mobile-first** — the new read-only
+  range block uses semantic headings and theme tokens only, and stacks rather than
+  using a two-column grid, so it holds at 390px.
+- **Tests assert outcomes, not process**, bind to roles rather than copy, and the
+  new Survivor fixture went into the shared helper instead of being copy-pasted
+  into the renewal suite.
+- **Deliberate non-renames, recorded rather than assumed:** ADRs 0006–0022 keep
+  the former mode name because a merged ADR is immutable, and member-state
+  vocabulary (alive / eliminated / revived, the `all-eliminated` scenario slug)
+  keeps its names because those are the correct domain words for a survivor pool.
+  ADR-0023 states both so the survivors don't read as an incomplete sweep.
+
+**Unresolved blocking findings: none.**
+
+## [CLOSEOUT] — ELM-1
+
+**Run surface:** local only. **Evidence:** `docs/evidence/test-results/elm-1/`
+(text committed); screenshots attached to the PR per `docs/agents/testing.md`.
+
+| Criterion (source) | Verdict | Evidence |
+|---|---|---|
+| Rename complete; stored league rows rewritten | PASS | `migration-0022/`, `static-gates/` |
+| Input schema rejects a range; stored schema still parses refs | PASS | `suites/` (unit) |
+| Mid-week resolution → next future-kickoff week; end = reg 18 | PASS | `suites/` (integration) |
+| No-games fallback → reg week 1 | PASS | `suites/` (integration) |
+| League never born already-started (join still allowed pre-start) | PASS | `suites/` (integration) |
+| Range exhausted → 409 `start_week_passed` | PASS | `suites/` (integration) |
+| Renewal copies verbatim; post-renewal pre-start save re-resolves | PASS | `suites/` (integration) |
+| Form ships one fewer setting, resolved range shown read-only | PASS | `form-shape/` + PR images |
+| Contract in sync | PASS | `static-gates/` |
+| Spec/ADR reconciled | PENDING — human gate | PR diff |
+
+**Verified run commands:** `pnpm typecheck && pnpm lint && pnpm format:check &&
+pnpm contract:check && pnpm test && pnpm --filter @picksleagues/web build`, then
+`pnpm db:up && pnpm test:integration`, then `pnpm test:e2e` (13 passed). No
+deployed target exists for this repository by policy.
+
+**Human gate — open.** The owner confirms ADR-0023 and ADR-0024 record their
+decisions faithfully, and reviews the locked-doc amendments. ELM-2 through ELM-6
+should not start until this closes: all five adopt `survivor*` names on the
+strength of ADR-0023.
+
+### Deviations and judgement calls for the owner
+
+1. **Scope.** `/atlas-implement ELM` named the epic; this run delivered **ELM-1
+   only**. Three signals agreed: repo precedent slices large epics into PR-sized
+   work packages (`simp-pr1/2/3`), the approved plan prescribes six PRs, and the
+   ADR human gate above blocks the rest. ELM-2..6 remain `[ ]`.
+2. **Ticket text was rewritten without a prior preview.** `docs/agents/issue-tracker.md`
+   requires previewing any change to a ticket's text; D1 reworded the ELM ticket
+   lines and renamed the epic file as part of the approved sweep. The substance
+   was pre-approved (the owner's mode-name decision names the epic file, title and
+   ticket wording explicitly), but the exact write was not shown first. Recorded
+   as a deviation rather than glossed.
+3. **`SurvivorSettingsInputSchema` is strict where Pick'em's strips** — see the
+   review's Axis 1 flag. Reverting to strip is a two-character change plus one
+   test rewrite if the owner prefers symmetry.
+4. **Two owner-decision header blocks were edited** in the epic file, beyond a
+   word swap: the playoffs block said "ELM-1's settings keep Start/End Week within
+   regular-season weeks 1–18", which would have contradicted the block directly
+   beneath it once the range left the form, and both blocks gained their ADR
+   numbers. The decisions themselves are untouched.
+5. **The spec's Decisions Log gained two rows** (mode name, Survivor season
+   range) that nothing explicitly asked for, added so the locked spec's own
+   decision table stays complete. Trivially droppable.
+6. **`CLAUDE.md`'s mode list inside the Atlas-managed `guidance` section was
+   edited.** A setup rerun preserves managed-section content rather than
+   regenerating it, so the rename should survive — but it is a managed region and
+   the owner should know it was touched.
