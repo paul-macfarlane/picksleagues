@@ -1,4 +1,4 @@
-import { PICKEM_PICK_SIDE, type SlateGame, type SlateTeam } from "@picksleagues/schemas";
+import { GAME_SIDE, type SlateGame, type SlateTeam } from "@picksleagues/schemas";
 import { gameStateLabel, isClosedToPicks, spreadLabel } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
@@ -163,14 +163,9 @@ export function SurvivorGameRow({
       <div className="grid grid-cols-2 gap-2">
         <TeamButton
           team={game.awayTeam}
-          // Home-relative spreads read flipped for the away side, and
-          // `spreadLabel` is the repo's one home for that rule — the constant
-          // names which side of *this game* the team is on, not a Pick'em pick.
           // Dropped entirely on a consumed team: the line is a number they can
           // no longer take, and at 390px the "used" marker needs the room more.
-          spread={
-            showSpread && !awayConsumed ? spreadLabel(game.spread, PICKEM_PICK_SIDE.AWAY) : null
-          }
+          spread={showSpread && !awayConsumed ? spreadLabel(game.spread, GAME_SIDE.AWAY) : null}
           held={heldTeamId === game.awayTeam.id}
           consumed={awayConsumed}
           reason={reasonFor(game.awayTeam)}
@@ -178,9 +173,7 @@ export function SurvivorGameRow({
         />
         <TeamButton
           team={game.homeTeam}
-          spread={
-            showSpread && !homeConsumed ? spreadLabel(game.spread, PICKEM_PICK_SIDE.HOME) : null
-          }
+          spread={showSpread && !homeConsumed ? spreadLabel(game.spread, GAME_SIDE.HOME) : null}
           held={heldTeamId === game.homeTeam.id}
           consumed={homeConsumed}
           reason={reasonFor(game.homeTeam)}

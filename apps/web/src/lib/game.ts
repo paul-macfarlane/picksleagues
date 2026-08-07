@@ -1,8 +1,9 @@
 import {
+  GAME_SIDE,
   GAME_STATUS,
   PICK_TYPE,
-  PICKEM_PICK_SIDE,
   WEEK_TYPE,
+  type GameSide,
   type GameStatus,
   type PickemPickSide,
   type PickOutcome,
@@ -248,9 +249,9 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
  * Shared by the pick entry grid and the week/pick detail view so the two
  * surfaces never drift on how a spread reads.
  */
-export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
+export function spreadLabel(spread: number | null, side: GameSide): string | null {
   if (spread === null) return null;
-  const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;
+  const value = side === GAME_SIDE.HOME ? spread : -spread;
   return value > 0 ? `+${value}` : `${value}`;
 }
 
