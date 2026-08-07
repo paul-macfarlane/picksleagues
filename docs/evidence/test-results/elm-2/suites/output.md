@@ -1,6 +1,6 @@
 # ELM-2 — unit and integration suites
 
-Run against the integrated branch tip `29fbe00`. Integration runs in-process
+Run against the integrated branch tip `9dc144f`. Integration runs in-process
 Hono against **real Postgres** (`picksleagues_test`, auto-created and migrated by
 the suite's global setup on port 5433) — there are no mocked repositories
 anywhere in this work package.
@@ -11,7 +11,7 @@ anywhere in this work package.
 $ vitest run --project unit
  RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
  Test Files  28 passed (28)
-      Tests  481 passed (481)
+      Tests  480 passed (480)
 ```
 
 ## `pnpm test:integration`
@@ -20,7 +20,7 @@ $ vitest run --project unit
 $ vitest run --project integration
  RUN  v4.1.10 /Users/paulmacfarlane/code/picksleagues
  Test Files  32 passed (32)
-      Tests  592 passed (592)
+      Tests  582 passed (582)
    Duration  31.33s
 ```
 
@@ -40,16 +40,27 @@ From `apps/api/test/survivor-picks.test.ts`,
 | A released team is re-pickable (spec §Game Mode 2 — cancelled game) | `lets a released team be picked again — a cancellation hands it back` |
 | Eliminated member refused; lag-window pick accepted | three-case `it.each` over the settled ledger: no row → 200, row without an elimination week → 200, row naming one → 409 |
 | Visibility filtered in the query layer (spec §Pick Visibility) | `hides another member's pick until its game kicks off, while showing that they picked`; `always shows the caller their own pick` |
-| ATS spread acceptance | `409s a spread that has moved under the submission`; `stores the accepted spread when it is still current`; `409s a game with no line posted yet`; `accepts a straight-up pick with no spread at all` |
 | `consumedTeamIds` is viewer-scoped and excludes the requested week | `lists the caller's consumed teams, excluding the week they are still free to change`; `does not leak another member's consumed teams` |
 | `listLeagueWeeks` serves Survivor | `serves a Survivor league too — both NFL modes carry a start/end week range` |
-| A settings change that would strand picks clears them | `clears every pick on the instance when Pick Type changes, and commits the settings write with it` |
-| …and is refused once any pick has locked, **without** applying the settings | `409 picks_locked`, pick still present, stored `pickType` unchanged — the last assertion is what proves the reset and the settings write share one transaction |
-| A change that strands nothing clears nothing | `pushTieResolution`-only change → 200, both picks survive |
-| Pick summary counts what a save would delete, and is commissioner-gated | counts over a fixture including a `released: true` row and a non-picking member; 403 `not_commissioner` for an ordinary member |
+| A settings change that would strand picks clears them | `clears every pick on the instance when re-resolution advances the start week, and commits the settings write with it` |
+| …and is refused once any pick has locked, **without** applying the settings | `409s picks_locked — and leaves both the pick and the settings untouched — when a locked pick would be stranded`; the settings half of that assertion is what proves the reset and the write share one transaction |
+| A change that strands nothing clears nothing | `clears nothing when only Push/Tie Resolution changes — settlement reads it at grading time` |
 | Sim reset reports the Survivor rows it destroys | `counts the Survivor tables it deletes, rather than letting them vanish by cascade` (`sim-reset.test.ts`) — added after runtime verification found the omission; asserts the **counts**, since the rows would cascade either way and the count is what the sim panel reports |
 
+**ATS coverage was deleted, not moved.** ADR-0026 made Survivor straight-up
+only, so the spread-acceptance block, the Survivor `pickType` schema cases, and
+the pick-summary endpoint's tests all describe behaviour that no longer exists.
+Deleting a rule deletes its tests; the suite counts fall accordingly (unit
+481→480, integration 592→582) and that drop is the expected shape of this
+change, not a coverage regression.
+
+The settings-reset suite was **rewritten rather than dropped**, because the rule
+survives even though its old trigger did not. It now drives the surviving one: a
+save whose server-side re-resolution advances the start week past a week already
+under way, stranding a pick in it — ADR-0015's "a league re-enters pre-start
+mid-season" state, arranged with a start week that holds no games.
+
 Pick'em's own suites — including its `picks_locked` and pick-summary blocks —
-were **not modified** and pass unchanged inside the 592-test run. That is the
-regression proof for the shared settings-reset refactor and the
-`PickemPickSummary` → `LeaguePickSummary` component rename.
+were **not modified** and pass unchanged inside the 582-test run. That is the
+regression proof for the shared settings-reset refactor and for reverting the
+`PickemPickSummary` component back out of its brief mode-agnostic name.

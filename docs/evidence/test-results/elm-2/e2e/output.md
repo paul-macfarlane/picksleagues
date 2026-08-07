@@ -5,7 +5,7 @@ simulated clock — no network mocks anywhere. The suite brings up its own stack
 on its own database (`picksleagues_e2e`) and its own ports (5273/3100), so it
 never touches the dev database.
 
-Run against the integrated branch tip `29fbe00`.
+Run against the integrated branch tip `9dc144f`.
 
 ```
 $ playwright test

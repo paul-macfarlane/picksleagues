@@ -1,9 +1,10 @@
 # ELM-2 — static gates
 
 Run by the orchestrator against the fully integrated branch tip
-`29fbe00` (`feat/elm-2-survivor-picks-state-and-entry`), after every deliverable
-and all three orchestrator commits had landed — including the fixes runtime
-verification turned up. Commands from `docs/agents/testing.md`.
+`9dc144f` (`feat/elm-2-survivor-picks-state-and-entry`), after every deliverable
+and every orchestrator commit had landed — including the fixes runtime
+verification turned up and the ADR-0026 removal of ATS from Survivor. Commands
+from `docs/agents/testing.md`.
 
 ## `pnpm typecheck`
 

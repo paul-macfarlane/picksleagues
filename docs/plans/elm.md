@@ -1083,12 +1083,14 @@ than by weakening the guard.
    precedent. **ELM-3 is available right now** — its only dependency (FND-7) is
    done — and is the natural next run: pure `packages/scoring`, no database, and
    ELM-4 needs both it and this.
-2. **Two shared surfaces were extracted rather than duplicated**, both passing
-   the mode-naming rule's own test. `GAME_SIDE` (orchestrator, `09133a8`), so
-   Survivor stops importing `PICKEM_PICK_SIDE` to mean "the away team", and
-   `LeaguePickSummary` (D4) replacing `PickemPickSummary`. Both are recorded in
-   `.claude/rules/engineering.md`'s "Shared today" list — a **rules-doc edit
-   made without a prior preview**, flagged rather than glossed.
+2. ~~**Two shared surfaces were extracted rather than duplicated.**~~
+   **Both reverted, 2026-08-07**, when cutting ATS removed the second consumer
+   that earned them their unqualified names. `GAME_SIDE` is deleted and
+   `spreadLabel` takes a `PickemPickSide` again; `LeaguePickSummary` is
+   `PickemPickSummary` back in `pickem.ts`. `.claude/rules/engineering.md`'s
+   "Shared today" list is byte-identical to what it was before this work
+   package. The mode-naming rule's test cuts both ways, and this is the
+   direction it is easier to skip.
 3. **`settings-reset.ts` moved** from `services/pickem/` to `services/leagues/`
    (orchestrator, `a2c817d`) once D4 gave it a real per-mode dispatch.
 4. ~~**`docs/agents/testing.md` describes a toast `testId` mechanism that does
@@ -1117,4 +1119,55 @@ than by weakening the guard.
    run had no path to upload an image to a PR. The visual criterion therefore
    rests on the role- and testid-level observations committed in
    `sim-transcript/`, not on an uncommitted local file — which the evidence
-   policy forbids citing as proof.
+   policy forbids citing as proof. **Note:** those captures predate ADR-0026, so
+   they still show the ATS spread beside each team. The role-level observations
+   they accompany are unaffected — none of them concerned the spread.
+
+## [SCOPE CHANGE] — ATS removed from Survivor (2026-08-07, owner)
+
+Landed on this same branch after the PR was open, because the alternative was
+merging a spread surface the owner had already decided to delete.
+
+**The decision.** Survivor is straight-up only; the Pick Type setting is gone.
+A Survivor pick is changeable until kickoff and an ATS pick grades against the
+spread captured at pick time, which together make a one-way ratchet: re-take the
+same team when the line improves, keep your old number when it worsens. The
+member never loses by re-checking, so the optimal play is to keep refreshing —
+a pure attention edge, and in Survivor it decides a single life rather than one
+of a dozen weekly picks. No UI fixes it: the sheet currently hides the member's
+own locked number, which is dishonest, and showing it would make the ratchet the
+advertised interaction. **ADR-0026** records this along with the two rejected
+alternatives — closing-line grading (rejected on cost; ADR-0018 left no line
+history to grade from, and it is the option to revisit first if ATS Survivor is
+ever wanted) and setting-dependent immutability.
+
+**Two owner rulings taken at the same time.** Push/Tie Resolution **survives**,
+narrowed to a straight-up tie — kept because it is already built and because on
+the rare week it fires it ends someone's season. The Survivor **pick-summary
+machinery was removed**: with no Pick Type, nothing a commissioner can change in
+the form invalidates Survivor picks, so the editor's "this will discard picks"
+warning could never fire. The *server-side* reset stays and stays tested, since
+a re-resolved start week can still strand a pick.
+
+**Delivered as two parallel deliverables** — ADR-0026 plus the spec/architecture
+reconciliation in a worktree (`9dc144f`), and the full code removal on the
+branch (`129afb2`) — with the orchestrator adding the ADR index row, a spec
+§Explicitly Out of Scope entry, and three stale claims the docs worker flagged
+as outside its packet (a §Data Freshness line asserting a spread of record for
+every pick, and two architecture lines calling the tie setting a push).
+
+**What it cost the test suites, and why that is correct.** Unit 481→480,
+integration 592→582. A deleted rule loses its tests; the ATS acceptance block,
+the Survivor `pickType` cases, and the pick-summary tests all describe behaviour
+that no longer exists. The settings-reset suite was **rewritten rather than
+dropped**, because its rule survived even though its trigger did not — it now
+drives the start-week re-resolution path, which also repaired a case that would
+otherwise have gone green by vacuity.
+
+**The one thing the suites cannot prove** is migration `0024`'s hand-written
+`UPDATE` stripping `pickType` from stored settings: the test database has no
+rows predating the change, so it runs against zero rows there. It was exercised
+directly against ELM-1-shaped rows inside a rolled-back transaction —
+`migration-0024/output.md` — which pins that the strip is scoped to Survivor
+(Pick'em keeps its Pick Type), and that it removes one key rather than replacing
+the blob.
