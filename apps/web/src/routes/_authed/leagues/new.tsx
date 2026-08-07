@@ -20,6 +20,7 @@ import {
   type PickemSeasonRangePreset,
 } from "@picksleagues/schemas";
 import { useCreateLeague } from "@/api/leagues";
+import { usePickemSeasonRangePresets } from "@/api/pickem";
 import { leagueModeLabel } from "@/lib/league";
 import {
   DEFAULT_ELIMINATION_END_WEEK,
@@ -27,6 +28,7 @@ import {
   DEFAULT_PICKEM_SEASON_RANGE,
   EliminationSettingsFields,
   MarchMadnessSettingsFields,
+  PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
@@ -77,6 +79,31 @@ function NewLeague() {
 
   const createLeague = useCreateLeague();
 
+  // The create form's answer: which presets the latest ingested NFL season
+  // can still start (LG-9, ADR-0020). Pending or failed both fall back to the
+  // unfiltered list — the server's `start_week_passed` refusal on submit
+  // remains the real enforcement, so a slow or down side query must not block
+  // creation, only the informed-choice hint this adds on top of it.
+  const seasonRangePresets = usePickemSeasonRangePresets();
+  const pickemSeasonRangeOptions = seasonRangePresets.data
+    ? PICKEM_SEASON_RANGE_OPTIONS.filter((option) =>
+        seasonRangePresets.data.startablePresets.includes(option.value),
+      )
+    : PICKEM_SEASON_RANGE_OPTIONS;
+  // Derived from state + the offered options on every render, never written
+  // back into state via an effect: the submit payload below reads this same
+  // expression, so the two can never disagree about which preset is "current"
+  // (an effect syncing `pickemSeasonRange` could render one frame where the
+  // select and the payload would have differed).
+  const effectivePickemSeasonRange: PickemSeasonRangePreset =
+    pickemSeasonRangeOptions.find((option) => option.value === pickemSeasonRange)?.value ??
+    pickemSeasonRangeOptions[0]?.value ??
+    pickemSeasonRange;
+  // Only reachable once the query has actually answered "none" — pending and
+  // failed both keep the full three-option list above.
+  const pickemHasNoStartablePreset =
+    mode === LEAGUE_MODE.PICKEM && pickemSeasonRangeOptions.length === 0;
+
   const form = useForm({
     defaultValues: { name: "" },
     onSubmit: async ({ value }) => {
@@ -90,7 +117,7 @@ function NewLeague() {
         // it against the bound season and the clock, so naming week refs here
         // would be dropped by the request schema rather than honoured.
         settings = {
-          seasonRangePreset: pickemSeasonRange,
+          seasonRangePreset: effectivePickemSeasonRange,
           pickType: pickemPickType,
           picksPerWeek: pickemPicksPerWeek,
         };
@@ -192,16 +219,27 @@ function NewLeague() {
               onValueChange={setMaxMembers}
             />
 
-            {mode === LEAGUE_MODE.PICKEM && (
-              <PickemSettingsFields
-                seasonRange={pickemSeasonRange}
-                onSeasonRangeChange={setPickemSeasonRange}
-                pickType={pickemPickType}
-                onPickTypeChange={setPickemPickType}
-                picksPerWeek={pickemPicksPerWeek}
-                onPicksPerWeekChange={setPickemPicksPerWeek}
-              />
-            )}
+            {mode === LEAGUE_MODE.PICKEM &&
+              (pickemHasNoStartablePreset ? (
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">Pick&apos;em settings</h2>
+                  <p className="text-sm text-muted-foreground">
+                    None of Pick&apos;em&apos;s season ranges can still be started for the current
+                    NFL season. Check back once next season&apos;s schedule is posted, or choose a
+                    different mode.
+                  </p>
+                </div>
+              ) : (
+                <PickemSettingsFields
+                  seasonRange={effectivePickemSeasonRange}
+                  onSeasonRangeChange={setPickemSeasonRange}
+                  seasonRangeOptions={pickemSeasonRangeOptions}
+                  pickType={pickemPickType}
+                  onPickTypeChange={setPickemPickType}
+                  picksPerWeek={pickemPicksPerWeek}
+                  onPicksPerWeekChange={setPickemPicksPerWeek}
+                />
+              ))}
 
             {mode === LEAGUE_MODE.ELIMINATION && (
               <EliminationSettingsFields
@@ -234,7 +272,9 @@ function NewLeague() {
                 type="submit"
                 size="lg"
                 className="w-full justify-center"
-                disabled={createLeague.isPending || hasInvalidNumberField}
+                disabled={
+                  createLeague.isPending || hasInvalidNumberField || pickemHasNoStartablePreset
+                }
               >
                 Create league
               </Button>
