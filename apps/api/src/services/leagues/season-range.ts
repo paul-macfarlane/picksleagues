@@ -33,15 +33,19 @@ function weekRefOf(type: WeekType, number: number): NflWeekRef {
  * the rest of the system computes on (ADR-0020 §The mid-week resolution rule):
  *
  * - **start** = the later of the preset's nominal start and the next week in
- *   the preset's range whose first kickoff is still ahead. Without the second
- *   clause a league created on a Sunday afternoon would be born already
- *   started — join cutoff passed, settings frozen — before anyone was invited.
+ *   the preset's range that is still ahead. Without the second clause a league
+ *   created on a Sunday afternoon would be born already started — join cutoff
+ *   passed, settings frozen — before anyone was invited.
  * - **end** = the preset's nominal end, unadjusted.
  *
- * "First kickoff" is the week's *effective* kickoff (`override_kickoff_at ??
- * kickoff_at`, arch D15) via the same expression `leagueStartAt` and the lock
- * derivation use, so resolution can never disagree with them about which week
- * has begun.
+ * A week **with** games is still ahead until its first *effective* kickoff
+ * (`override_kickoff_at ?? kickoff_at`, arch D15) via the same expression
+ * `leagueStartAt` and the lock derivation use, so resolution can never disagree
+ * with them about which week has begun. A week **without** games is still ahead
+ * until its own `ends_at` (ADR-0021): an unseeded playoff round has no games to
+ * compare, and treating it as invisible would make a Postseason league
+ * uncreatable for the days between one round kicking off and the next being
+ * seeded.
  *
  * The search is confined to the preset's own range on purpose: a Regular
  * Season league created during the playoffs would otherwise resolve its start
@@ -62,18 +66,23 @@ export async function resolvePickemSeasonRange(
 
   // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
   // string), so the aggregate maps its own value back to a Date.
-  const firstKickoffAt = sql`min(${effectiveKickoffAtSql})`.mapWith(
-    (value): Date => new Date(value as string),
+  const firstKickoffAt = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+    value === null ? null : new Date(value as string),
   );
-  // The inner join is what makes the no-games fallback fall out rather than
-  // needing a branch: a week with no games contributes no row, and a
-  // provisional season (ADR-0009) contributes none at all.
+  // Left join, not inner: a week whose round the provider hasn't seeded yet has
+  // no games, but it is not thereby invisible (ADR-0021) — its own calendar
+  // window, ingested from the season structure, is what places it in time.
   const weekRows = await db
-    .select({ weekType: weeks.weekType, weekNumber: weeks.weekNumber, firstKickoffAt })
+    .select({
+      weekType: weeks.weekType,
+      weekNumber: weeks.weekNumber,
+      endsAt: weeks.endsAt,
+      firstKickoffAt,
+    })
     .from(weeks)
-    .innerJoin(games, eq(games.weekId, weeks.id))
+    .leftJoin(games, eq(games.weekId, weeks.id))
     .where(eq(weeks.seasonId, seasonId))
-    .groupBy(weeks.id, weeks.weekType, weeks.weekNumber);
+    .groupBy(weeks.id, weeks.weekType, weeks.weekNumber, weeks.endsAt);
 
   // A season holds ~22 weeks, so the ordering and range filter run here
   // against `nflSeasonOrdinal` itself rather than a SQL restatement of it that
@@ -84,14 +93,21 @@ export async function resolvePickemSeasonRange(
     const week = weekRefOf(row.weekType, row.weekNumber);
     const ordinal = nflSeasonOrdinal(week);
     if (ordinal < startOrdinal || ordinal > endOrdinal) continue;
-    if (row.firstKickoffAt.getTime() <= now.getTime()) continue;
+    // `ends_at` is the games-less bound rather than `starts_at` because ESPN's
+    // week windows open days before the round's first kickoff — comparing
+    // `starts_at` would call a round underway while it is still entirely ahead
+    // and resolve the start past it, to the following round.
+    const stillAheadUntil = row.firstKickoffAt ?? row.endsAt;
+    if (stillAheadUntil.getTime() <= now.getTime()) continue;
     if (!nextUpcoming || ordinal < nextUpcoming.ordinal) nextUpcoming = { ordinal, week };
   }
 
-  // No upcoming week to advance to — either the schedule hasn't landed yet
-  // (the offseason path, real for most of the year) or the whole range has
-  // already run. Either way the nominal start stands; the caller's pre-start
-  // check is what refuses the second case.
+  // Nothing in range left to advance to — either no week has been ingested at
+  // all yet, or the whole range has already run. A season whose weeks exist but
+  // hold no games (the offseason path, real for most of the year) lands on the
+  // second clause instead: its first week is a candidate and is its own nominal
+  // start. Either way the nominal start stands; the caller's pre-start check is
+  // what refuses the already-run case.
   if (!nextUpcoming || nextUpcoming.ordinal <= startOrdinal) return nominal;
   return { startWeek: nextUpcoming.week, endWeek: nominal.endWeek };
 }
