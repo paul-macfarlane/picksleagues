@@ -551,3 +551,15 @@ Integration suite moved 529 → 544 tests; unit suite unchanged at 462.
   created and dropped inside the run, never the dev database, and never read the
   live `.env`. `pnpm test:e2e` required a `.env` in the worktree, which a human
   supplied — the one human gate in this run.
+
+### Pull request
+
+`picksleagues` → https://github.com/paul-macfarlane/picksleagues/pull/41
+(base `staging`). The ticket stays `[~]`; a human moves it to `[x]` after
+reviewing and merging the PR.
+
+Screenshots from the 390px drive (page 1, page 2, all-clear) are **not**
+committed, per the evidence policy. They could not be uploaded to the PR from
+this environment either — `gh` has no image-upload path — so the committed
+`ui-drive/transcript.md` is the durable record, and the images are attachable by
+hand from the session scratchpad if a reviewer wants them.
