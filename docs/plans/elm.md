@@ -1837,9 +1837,22 @@ for this repository by policy.
 11. **The tickets were marked `[x]` by the owner during the run**, before this
     review and before the PR. Preserved rather than reverted or re-authored —
     Atlas never writes `[x]`, and the transitions in this branch are the owner's.
-12. **`backlog/05-pickem.md` (a new PKM-9 ticket) is the owner's own uncommitted
-    edit** and was deliberately left out of every commit, so an unrelated ticket
-    definition does not ride along in this PR. It is still in the working tree.
+12. **Three follow-up tickets were appended after review, on the owner's
+    approval** — `LG-12` (conclude a league season), `PKM-10` (the Pick'em half of
+    the dashboard glance) and `SIM-10` (the simulator's Survivor read-back). Each
+    records a finding above that this work package deliberately did not fix:
+    deviations 8, 5 and 9 respectively. `LG-12` is the one worth taking first, and
+    not only for the unreachable refusal — nothing concluding a season is also why
+    `settle-sweep` recomputes every season ever created every night, and why the
+    board re-derives settlement's completeness rule (deviation 7). Storing the
+    answer deletes that duplication rather than documenting it.
+
+    A consequence worth stating: `PKM-10` lands in `backlog/05-pickem.md`, which
+    already held the owner's own uncommitted `PKM-9` line. Earlier commits in this
+    work package deliberately kept that file out so an unrelated ticket would not
+    ride along; adding `PKM-10` to it makes that no longer possible, so `PKM-9`
+    ships in this PR too. The alternative — a partial-hunk commit leaving the
+    owner's own line dangling — would have been a worse thing to hand a reviewer.
 13. **Two pre-existing issues found and left alone**: the dashboard's own loading
     and error handling predates the current rules (LNCH-8 is the retrofit), and
     `listMyLeagues` still runs one `leagueStartAt` query per league, commented in
