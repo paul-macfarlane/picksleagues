@@ -1,7 +1,8 @@
 # [EXECUTION PLAN] — ELM epic
 
-_Work package: the **ELM** epic (`backlog/06-survivor.md`, 6 tickets —
-ELM-6 appended 2026-08-07 with owner approval, decision 6). The ticket list
+_Work package: the **ELM** epic (`backlog/06-survivor.md`, 7 tickets —
+ELM-6 and ELM-7 appended 2026-08-07 with owner approval, decisions 6 and
+11). The ticket list
 in that file, plus its three owner-decision headers (playoffs:
 regular-season only, recorded in ADR-0007; season range: preset resolution
 reaches the mode with **Regular Season as the only preset**, owner
@@ -18,7 +19,7 @@ locking, pick-visibility filtering, settlement/recompute, and database
 migrations. The review record is at the end of this file. Run surface: **local
 only**. Verification commands and evidence policy: `docs/agents/testing.md`;
 evidence root `docs/evidence/test-results/`, one directory per PR
-(`elm-1/` … `elm-6/`), never cleared. No plan-phase candidate evidence exists —
+(`elm-1/` … `elm-7/`), never cleared. No plan-phase candidate evidence exists —
 no verification command was run while planning._
 
 ### Intent
@@ -156,6 +157,15 @@ names in the current-state facts and is renamed by ELM-1._
     the `member_eliminated` wire code, `eliminated_week_id`, the
     `all-eliminated` sim scenario slug, and the ELM-3 rule matrix keep
     their names.
+11. **Survivor gets its own manual-regression runbook — ELM-7** (owner
+    decision, 2026-08-07, after the red-team review). Pick'em has
+    `docs/runbooks/pickem-regression.md` for the rules automation reaches
+    least well; Survivor's equivalents are at least as browser- and
+    clock-shaped (a pick changed then locked mid-week, a cancellation
+    returning a consumed team, revival, the eliminated member's view), and
+    ELM-5's journey deliberately does **not** cover them — E2E covers
+    journeys, not branches. Appended as ELM-7 (deps: ELM-4, ELM-5) rather
+    than widening ELM-5. Contract is the ticket line; see §ELM-7.
 
 ### Load-bearing repository facts (surveyed 2026-08-07)
 
@@ -210,16 +220,19 @@ Already shipped — do not rebuild:
   `packages/schemas/src/league-settings.test.ts`,
   `apps/api/test/{leagues,league-weeks,pickem-picks,pickem-season-range-presets,pickem-standings}.test.ts`.
 
-### Delivery strategy — six PRs, one ticket each
+### Delivery strategy — seven PRs, one ticket each
 
-Order: **ELM-1 → (ELM-2 ∥ ELM-3) → ELM-4 → (ELM-5 ∥ ELM-6)**, branches off
+Order: **ELM-1 → (ELM-2 ∥ ELM-3) → ELM-4 → (ELM-5 ∥ ELM-6) → ELM-7**, branches off
 `staging`, PRs to `staging` (`gh pr create --base staging --head <branch>`).
 ELM-3 is pure `packages/scoring` + `packages/schemas` types and only needs
 ELM-1's settings shape conceptually (it reads the settings schema ELM-1
 renames to `SurvivorSettingsSchema` — already shipped), so it can run in a
 parallel worktree beside ELM-2 — they are diff-disjoint (scoring/ vs
 db+api+web). ELM-4 integrates both. ELM-6 (dashboard glance, web-only) and
-ELM-5 (one e2e spec) are diff-disjoint and may also run in parallel.
+ELM-5 (one e2e spec) are diff-disjoint and may also run in parallel. ELM-7
+is docs-only and comes last, because its "skip these" table is written
+against what ELM-2/3/4's suites and ELM-5's journey actually ended up
+covering.
 Evidence per PR under `docs/evidence/test-results/elm-<n>/`; text committed,
 images to the PR. Every PR:
 `pnpm format && pnpm lint && pnpm typecheck && pnpm test`;
@@ -605,6 +618,58 @@ may run in parallel worktrees. **Verification:** the standard per-PR gates
 (delivery-strategy list); integration coverage only if a new serializer
 lands; presentation policy stays untested (engineering rule); phone-width
 screenshots to the PR; evidence `elm-6/`.
+
+---
+
+### ELM-7 — Survivor manual-regression runbook (appended 2026-08-07, decision 11)
+
+**Scope:** one new file, `docs/runbooks/survivor-regression.md`, plus the
+one-line pointer in `docs/simulator-guide.md` §Scenario library that
+currently names only the Pick'em runbook. **Excluded:** any product change,
+any new automated test (a rule cheap enough to pin in a suite belongs in the
+suite, not in a manual pass), and any rewrite of the Pick'em runbook.
+
+**Shape — mirror `docs/runbooks/pickem-regression.md`, which earns its
+structure:** (a) a **"what automation already covers — skip these"** table
+naming the actual suites, so manual time is spent only where the net is
+thin — `packages/scoring/src/survivor.test.ts` for the grading matrix,
+ELM-2's endpoint tests for the refusal/consumption/locking matrix, ELM-4's
+settlement tests for idempotency, prefix ordering, and override precedence,
+and ELM-5's journey for the happy path through revival; (b) the two-windows
+setup note (two accounts are required — the pick-visibility rule cannot be
+checked from one session — and TanStack Query's `visibilitychange`-only
+refetch makes tabs actively misleading); (c) one pass per branch, each
+naming its scenario and its assertions as checkboxes; (d) a closing **what
+this runbook cannot reach**.
+
+**Candidate passes (the author confirms each against shipped behavior — this
+list allocates, it does not decide product):** a pick changed and re-changed
+before kickoff, then locked, seen from both members' windows; the consumed-team
+ledger on screen across weeks (a used team visibly unavailable, and the
+league's second member unaffected by the first's ledger); a **cancelled**
+game returning its team, and the re-pick that the release makes legal — the
+one place the ELM-4 sticky-release rule (decision 4) is member-visible;
+missed-pick elimination when a member simply never picks and the week
+completes; push/tie resolution under both settings; the all-eliminated
+revival week and the co-winners ending; the eliminated member's view — full
+visibility, no pick sheet — which no other surface in the app has.
+
+**Scenarios:** the library already holds `all-eliminated`, `cancelled-game`,
+`tie-game` and `mixed-week`; drive those. A new library scenario is in scope
+**only** where a Survivor edge case has no fixture that reaches it (the
+multi-week season ELM-5 may add is the likely reuse) — and a new scenario is
+a change to `apps/api/src/services/sim/scenarios/`, so it carries the
+existing suites as its regression check.
+
+**Verification:** the runbook is written **by executing it** against the
+local stack — an unrun runbook is a guess about the product, which is
+exactly the failure mode a manual pass exists to prevent. Every assertion
+ships checked, and any that fails becomes a bug filed against ELM-4/-5, not
+a softened assertion. Gates: `pnpm format && pnpm lint` (docs-only diff, so
+no typecheck/test surface unless a scenario lands, in which case the full
+per-PR list applies). Evidence: the runbook itself plus the sim transcript
+of the pass under `docs/evidence/test-results/elm-7/`; phone-width
+screenshots to the PR.
 
 ---
 
@@ -1383,3 +1448,116 @@ season ends correctly.
   week against the alive set it is given and returns the next one. It does not
   and cannot check that prior weeks were settled — that is ADR-0025 precondition
   (b), and it lives in the caller.
+
+## [PROGRESS] — ELM-4 + ELM-5 + ELM-6 (2026-08-07)
+
+Work package `elm-4-6` — the epic's remaining implementation tickets, taken
+together. Branch `feat/elm-4-6-survivor-board-and-journey` off `staging`
+(`e06f6a6`). All three tickets claimed `[ ]` → `[~]` at run start.
+
+**Deviation from the plan's delivery strategy, stated up front.** §Delivery
+strategy calls for six PRs, one ticket each, and ELM-1/-2/-3 each shipped that
+way. This invocation named three tickets, which sets the work-package boundary,
+and the orchestration contract is one PR per affected repository — so ELM-4,
+ELM-5 and ELM-6 land in **one** PR. The plan's ticket-level scopes, decisions,
+and verification maps are unchanged; only the packaging differs. ELM-7 (appended
+after this run started) is **not** in scope: its deps are ELM-4 and ELM-5, which
+are still `[~]`.
+
+### Execution structure
+
+Four deliverables, strictly sequential on one direct checkout:
+
+| # | Ticket | Deliverable | Depends on |
+| --- | --- | --- | --- |
+| D1 | ELM-4 | `survivor_pick_results` + `services/survivor/settlement.ts` + mode-agnostic dispatcher extraction + integration tests | — |
+| D2 | ELM-4 | Board endpoint + serializer + contract regen + board UI | D1 |
+| D3 | ELM-6 | Dashboard pick-status glance for Survivor leagues | D2 |
+| D4 | ELM-5 | `e2e/survivor-journey.sim.spec.ts` | D2, D3 |
+
+**Why no parallelism, named rather than asserted.** D2 and D3 both write
+`packages/schemas/src/survivor.ts`, `apps/web/src/api/survivor.ts`, and a route
+file, and both must regenerate `openapi/` — which `contract:gen` rewrites
+wholesale, so any two concurrent schema-touching deliverables collide there by
+construction. D4 is genuinely file-disjoint (it writes one `e2e/` spec), but its
+verification compiles and runs the **entire** working tree via `pnpm test:e2e`,
+so a concurrent edit anywhere breaks the merge-gate run — shared mutable state,
+not a file conflict. Worktree isolation was rejected separately: a worktree has
+no `.env`, which silently blocks `pnpm test:e2e` and the dev stack, and copying
+`.env` is forbidden. Re-checked against the real diffs at closeout.
+
+### Resolved technical allocation (D1) — recorded because the plan left it open
+
+The plan says Survivor dispatch hooks into "`services/pickem/settlement.ts`'s
+entry points". Taken literally that leaves a Survivor code path inside a file
+named for Pick'em, which the mode-naming rule exists to prevent and which MM-6
+would make worse. Resolved instead: the three genuinely mode-agnostic entry
+points (`settlePicksForGames`, `settleSweep`, `rebuildLeagueSeason`) plus
+`SettlementSummary` move to `apps/api/src/services/settlement.ts` and dispatch on
+`leagues.mode`; `pickem/settlement.ts` keeps every Pick'em internal under
+mode-prefixed export names; `survivor/settlement.ts` is the new sibling. The
+Pick'em half is a move and a rename with no behavioural change. This is an
+allocation, not a product or architectural decision — arch §Settlement & Scoring
+is amended in the same deliverable, which is the reconciliation ELM-2's closeout
+deferred here.
+
+### Criterion-level verification map
+
+Commands and evidence rules resolved from `docs/agents/testing.md`. Run surface:
+**local only**. Evidence roots `docs/evidence/test-results/elm-4|elm-5|elm-6/`;
+text committed, images to the PR.
+
+| # | Criterion (source) | Check | Expected | Evidence | Earliest checkpoint | Invalidated by |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Week-completeness gating (ADR-0025) | `pnpm test:integration` — `survivor-settlement.test.ts` | incomplete week writes no state | `elm-4/settlement/` | D1 | settlement edits |
+| 2 | Prefix ordering: later week complete, earlier not | same | N+1 writes nothing until N settles | `elm-4/settlement/` | D1 | same |
+| 3 | Late correction cascades from the earliest affected week | same | N..N+2 replayed immediately, not next sweep | `elm-4/settlement/` | D1 | same |
+| 4 | Sticky release: reverted cancellation after a re-pick never aborts settlement | same | replay completes; earlier pick stays released | `elm-4/settlement/` | D1 | same |
+| 5 | Settlement idempotency (jobs rule) | same | settling twice ⇒ identical state | `elm-4/settlement/` | D1 | same |
+| 6 | Full recompute reproduces incremental state (arch D10) | same | identical tables | `elm-4/settlement/` | D1 | same |
+| 7 | Cancelled game: push, team released and re-pickable, constraint intact | same | insert succeeds | `elm-4/settlement/` | D1 | same |
+| 8 | Revival: whole alive set busts ⇒ all revived, teams stay consumed | same | `revived_count` incremented | `elm-4/settlement/` | D1 | same |
+| 9 | Override precedence `override_* ?? provider_*` in the loader | same | override wins | `elm-4/settlement/` | D1 | loader edits |
+| 10 | Pick'em settlement untouched by the dispatcher extraction | existing `settlement.test.ts` + `pickem-standings.test.ts` stay green | no behavioural diff | `elm-4/settlement/` | D1 | dispatcher edits |
+| 11 | Board reveals picks per kickoff; the consumed-team list leaks nothing pre-kickoff | `pnpm test:integration` — board serializer | unkicked pick and its team absent for non-owners | `elm-4/board/` | D2 | serializer edits |
+| 12 | Eliminated member keeps identical visibility (spec §Pick Visibility) | same | byte-identical payload to an alive member's | `elm-4/board/` | D2 | same |
+| 13 | Co-winners once the end week settles (spec §End of League) | same | every surviving member shares first | `elm-4/board/` | D2 | same |
+| 14 | Contract in sync | `pnpm contract:check` | clean | `elm-4/gates/` | D2 | schema/route edits |
+| 15 | Board renders a real settled season at phone width | driven simulator + screenshots | board matches the transcript | `elm-4/sim-transcript/` + PR images | D2 | any later edit |
+| 16 | Dashboard states picks in / picks needed / locked for a Survivor league (spec §Screens) | `pnpm test:integration` on the serializer addition + phone-width screenshot | glance matches the league's real pick state | `elm-6/` + PR images | D3 | glance edits |
+| 17 | Full Survivor season journey incl. a revival week (ELM-5) | `pnpm test:e2e` | new spec green | `elm-5/e2e/` | D4 | any SPA/API/scoring edit after the run |
+| 18 | The five existing e2e specs stay green in the same run | same | 13 prior tests still pass | `elm-5/e2e/` | D4 | same |
+| 19 | Repo gates | `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @picksleagues/web build` | all clean | `elm-4/gates/` | D4 | any edit |
+
+## [SCOPE CHANGE] — ELM-7 added to work package `elm-4-6` (2026-08-07, owner)
+
+The owner appended **ELM-7** to the epic while this run was preparing its
+workspace, then explicitly approved implementing it here ("feel free to
+implement ELM-7"). It joins the work package as the fifth and final
+deliverable, **D5**, and ships in the same PR.
+
+The dependency order is unchanged and is what makes this safe to take late:
+ELM-7's deps are ELM-4 and ELM-5, both of which this work package already
+delivers, and §ELM-7's own scope requires it — its "what automation already
+covers" table is pinned to ELM-4's settlement suite and ELM-5's journey, so
+those must exist before the runbook can be honest about where the net is thin.
+Taking it in a separate later run would mean re-establishing the whole Survivor
+stack in a fresh context to write a document about it.
+
+**Deliverable D5 (ELM-7):** `docs/runbooks/survivor-regression.md` plus the
+pointer in `docs/simulator-guide.md` §Scenario library. Docs-only unless a
+Survivor edge case turns out to have no fixture that reaches it, in which case
+one new `apps/api/src/services/sim/scenarios/` entry is in scope and carries
+the full per-PR gate list. **The runbook is written by executing it** against
+the local stack with two browser sessions — §ELM-7 is explicit that an unrun
+runbook is a guess about the product, which is the exact failure a manual pass
+exists to prevent. Every assertion ships checked; a failing one becomes a bug
+against ELM-4/-5 rather than a softened assertion.
+
+Verification map additions:
+
+| # | Criterion (source) | Check | Expected | Evidence | Earliest checkpoint | Invalidated by |
+| --- | --- | --- | --- | --- | --- | --- |
+| 20 | Every runbook pass was actually executed against the running stack, not imagined (§ELM-7) | driven dev stack + simulator, two sessions | every assertion observed and checked | `elm-7/pass-transcript/` + PR screenshots | D5 | any product edit after the pass |
+| 21 | The "what automation already covers" table names suites that exist and really cover those rules | cross-check each named suite against its test titles | no phantom coverage claim | `elm-7/pass-transcript/` | D5 | suite edits |
+| 22 | Docs gates | `pnpm format:check && pnpm lint` | clean | `elm-4/gates/` | D5 | any edit |
