@@ -21,6 +21,7 @@ import {
   PICK_TYPE,
   PICKEM_SEASON_RANGE_PRESET,
   SPORT,
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type LeagueMode,
@@ -186,6 +187,7 @@ export const DEFAULT_SURVIVOR_SETTINGS: SurvivorSettings = {
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+  everyoneOut: SURVIVOR_EVERYONE_OUT.REVIVE,
 };
 
 /** Four unstarted games, spread an hour apart — a slate long enough to exceed a modest Picks Per Week cap. */

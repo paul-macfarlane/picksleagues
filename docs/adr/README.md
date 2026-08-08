@@ -37,3 +37,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0025](0025-survivor-team-ledger-and-prefix-ordered-settlement.md) | Survivor team consumption is a partial unique index over a settlement-owned `released` flag; settlement is prefix-ordered | Accepted |
 | [0026](0026-survivor-is-straight-up-only.md) | Survivor is straight-up only; the Pick Type setting is removed | Accepted |
 | [0027](0027-survivor-season-ends-at-a-sole-survivor.md) | A Survivor season ends the moment one member is left standing | Accepted |
+| [0028](0028-survivor-everyone-out-resolution-is-a-setting.md) | The everyone-out rule is a Survivor league setting; with revival off the last group standing co-wins | Accepted |

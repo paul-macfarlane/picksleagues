@@ -274,10 +274,13 @@ export async function submitSurvivorPick(
     seasonId,
     settings,
   });
-  // Only for a member the season decided *for*. A decided season's winners are
-  // exactly its alive set, so everyone else here is eliminated — and the refusal
-  // about them personally is the one they need, the same one a league with three
-  // members and one survivor would have given them.
+  // Only for a member the season decided *for*. Everyone else it decided
+  // against is eliminated, and the refusal about them personally is the one they
+  // need — the same one a league with three members and one survivor would have
+  // given them. Ordered ahead of the eliminated check inside the transaction
+  // deliberately: under the co-win Everyone Out setting the winners are
+  // themselves eliminated members (ADR-0028), so the personal refusal would
+  // otherwise mask the league's for the very members who won it.
   if (season.decided && season.winnerMemberIds.has(membershipId)) {
     return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
   }

@@ -4,6 +4,7 @@ import {
   GAME_STATUS,
   MEMBER_ROLE,
   PICK_OUTCOME,
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_MEMBER_STATUS,
   type SurvivorStandingsMember,
   type SurvivorStandingsResponse,
@@ -11,10 +12,16 @@ import {
 import { createApp } from "../src/app";
 import { rebuildLeagueSeason } from "../src/services/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
-import { insertLeague, seedSeason, setGame } from "./setup/league-helpers";
+import {
+  DEFAULT_SURVIVOR_SETTINGS,
+  insertLeague,
+  seedSeason,
+  setGame,
+} from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import {
   insertSurvivorPick,
+  insertSurvivorState,
   seedSurvivorSeason,
   SURVIVOR_WEEK_MS,
   type SeedSurvivorSeasonOptions,
@@ -393,6 +400,91 @@ describe("GET /api/leagues/:leagueId/survivor/standings — settled state", () =
       { weekId: week2.weekId, label: "Week 2" },
       { weekId: week3.weekId, label: "Week 3" },
     ]);
+  });
+
+  it("names the last group standing co-winners when a co-win league empties, and leaves the member they outlasted out", async () => {
+    const fixture = await seedFixture({
+      weekCount: 3,
+      memberCount: 3,
+      settings: { ...DEFAULT_SURVIVOR_SETTINGS, everyoneOut: SURVIVOR_EVERYONE_OUT.CO_WIN },
+    });
+    const [memberA, memberB, memberC] = fixture.memberIds as [string, string, string];
+    const [week1, week2] = fixture.weeks as [
+      (typeof fixture.weeks)[number],
+      (typeof fixture.weeks)[number],
+    ];
+
+    for (const leagueMemberId of [memberA, memberB]) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId,
+        weekId: week1.weekId,
+        gameId: week1.gameId,
+        teamId: week1.homeTeamId,
+      });
+      // The pair that survives week 1 both back the losing side of week 2,
+      // which takes the league from two standing straight to nobody — the case
+      // that never passes through a sole survivor (ADR-0028).
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId,
+        weekId: week2.weekId,
+        gameId: week2.gameId,
+        teamId: week2.awayTeamId,
+      });
+    }
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberC,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.awayTeamId,
+    });
+    await finalizeHomeWin(week1.gameId);
+    await finalizeHomeWin(week2.gameId);
+    await rebuildLeagueSeason(db, settleClock, fixture.leagueSeasonId);
+
+    const body = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
+
+    // Week 3 is never played: the season ended when the field emptied.
+    expect(body.concluded).toBe(true);
+    // Nobody is alive, and two of them won — the board carries both facts about
+    // the same rows rather than treating a winner as a survivor.
+    expect(
+      body.members.every((member) => member.status === SURVIVOR_MEMBER_STATUS.ELIMINATED),
+    ).toBe(true);
+    expect(memberEntry(body, memberA)).toMatchObject({
+      isWinner: true,
+      eliminatedWeekId: week2.weekId,
+    });
+    expect(memberEntry(body, memberB)).toMatchObject({
+      isWinner: true,
+      eliminatedWeekId: week2.weekId,
+    });
+    expect(memberEntry(body, memberC)).toMatchObject({
+      isWinner: false,
+      eliminatedWeekId: week1.weekId,
+    });
+  });
+
+  it("names no winner in a revive league whose ledger reads empty", async () => {
+    // A state settlement could not have written: under the default the field
+    // busting together is revived, so an empty alive set is not a co-win there
+    // and must not crown the members the rules eliminated (ADR-0028).
+    const fixture = await seedFixture({ weekCount: 3, memberCount: 2 });
+    const [week1] = fixture.weeks as [(typeof fixture.weeks)[number]];
+    for (const leagueMemberId of fixture.memberIds) {
+      await insertSurvivorState(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId,
+        eliminatedWeekId: week1.weekId,
+      });
+    }
+
+    const body = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
+
+    expect(body.concluded).toBe(false);
+    expect(body.members.every((member) => !member.isWinner)).toBe(true);
   });
 });
 

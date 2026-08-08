@@ -1,10 +1,12 @@
 import {
   NFL_REGULAR_SEASON_RANGE,
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_VISIBILITY,
   MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
   PICKEM_SEASON_RANGE_PRESET,
+  type SurvivorEveryoneOut,
   type SurvivorPushTieResolution,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
@@ -49,6 +51,28 @@ export const SURVIVOR_PUSH_TIE_OPTIONS: {
 }[] = [
   { value: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE, label: "Advance (team consumed)" },
   { value: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE, label: "Eliminate" },
+];
+
+/**
+ * Named for what the choice does to the league rather than for "revival", which
+ * only names one of the two answers and leaves the other sounding like its
+ * absence (ADR-0028).
+ */
+export const SURVIVOR_EVERYONE_OUT_OPTIONS: {
+  value: SurvivorEveryoneOut;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: SURVIVOR_EVERYONE_OUT.REVIVE,
+    label: "Everyone comes back",
+    description: "They all keep playing and the season runs on.",
+  },
+  {
+    value: SURVIVOR_EVERYONE_OUT.CO_WIN,
+    label: "They share the win",
+    description: "The season ends there, with those members as co-winners.",
+  },
 ];
 
 export const MM_SCORING_MODEL_OPTIONS: { value: MarchMadnessScoringModel; label: string }[] = [
@@ -208,10 +232,14 @@ export function SurvivorSettingsFields({
   seasonRange,
   pushTie,
   onPushTieChange,
+  everyoneOut,
+  onEveryoneOutChange,
 }: {
   seasonRange?: NflSeasonRange;
   pushTie: SurvivorPushTieResolution;
   onPushTieChange: (value: SurvivorPushTieResolution) => void;
+  everyoneOut: SurvivorEveryoneOut;
+  onEveryoneOutChange: (value: SurvivorEveryoneOut) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -223,6 +251,13 @@ export function SurvivorSettingsFields({
         value={pushTie}
         onValueChange={onPushTieChange}
         options={SURVIVOR_PUSH_TIE_OPTIONS}
+      />
+      <RadioField
+        legend="If everyone left is eliminated in the same week"
+        name="survivor-everyone-out"
+        value={everyoneOut}
+        onValueChange={onEveryoneOutChange}
+        options={SURVIVOR_EVERYONE_OUT_OPTIONS}
       />
     </div>
   );

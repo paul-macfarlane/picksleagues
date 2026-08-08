@@ -228,6 +228,27 @@ export const SurvivorPushTieResolutionSchema = z
   .openapi("SurvivorPushTieResolution");
 
 /**
+ * When every member still alive is eliminated in the same week (spec §Survivor
+ * League Settings): all of them are revived and the season continues (default),
+ * or all of them are co-winners and the season ends there. Revival is one of
+ * several answers real pools give rather than the standard one, which is why it
+ * is a setting at all (ADR-0028). Void-and-re-run is deliberately absent —
+ * re-running a week means un-settling one, and a value no code honours would be
+ * a promise the product does not keep.
+ */
+export const SURVIVOR_EVERYONE_OUT = {
+  REVIVE: "revive",
+  CO_WIN: "co_win",
+} as const;
+
+export type SurvivorEveryoneOut =
+  (typeof SURVIVOR_EVERYONE_OUT)[keyof typeof SURVIVOR_EVERYONE_OUT];
+
+export const SurvivorEveryoneOutSchema = z
+  .enum(SURVIVOR_EVERYONE_OUT)
+  .openapi("SurvivorEveryoneOut");
+
+/**
  * Survivor is regular-season only (spec §Survivor Core Rules) — the
  * week refs still carry `type` so both NFL modes' settings address weeks with
  * one shape, but only the regular member is admitted.
@@ -239,6 +260,10 @@ export const SurvivorSettingsSchema = z
     pushTieResolution: SurvivorPushTieResolutionSchema.default(
       SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
     ),
+    // Defaulted rather than required so settings rows written before this field
+    // existed still parse, materializing the behaviour they were created under
+    // (ADR-0028; engineering rules §Data — settings JSONB evolves additively).
+    everyoneOut: SurvivorEveryoneOutSchema.default(SURVIVOR_EVERYONE_OUT.REVIVE),
   })
   .refine((s) => s.endWeek.number >= s.startWeek.number, {
     message: "End week must be at or after the start week.",
@@ -249,9 +274,9 @@ export const SurvivorSettingsSchema = z
 export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
 
 /**
- * Wire shape for a Survivor settings write (ADR-0024): the push/tie rule, and
- * nothing else — no season range, and since ADR-0026 no pick type either.
- * Unlike Pick'em's input there is no preset field — Survivor is regular-season
+ * Wire shape for a Survivor settings write (ADR-0024): the two grading rules a
+ * commissioner chooses, and nothing else — no season range, and since ADR-0026
+ * no pick type either. Unlike Pick'em's input there is no preset field — Survivor is regular-season
  * only (ADR-0007), so its one legal range is implicit in the mode and the
  * server resolves the concrete refs it stores against the bound season and the
  * clock.
@@ -267,6 +292,7 @@ export const SurvivorSettingsInputSchema = z
     pushTieResolution: SurvivorPushTieResolutionSchema.default(
       SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
     ),
+    everyoneOut: SurvivorEveryoneOutSchema.default(SURVIVOR_EVERYONE_OUT.REVIVE),
   })
   .openapi("SurvivorSettingsInput");
 
@@ -287,14 +313,17 @@ export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
  * without the commissioner ever naming a week — which is why this can fire on a
  * save whose wire body is byte-identical to the stored settings.
  *
- * Three Pick'em clauses have no counterpart here, and their absence is decided
- * rather than overlooked. Push/Tie Resolution is read by settlement at grading
- * time, so no stored pick becomes ungradeable when it changes. Survivor has no
- * Pick Type to switch: it is straight-up only (ADR-0026), so no stored pick can
- * be left needing a spread it never captured. And the end week is fixed at
- * regular week 18 (ADR-0024) with no path that lowers it, so a narrowing-end
- * clause would be inert — a clause that can never be true reads as protection
- * the code does not actually provide.
+ * Every other clause this function could have has been considered and left out,
+ * and each absence is decided rather than overlooked. Push/Tie Resolution and
+ * Everyone Out are both read by settlement at grading time, so no stored pick
+ * becomes ungradeable when either changes — Everyone Out decides only what an
+ * already-graded emptying week means for the season (ADR-0028), and a member
+ * whose league flips to co-win keeps every pick they made. Survivor has no Pick
+ * Type to switch: it is straight-up only (ADR-0026), so no stored pick can be
+ * left needing a spread it never captured. And the end week is fixed at regular
+ * week 18 (ADR-0024) with no path that lowers it, so a narrowing-end clause
+ * would be inert — a clause that can never be true reads as protection the code
+ * does not actually provide.
  */
 export function survivorSettingsInvalidatePicks(
   previous: SurvivorSettings,

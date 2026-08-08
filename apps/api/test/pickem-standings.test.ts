@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueMembers, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
@@ -126,6 +127,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
         endWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         pickType: PICK_TYPE.STRAIGHT_UP,
         pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+        everyoneOut: SURVIVOR_EVERYONE_OUT.REVIVE,
       },
       members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

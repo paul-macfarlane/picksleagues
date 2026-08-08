@@ -160,18 +160,26 @@ export async function resolveSurvivorPickStatuses(
 
   for (const league of leagues) {
     const key = memberKey(league.leagueSeasonId, league.membershipId);
-    if (eliminated.has(key)) {
-      statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.ELIMINATED);
+    const season = seasonStates.get(league.leagueSeasonId);
+
+    // **Winning outranks being out, and that order is load-bearing.** Under the
+    // co-win Everyone Out setting a season's winners are eliminated members —
+    // the week that emptied the league is the week they won it (ADR-0028) — so
+    // asking about elimination first would tell the member who just won that
+    // they are out. Winner membership is the whole test; whether the winners
+    // are the alive set or the last group standing belongs to the season state
+    // (ADR-0027), not here.
+    //
+    // Both answers come before the week lookup for the same reason: they are
+    // facts about the member's season rather than about a week they owe, so a
+    // league with no current week must still report them.
+    if (season?.winnerMemberIds.has(league.membershipId) === true) {
+      statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.WON);
       continue;
     }
 
-    // A decided season owes nobody a pick (ADR-0027), and a member still alive
-    // in one has won it — winners are the alive set, so reaching here past the
-    // elimination check above is the whole of that test. Answered before the
-    // week lookup for the same reason elimination is: it is a fact about the
-    // season, so a league with no current week must still report it.
-    if (seasonStates.get(league.leagueSeasonId)?.decided === true) {
-      statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.WON);
+    if (eliminated.has(key)) {
+      statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.ELIMINATED);
       continue;
     }
 

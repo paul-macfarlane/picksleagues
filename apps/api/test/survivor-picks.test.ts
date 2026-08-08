@@ -5,6 +5,7 @@ import { isUniqueViolation } from "@picksleagues/db";
 import {
   GAME_STATUS,
   MEMBER_ROLE,
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type SurvivorSettings,
@@ -417,6 +418,54 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
     expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
   });
 
+  it("splits the refusal in an emptied co-win league: the co-winners hear the league is over, the member they outlasted hears they are out", async () => {
+    const base = await seedSurvivorLeague(db, auth, {
+      weeks: TWO_WEEK_SLATE,
+      settings: { ...DEFAULT_SURVIVOR_SETTINGS, everyoneOut: SURVIVOR_EVERYONE_OUT.CO_WIN },
+      members: [{ username: "cowin_a" }, { username: "cowin_b" }, { username: "out_early_c" }],
+    });
+    const [coWinner, , beaten] = base.users as [
+      (typeof base.users)[number],
+      (typeof base.users)[number],
+      (typeof base.users)[number],
+    ];
+    const week1 = base.weekIds.get("regular:1")!;
+    const week2 = base.weekIds.get("regular:2")!;
+    // The ledger an emptied co-win league leaves: the last pair go out together
+    // in week 2, having outlasted the member who went out in week 1.
+    await insertSurvivorState(db, {
+      leagueSeasonId: base.leagueSeasonId,
+      leagueMemberId: base.members.get(beaten.user.id)!,
+      eliminatedWeekId: week1,
+    });
+    for (const user of [base.users[0]!, base.users[1]!]) {
+      await insertSurvivorState(db, {
+        leagueSeasonId: base.leagueSeasonId,
+        leagueMemberId: base.members.get(user.user.id)!,
+        eliminatedWeekId: week2,
+      });
+    }
+    const submission = { gameId: base.gameIds.get("regular:2")![0]!, teamId: base.teamIds.home };
+
+    const winnerResponse = await putSurvivorPick(
+      coWinner.cookie,
+      base.league.id,
+      week2,
+      submission,
+    );
+    const beatenResponse = await putSurvivorPick(beaten.cookie, base.league.id, week2, submission);
+
+    // A co-winner is an eliminated member, so the refusal about the *league*
+    // has to win over the one about them personally (ADR-0028).
+    expect(winnerResponse.status).toBe(409);
+    expect(((await winnerResponse.json()) as { error: string }).error).toBe("league_concluded");
+    expect(beatenResponse.status).toBe(409);
+    expect(((await beatenResponse.json()) as { error: string }).error).toBe("member_eliminated");
+    expect(
+      await survivorPicksFor(db, base.leagueSeasonId, base.members.get(coWinner.user.id)!),
+    ).toHaveLength(0);
+  });
+
   it("still takes a pick while two members are alive", async () => {
     const base = await seedSurvivorLeague(db, auth, {
       weeks: TWO_WEEK_SLATE,
@@ -543,6 +592,7 @@ describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+        everyoneOut: SURVIVOR_EVERYONE_OUT.REVIVE,
       },
     });
 

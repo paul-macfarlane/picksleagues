@@ -3,6 +3,7 @@ import type { Db } from "@picksleagues/db";
 import { games, leagueMembers, survivorPickResults, survivorState, weeks } from "@picksleagues/db";
 import {
   GAME_STATUS,
+  SURVIVOR_EVERYONE_OUT,
   WEEK_TYPE,
   isUnplayedStatus,
   nflSeasonOrdinal,
@@ -19,11 +20,14 @@ import { resolveGameOverrides } from "../games";
  * of the rule would be three places for a league to be over on one screen and
  * running on another.
  *
- * A season ends at whichever comes first: every in-range week has played out, or
- * settlement has reduced the league to a single member still alive. The second
- * arm is self-securing — ending the season is what leaves nothing that could
- * unsettle it, since there is no later week, no later pick, and nothing further
- * to grade against the winner.
+ * A season ends at whichever comes first: every in-range week has played out,
+ * settlement has reduced the league to a single member still alive, or an
+ * everyone-out week has left nobody alive at all. The second arm is
+ * self-securing — ending the season is what leaves nothing that could unsettle
+ * it, since there is no later week, no later pick, and nothing further to grade
+ * against the winner. The third arm exists only in a league whose Everyone Out
+ * setting is co-win (ADR-0028); under the default the busting field is revived
+ * and the alive set never empties.
  *
  * Derived rather than read off `league_seasons.status`, which nothing in this
  * codebase writes: a status check would answer "active" for a season that
@@ -44,7 +48,10 @@ export interface SurvivorSeasonState {
   decided: boolean;
   /**
    * The members who won it, empty while it runs. Several at once is the
-   * co-winner case rather than a tie to break (spec §End of League).
+   * co-winner case rather than a tie to break (spec §End of League) — and under
+   * co-win they are eliminated members, since the week that ended the season is
+   * the one that took them out (ADR-0028). A caller ranking "won" against "out"
+   * must therefore ask this set first.
    */
   winnerMemberIds: ReadonlySet<string>;
 }
@@ -118,13 +125,20 @@ export async function resolveSurvivorSeasonStates(
     .from(survivorState)
     .where(inArray(survivorState.leagueSeasonId, leagueSeasonIds));
   // Absence of a row means alive — nothing mints one at join time, the ledger is
-  // settlement's output alone (ADR-0025), so this is a left join by hand.
-  const eliminatedBySeason = new Map<string, Set<string>>();
+  // settlement's output alone (ADR-0025), so this is a left join by hand. The
+  // eliminating week is carried, not just the fact: the everyone-out arm below
+  // reads the winners off it.
+  const eliminatedBySeason = new Map<string, Map<string, string>>();
   for (const row of stateRows) {
     if (row.eliminatedWeekId === null) continue;
     const bucket = eliminatedBySeason.get(row.leagueSeasonId);
-    if (bucket) bucket.add(row.leagueMemberId);
-    else eliminatedBySeason.set(row.leagueSeasonId, new Set([row.leagueMemberId]));
+    if (bucket) bucket.set(row.leagueMemberId, row.eliminatedWeekId);
+    else {
+      eliminatedBySeason.set(
+        row.leagueSeasonId,
+        new Map([[row.leagueMemberId, row.eliminatedWeekId]]),
+      );
+    }
   }
 
   // "Settlement has written this season" — the guard on the range arm below,
@@ -145,18 +159,29 @@ export async function resolveSurvivorSeasonStates(
     ...stateRows.map((row) => row.leagueSeasonId),
   ]);
 
-  const pending: Array<{ input: SurvivorSeasonStateInput; alive: string[] }> = [];
+  const pending: Array<{
+    input: SurvivorSeasonStateInput;
+    alive: string[];
+    eliminated: ReadonlyMap<string, string>;
+  }> = [];
   for (const input of inputs) {
-    const eliminated = eliminatedBySeason.get(input.leagueSeasonId);
+    const eliminated = eliminatedBySeason.get(input.leagueSeasonId) ?? NO_ELIMINATIONS;
     const alive = (membersByLeague.get(input.leagueId) ?? []).filter(
-      (memberId) => !eliminated?.has(memberId),
+      (memberId) => !eliminated.has(memberId),
     );
 
     // The sole-survivor arm (ADR-0027). It turns on the league having been
     // *reduced* to one: a member alone in a league nobody joined has won
     // nothing, and telling them so would end their season before its first
     // kickoff.
-    if (eliminated !== undefined && eliminated.size > 0 && alive.length === 1) {
+    //
+    // The settlement replay in this module's `settlement.ts` sibling stops on
+    // that same reduction test — at most one alive and fewer alive than members,
+    // which also covers the everyone-out arm below. Nothing couples the two, so
+    // a change here needs the same change there: a grader that ran past the
+    // deciding week would read the weeks after it as missed picks and unpick the
+    // very winner this arm names.
+    if (eliminated.size > 0 && alive.length === 1) {
       states.set(input.leagueSeasonId, { decided: true, winnerMemberIds: new Set(alive) });
       continue;
     }
@@ -165,20 +190,44 @@ export async function resolveSurvivorSeasonStates(
       states.set(input.leagueSeasonId, RUNNING);
       continue;
     }
-    pending.push({ input, alive });
+    // The everyone-out arm needs week ordinals to place its winners, so unlike
+    // the sole-survivor arm it cannot answer before the week load below.
+    pending.push({ input, alive, eliminated });
   }
 
   if (pending.length === 0) return states;
 
-  const weeksByPending = await loadInRangeWeekIds(
+  const weeksByPending = await loadSeasonWeeks(
     db,
     pending.map(({ input }) => input),
   );
-  const gamesByWeek = await loadGamesByWeek(db, [...new Set([...weeksByPending.values()].flat())]);
+  const gamesByWeek = await loadGamesByWeek(db, [
+    ...new Set([...weeksByPending.values()].flatMap((season) => season.inRangeWeekIds)),
+  ]);
 
-  for (const { input, alive } of pending) {
-    const weekIds = weeksByPending.get(input.leagueSeasonId) ?? [];
-    const playedOut = rangePlayedOut(weekIds, gamesByWeek);
+  for (const { input, alive, eliminated } of pending) {
+    const seasonWeeks = weeksByPending.get(input.leagueSeasonId) ?? NO_SEASON_WEEKS;
+
+    // The everyone-out arm (ADR-0028). Gated on the setting rather than on the
+    // empty alive set alone, because an emptied league only *means* a co-win
+    // there: under the default, revival is what stops the set emptying at all,
+    // so a `revive` league reading as empty is a ledger settlement could not
+    // have written and naming a winner off it would crown a member the rules
+    // eliminated. Settings are pre-start only, so the value cannot change
+    // underneath a settled season.
+    if (
+      alive.length === 0 &&
+      eliminated.size > 0 &&
+      input.settings.everyoneOut === SURVIVOR_EVERYONE_OUT.CO_WIN
+    ) {
+      states.set(input.leagueSeasonId, {
+        decided: true,
+        winnerMemberIds: lastStanding(eliminated, seasonWeeks.ordinalByWeekId),
+      });
+      continue;
+    }
+
+    const playedOut = rangePlayedOut(seasonWeeks.inRangeWeekIds, gamesByWeek);
     states.set(
       input.leagueSeasonId,
       playedOut ? { decided: true, winnerMemberIds: new Set(alive) } : RUNNING,
@@ -188,11 +237,56 @@ export async function resolveSurvivorSeasonStates(
   return states;
 }
 
-/** The in-range week ids of each input, keyed by `leagueSeasonId`. */
-async function loadInRangeWeekIds(
+/** A season that has eliminated nobody, shared so the loop above allocates none. */
+const NO_ELIMINATIONS: ReadonlyMap<string, string> = new Map();
+
+/**
+ * The final alive set of a league that went to zero, recovered from the ledger:
+ * the members whose elimination week is the latest in season order.
+ *
+ * **That set is provably the one that entered the emptying week alive.** A
+ * league only reaches zero when every member still standing busts together, so
+ * everyone alive going into that week was eliminated *in* it, and nobody already
+ * out can be eliminated a second time — `survivor_state` holds one eliminating
+ * week per member. So the co-winners need no column of their own (ADR-0028),
+ * and stay recomputable from (picks, results, settings) like every other piece
+ * of settled state (arch D10).
+ */
+function lastStanding(
+  eliminatedWeekByMember: ReadonlyMap<string, string>,
+  ordinalByWeekId: ReadonlyMap<string, number>,
+): Set<string> {
+  let latest = Number.NEGATIVE_INFINITY;
+  for (const weekId of eliminatedWeekByMember.values()) {
+    const ordinal = ordinalByWeekId.get(weekId);
+    if (ordinal !== undefined && ordinal > latest) latest = ordinal;
+  }
+
+  const winners = new Set<string>();
+  for (const [memberId, weekId] of eliminatedWeekByMember) {
+    if (ordinalByWeekId.get(weekId) === latest) winners.add(memberId);
+  }
+  return winners;
+}
+
+/** A pending input's weeks: the ones its league plays, and the season's ordinal scale. */
+interface SeasonWeeks {
+  inRangeWeekIds: string[];
+  /**
+   * Every week of the bound season, in range or not. The scale has to be total
+   * over the weeks `survivor_state` can name, because an elimination week
+   * missing from it would drop that member out of the winner comparison above.
+   */
+  ordinalByWeekId: ReadonlyMap<string, number>;
+}
+
+const NO_SEASON_WEEKS: SeasonWeeks = { inRangeWeekIds: [], ordinalByWeekId: new Map() };
+
+/** Each input's `SeasonWeeks`, keyed by `leagueSeasonId`. */
+async function loadSeasonWeeks(
   db: Db,
   inputs: readonly SurvivorSeasonStateInput[],
-): Promise<Map<string, string[]>> {
+): Promise<Map<string, SeasonWeeks>> {
   const seasonIds = [...new Set(inputs.map((input) => input.seasonId))];
   const rows = await db
     .select({
@@ -211,14 +305,35 @@ async function loadInRangeWeekIds(
     else bySeason.set(row.seasonId, [row]);
   }
 
+  // Built once per season, since the ordinal of a week is the season's fact;
+  // only the range clip below is per league.
+  const ordinalsBySeason = new Map<string, ReadonlyMap<string, number>>(
+    seasonIds.map((seasonId) => [
+      seasonId,
+      new Map(
+        (bySeason.get(seasonId) ?? []).map((row) => [
+          row.id,
+          nflSeasonOrdinal(
+            row.weekType === WEEK_TYPE.REGULAR
+              ? { type: WEEK_TYPE.REGULAR, number: row.weekNumber }
+              : { type: WEEK_TYPE.POSTSEASON, number: row.weekNumber },
+          ),
+        ]),
+      ),
+    ]),
+  );
+
   // Clipped per league rather than per season: two leagues can share a season
   // and resolve different ranges over it (ADR-0024).
   return new Map(
     inputs.map((input) => [
       input.leagueSeasonId,
-      (bySeason.get(input.seasonId) ?? [])
-        .filter((row) => isSurvivorRangeWeek(row, input.settings))
-        .map((row) => row.id),
+      {
+        inRangeWeekIds: (bySeason.get(input.seasonId) ?? [])
+          .filter((row) => isSurvivorRangeWeek(row, input.settings))
+          .map((row) => row.id),
+        ordinalByWeekId: ordinalsBySeason.get(input.seasonId) ?? new Map(),
+      },
     ]),
   );
 }

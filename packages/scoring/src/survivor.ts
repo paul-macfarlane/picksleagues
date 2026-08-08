@@ -2,9 +2,11 @@ import {
   GAME_STATUS,
   isUnplayedStatus,
   PICK_OUTCOME,
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
+  type SurvivorEveryoneOut,
   type SurvivorPushTieResolution,
 } from "@picksleagues/schemas";
 
@@ -18,7 +20,7 @@ import {
  *
  * **A Survivor week grades as a unit, where a Pick'em week grades pick by
  * pick**, and that difference is what shapes everything below. Missed-pick
- * elimination and the everyone-out revival are week *totals* — they are
+ * elimination and the everyone-out rule are week *totals* — they are
  * answers about the whole slate, not about one pick — so a week holding any
  * game that is still ahead of us grades to nothing at all rather than to a
  * partial result a later run would have to revise. ADR-0025 turns the same
@@ -59,6 +61,7 @@ export interface SurvivorGameResult {
 /** The slice of `SurvivorSettings` that scoring actually consumes. */
 export interface SurvivorScoringSettings {
   pushTieResolution: SurvivorPushTieResolution;
+  everyoneOut: SurvivorEveryoneOut;
 }
 
 /**
@@ -213,11 +216,16 @@ export function settleSurvivorWeek(
     }
   }
 
-  // Everyone who entered the week alive left it eliminated, so they all come
-  // back (spec §Game Mode 2 — Everyone eliminated in the same week). Only the
-  // life is restored: teams the busting picks spent stay spent, which is why
-  // `outcomes` is untouched here.
-  const revived = aliveMemberIds.length > 0 && eliminated.size === aliveMemberIds.length;
+  // Everyone who entered the week alive left it eliminated. What happens next
+  // is the league's Everyone Out setting (spec §Game Mode 2 — Everyone
+  // eliminated in the same week): by default they all come back, and under
+  // co-win they stay out, because they did lose — naming them the season's
+  // co-winners is derived from this very elimination and belongs to the season
+  // state rather than to the grader (ADR-0028). Revival restores the life only:
+  // teams the busting picks spent stay spent, which is why `outcomes` is
+  // untouched either way.
+  const everyoneOut = aliveMemberIds.length > 0 && eliminated.size === aliveMemberIds.length;
+  const revived = everyoneOut && settings.everyoneOut === SURVIVOR_EVERYONE_OUT.REVIVE;
 
   const transitions = aliveMemberIds.map((memberId) => ({
     memberId,

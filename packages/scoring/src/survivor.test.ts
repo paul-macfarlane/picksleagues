@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   GAME_STATUS,
+  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
+  type SurvivorEveryoneOut,
   type SurvivorPushTieResolution,
 } from "@picksleagues/schemas";
 import {
@@ -76,8 +78,9 @@ const controlResult: SurvivorGameResult = {
 
 function settings(
   pushTieResolution: SurvivorPushTieResolution = SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+  everyoneOut: SurvivorEveryoneOut = SURVIVOR_EVERYONE_OUT.REVIVE,
 ): SurvivorScoringSettings {
-  return { pushTieResolution };
+  return { pushTieResolution, everyoneOut };
 }
 
 describe("settleSurvivorWeek — grading one member's pick", () => {
@@ -292,89 +295,125 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
   });
   const losingResult = result({ homeScore: 17, awayScore: 24 });
 
-  it("revives every member when they all busted on wrong picks", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [loser("a", "pick-a"), loser("b", "pick-b")],
-      [losingResult],
-      settings(),
-    );
-
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "revived" },
-      { memberId: "b", transition: "revived" },
-    ]);
-    expect(settlement.aliveMemberIds).toEqual(["a", "b"]);
-  });
-
-  it("revives on a mix of wrong picks and missed picks", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [loser("a", "pick-a")],
-      [losingResult],
-      settings(),
-    );
-
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "revived" },
-      { memberId: "b", transition: "revived" },
-    ]);
-    expect(settlement.aliveMemberIds).toEqual(["a", "b"]);
-  });
-
-  it("revives on a mix that includes a fatal tie", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [
+  /**
+   * One emptying week per row, differing only in what busted the alive set —
+   * the spec's rule applies "regardless of elimination cause", so wrong picks,
+   * a missed pick, and a fatal tie all have to reach the same answer. Each row
+   * is run against both values of the Everyone Out setting (ADR-0028), which is
+   * the only thing that decides what the week does with them.
+   */
+  const emptyingWeeks: Array<{
+    name: string;
+    alive: string[];
+    picks: SurvivorPickInput[];
+    results: SurvivorGameResult[];
+    pushTieResolution?: SurvivorPushTieResolution;
+  }> = [
+    {
+      name: "every member busted on a wrong pick",
+      alive: ["a", "b"],
+      picks: [loser("a", "pick-a"), loser("b", "pick-b")],
+      results: [losingResult],
+    },
+    {
+      name: "one busted and one missed the week",
+      alive: ["a", "b"],
+      picks: [loser("a", "pick-a")],
+      results: [losingResult],
+    },
+    {
+      name: "one busted and one drew a fatal tie",
+      alive: ["a", "b"],
+      picks: [
         loser("a", "pick-a"),
         { ...loser("b", "pick-b"), gameId: CONTROL_GAME, teamId: CONTROL_TEAM },
       ],
-      [losingResult, { ...controlResult, homeScore: 10, awayScore: 10 }],
-      settings(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE),
-    );
+      results: [losingResult, { ...controlResult, homeScore: 10, awayScore: 10 }],
+      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
+    },
+  ];
 
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "revived" },
-      { memberId: "b", transition: "revived" },
-    ]);
-  });
+  it.each(emptyingWeeks)(
+    "revives everyone under the default when $name",
+    ({ alive, picks, results, pushTieResolution }) => {
+      const settlement = settleSurvivorWeek(
+        alive,
+        picks,
+        results,
+        settings(pushTieResolution, SURVIVOR_EVERYONE_OUT.REVIVE),
+      );
 
-  it("restores the life only — teams the busting picks spent stay spent", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [loser("a", "pick-a"), loser("b", "pick-b")],
-      [losingResult],
-      settings(),
-    );
+      expect(settlement.transitions).toEqual(
+        alive.map((memberId) => ({ memberId, transition: "revived" })),
+      );
+      expect(settlement.aliveMemberIds).toEqual(alive);
+    },
+  );
 
-    expect(settlement.outcomes.every((row) => row.teamConsumed)).toBe(true);
-  });
+  it.each(emptyingWeeks)(
+    "leaves everyone eliminated under co-win when $name",
+    ({ alive, picks, results, pushTieResolution }) => {
+      const settlement = settleSurvivorWeek(
+        alive,
+        picks,
+        results,
+        settings(pushTieResolution, SURVIVOR_EVERYONE_OUT.CO_WIN),
+      );
 
-  it("does not revive when one member survived", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", CONTROL_MEMBER],
-      [loser("a", "pick-a"), controlPick],
-      [losingResult, controlResult],
-      settings(),
-    );
+      // They lost, so settlement says so; naming them co-winners is the season
+      // state's answer, derived from this very elimination (ADR-0028).
+      expect(settlement.transitions).toEqual(
+        alive.map((memberId) => ({ memberId, transition: "eliminated" })),
+      );
+      expect(settlement.aliveMemberIds).toEqual([]);
+    },
+  );
 
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "eliminated" },
-      { memberId: CONTROL_MEMBER, transition: "advanced" },
-    ]);
-    expect(settlement.aliveMemberIds).toEqual([CONTROL_MEMBER]);
-  });
+  it.each([SURVIVOR_EVERYONE_OUT.REVIVE, SURVIVOR_EVERYONE_OUT.CO_WIN])(
+    "spends the teams the busting picks used under %s",
+    (everyoneOut) => {
+      const settlement = settleSurvivorWeek(
+        ["a", "b"],
+        [loser("a", "pick-a"), loser("b", "pick-b")],
+        [losingResult],
+        settings(undefined, everyoneOut),
+      );
 
-  it("does not fire on an empty alive set — nobody entered, so nobody came back", () => {
-    const settlement = settleSurvivorWeek([], [], [result()], settings());
+      expect(settlement.outcomes.every((row) => row.teamConsumed)).toBe(true);
+    },
+  );
 
-    expect(settlement).toEqual({
-      outcomes: [],
-      transitions: [],
-      aliveMemberIds: [],
-      unsettled: [],
-    });
-  });
+  it.each([SURVIVOR_EVERYONE_OUT.REVIVE, SURVIVOR_EVERYONE_OUT.CO_WIN])(
+    "is inert when one member survived, under %s",
+    (everyoneOut) => {
+      const settlement = settleSurvivorWeek(
+        ["a", CONTROL_MEMBER],
+        [loser("a", "pick-a"), controlPick],
+        [losingResult, controlResult],
+        settings(undefined, everyoneOut),
+      );
+
+      expect(settlement.transitions).toEqual([
+        { memberId: "a", transition: "eliminated" },
+        { memberId: CONTROL_MEMBER, transition: "advanced" },
+      ]);
+      expect(settlement.aliveMemberIds).toEqual([CONTROL_MEMBER]);
+    },
+  );
+
+  it.each([SURVIVOR_EVERYONE_OUT.REVIVE, SURVIVOR_EVERYONE_OUT.CO_WIN])(
+    "does not fire on an empty alive set under %s — nobody entered, so nobody came back",
+    (everyoneOut) => {
+      const settlement = settleSurvivorWeek([], [], [result()], settings(undefined, everyoneOut));
+
+      expect(settlement).toEqual({
+        outcomes: [],
+        transitions: [],
+        aliveMemberIds: [],
+        unsettled: [],
+      });
+    },
+  );
 });
 
 describe("settleSurvivorWeek — the whole slate is cancelled", () => {

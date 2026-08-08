@@ -2,9 +2,15 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { adminAudit, isUniqueViolation } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
-import { ADMIN_AUDIT_ACTION, GAME_STATUS, PICK_OUTCOME } from "@picksleagues/schemas";
+import {
+  ADMIN_AUDIT_ACTION,
+  GAME_STATUS,
+  PICK_OUTCOME,
+  SURVIVOR_EVERYONE_OUT,
+  type SurvivorSettings,
+} from "@picksleagues/schemas";
 import { rebuildLeagueSeason, settlePicksForGames, settleSweep } from "../src/services/settlement";
-import { setGame } from "./setup/league-helpers";
+import { DEFAULT_SURVIVOR_SETTINGS, setGame } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import {
   insertSurvivorPick,
@@ -155,62 +161,69 @@ describe("late corrections cascade forward", () => {
    * inherits the mistake (ADR-0025).
    */
   it("an override flipping a settled week's outcome replays every later week on the same trigger", async () => {
-    const fixture = await seedSeasonFixture({ weekCount: 3 });
+    // Four members in two pairs, so whichever side of week 1 the correction
+    // takes out, two are left alive and the season runs on. A pair per side is
+    // what keeps the *cascade* the subject: reduced to one, the replay would
+    // stop at the deciding week and grade no later one at all (ADR-0027), which
+    // is a different rule and has its own tests below.
+    const fixture = await seedSeasonFixture({ weekCount: 3, memberCount: 4 });
     const [week1, week2, week3] = fixture.weeks as [FixtureWeek, FixtureWeek, FixtureWeek];
-    const [memberA, memberB] = fixture.memberIds as [string, string];
+    const [memberA, memberB, memberC, memberD] = fixture.memberIds as [
+      string,
+      string,
+      string,
+      string,
+    ];
+    // A and C ride the home team every week; B and D take the away side of week
+    // 1 and then follow. Under the provider score that ends B's and D's seasons
+    // in week 1; under the correction it ends A's and C's instead, which is what
+    // the later weeks have to notice.
+    const awayInWeek1 = new Set([memberB, memberD]);
 
-    // A rides the home team every week; B takes the away side of week 1 and
-    // then follows A. Under the provider score that ends B's season in week 1;
-    // under the correction it ends A's instead, which is what the later weeks
-    // have to notice.
     for (const week of [week1, week2, week3]) {
-      await insertSurvivorPick(db, {
-        leagueSeasonId: fixture.leagueSeasonId,
-        leagueMemberId: memberA,
-        weekId: week.weekId,
-        gameId: week.gameId,
-        teamId: week.homeTeamId,
-      });
-      await insertSurvivorPick(db, {
-        leagueSeasonId: fixture.leagueSeasonId,
-        leagueMemberId: memberB,
-        weekId: week.weekId,
-        gameId: week.gameId,
-        teamId: week === week1 ? week.awayTeamId : week.homeTeamId,
-      });
+      for (const leagueMemberId of fixture.memberIds) {
+        await insertSurvivorPick(db, {
+          leagueSeasonId: fixture.leagueSeasonId,
+          leagueMemberId,
+          weekId: week.weekId,
+          gameId: week.gameId,
+          teamId:
+            week === week1 && awayInWeek1.has(leagueMemberId) ? week.awayTeamId : week.homeTeamId,
+        });
+      }
       await finalizeHomeWin(week.gameId);
     }
 
     await settlePicksForGames(db, clock, [week1.gameId, week2.gameId, week3.gameId]);
 
-    const before = await survivorStateFor(db, fixture.leagueSeasonId);
-    expect(snapshotState(before)).toEqual([
-      {
-        leagueMemberId: memberB,
+    const eliminatedInWeek1 = (memberIds: string[]) =>
+      [...memberIds].sort().map((leagueMemberId) => ({
+        leagueMemberId,
         livesRemaining: 0,
         eliminatedWeekId: week1.weekId,
         revivedCount: 0,
-      },
-    ]);
+      }));
+
+    const before = await survivorStateFor(db, fixture.leagueSeasonId);
+    expect(snapshotState(before)).toEqual(eliminatedInWeek1([memberB, memberD]));
 
     // An admin corrects week 1's final score, flipping who survived it.
     await setGame(db, week1.gameId, { overrideHomeScore: 10, overrideAwayScore: 24 });
     await settlePicksForGames(db, clock, [week1.gameId]);
 
-    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual([
-      {
-        leagueMemberId: memberA,
-        livesRemaining: 0,
-        eliminatedWeekId: week1.weekId,
-        revivedCount: 0,
-      },
-    ]);
+    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual(
+      eliminatedInWeek1([memberA, memberC]),
+    );
 
     const results = await survivorPickResultsFor(db, fixture.leagueSeasonId);
     const laterWeeks = results.filter((row) => row.weekId !== week1.weekId);
-    // Weeks 2 and 3 now grade B — who was previously out — and no longer grade
-    // A, whose picks were made in the window before their elimination settled.
-    expect(laterWeeks.map((row) => row.leagueMemberId)).toEqual([memberB, memberB]);
+    // Weeks 2 and 3 now grade B and D — who were previously out — and no longer
+    // grade A and C, whose picks were made in the window before their
+    // elimination settled.
+    expect([...new Set(laterWeeks.map((row) => row.leagueMemberId))].sort()).toEqual(
+      [memberB, memberD].sort(),
+    );
+    expect(laterWeeks).toHaveLength(4);
     expect(laterWeeks.every((row) => row.outcome === PICK_OUTCOME.CORRECT)).toBe(true);
   });
 });
@@ -412,6 +425,196 @@ describe("revival when everyone busts in the same week", () => {
       const picks = await survivorPicksFor(db, fixture.leagueSeasonId, leagueMemberId);
       expect(picks.every((pick) => !pick.released)).toBe(true);
     }
+  });
+});
+
+describe("the everyone-out week under the co-win setting (ADR-0028)", () => {
+  it("leaves the whole field eliminated in that week, revives nobody, and grades no week after it", async () => {
+    const fixture = await seedSeasonFixture({
+      weekCount: 2,
+      settings: { ...DEFAULT_SURVIVOR_SETTINGS, everyoneOut: SURVIVOR_EVERYONE_OUT.CO_WIN },
+    });
+    const [week1, week2] = fixture.weeks as [FixtureWeek, FixtureWeek];
+
+    for (const leagueMemberId of fixture.memberIds) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId,
+        weekId: week1.weekId,
+        gameId: week1.gameId,
+        teamId: week1.homeTeamId,
+      });
+    }
+    await finalizeAwayWin(week1.gameId);
+    // Week 2 is complete too, so the replay genuinely reaches it with an empty
+    // alive set rather than stopping short of it on an unfinished week.
+    await finalizeHomeWin(week2.gameId);
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    // Every member is out in week 1, and nobody is eliminated a second time in
+    // the week they were no longer alive for — the missed-pick rule reaches
+    // only members who entered a week alive.
+    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual(
+      [...fixture.memberIds].sort().map((leagueMemberId) => ({
+        leagueMemberId,
+        livesRemaining: 0,
+        eliminatedWeekId: week1.weekId,
+        revivedCount: 0,
+      })),
+    );
+    const results = await survivorPickResultsFor(db, fixture.leagueSeasonId);
+    expect(results.every((row) => row.weekId === week1.weekId)).toBe(true);
+    expect(results.every((row) => row.outcome === PICK_OUTCOME.INCORRECT)).toBe(true);
+  });
+
+  it("settles to identical state on a re-run, with the emptied season behind it", async () => {
+    const fixture = await seedSeasonFixture({
+      weekCount: 2,
+      settings: { ...DEFAULT_SURVIVOR_SETTINGS, everyoneOut: SURVIVOR_EVERYONE_OUT.CO_WIN },
+    });
+    const [week1, week2] = fixture.weeks as [FixtureWeek, FixtureWeek];
+    for (const leagueMemberId of fixture.memberIds) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId,
+        weekId: week1.weekId,
+        gameId: week1.gameId,
+        teamId: week1.homeTeamId,
+      });
+    }
+    await finalizeAwayWin(week1.gameId);
+    await finalizeHomeWin(week2.gameId);
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+    const first = {
+      results: snapshotResults(await survivorPickResultsFor(db, fixture.leagueSeasonId)),
+      state: snapshotState(await survivorStateFor(db, fixture.leagueSeasonId)),
+    };
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect({
+      results: snapshotResults(await survivorPickResultsFor(db, fixture.leagueSeasonId)),
+      state: snapshotState(await survivorStateFor(db, fixture.leagueSeasonId)),
+    }).toEqual(first);
+  });
+});
+
+describe("a decided season is graded no further (ADR-0027)", () => {
+  /**
+   * Week 1 reduces the league to one member alive, which ends the season
+   * (ADR-0027) — and the pick endpoint refuses that member from then on, so
+   * weeks 2 and 3 hold no pick of theirs however completely they play out. The
+   * grader must not read those weeks as missed picks.
+   */
+  async function seedSeasonDecidedInWeek1(settings?: SurvivorSettings) {
+    const fixture = await seedSeasonFixture({ weekCount: 3, settings });
+    const [week1, week2, week3] = fixture.weeks as [FixtureWeek, FixtureWeek, FixtureWeek];
+    const [memberA, memberB] = fixture.memberIds as [string, string];
+
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberA,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.homeTeamId,
+    });
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberB,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.awayTeamId,
+    });
+    // Every later week is fully final, so nothing but the season being over
+    // stops the replay reaching them.
+    for (const week of [week1, week2, week3]) await finalizeHomeWin(week.gameId);
+
+    return { fixture, week1, memberA, memberB };
+  }
+
+  /** The state a season decided in week 1 must land on, whatever its Everyone Out setting. */
+  async function expectDecidedInWeek1(
+    fixture: Awaited<ReturnType<typeof seedSeasonDecidedInWeek1>>["fixture"],
+    week1: FixtureWeek,
+    memberB: string,
+  ) {
+    // The winner keeps no row at all: absence means alive and untouched
+    // (ADR-0025), which is what they are — not revived, and not eliminated in a
+    // week the season had already ended before.
+    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual([
+      {
+        leagueMemberId: memberB,
+        livesRemaining: 0,
+        eliminatedWeekId: week1.weekId,
+        revivedCount: 0,
+      },
+    ]);
+    const results = await survivorPickResultsFor(db, fixture.leagueSeasonId);
+    expect(results.every((row) => row.weekId === week1.weekId)).toBe(true);
+  }
+
+  it("leaves the sole survivor alive and unrevived under the default Everyone Out setting", async () => {
+    const { fixture, week1, memberB } = await seedSeasonDecidedInWeek1();
+
+    const summary = await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    await expectDecidedInWeek1(fixture, week1, memberB);
+    expect(summary).toMatchObject({ leagueSeasons: 1, weeks: 1, results: 2, unsettled: 0 });
+  });
+
+  it("leaves the sole survivor alive under the co-win setting rather than eliminating them later", async () => {
+    const { fixture, week1, memberB } = await seedSeasonDecidedInWeek1({
+      ...DEFAULT_SURVIVOR_SETTINGS,
+      everyoneOut: SURVIVOR_EVERYONE_OUT.CO_WIN,
+    });
+
+    const summary = await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    await expectDecidedInWeek1(fixture, week1, memberB);
+    expect(summary).toMatchObject({ leagueSeasons: 1, weeks: 1, results: 2, unsettled: 0 });
+  });
+
+  it("keeps grading a solo league, which one alive member has not won", async () => {
+    // Reduction is the test, not the count: nobody has been eliminated here, so
+    // the member alone in a league is still owed every week of it (ADR-0027).
+    const fixture = await seedSeasonFixture({ weekCount: 2, memberCount: 1 });
+    const [week1, week2] = fixture.weeks as [FixtureWeek, FixtureWeek];
+    const [memberA] = fixture.memberIds as [string];
+
+    for (const week of [week1, week2]) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId: memberA,
+        weekId: week.weekId,
+        gameId: week.gameId,
+        teamId: week.homeTeamId,
+      });
+      await finalizeHomeWin(week.gameId);
+    }
+
+    const summary = await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect(summary).toMatchObject({ weeks: 2, results: 2 });
+    const results = await survivorPickResultsFor(db, fixture.leagueSeasonId);
+    expect(results.map((row) => row.weekId).sort()).toEqual([week1.weekId, week2.weekId].sort());
+  });
+
+  it("re-settles a decided season to identical state", async () => {
+    const { fixture } = await seedSeasonDecidedInWeek1();
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+    const first = {
+      results: snapshotResults(await survivorPickResultsFor(db, fixture.leagueSeasonId)),
+      state: snapshotState(await survivorStateFor(db, fixture.leagueSeasonId)),
+    };
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect({
+      results: snapshotResults(await survivorPickResultsFor(db, fixture.leagueSeasonId)),
+      state: snapshotState(await survivorStateFor(db, fixture.leagueSeasonId)),
+    }).toEqual(first);
   });
 });
 

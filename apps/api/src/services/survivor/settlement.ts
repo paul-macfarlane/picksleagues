@@ -167,10 +167,13 @@ interface SeasonReplay {
 
 /**
  * Replays every settleable week of one league season, stopping at the first
- * week that isn't complete — the prefix invariant (ADR-0025), which is why this
+ * week that isn't complete — the prefix invariant (ADR-0025), which is why that
  * `break` is load-bearing rather than an early exit for tidiness. A later week
  * settling against a stale alive-set doesn't produce a stale number, it ends
  * the wrong member's season.
+ *
+ * It stops again on the week that decides the season (ADR-0027), for the reason
+ * given where that `break` sits.
  */
 function replaySeason(
   season: SettleableSurvivorSeason,
@@ -259,6 +262,28 @@ function replaySeason(
     }
 
     alive = settlement.aliveMemberIds;
+
+    // **A season the settlement just decided is graded no further** (ADR-0027).
+    // From the week that reduces the league to a sole survivor, the pick
+    // endpoint refuses every member — the winner included — so no later week
+    // holds a pick of theirs however completely it plays out. Grading on would
+    // read each of those weeks as a missed pick and so unpick the winner:
+    // under the default Everyone Out setting they are the whole alive set, so
+    // they bust and are revived every remaining week without bound, and under
+    // co-win (ADR-0028) they are eliminated in a week *after* the one they won,
+    // which moves the season's ending as well as flipping their status.
+    //
+    // Reduction is the test rather than the bare count, for the reason the same
+    // rule gives in this module's `season.ts` sibling: a member alone in a
+    // league nobody joined has won nothing and is still owed every week of it.
+    // Zero alive is the co-win ending — under the default, revival is what
+    // stops the set emptying at all — and needs no arm of its own, since a
+    // season with nobody left has no one to grade either way.
+    //
+    // Nothing couples this to the ending `season.ts` derives, so a change here
+    // needs the same change there; disagreeing would leave the grader and the
+    // board naming different weeks as the season's last.
+    if (alive.length <= 1 && alive.length < memberIds.length) break;
   }
 
   return replay;
