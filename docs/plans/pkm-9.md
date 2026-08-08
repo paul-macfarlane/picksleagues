@@ -213,7 +213,7 @@ inline fixes and one orchestrator-added test.
 | DoD5 contract:check | **PASS** | `contract-check.txt` (exit 0 once `openapi/` was committed) |
 | DoD6 format:check | **PASS** | `format-check.txt` |
 | DoD7 web build | **PASS** | `build.txt` |
-| DoD8 test:e2e | **BLOCKED locally — delegated to CI** | see below |
+| DoD8 test:e2e | **PASS (CI)** | `e2e-ci.txt` — 13 passed on `38efb24`, none skipped or flaky |
 
 ### AC5 and DoD8 — what is not proven here
 
@@ -232,10 +232,13 @@ Consequently:
   The render path has typecheck and a successful SPA build behind it and nothing
   more. `spreadSourceCredit` is presentation policy, which the engineering rules
   deliberately exclude from unit testing, so no cheaper layer covers it either.
-- **DoD8 runs in CI** on the pull request (`.github/workflows/ci.yml`), which
-  supplies its own environment. The e2e suite contains no assertion on the credit
-  line — E2E covers journeys, not branches — so a green CI proves this change
-  broke no existing journey; it does not prove the credit renders.
+- **DoD8 ran in CI** on the pull request (`.github/workflows/ci.yml`), which
+  supplies its own environment: 13 passed on `38efb24`, with no `skipped` or
+  `flaky` — so the merge-gate journey genuinely executed rather than being
+  skipped behind a flaked dependency. But the e2e suite contains no assertion on
+  the credit line — E2E covers journeys, not branches — so that green proves this
+  change broke no existing journey; it does not prove the credit renders. AC5's
+  rendered output remains unobserved.
 
 To close both locally, from the repository root:
 
