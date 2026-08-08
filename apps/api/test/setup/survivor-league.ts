@@ -21,6 +21,9 @@ import {
   seedSeason,
   type SeededWeek,
 } from "./league-helpers";
+import { WEEK1_KICKOFF } from "./league-app";
+
+export const SURVIVOR_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface SeedSurvivorLeagueMemberSpec {
   username?: string;
@@ -87,6 +90,65 @@ export async function seedSurvivorLeague(
   const members = await membersOf(db, league.id);
   const leagueSeasonId = await seasonIdFor(db, league.id);
   return { league, seasonId, leagueSeasonId, weekIds, gameIds, teamIds, users, members };
+}
+
+/** One week of a `seedSurvivorSeason` fixture, with the single game it holds. */
+export interface SeededSurvivorSeasonWeek {
+  weekId: string;
+  gameId: string;
+  homeTeamId: string;
+  awayTeamId: string;
+}
+
+export interface SeedSurvivorSeasonOptions {
+  weekCount?: number;
+  memberCount?: number;
+  settings?: SurvivorSettings;
+  year?: number;
+  usernamePrefix?: string;
+}
+
+/**
+ * A Survivor league season of N single-game weeks, each played between its own
+ * pair of teams and kicking off a week after the last. The per-week pair is the
+ * point: the team ledger is the mode's central constraint, so a fixture sharing
+ * one pair across the slate would cap every member at two legal picks.
+ *
+ * Shared by the settlement and board suites — both need a whole season to say
+ * anything, and a second copy would drift from this one the first time the
+ * ledger's shape changed.
+ */
+export async function seedSurvivorSeason(
+  db: Db,
+  auth: Auth,
+  opts: SeedSurvivorSeasonOptions = {},
+): Promise<SeededSurvivorLeague & { weeks: SeededSurvivorSeasonWeek[]; memberIds: string[] }> {
+  const { weekCount = 1, memberCount = 2, settings, year, usernamePrefix = "member" } = opts;
+
+  const base = await seedSurvivorLeague(db, auth, {
+    weeks: Array.from({ length: weekCount }, (_unused, i) => ({ weekNumber: i + 1 })),
+    settings,
+    year,
+    members: Array.from({ length: memberCount }, (_unused, i) => ({
+      username: `${usernamePrefix}_${i}`,
+    })),
+  });
+
+  const weeks: SeededSurvivorSeasonWeek[] = [];
+  for (let i = 0; i < weekCount; i += 1) {
+    const weekId = base.weekIds.get(`regular:${i + 1}`)!;
+    const game = await seedSurvivorGame(db, {
+      weekId,
+      kickoffAt: new Date(WEEK1_KICKOFF.getTime() + i * SURVIVOR_WEEK_MS),
+    });
+    weeks.push({ weekId, ...game });
+  }
+
+  return {
+    ...base,
+    weeks,
+    memberIds: base.users.map((user) => base.members.get(user.user.id)!),
+  };
 }
 
 /**

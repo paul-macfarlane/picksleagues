@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ErrorResponseSchema,
   SubmitSurvivorPickRequestSchema,
+  SurvivorStandingsResponseSchema,
   SurvivorWeekPicksResponseSchema,
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
@@ -16,8 +17,10 @@ import {
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
 import { getSurvivorWeekPicks, submitSurvivorPick } from "../services/survivor/picks";
+import { getSurvivorStandings } from "../services/survivor/standings";
 
 const LeagueWeekParamsSchema = z.object({ leagueId: z.uuid(), weekId: z.uuid() });
+const LeagueParamsSchema = z.object({ leagueId: z.uuid() });
 
 const getLeagueWeekPicks = createRoute({
   method: "get",
@@ -69,6 +72,27 @@ const putLeagueWeekPick = createRoute({
   },
 });
 
+// `standings` rather than `board` because the spec's own heading for this
+// surface is §Standings View; the UI's word for it is not the wire's.
+const getLeagueStandings = createRoute({
+  method: "get",
+  path: "/leagues/{leagueId}/survivor/standings",
+  operationId: "getSurvivorStandings",
+  summary: "The survivor board — every member's status, history, and burned teams",
+  request: { params: LeagueParamsSchema },
+  responses: {
+    200: {
+      description:
+        "One entry per member: alive or eliminated, the week they went out, how many times the revival rule brought them back, and their weekly picks — each pick's team present only once its game has kicked off, and each member's consumed teams derived from the picks the caller can see. `concluded` marks the season over, at which point every member still alive is a (co-)winner",
+      content: { "application/json": { schema: SurvivorStandingsResponseSchema } },
+    },
+    400: errorResponse("Not a Survivor league (wrong_league_mode)"),
+    401: UNAUTHENTICATED_401,
+    404: LEAGUE_NOT_FOUND_404,
+    500: MISCONFIGURED_500,
+  },
+});
+
 export function survivorRoutes(deps: AppDeps) {
   const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
     defaultHook: zodValidationHook,
@@ -87,6 +111,21 @@ export function survivorRoutes(deps: AppDeps) {
     const { leagueId, weekId } = c.req.valid("param");
 
     const result = await getSurvivorWeekPicks(db, clock, leagueId, weekId, sessionUser.id);
+    if (!result.ok) {
+      const { body, status } = survivorRefusal(result.reason);
+      return c.json(ErrorResponseSchema.parse(body), status);
+    }
+
+    return c.json(result.value, 200);
+  });
+
+  app.openapi(getLeagueStandings, async (c) => {
+    const db = c.get("db");
+    const clock = c.get("clock");
+    const sessionUser = c.get("sessionUser");
+    const { leagueId } = c.req.valid("param");
+
+    const result = await getSurvivorStandings(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
       const { body, status } = survivorRefusal(result.reason);
       return c.json(ErrorResponseSchema.parse(body), status);

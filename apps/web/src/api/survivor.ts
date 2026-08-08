@@ -39,6 +39,32 @@ export function useSurvivorWeekPicks(leagueId: string, weekId: string | undefine
   });
 }
 
+export function survivorStandingsQueryKey(leagueId: string) {
+  return ["league", leagueId, "survivor", "standings"];
+}
+
+/**
+ * The survivor board (spec §Standings View). One scope only — Survivor has no
+ * weekly/season toggle, because there is nothing cumulative to total: the mode
+ * grades survive-or-eliminate and the season *is* the board (ADR-0016).
+ *
+ * Everything it returns is already filtered to what this member may see, so the
+ * UI renders it as given: withheld picks arrive with a null team, and a
+ * consumed-team list is never larger than the picks behind it.
+ */
+export function useSurvivorStandings(leagueId: string) {
+  return useQuery({
+    queryKey: survivorStandingsQueryKey(leagueId),
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/leagues/{leagueId}/survivor/standings", {
+        params: { path: { leagueId } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 // Wire-slug → toast copy for the pick write's expected refusals. Each message
 // names what the member can do about it; anything not listed falls back to the
 // server's own message, which is already user-facing phrasing.
@@ -123,9 +149,15 @@ export function useSubmitSurvivorPick(leagueId: string, weekId: string) {
     onSuccess: async (data) => {
       if (!data) return;
       toast.success("Pick saved");
-      await queryClient.invalidateQueries({
-        queryKey: survivorWeekPicksQueryKey(leagueId, weekId),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: survivorWeekPicksQueryKey(leagueId, weekId),
+        }),
+        // The board carries this member's own history and consumed teams, both
+        // of which the write just moved — unlike Pick'em, whose board is
+        // settlement's alone and cannot change from a pick screen.
+        queryClient.invalidateQueries({ queryKey: survivorStandingsQueryKey(leagueId) }),
+      ]);
     },
     onError: () => toast.error("Couldn't save your pick — please try again."),
   });

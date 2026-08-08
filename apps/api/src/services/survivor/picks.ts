@@ -59,20 +59,27 @@ export const SURVIVOR_REFUSAL = {
 export type SurvivorRefusal = (typeof SURVIVOR_REFUSAL)[keyof typeof SURVIVOR_REFUSAL];
 
 /**
+ * Everything resolving and authorizing the *league* can refuse — `loadContext`'s
+ * own set, and all a surface with no week in its path (the board) can produce.
+ */
+export type SurvivorLeagueRefusal = Extract<
+  SurvivorRefusal,
+  "league_not_found" | "wrong_league_mode"
+>;
+
+/**
  * The refusals reachable from resolving and authorizing a league-week — all a
  * read can produce. Split from the full set so the read route doesn't have to
  * declare the write-only conflicts it can never emit. (The handler maps stay
  * keyed by the full set on purpose, so adding a reason is a compile error.)
  */
-export type SurvivorReadRefusal = Extract<
-  SurvivorRefusal,
-  "league_not_found" | "wrong_league_mode" | "week_out_of_range"
->;
+export type SurvivorReadRefusal =
+  SurvivorLeagueRefusal | Extract<SurvivorRefusal, "week_out_of_range">;
 
 export type SurvivorResult<T, R extends SurvivorRefusal = SurvivorRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
 
-interface SurvivorContext {
+export interface SurvivorContext {
   leagueSeasonId: string;
   seasonId: string;
   membershipId: string;
@@ -81,15 +88,19 @@ interface SurvivorContext {
 }
 
 /**
- * Resolves and authorizes the league both paths need. A non-member gets
- * `league_not_found`, indistinguishable from a league that doesn't exist —
+ * Resolves and authorizes the league every Survivor surface needs. A non-member
+ * gets `league_not_found`, indistinguishable from a league that doesn't exist —
  * private leagues stay hidden (matching `getLeague`).
+ *
+ * Module-public so the board reads the same gate the pick paths do: two Survivor
+ * surfaces disagreeing about who may see a league is exactly the divergence a
+ * second copy of this would produce.
  */
-async function loadContext(
+export async function loadContext(
   db: Db,
   leagueId: string,
   userId: string,
-): Promise<SurvivorResult<SurvivorContext, "league_not_found" | "wrong_league_mode">> {
+): Promise<SurvivorResult<SurvivorContext, SurvivorLeagueRefusal>> {
   const current = await getLeagueWithCurrentSeason(db, leagueId);
   if (!current) return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_NOT_FOUND };
 

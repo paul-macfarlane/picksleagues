@@ -203,6 +203,10 @@ function replaySeason(
     // has not filled. Grading it would eliminate every member for missing a
     // pick in a week they were never offered, so it blocks the prefix exactly
     // as a postponed game does.
+    //
+    // `isSeasonConcluded` in this module's `standings.ts` sibling mirrors this
+    // completeness rule to decide when the board may name a winner. Nothing
+    // couples them, so a change here needs the same change there.
     if (results.length === 0) break;
 
     const settlement = settleSurvivorWeek(

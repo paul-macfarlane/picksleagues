@@ -1,17 +1,21 @@
 import { z } from "@hono/zod-openapi";
+import { NullablePickOutcomeSchema } from "./pick-outcome";
+import { SlateTeamSchema } from "./slate";
 
 /**
- * Survivor pick entry and the kickoff-gated read path (spec §Game Mode 2). The
- * slate these picks are made against and the league's week list are
- * mode-agnostic and live in `slate.ts` / `league-weeks.ts`.
+ * Survivor pick entry, the kickoff-gated read path, and the survivor board
+ * (spec §Game Mode 2). The slate these picks are made against and the league's
+ * week list are mode-agnostic and live in `slate.ts` / `league-weeks.ts`.
  *
  * Two rules shape these types and are worth stating once here:
  * - **Pick visibility is enforced in the query layer** (arch §Locking Model).
  *   Another member's `pick` is null until their game kicks off, while
  *   `hasPicked` stays true — existence is public, the content is not.
- * - **`consumedTeamIds` is the viewer's own ledger**, never anyone else's:
- *   which teams another member has burned is exactly the information the
- *   visibility rule withholds.
+ * - **A consumed-team list is only ever derived from picks its reader is
+ *   already allowed to see.** The viewer gets their own full ledger; another
+ *   member's is built from their revealed picks alone, because a list built
+ *   from all of them would disclose the current-week team the rule above
+ *   withheld.
  */
 
 /**
@@ -86,3 +90,128 @@ export const SurvivorWeekPicksResponseSchema = z
   .openapi("SurvivorWeekPicksResponse");
 
 export type SurvivorWeekPicksResponse = z.infer<typeof SurvivorWeekPicksResponseSchema>;
+
+/**
+ * Where a member stands in the season. Survivor grades survive-or-eliminate and
+ * has no points and no ranked board (ADR-0016), so this — not a position — is
+ * what its board reports.
+ */
+export const SURVIVOR_MEMBER_STATUS = {
+  ALIVE: "alive",
+  ELIMINATED: "eliminated",
+} as const;
+
+export type SurvivorMemberStatus =
+  (typeof SURVIVOR_MEMBER_STATUS)[keyof typeof SURVIVOR_MEMBER_STATUS];
+
+export const SurvivorMemberStatusSchema = z
+  .enum(SURVIVOR_MEMBER_STATUS)
+  .openapi("SurvivorMemberStatus");
+
+/**
+ * A week of the board's frame. Deliberately not `LeagueWeek`: that shape
+ * carries a `gameCount` the board would have to run a second aggregate to fill
+ * and would never render, and the week navigator's needs are not the board's.
+ */
+export const SurvivorStandingsWeekSchema = z
+  .object({
+    weekId: z.string(),
+    label: z.string(),
+  })
+  .openapi("SurvivorStandingsWeek");
+
+export type SurvivorStandingsWeek = z.infer<typeof SurvivorStandingsWeekSchema>;
+
+/**
+ * One week of a member's history. The entry existing *is* "they picked that
+ * week" — a week they missed has none at all, which in this mode is the fact
+ * that eliminated them (spec §Game Mode 2 — Missed pick).
+ */
+export const SurvivorStandingsPickSchema = z
+  .object({
+    weekId: z.string(),
+    /**
+     * The viewer's own team always; another member's only once that pick's game
+     * has kicked off (spec §Pick Visibility). Null on an entry that exists is
+     * the deliberate state: the league sees that someone is in without seeing
+     * who they took.
+     */
+    teamId: z.string().nullable(),
+    /**
+     * How the pick graded, or null while it has none — a pick whose week the
+     * settlement prefix hasn't reached has no result row at all (arch D10), and
+     * a pick still withheld by the rule above never carries one on the wire.
+     */
+    outcome: NullablePickOutcomeSchema,
+  })
+  .openapi("SurvivorStandingsPick");
+
+export type SurvivorStandingsPick = z.infer<typeof SurvivorStandingsPickSchema>;
+
+export const SurvivorStandingsMemberSchema = z
+  .object({
+    leagueMemberId: z.string(),
+    userId: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string(),
+    image: z.string().nullable(),
+    isViewer: z.boolean(),
+    /**
+     * Mirrors `eliminatedWeekId` rather than being independent of it — the
+     * mode's core rule is that a member is out exactly when settlement has
+     * named the week they busted in, and stating it on the wire keeps every
+     * client from re-deriving it slightly differently.
+     */
+    status: SurvivorMemberStatusSchema,
+    eliminatedWeekId: z.string().nullable(),
+    /**
+     * How many times the everyone-out revival rule has brought this member back
+     * (spec §Game Mode 2 — Everyone eliminated in the same week). Display only.
+     */
+    revivedCount: z.number().int(),
+    /**
+     * Set for every member still alive once the season has concluded. Several
+     * at once is not an error: they are co-winners sharing first, and the spec
+     * gives no further tiebreaker (spec §End of League).
+     */
+    isWinner: z.boolean(),
+    /** In season order, and only for weeks this member actually picked. */
+    picks: z.array(SurvivorStandingsPickSchema),
+    /**
+     * The teams this member may no longer pick (spec §Game Mode 2 — Team
+     * reuse). The viewer's own is their full ledger; another member's is
+     * derived from their *revealed* picks alone.
+     */
+    consumedTeamIds: z.array(z.string()),
+  })
+  .openapi("SurvivorStandingsMember");
+
+export type SurvivorStandingsMember = z.infer<typeof SurvivorStandingsMemberSchema>;
+
+export const SurvivorStandingsResponseSchema = z
+  .object({
+    /** The league's in-range weeks in season order — the frame `picks` is indexed by. */
+    weeks: z.array(SurvivorStandingsWeekSchema),
+    members: z.array(SurvivorStandingsMemberSchema),
+    /**
+     * Every team named anywhere above, once. A lookup rather than a team
+     * inlined per pick: one team recurs across members and weeks, and inlining
+     * would multiply its six display fields by both. Nothing appears here that
+     * the visibility rules didn't already disclose.
+     */
+    teams: z.array(SlateTeamSchema),
+    /**
+     * Whether the last week of the league's resolved range has settled (spec
+     * §End of League) — which is what makes the members still alive winners.
+     */
+    concluded: z.boolean(),
+    /**
+     * When settlement last wrote this season. The spec requires standings show
+     * a "last updated" stamp and never claim real-time freshness — null means
+     * nothing has settled yet.
+     */
+    updatedAt: z.iso.datetime().nullable(),
+  })
+  .openapi("SurvivorStandingsResponse");
+
+export type SurvivorStandingsResponse = z.infer<typeof SurvivorStandingsResponseSchema>;

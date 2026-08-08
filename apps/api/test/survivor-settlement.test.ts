@@ -2,28 +2,26 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { adminAudit, isUniqueViolation } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
-import {
-  ADMIN_AUDIT_ACTION,
-  GAME_STATUS,
-  PICK_OUTCOME,
-  type SurvivorSettings,
-} from "@picksleagues/schemas";
+import { ADMIN_AUDIT_ACTION, GAME_STATUS, PICK_OUTCOME } from "@picksleagues/schemas";
 import { rebuildLeagueSeason, settlePicksForGames, settleSweep } from "../src/services/settlement";
-import { setGame, type SeededWeek } from "./setup/league-helpers";
+import { setGame } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import {
   insertSurvivorPick,
   seedSurvivorGame,
   seedSurvivorLeague,
+  seedSurvivorSeason,
   survivorPickResultsFor,
   survivorPicksFor,
   survivorStateFor,
+  SURVIVOR_WEEK_MS as WEEK_MS,
+  type SeededSurvivorSeasonWeek as FixtureWeek,
+  type SeedSurvivorSeasonOptions,
 } from "./setup/survivor-league";
 import { resetDb } from "./setup/reset-db";
 
 const { db, auth } = makeLeagueTestHarness();
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 /** Well past every seeded kickoff — settlement grades on game status, never on the clock. */
 const clock = new FixedClock(new Date("2026-12-01T00:00:00.000Z"));
 
@@ -35,58 +33,8 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-interface FixtureWeek {
-  weekId: string;
-  gameId: string;
-  homeTeamId: string;
-  awayTeamId: string;
-}
-
-/**
- * A Survivor league season of N single-game weeks, each played between its own
- * pair of teams. The per-week pair is the point: the team ledger is the mode's
- * central constraint, so a fixture sharing one pair across the slate would cap
- * every member at two legal picks.
- */
-async function seedSeasonFixture(
-  opts: {
-    weekCount?: number;
-    memberCount?: number;
-    settings?: SurvivorSettings;
-    year?: number;
-    usernamePrefix?: string;
-  } = {},
-) {
-  const { weekCount = 1, memberCount = 2, settings, year, usernamePrefix = "member" } = opts;
-  const weekSpecs: SeededWeek[] = Array.from({ length: weekCount }, (_, i) => ({
-    weekNumber: i + 1,
-  }));
-
-  const base = await seedSurvivorLeague(db, auth, {
-    weeks: weekSpecs,
-    settings,
-    year,
-    members: Array.from({ length: memberCount }, (_, i) => ({
-      username: `${usernamePrefix}_${i}`,
-    })),
-  });
-
-  const weeks: FixtureWeek[] = [];
-  for (let i = 0; i < weekCount; i += 1) {
-    const weekId = base.weekIds.get(`regular:${i + 1}`)!;
-    const game = await seedSurvivorGame(db, {
-      weekId,
-      kickoffAt: new Date(WEEK1_KICKOFF.getTime() + i * WEEK_MS),
-    });
-    weeks.push({ weekId, ...game });
-  }
-
-  return {
-    ...base,
-    weeks,
-    memberIds: base.users.map((user) => base.members.get(user.user.id)!),
-  };
-}
+const seedSeasonFixture = (opts: SeedSurvivorSeasonOptions = {}) =>
+  seedSurvivorSeason(db, auth, opts);
 
 /** Home wins by two touchdowns — the fixture's ordinary "this game is over". */
 async function finalizeHomeWin(gameId: string) {

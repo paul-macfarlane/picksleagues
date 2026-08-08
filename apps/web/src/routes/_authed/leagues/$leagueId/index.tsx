@@ -5,6 +5,7 @@ import { useLeague, useRenewLeague } from "@/api/leagues";
 import { useAppNow } from "@/lib/app-clock";
 import { canActOnLeague } from "@/lib/league";
 import { PickemStandingsSection } from "@/components/league/pickem-standings-section";
+import { SurvivorBoard } from "@/components/league/survivor-board";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -46,14 +47,19 @@ function LeagueOverview() {
           weekId={week}
           onSelectWeek={(next) => navigate({ search: next ? { week: next } : {}, replace: true })}
         />
+      ) : league.data.mode === LEAGUE_MODE.SURVIVOR ? (
+        // No week scope, and so no `week` search param: Survivor's board is the
+        // whole season at once, because there is nothing weekly to total
+        // (ADR-0016).
+        <SurvivorBoard leagueId={leagueId} />
       ) : (
         <Card>
           <CardHeader>
             <CardTitle>Standings</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Survivor's board and MM's bracket leaderboard ship
-                with their own epics — nothing to compute yet for those modes. */}
+            {/* March Madness's bracket leaderboard ships with its own epic —
+                nothing to compute yet for that mode. */}
             <p className="text-sm text-muted-foreground">
               Standings for this game mode aren&apos;t available yet.
             </p>
