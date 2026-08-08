@@ -647,6 +647,37 @@ describe("GET /api/leagues", () => {
       expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "eliminated" });
     });
 
+    it("calls a member who is the last one standing a winner, not a member who owes a pick", async () => {
+      const { seasonId, weekIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const survivor = await createAuthenticatedUser(auth);
+      const beaten = await createAuthenticatedUser(auth);
+      const league = await insertLeague(db, {
+        seasonId,
+        name: "Survivor",
+        mode: LEAGUE_MODE.SURVIVOR,
+        settings: DEFAULT_SURVIVOR_SETTINGS,
+        members: [
+          { userId: survivor.user.id, role: MEMBER_ROLE.COMMISSIONER },
+          { userId: beaten.user.id, role: MEMBER_ROLE.MEMBER },
+        ],
+      });
+      const members = await membersOf(db, league.id);
+      await insertSurvivorState(db, {
+        leagueSeasonId: await seasonIdFor(db, league.id),
+        leagueMemberId: members.get(beaten.user.id)!,
+        eliminatedWeekId: weekIds.get("regular:1")!,
+      });
+
+      // The week is wide open, which is exactly what the season being decided
+      // overrides (ADR-0027) — and the member they beat still reads as out.
+      expect((await readMyLeagues(survivor.cookie)).leagues[0]).toMatchObject({
+        survivorPickStatus: "won",
+      });
+      expect((await readMyLeagues(beaten.cookie)).leagues[0]).toMatchObject({
+        survivorPickStatus: "eliminated",
+      });
+    });
+
     it("resolves each Survivor league on its own in one payload", async () => {
       const { seasonId, weekIds, gameIds, teamIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
       const { user, cookie } = await createAuthenticatedUser(auth);

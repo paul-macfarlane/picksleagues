@@ -6,8 +6,6 @@ import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
-  WEEK_TYPE,
-  nflSeasonOrdinal,
   type LeagueStatus,
   type SubmitSurvivorPickRequest,
   type SurvivorMemberPick,
@@ -22,6 +20,7 @@ import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import { resolveUserImage } from "../users";
 import { getWeek, loadResolvedWeekGames, resolveLockStates } from "../slate";
+import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
 
 /**
  * Survivor pick entry (spec §Game Mode 2 — Core Rules) and the kickoff-gated
@@ -128,13 +127,7 @@ export async function loadContext(
   };
 }
 
-/**
- * Whether the requested week is one this league plays. Survivor is
- * **regular-season only** (spec §Game Mode 2 — Core Rules), so the week type is
- * checked in its own right rather than left to the ordinal comparison: the
- * stored range can only ever name regular weeks, but stating the mode's rule
- * where it applies keeps it true if a stored range is ever widened.
- */
+/** Whether the requested week is one this league plays, and one of its season's. */
 async function isWeekInRange(
   db: Db,
   seasonId: string,
@@ -143,12 +136,7 @@ async function isWeekInRange(
 ): Promise<boolean> {
   const week = await getWeek(db, weekId);
   if (!week || week.seasonId !== seasonId) return false;
-  if (week.weekType !== WEEK_TYPE.REGULAR) return false;
-
-  const ordinal = nflSeasonOrdinal({ type: WEEK_TYPE.REGULAR, number: week.weekNumber });
-  return (
-    ordinal >= nflSeasonOrdinal(settings.startWeek) && ordinal <= nflSeasonOrdinal(settings.endWeek)
-  );
+  return isSurvivorRangeWeek(week, settings);
 }
 
 /** The member ids settlement has eliminated. A member with no row is alive. */
@@ -266,7 +254,31 @@ export async function submitSurvivorPick(
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, seasonId, membershipId, settings, status } = preflight.value;
 
+  // Both readings of "this season is over", because they answer at different
+  // times: the stored status is what LG-12 will persist and nothing writes yet,
+  // while the derived state is true the moment settlement leaves one member
+  // standing or the range plays out (ADR-0027). Keeping the status check is what
+  // stops persistence needing this rewritten.
   if (status === LEAGUE_STATUS.CONCLUDED) {
+    return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
+  }
+
+  // Pre-flight rather than inside the write transaction, unlike the lock and
+  // ledger invariants below: this is settled state, and it carries the same
+  // deliberate lag the eliminated check does (ADR-0025) — a pick landing between
+  // the season being decided and this reading it grades to nothing, where a
+  // kickoff moving under an unvalidated write would let a locked pick through.
+  const season = await resolveSurvivorSeasonState(db, {
+    leagueSeasonId,
+    leagueId,
+    seasonId,
+    settings,
+  });
+  // Only for a member the season decided *for*. A decided season's winners are
+  // exactly its alive set, so everyone else here is eliminated — and the refusal
+  // about them personally is the one they need, the same one a league with three
+  // members and one survivor would have given them.
+  if (season.decided && season.winnerMemberIds.has(membershipId)) {
     return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
   }
 

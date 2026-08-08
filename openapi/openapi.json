@@ -775,6 +775,7 @@
         ],
         "enum": [
           "eliminated",
+          "won",
           "pick_in",
           "pick_needed",
           "locked",

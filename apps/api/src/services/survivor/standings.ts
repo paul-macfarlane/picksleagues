@@ -1,19 +1,10 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import {
-  games,
-  survivorPickResults,
-  survivorPicks,
-  survivorState,
-  teams,
-  weeks,
-} from "@picksleagues/db";
+import { survivorPickResults, survivorPicks, survivorState, teams, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
-  GAME_STATUS,
   SURVIVOR_MEMBER_STATUS,
   WEEK_TYPE,
-  isUnplayedStatus,
   nflSeasonOrdinal,
   type SlateTeam,
   type SurvivorSettings,
@@ -21,13 +12,13 @@ import {
   type SurvivorStandingsPick,
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
-import { resolveGameOverrides } from "../games";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
 import { resolveLockStates } from "../slate";
 import { resolveUserImage } from "../users";
 import { loadContext, type SurvivorLeagueRefusal, type SurvivorResult } from "./picks";
+import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
 
 /**
  * The survivor board (spec §Standings View): every member with their status,
@@ -85,88 +76,13 @@ async function loadInRangeWeeks(
     .from(weeks)
     .where(eq(weeks.seasonId, seasonId));
 
-  const startOrdinal = nflSeasonOrdinal(settings.startWeek);
-  const endOrdinal = nflSeasonOrdinal(settings.endWeek);
-
   return rows
     .flatMap((row) => {
-      if (row.weekType !== WEEK_TYPE.REGULAR) return [];
+      if (!isSurvivorRangeWeek(row, settings)) return [];
       const ordinal = nflSeasonOrdinal({ type: WEEK_TYPE.REGULAR, number: row.weekNumber });
-      if (ordinal < startOrdinal || ordinal > endOrdinal) return [];
       return [{ id: row.id, label: row.label, ordinal }];
     })
     .sort((a, b) => a.ordinal - b.ordinal);
-}
-
-/** A week's games with override precedence resolved (arch D15), for the conclusion test below. */
-type EffectiveGame = ReturnType<typeof resolveGameOverrides>;
-
-async function loadGamesByWeek(
-  db: Db,
-  weekIds: readonly string[],
-): Promise<Map<string, EffectiveGame[]>> {
-  const byWeek = new Map<string, EffectiveGame[]>(weekIds.map((weekId) => [weekId, []]));
-  if (weekIds.length === 0) return byWeek;
-
-  const rows = await db
-    .select()
-    .from(games)
-    .where(inArray(games.weekId, [...weekIds]));
-  for (const row of rows) {
-    byWeek.get(row.weekId)?.push(resolveGameOverrides(row));
-  }
-  return byWeek;
-}
-
-/**
- * Whether the season has played out — spec §End of League: "the league concludes
- * once the last week of its resolved range has settled", after which the members
- * still alive are its (co-)winners.
- *
- * Derived, never read off a stored league status: no path in this codebase ever
- * writes `concluded`, so a status check would answer "active" for a season that
- * finished in January. The evidence used instead is the very precondition
- * settlement's own prefix rule turns on (ADR-0025): every in-range week holds
- * games, every one of them is terminal, and a game claiming to be final carries
- * the scores it takes to grade. Requiring settlement to have *written* the
- * season on top of that is what stops the board naming a winner the grader
- * hasn't produced; how recently it wrote is what the `updatedAt` stamp beside
- * this reports, which is why the spec insists on the stamp rather than on a
- * freshness claim.
- *
- * **This restates settlement's completeness rule rather than reading its
- * output, and the two must not drift.** The sibling copy is the week loop in
- * `survivor/settlement.ts`; change one and this answers a different question
- * than the grader did, which here means crowning a winner mid-season or never
- * crowning one at all. The duplication exists because settlement stores no
- * "settled through week N" marker, and results coverage cannot stand in for one
- * — a week nobody alive picked, and an eliminated member's ungraded pick, both
- * legitimately produce no result row. A stored marker would collapse the two
- * into one answer and is the right fix if this ever needs a third caller.
- */
-function isSeasonConcluded(
-  inRangeWeeks: readonly InRangeWeek[],
-  gamesByWeek: ReadonlyMap<string, EffectiveGame[]>,
-  updatedAt: Date | null,
-): boolean {
-  if (inRangeWeeks.length === 0 || updatedAt === null) return false;
-
-  return inRangeWeeks.every((week) => {
-    const weekGames = gamesByWeek.get(week.id) ?? [];
-    // A week with no games is not a week that finished, it is a week the
-    // schedule never filled — and it blocks the replay for the same reason.
-    if (weekGames.length === 0) return false;
-    return weekGames.every((game) => {
-      // `isUnplayedStatus` is cancelled and nothing else — a game that will
-      // never be played in this week, which the spec resolves as a push. It
-      // reads like the opposite of what it gates, so: cancelled counts as done,
-      // scheduled and in-progress and postponed do not.
-      if (isUnplayedStatus(game.status)) return true;
-      return (
-        game.status === GAME_STATUS.FINAL && game.homeScore !== null && game.awayScore !== null
-      );
-    });
-  });
 }
 
 export async function getSurvivorStandings(
@@ -227,7 +143,16 @@ export async function getSurvivorStandings(
   const updatedAt =
     stamps.length === 0 ? null : new Date(Math.max(...stamps.map((at) => at.getTime())));
 
-  const concluded = isSeasonConcluded(inRangeWeeks, await loadGamesByWeek(db, weekIds), updatedAt);
+  // Both endings the spec names, answered in one place (ADR-0027): the range
+  // playing out, and the league being reduced to a single member — after which
+  // no further week is played, so waiting for the range would withhold a result
+  // nothing left to come can change.
+  const season = await resolveSurvivorSeasonState(db, {
+    leagueSeasonId,
+    leagueId,
+    seasonId,
+    settings,
+  });
 
   const picksByMemberId = new Map<string, Array<typeof survivorPicks.$inferSelect>>();
   for (const pick of picks) {
@@ -286,7 +211,7 @@ export async function getSurvivorStandings(
       revivedCount: stateByMemberId.get(member.id)?.revivedCount ?? 0,
       // Several at once is the co-winner case the spec names, not a bug (spec
       // §End of League) — there is no further tiebreaker to separate them.
-      isWinner: concluded && status === SURVIVOR_MEMBER_STATUS.ALIVE,
+      isWinner: season.winnerMemberIds.has(member.id),
       picks: history,
       consumedTeamIds,
     };
@@ -298,7 +223,7 @@ export async function getSurvivorStandings(
       weeks: inRangeWeeks.map((week) => ({ weekId: week.id, label: week.label })),
       members: serialized,
       teams: await loadTeams(db, [...disclosedTeamIds]),
-      concluded,
+      concluded: season.decided,
       updatedAt: updatedAt?.toISOString() ?? null,
     },
   };

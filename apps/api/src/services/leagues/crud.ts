@@ -427,6 +427,7 @@ export async function listMyLeagues(
         ? [
             {
               leagueSeasonId: row.leagueSeasonId,
+              leagueId: row.league.id,
               seasonId: row.seasonId,
               membershipId: row.membershipId,
               settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),

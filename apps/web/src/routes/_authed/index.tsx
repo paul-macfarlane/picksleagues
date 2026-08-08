@@ -166,11 +166,16 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
  * to that rather than to the copy.
  *
  * "Week closed" rather than a missed-pick accusation on purpose: the state also
- * covers a concluded season and a week a member sat out knowingly, and only
- * settlement gets to say someone is out.
+ * covers a week a member sat out knowingly, and only settlement gets to say
+ * someone is out.
+ *
+ * "Winner" covers the co-winner case too. The card has no room to say how many
+ * shared it and the board beside it does, so a label that hedged would cost
+ * every sole winner their moment to spare a plural that is one click away.
  */
 const SURVIVOR_GLANCE = {
   [SURVIVOR_PICK_STATUS.ELIMINATED]: { tone: "danger", label: "Eliminated" },
+  [SURVIVOR_PICK_STATUS.WON]: { tone: "accent", label: "Winner" },
   [SURVIVOR_PICK_STATUS.PICK_IN]: { tone: "success", label: "Pick in" },
   [SURVIVOR_PICK_STATUS.PICK_NEEDED]: { tone: "highlight", label: "Pick needed" },
   [SURVIVOR_PICK_STATUS.LOCKED]: { tone: "neutral", label: "Week closed" },

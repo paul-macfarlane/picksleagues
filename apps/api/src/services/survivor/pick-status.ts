@@ -4,23 +4,22 @@ import { games, survivorPicks, survivorState, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   SURVIVOR_PICK_STATUS,
-  WEEK_TYPE,
-  nflSeasonOrdinal,
   type SurvivorPickStatus,
   type SurvivorSettings,
-  type WeekType,
 } from "@picksleagues/schemas";
 import { resolveGameOverrides } from "../games";
 import { resolveCurrentWeekId } from "../league-weeks";
 import { isLocked, isPickable } from "../slate";
+import { isSurvivorRangeWeek, resolveSurvivorSeasonStates } from "./season";
 
 /**
  * The dashboard's one-line answer to "do I owe a pick here?" for every Survivor
  * league a member is in (spec §Screens — Dashboard).
  *
  * Batched across leagues rather than resolved per card: this sits on the
- * dashboard's critical path and a member can be in many leagues, so it costs
- * four queries whatever that count is.
+ * dashboard's critical path and a member can be in many leagues, so its query
+ * count is constant whatever that count is — which is why the season-state
+ * resolution below is the batched form too.
  *
  * Two rules the module exists to keep server-side:
  * - **Lock is derived, never stored** (arch D11) — computed from each game's
@@ -35,26 +34,10 @@ import { isLocked, isPickable } from "../slate";
 
 export interface SurvivorPickStatusInput {
   leagueSeasonId: string;
+  leagueId: string;
   seasonId: string;
   membershipId: string;
   settings: SurvivorSettings;
-}
-
-/**
- * Survivor is regular-season only (spec §Game Mode 2 — Core Rules), so the week
- * type is checked in its own right rather than left to the ordinal comparison —
- * the same shape `isWeekInRange` applies on the pick paths, which is what stops
- * this pointing a member at a week those paths would refuse.
- */
-function isInSurvivorRange(
-  week: { weekType: WeekType; weekNumber: number },
-  settings: SurvivorSettings,
-): boolean {
-  if (week.weekType !== WEEK_TYPE.REGULAR) return false;
-  const ordinal = nflSeasonOrdinal({ type: WEEK_TYPE.REGULAR, number: week.weekNumber });
-  return (
-    ordinal >= nflSeasonOrdinal(settings.startWeek) && ordinal <= nflSeasonOrdinal(settings.endWeek)
-  );
 }
 
 function memberKey(leagueSeasonId: string, membershipId: string): string {
@@ -107,7 +90,7 @@ export async function resolveSurvivorPickStatuses(
   const currentWeekByLeague = new Map<string, string>();
   for (const league of leagues) {
     const inRange = (weeksBySeason.get(league.seasonId) ?? []).filter((row) =>
-      isInSurvivorRange(row, league.settings),
+      isSurvivorRangeWeek(row, league.settings),
     );
     const weekId = resolveCurrentWeekId(inRange, clock);
     if (weekId) currentWeekByLeague.set(league.leagueSeasonId, weekId);
@@ -173,10 +156,22 @@ export async function resolveSurvivorPickStatuses(
     }
   }
 
+  const seasonStates = await resolveSurvivorSeasonStates(db, leagues);
+
   for (const league of leagues) {
     const key = memberKey(league.leagueSeasonId, league.membershipId);
     if (eliminated.has(key)) {
       statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.ELIMINATED);
+      continue;
+    }
+
+    // A decided season owes nobody a pick (ADR-0027), and a member still alive
+    // in one has won it — winners are the alive set, so reaching here past the
+    // elimination check above is the whole of that test. Answered before the
+    // week lookup for the same reason elimination is: it is a fact about the
+    // season, so a league with no current week must still report it.
+    if (seasonStates.get(league.leagueSeasonId)?.decided === true) {
+      statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.WON);
       continue;
     }
 

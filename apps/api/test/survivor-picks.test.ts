@@ -378,6 +378,9 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
 
       expect(response.status).toBe(expected);
       if (expected === 409) {
+        // The refusal about *them*, not the one about the league: this two-member
+        // fixture is also a decided season now, and the personal reason wins
+        // (ADR-0027).
         expect(((await response.json()) as { error: string }).error).toBe("member_eliminated");
         expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
       } else {
@@ -385,6 +388,57 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       }
     },
   );
+
+  it("refuses the last member standing — a decided season takes no more picks", async () => {
+    const {
+      league,
+      memberA,
+      memberAId,
+      memberBId,
+      leagueSeasonId,
+      week1,
+      week2,
+      week2Game1,
+      teamIds,
+    } = await seedLeague();
+    await insertSurvivorState(db, {
+      leagueSeasonId,
+      leagueMemberId: memberBId,
+      eliminatedWeekId: week1,
+    });
+
+    const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+      gameId: week2Game1,
+      teamId: teamIds.home,
+    });
+
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: string }).error).toBe("league_concluded");
+    expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
+  });
+
+  it("still takes a pick while two members are alive", async () => {
+    const base = await seedSurvivorLeague(db, auth, {
+      weeks: TWO_WEEK_SLATE,
+      members: [{ username: "alive_a" }, { username: "alive_b" }, { username: "out_c" }],
+    });
+    const memberAId = base.members.get(base.users[0]!.user.id)!;
+    await insertSurvivorState(db, {
+      leagueSeasonId: base.leagueSeasonId,
+      leagueMemberId: base.members.get(base.users[2]!.user.id)!,
+      eliminatedWeekId: base.weekIds.get("regular:1")!,
+    });
+
+    const response = await putSurvivorPick(
+      base.users[0]!.cookie,
+      base.league.id,
+      base.weekIds.get("regular:2")!,
+      { gameId: base.gameIds.get("regular:2")![0]!, teamId: base.teamIds.home },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await survivorPicksFor(db, base.leagueSeasonId, memberAId)).toHaveLength(1);
+  });
 });
 
 describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {

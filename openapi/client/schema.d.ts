@@ -939,7 +939,7 @@ export interface components {
             survivorPickStatus: components["schemas"]["NullableSurvivorPickStatus"];
         };
         /** @enum {string|null} */
-        NullableSurvivorPickStatus: "eliminated" | "pick_in" | "pick_needed" | "locked" | null;
+        NullableSurvivorPickStatus: "eliminated" | "won" | "pick_in" | "pick_needed" | "locked" | null;
         UpdateLeagueRequest: {
             name?: components["schemas"]["LeagueName"];
             visibility?: components["schemas"]["LeagueVisibility"];

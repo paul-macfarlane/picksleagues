@@ -201,8 +201,10 @@ export const SurvivorStandingsResponseSchema = z
      */
     teams: z.array(SlateTeamSchema),
     /**
-     * Whether the last week of the league's resolved range has settled (spec
-     * §End of League) — which is what makes the members still alive winners.
+     * Whether the season has ended — the last week of the league's resolved
+     * range having settled, or the league having been reduced to one member
+     * still alive (spec §End of League, ADR-0027). Either way it is what makes
+     * the members still alive winners.
      */
     concluded: z.boolean(),
     /**
@@ -222,11 +224,16 @@ export type SurvivorStandingsResponse = z.infer<typeof SurvivorStandingsResponse
  * Core Rules), so a whole week collapses to a single state rather than the
  * picks-in-of-N count a multi-pick mode would need.
  *
- * Two of these carry a rule worth stating where the values live:
+ * Three of these carry a rule worth stating where the values live:
  * - `ELIMINATED` outranks every other state. A member settlement has put out
  *   owes no pick, so prompting them for one would be wrong whatever their week
  *   looks like — and they can still hold a pick for it, since elimination is
  *   settled a week behind the pick that caused it.
+ * - `WON` is the same kind of fact one rank below it: the season is over and
+ *   this member is one of the members alive when it ended (spec §End of League,
+ *   ADR-0027). It outranks every week-shaped state for the same reason —
+ *   a decided league owes nobody a pick — and never applies to an eliminated
+ *   member, who is answered by the state above.
  * - `LOCKED` means *every* game in the week has kicked off with no pick
  *   standing. Not the first kickoff: a member may take any unstarted game in
  *   the week, so the week closes against them only when none is left (spec
@@ -234,6 +241,7 @@ export type SurvivorStandingsResponse = z.infer<typeof SurvivorStandingsResponse
  */
 export const SURVIVOR_PICK_STATUS = {
   ELIMINATED: "eliminated",
+  WON: "won",
   PICK_IN: "pick_in",
   PICK_NEEDED: "pick_needed",
   LOCKED: "locked",

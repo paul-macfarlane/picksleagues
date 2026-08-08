@@ -282,6 +282,67 @@ describe("GET /api/leagues/:leagueId/survivor/standings — settled state", () =
     }
   });
 
+  it("names the last member standing the winner without waiting for the rest of the range", async () => {
+    const fixture = await seedFixture({ weekCount: 3, memberCount: 2 });
+    const [memberA, memberB] = fixture.memberIds as [string, string];
+    const [week1] = fixture.weeks as [(typeof fixture.weeks)[number]];
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberA,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.homeTeamId,
+    });
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberB,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.awayTeamId,
+    });
+    await finalizeHomeWin(week1.gameId);
+    await rebuildLeagueSeason(db, settleClock, fixture.leagueSeasonId);
+
+    const body = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
+
+    // Weeks 2 and 3 have not been played at all, and never will be: one member
+    // left is the season's answer (spec §End of League, ADR-0027).
+    expect(body.weeks).toHaveLength(3);
+    expect(body.concluded).toBe(true);
+    expect(memberEntry(body, memberA).isWinner).toBe(true);
+    expect(memberEntry(body, memberB).isWinner).toBe(false);
+  });
+
+  it("leaves a season with two members still alive undecided", async () => {
+    const fixture = await seedFixture({ weekCount: 3, memberCount: 3 });
+    const [memberA, memberB, memberC] = fixture.memberIds as [string, string, string];
+    const [week1] = fixture.weeks as [(typeof fixture.weeks)[number]];
+    for (const memberId of [memberA, memberB]) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId: week1.weekId,
+        gameId: week1.gameId,
+        teamId: week1.homeTeamId,
+      });
+    }
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberC,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.awayTeamId,
+    });
+    await finalizeHomeWin(week1.gameId);
+    await rebuildLeagueSeason(db, settleClock, fixture.leagueSeasonId);
+
+    const body = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
+
+    expect(memberEntry(body, memberC).status).toBe(SURVIVOR_MEMBER_STATUS.ELIMINATED);
+    expect(body.concluded).toBe(false);
+    expect(body.members.every((member) => !member.isWinner)).toBe(true);
+  });
+
   it("marks every member still alive a co-winner once the end week settles, and none before", async () => {
     const fixture = await seedFixture({ weekCount: 3, memberCount: 3 });
     const [memberA, memberB, memberC] = fixture.memberIds as [string, string, string];

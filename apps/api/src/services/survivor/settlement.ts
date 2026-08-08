@@ -31,6 +31,7 @@ import { resolveGameOverrides } from "../games";
 import { lockLeagueSeasonRow } from "../leagues/locks";
 import { logInfo } from "../../lib/logger";
 import { addSummary, EMPTY_SUMMARY, type SettlementSummary } from "../settlement";
+import { isSurvivorRangeWeek } from "./season";
 
 /**
  * Survivor settlement orchestration (arch D10, §Settlement & Scoring; ADR-0025).
@@ -114,23 +115,19 @@ async function loadSeasonWeeks(db: Db, season: SettleableSurvivorSeason): Promis
     .from(weeks)
     .where(eq(weeks.seasonId, season.seasonId));
 
-  const startOrdinal = nflSeasonOrdinal(season.settings.startWeek);
-  const endOrdinal = nflSeasonOrdinal(season.settings.endWeek);
-
   return rows
-    .map((row) => {
-      const ordinal = nflSeasonOrdinal(
+    .map((row) => ({
+      id: row.id,
+      // Every week gets an ordinal, in range or not: the replay order is the
+      // whole season's, and a postseason week still has to sort after the
+      // regular ones it follows.
+      ordinal: nflSeasonOrdinal(
         row.weekType === WEEK_TYPE.REGULAR
           ? { type: WEEK_TYPE.REGULAR, number: row.weekNumber }
           : { type: WEEK_TYPE.POSTSEASON, number: row.weekNumber },
-      );
-      return {
-        id: row.id,
-        ordinal,
-        inRange:
-          row.weekType === WEEK_TYPE.REGULAR && ordinal >= startOrdinal && ordinal <= endOrdinal,
-      };
-    })
+      ),
+      inRange: isSurvivorRangeWeek(row, season.settings),
+    }))
     .sort((a, b) => a.ordinal - b.ordinal);
 }
 
@@ -204,8 +201,8 @@ function replaySeason(
     // pick in a week they were never offered, so it blocks the prefix exactly
     // as a postponed game does.
     //
-    // `isSeasonConcluded` in this module's `standings.ts` sibling mirrors this
-    // completeness rule to decide when the board may name a winner. Nothing
+    // `rangePlayedOut` in this module's `season.ts` sibling mirrors this
+    // completeness rule to decide when a season has run its range out. Nothing
     // couples them, so a change here needs the same change there.
     if (results.length === 0) break;
 
