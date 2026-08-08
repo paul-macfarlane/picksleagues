@@ -397,6 +397,12 @@ Stated so the checklist isn't mistaken for full coverage:
 - **A whole real season.** Every pass is 3 members over four weeks. Eighteen weeks
   is where a ledger genuinely runs out of teams — the state in which a member has
   nothing legal left to pick has no fixture here and no pass anywhere.
+- **Changing out of a cancelled game while the week is still open.** A pick's own
+  game never kicks off if it is cancelled, so `pick_locked` never fires and the
+  sheet stays live — a member can abandon the push and take another team, as long
+  as some game in the week is still open. Pass 5 cancels the *last* game of its
+  week, so the push stood and this branch went unexercised. Neither the runbook
+  nor any suite asserts it in either direction.
 - **Real provider ingestion.** Every score is a simulated provider's or an
   override's. The live `sync-scores` path first runs for real on an actual game
   day.
