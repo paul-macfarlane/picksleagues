@@ -258,6 +258,15 @@ from a list of pills.
 > editing the fixture. Use **Sync schedule**, not scores: scores fast-no-op when
 > nothing is active, and a cancelled game never becomes active.
 
+> **The team comes back when the _week_ is graded, not when you cancel.** Release
+> is something settlement writes, and Survivor grades a week only once every game
+> in it is terminal (ADR-0025). Cancel a game while the rest of its week is still
+> unplayed and nothing is released: the member survives — because nothing has
+> graded them either — while the team stays on their used list and a re-pick is
+> refused `team_consumed`. Step 4 below is what makes the assertions true, not
+> step 3. While it holds, `POST /sim/settle` names the cause precisely, reporting
+> `weeks: 0` beside a non-zero `unsettled`.
+
 1. Week 16: M1 takes **SF** (the last kickoff), M2 takes **DAL** (the third).
 2. Advance the clock past **DAL's kickoff but not SF's** → Sync scores.
 3. Sim → Fixtures → week 16 → `survivor-season-16-4` (SEA @ SF) → final status
