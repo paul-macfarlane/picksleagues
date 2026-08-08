@@ -191,6 +191,9 @@ No unresolved blocking findings on either axis.
 
 ## [CLOSEOUT]
 
+Pull request: https://github.com/paul-macfarlane/picksleagues/pull/46
+(`feat/pkm-9-spread-source` → `staging`).
+
 Deliverable: **PKM-9-D1**, one `atlas-worker` (sonnet), plus two orchestrator
 inline fixes and one orchestrator-added test.
 
