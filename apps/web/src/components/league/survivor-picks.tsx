@@ -232,7 +232,11 @@ function SurvivorPickSheet({
       {canPick && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p data-testid="survivor-pick-status" className="text-sm text-muted-foreground">
+            {/* Named for what it reports — whether the sheet holds unsaved
+                changes — not "pick status", which is the dashboard glance's
+                claim about the week (ELM-6) and carries a machine value this
+                line has no equivalent of. */}
+            <p data-testid="survivor-pick-save-state" className="text-sm text-muted-foreground">
               {heldTeam
                 ? changed
                   ? `${heldTeam.name} selected — not saved yet`

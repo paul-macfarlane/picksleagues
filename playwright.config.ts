@@ -24,14 +24,18 @@ const { databaseUrl } = loadE2eEnv();
  * sees — join cutoffs, lock checks, the lot. Time-independent specs therefore
  * run `fullyParallel` as before, and simulator-driven ones (`*.sim.spec.ts`)
  * run in a separate project that `dependencies` orders strictly after them,
- * with `fullyParallel` off so they never overlap each other either.
+ * with `fullyParallel` off *and* `workers: 1` so they never overlap each other
+ * either. Both are needed and neither is redundant: `fullyParallel: false`
+ * stops two tests of one file running side by side, while `workers: 1` stops
+ * two sim spec *files* being handed to two workers — which is what happened the
+ * first time a second journey was added, and it read as the first journey's
+ * fixture mysteriously holding another scenario's games.
  *
  * Two consequences worth knowing before adding one:
  *
- * 1. Keep simulator-driven specs in a single file per journey and
- *    `test.describe.serial` them. Two sim spec *files* could still land on
- *    different workers; the ordering guarantee here is between the projects,
- *    not within one.
+ * 1. Keep one journey per file and `test.describe.serial` it. The project runs
+ *    files one after another, so a journey split across two files would still
+ *    interleave with nothing ordering them.
  * 2. Playwright **skips** a dependent project when its dependency fails, so any
  *    flake in the parallel suite reports the merge-gate journey as `skipped`
  *    rather than running it. CI still goes red on the flake so the gate holds,
@@ -71,6 +75,10 @@ export default defineConfig({
       name: "simulated",
       testMatch: SIM_SPECS,
       fullyParallel: false,
+      // The simulated clock and the active scenario are one environment-wide
+      // row, so this project's files share a single resource and must run one
+      // at a time — the case `testProject.workers` exists for.
+      workers: 1,
       // Never concurrent with the parallel suite: these specs move the shared
       // simulated clock, and anything reading it mid-flight would see a time
       // it never asked for.

@@ -153,7 +153,14 @@ function BoardRow({
           avatarSize="sm"
         >
           {eliminatedIn && (
-            <span className="block truncate text-xs text-muted-foreground">
+            <span
+              // The week as data beside the sentence it is printed in: which
+              // week ended a member's season is the board's own claim about
+              // them, and the only place it appears.
+              data-testid="survivor-eliminated-week"
+              data-week={member.eliminatedWeekId}
+              className="block truncate text-xs text-muted-foreground"
+            >
               Out in {eliminatedIn}
             </span>
           )}
