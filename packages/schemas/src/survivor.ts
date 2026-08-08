@@ -215,3 +215,41 @@ export const SurvivorStandingsResponseSchema = z
   .openapi("SurvivorStandingsResponse");
 
 export type SurvivorStandingsResponse = z.infer<typeof SurvivorStandingsResponseSchema>;
+
+/**
+ * What the dashboard tells a member about their Survivor week at a glance (spec
+ * §Screens — Dashboard). The mode is one pick per week (spec §Game Mode 2 —
+ * Core Rules), so a whole week collapses to a single state rather than the
+ * picks-in-of-N count a multi-pick mode would need.
+ *
+ * Two of these carry a rule worth stating where the values live:
+ * - `ELIMINATED` outranks every other state. A member settlement has put out
+ *   owes no pick, so prompting them for one would be wrong whatever their week
+ *   looks like — and they can still hold a pick for it, since elimination is
+ *   settled a week behind the pick that caused it.
+ * - `LOCKED` means *every* game in the week has kicked off with no pick
+ *   standing. Not the first kickoff: a member may take any unstarted game in
+ *   the week, so the week closes against them only when none is left (spec
+ *   §Game Mode 2 — Core Rules).
+ */
+export const SURVIVOR_PICK_STATUS = {
+  ELIMINATED: "eliminated",
+  PICK_IN: "pick_in",
+  PICK_NEEDED: "pick_needed",
+  LOCKED: "locked",
+} as const;
+
+export type SurvivorPickStatus = (typeof SURVIVOR_PICK_STATUS)[keyof typeof SURVIVOR_PICK_STATUS];
+
+const SurvivorPickStatusSchema = z.enum(SURVIVOR_PICK_STATUS).openapi("SurvivorPickStatus");
+
+/**
+ * Registered under its own component name rather than wrapped inline: a
+ * `.nullable()` applied to the registered node above would fold `null` into
+ * that shared component, so the first surface to serialize a non-null status
+ * would inherit the widening. Only the nullable form has a caller today, which
+ * is why the base stays module-private.
+ */
+export const NullableSurvivorPickStatusSchema = SurvivorPickStatusSchema.nullable().openapi(
+  "NullableSurvivorPickStatus",
+);

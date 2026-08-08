@@ -749,6 +749,9 @@
           },
           "renewable": {
             "type": "boolean"
+          },
+          "survivorPickStatus": {
+            "$ref": "#/components/schemas/NullableSurvivorPickStatus"
           }
         },
         "required": [
@@ -761,7 +764,21 @@
           "maxMembers",
           "myRole",
           "startsAt",
-          "renewable"
+          "renewable",
+          "survivorPickStatus"
+        ]
+      },
+      "NullableSurvivorPickStatus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "eliminated",
+          "pick_in",
+          "pick_needed",
+          "locked",
+          null
         ]
       },
       "UpdateLeagueRequest": {

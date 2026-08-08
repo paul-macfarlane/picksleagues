@@ -936,7 +936,10 @@ export interface components {
             /** Format: date-time */
             startsAt: string | null;
             renewable: boolean;
+            survivorPickStatus: components["schemas"]["NullableSurvivorPickStatus"];
         };
+        /** @enum {string|null} */
+        NullableSurvivorPickStatus: "eliminated" | "pick_in" | "pick_needed" | "locked" | null;
         UpdateLeagueRequest: {
             name?: components["schemas"]["LeagueName"];
             visibility?: components["schemas"]["LeagueVisibility"];

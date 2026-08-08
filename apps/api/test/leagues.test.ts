@@ -1,9 +1,23 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
-import { LEAGUE_STATUS, MEMBER_ROLE, SPORT, type LeagueResponse } from "@picksleagues/schemas";
+import {
+  LEAGUE_MODE,
+  LEAGUE_STATUS,
+  MEMBER_ROLE,
+  SPORT,
+  type LeagueResponse,
+} from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
-import { DEFAULT_PICKEM_SETTINGS, insertLeague, seedSeason } from "./setup/league-helpers";
+import {
+  DEFAULT_PICKEM_SETTINGS,
+  DEFAULT_SURVIVOR_SETTINGS,
+  insertLeague,
+  membersOf,
+  seasonIdFor,
+  seedSeason,
+} from "./setup/league-helpers";
+import { insertSurvivorPick, insertSurvivorState } from "./setup/survivor-league";
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
@@ -36,8 +50,8 @@ function postLeague(
   });
 }
 
-function getMyLeagues(cookie: string | undefined) {
-  return app.request("/api/leagues", {
+function getMyLeagues(cookie: string | undefined, on: typeof app = app) {
+  return on.request("/api/leagues", {
     method: "GET",
     headers: { ...(cookie ? { cookie } : {}) },
   });
@@ -504,6 +518,8 @@ describe("GET /api/leagues", () => {
       memberCount: 2,
       myRole: "commissioner",
       startsAt: WEEK1_KICKOFF.toISOString(),
+      // The glance is Survivor-shaped, so a Pick'em league carries none.
+      survivorPickStatus: null,
     });
   });
 
@@ -512,6 +528,145 @@ describe("GET /api/leagues", () => {
     const res = await getMyLeagues(cookie);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ leagues: [] });
+  });
+
+  describe("survivorPickStatus", () => {
+    // Bounds chosen so the current week resolves the same way under both harness
+    // clocks: pre-start it is the next week to begin, post-kickoff the one in
+    // progress. A second unstarted game sits three hours behind the first, which
+    // is what separates "the week has started" from "the week has closed".
+    const GLANCE_WEEK_STARTS = new Date("2026-09-10T00:00:00.000Z");
+    const GLANCE_WEEK_ENDS = new Date("2026-09-17T00:00:00.000Z");
+    const LATE_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 3 * 60 * 60 * 1000);
+
+    async function seedGlanceSeason(kickoffs: Date[]) {
+      return seedSeason(db, {
+        weeks: [
+          {
+            weekNumber: 1,
+            startsAt: GLANCE_WEEK_STARTS,
+            endsAt: GLANCE_WEEK_ENDS,
+            kickoffs: kickoffs.map((kickoffAt) => ({ kickoffAt })),
+          },
+        ],
+      });
+    }
+
+    async function insertSurvivorLeagueFor(seasonId: string, userId: string, name: string) {
+      const league = await insertLeague(db, {
+        seasonId,
+        name,
+        mode: LEAGUE_MODE.SURVIVOR,
+        settings: DEFAULT_SURVIVOR_SETTINGS,
+        members: [{ userId, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+      const members = await membersOf(db, league.id);
+      return {
+        league,
+        leagueSeasonId: await seasonIdFor(db, league.id),
+        membershipId: members.get(userId)!,
+      };
+    }
+
+    async function readMyLeagues(cookie: string, on: typeof app = app) {
+      const res = await getMyLeagues(cookie, on);
+      expect(res.status).toBe(200);
+      return (await res.json()) as { leagues: Array<Record<string, unknown>> };
+    }
+
+    it("asks for a pick while the week still holds an unstarted game", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertSurvivorLeagueFor(seasonId, user.id, "Survivor");
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "pick_needed" });
+    });
+
+    it("still asks for a pick after the first kickoff, while a later game is open", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF, LATE_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertSurvivorLeagueFor(seasonId, user.id, "Survivor");
+
+      const body = await readMyLeagues(cookie, appAfterKickoff);
+      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "pick_needed" });
+    });
+
+    it("reports the pick is in once the member has one for the current week", async () => {
+      const { seasonId, weekIds, gameIds, teamIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      const { leagueSeasonId, membershipId } = await insertSurvivorLeagueFor(
+        seasonId,
+        user.id,
+        "Survivor",
+      );
+      await insertSurvivorPick(db, {
+        leagueSeasonId,
+        leagueMemberId: membershipId,
+        weekId: weekIds.get("regular:1")!,
+        gameId: gameIds.get("regular:1")![0]!,
+        teamId: teamIds.home,
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "pick_in" });
+    });
+
+    it("closes the week once every game in it has kicked off with no pick standing", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertSurvivorLeagueFor(seasonId, user.id, "Survivor");
+
+      const body = await readMyLeagues(cookie, appAfterKickoff);
+      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "locked" });
+    });
+
+    it("reports elimination ahead of a pick that is already in", async () => {
+      const { seasonId, weekIds, gameIds, teamIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      const { leagueSeasonId, membershipId } = await insertSurvivorLeagueFor(
+        seasonId,
+        user.id,
+        "Survivor",
+      );
+      const weekId = weekIds.get("regular:1")!;
+      await insertSurvivorPick(db, {
+        leagueSeasonId,
+        leagueMemberId: membershipId,
+        weekId,
+        gameId: gameIds.get("regular:1")![0]!,
+        teamId: teamIds.home,
+      });
+      await insertSurvivorState(db, {
+        leagueSeasonId,
+        leagueMemberId: membershipId,
+        eliminatedWeekId: weekId,
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "eliminated" });
+    });
+
+    it("resolves each Survivor league on its own in one payload", async () => {
+      const { seasonId, weekIds, gameIds, teamIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      const picked = await insertSurvivorLeagueFor(seasonId, user.id, "Picked");
+      await insertSurvivorLeagueFor(seasonId, user.id, "Unpicked");
+      await insertSurvivorPick(db, {
+        leagueSeasonId: picked.leagueSeasonId,
+        leagueMemberId: picked.membershipId,
+        weekId: weekIds.get("regular:1")!,
+        gameId: gameIds.get("regular:1")![0]!,
+        teamId: teamIds.home,
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues).toHaveLength(2);
+      expect(body.leagues.map((league) => [league.name, league.survivorPickStatus])).toEqual([
+        ["Picked", "pick_in"],
+        ["Unpicked", "pick_needed"],
+      ]);
+    });
   });
 });
 
