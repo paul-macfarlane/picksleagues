@@ -129,9 +129,15 @@ function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: Survi
     <Card data-testid="survivor-eliminated">
       <CardHeader>
         <CardTitle>You&apos;re out</CardTitle>
+        {/* No cause is named, because this card cannot know it. A missed pick
+            eliminates exactly as a losing one does (spec §Game Mode 2 — Core
+            Rules), and the member's own elimination week isn't on this surface —
+            so "one of your picks lost" was a false statement to anyone who
+            simply never picked. The board names the week; this says what it
+            means for them. */}
         <CardDescription>
-          One of your picks lost, so you&apos;re eliminated for the season and can&apos;t pick any
-          more weeks. You can still follow the league.
+          You&apos;re eliminated for the season, so there are no more picks to make. You can still
+          follow the league.
         </CardDescription>
       </CardHeader>
       {team && (
@@ -195,8 +201,11 @@ function SurvivorPickSheet({
         <CardHeader>
           <CardTitle>{slate.label}</CardTitle>
           <CardDescription>
+            {/* No "come back next week": this sheet holds one week and cannot
+                see whether another follows it, and on the final week of a
+                league's resolved range there is none to come back for. */}
             {frozen
-              ? "Your pick has kicked off, so this week is set. Come back next week."
+              ? "Your pick has kicked off, so this week is set."
               : openGames.length === 0
                 ? "This week is closed — no games are still open to pick."
                 : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."}

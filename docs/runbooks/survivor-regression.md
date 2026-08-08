@@ -300,10 +300,11 @@ Assert:
       week.
 - [x] The **week selector stays operable**, so an eliminated member can still walk
       the season.
-- [ ] The card says **why** they went out, and it matches how they went out. —
-      **Fails for a missed pick:** the copy is "One of your picks lost, so you're
-      eliminated for the season", which is not what happened to a member who never
-      picked at all. See §Known defects.
+- [x] The card **states the consequence and claims no cause**: "You're eliminated
+      for the season, so there are no more picks to make." A missed pick
+      eliminates exactly as a losing one does, and this surface cannot tell them
+      apart, so naming a cause here can only be wrong for one of them. See
+      §Defects found on the first pass.
 - [x] M3's board is the **same board** an alive member gets: every revealed pick,
       every used team, every status — no reduction, no extra.
 - [x] M3's dashboard glance reads **Eliminated**, and elimination is reported
@@ -357,26 +358,37 @@ Assert:
       four for M2, three for M1, whose cancelled week spent none.
 - [x] The full pick history reads back per week with its grade, for every member,
       to every member.
-- [ ] The final week's frozen sheet does not tell the member to come back next
-      week. — **Fails:** it says "Your pick has kicked off, so this week is set.
-      Come back next week." in the last week of the season. See §Known defects.
+- [x] The final week's frozen sheet does not promise a week that does not exist:
+      it reads "Your pick has kicked off, so this week is set." and stops there.
+      See §Defects found on the first pass.
 
 ---
 
-## Known defects
+## Defects found on the first pass
 
-Found by this runbook, on the run that wrote it. Both are copy in
-`apps/web/src/components/league/survivor-picks.tsx`; neither changes a stored
-outcome.
+Both were found by running this runbook the first time, and both were fixed in
+the same change that added it. Recorded rather than deleted, because what a
+manual pass is *for* is the class of fault no suite was ever going to catch:
+neither changed a stored outcome, both told a member something untrue about
+their own season, and no assertion at any cheaper layer was ever going to look
+at a sentence.
 
-- **The eliminated-week card states the wrong cause.** `EliminatedWeek` renders
-  one sentence — "One of your picks lost, so you're eliminated for the season" —
-  for every elimination, including a member eliminated for a **missed** pick, who
-  never had a pick to lose. The board on the same screen is correct; only the
-  member's own card misstates why. (Pass 6.)
-- **The frozen-week line promises a week that doesn't exist.** "Come back next
-  week" is unconditional, so it also renders in the season's final week, where
-  there is no next week to come back to. (Pass 8.)
+- **The eliminated-week card named a cause it could not know.** `EliminatedWeek`
+  rendered "One of your picks lost, so you're eliminated for the season" for
+  every elimination — including a member eliminated for a **missed** pick, who
+  never had a pick to lose. The board on the same screen was correct; only the
+  member's own card misstated it. Now states the consequence and names no cause.
+  (Pass 6.)
+- **The frozen-week line promised a week that did not exist.** "Come back next
+  week" was unconditional, so it also rendered in the final week of a league's
+  resolved range. The sheet holds one week and cannot see whether another
+  follows, so the sentence is gone. (Pass 8.)
+
+Both corrections are copy in
+`apps/web/src/components/league/survivor-picks.tsx`. The assertions above are
+checked against the corrected components by source inspection; the stack was not
+driven a second time to re-observe two sentences. The next full pass re-proves
+them the ordinary way.
 
 ## What this runbook cannot reach
 
