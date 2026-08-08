@@ -744,10 +744,18 @@ describe("GET /api/leagues", () => {
 
       const body = await readMyLeagues(cookie);
       expect(body.leagues).toHaveLength(2);
-      expect(body.leagues.map((league) => [league.name, league.survivorPickStatus])).toEqual([
-        ["Picked", "pick_in"],
-        ["Unpicked", "pick_needed"],
-      ]);
+      // Keyed by name rather than compared positionally: the claim is that each
+      // league resolves its own status, and these two are created in the same
+      // tick, so any order between them is a legal answer to a question this
+      // test isn't asking.
+      expect(
+        new Map(body.leagues.map((league) => [league.name, league.survivorPickStatus])),
+      ).toEqual(
+        new Map([
+          ["Picked", "pick_in"],
+          ["Unpicked", "pick_needed"],
+        ]),
+      );
     });
   });
 });
