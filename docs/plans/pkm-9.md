@@ -120,3 +120,133 @@ defaults to the local Docker Postgres URL and reads no `.env`.
 - Worktree created off `origin/staging`; dependencies installed.
 - PKM-9 carried onto the branch and claimed `[~]`.
 - Execution plan recorded.
+- PKM-9-D1 delivered by one `atlas-worker` (sonnet); accepted after two
+  orchestrator fixes and one added test (below).
+
+## [AI CODE REVIEW]
+
+Single formal review, both axes, by the frontier orchestrator over the complete
+branch diff.
+
+### Axis 1 — technical implementation and spec conformity
+
+Conforms. Every clause of the ticket is honoured: the book is captured as data
+from `competition.odds[0].provider.name` rather than baked in; `spread_source`
+is nullable, provider-class, and written in the same `.set()` as `spread`;
+`SimulatedProvider` yields `null`; the credit is plain text with no logo, placed
+once per surface rather than per game row; `override_spread` suppresses it.
+
+Two defects found and fixed inline (localized corrections that did not change the
+deliverable's design — recorded here so the commit's provenance stays honest):
+
+1. **`SlateGame.spreadSource`'s doc comment claimed the field is null in SU
+   leagues.** It is not: the slate is mode-agnostic (`GET /weeks/{id}/games` is
+   shared across modes), so the server never sees a pick type and SU suppression
+   is client-side. Reworded to match how the neighbouring `spread` field already
+   words the same fact. A comment asserting a null the code never produces is the
+   exact failure the "comments explain why, and start lying the first time the
+   code moves" rule targets.
+2. **The pick DTO credited a book beside a null spread.** `spreadSource` was read
+   from the game row unconditionally, but `spread` on a Pick'em pick is
+   `spreadAtPick`, which is null for every pick in a straight-up league — so an SU
+   pick serialized `spreadSource: "DraftKings"` against no number at all. Not
+   user-visible today (the SPA gates the credit on `pickType`), but it is a wire
+   contract stating something false, and the only thing standing between it and a
+   visible defect was a client-side check. Now gated on the pick's own spread.
+
+**Coverage gap closed.** Fix 2 shipped without a test. Added an integration case
+asserting an SU pick serializes no source while its game still carries one, and
+verified it is not vacuous: reverting the gate turns it red with
+`expected null, received "DraftKings"`.
+
+Non-blocking observation: `data-testid="spread-source-credit"` is emitted on
+three surfaces with nothing yet binding to it. Kept — engineering rules treat a
+testid as a deliberate, greppable contract, and it is the affordance a future
+e2e assertion would need.
+
+### Axis 2 — coding standards
+
+Conforms. Checked specifically against the rules this change could plausibly
+break:
+
+- **Value sets are const objects.** Correctly *not* applied — the book is free
+  text from the provider, and a const set of book names would go stale the next
+  time ESPN rotates, which is the ticket's whole premise.
+- **Never wrap an `.openapi()`-registered schema in `.nullable()` inline.** Not
+  tripped: `z.string().nullable()` wraps an unregistered primitive. Verified in
+  the generated artifact rather than assumed — both `SlateGame.spreadSource` and
+  `PickemPick.spreadSource` emit an inline `{"type":["string","null"]}` and no
+  shared component was widened. This rule fails silently with `contract:check`
+  still green, so it needed checking against the output, not the source.
+- **Provider shapes never leak** — the ESPN `provider.name` shape is confined to
+  `CompetitionSchema` inside the adapter.
+- **Override precedence has one home** — resolved in `resolveGameOverrides`, not
+  restated at any call site.
+- **Comments cite durable identifiers** (`arch D15`, `SIM-6`, `DATA-8`, `PKM-9`)
+  and explain why; doc-comment form matches symbol visibility.
+- Theme tokens only, extensionless imports, no repository layer, no `any`, no
+  hand-rolled `fetch`.
+
+No unresolved blocking findings on either axis.
+
+## [CLOSEOUT]
+
+Deliverable: **PKM-9-D1**, one `atlas-worker` (sonnet), plus two orchestrator
+inline fixes and one orchestrator-added test.
+
+### Verdicts
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| AC1 ESPN adapter captures the book | **PASS** | `unit.txt` — 29 files / 521 tests, incl. new cases for a missing `provider` and for absent `odds` |
+| AC2 `SimulatedProvider` yields null | **PASS** | `unit.txt` |
+| AC3 column + same-`set()` write, re-run no-op | **PASS** | `integration.txt` — incl. a book rotation with the line unmoved, which the no-op guard now persists |
+| AC4 serialization + suppression + `openapi/` | **PASS** | `integration.txt`, `contract-check.txt`; generated nullable shape inspected directly |
+| AC5 credit rendered on both surfaces | **PARTIAL — data contract PASS, rendered output BLOCKED** | see below |
+| DoD1 typecheck | **PASS** | `typecheck.txt` |
+| DoD2 lint | **PASS** | `lint.txt` |
+| DoD3 test | **PASS** | `unit.txt` |
+| DoD4 test:integration | **PASS** | `integration.txt` — 32 files / 589 tests |
+| DoD5 contract:check | **PASS** | `contract-check.txt` (exit 0 once `openapi/` was committed) |
+| DoD6 format:check | **PASS** | `format-check.txt` |
+| DoD7 web build | **PASS** | `build.txt` |
+| DoD8 test:e2e | **BLOCKED locally — delegated to CI** | see below |
+
+### AC5 and DoD8 — what is not proven here
+
+Both need a running stack, and this worktree cannot start one. `packages/core/src/env.ts`
+validates `BETTER_AUTH_SECRET`, both OAuth client pairs, and `JOB_SECRET` at
+startup; those live in the repository-root `.env`, gitignored files do not come
+with a git worktree, and `.claude/hooks/atlas/guard.py` denies every Bash command
+and every Write naming a live secret-bearing path. That is a guardrail, so it was
+not worked around and no placeholder secrets were invented.
+
+Consequently:
+
+- **AC5's server side is proven** — the integration suite asserts what each
+  surface receives, including the `override_spread` suppression and the SU case.
+- **AC5's rendered output is not.** No screenshot was taken and no browser ran.
+  The render path has typecheck and a successful SPA build behind it and nothing
+  more. `spreadSourceCredit` is presentation policy, which the engineering rules
+  deliberately exclude from unit testing, so no cheaper layer covers it either.
+- **DoD8 runs in CI** on the pull request (`.github/workflows/ci.yml`), which
+  supplies its own environment. The e2e suite contains no assertion on the credit
+  line — E2E covers journeys, not branches — so a green CI proves this change
+  broke no existing journey; it does not prove the credit renders.
+
+To close both locally, from the repository root:
+
+```
+cp .env .claude/worktrees/pkm-9/picksleagues/.env
+cd .claude/worktrees/pkm-9/picksleagues && pnpm dev   # then an ATS league's pick card at phone width
+```
+
+### Deviations
+
+- The ticket line was added by this branch rather than transitioned on it — it
+  was never on `staging` (see the provenance note above).
+- No `pnpm db:migrate` was run: it would have migrated the shared dev database
+  that another branch is currently using. The integration suite creates and
+  migrates its own `picksleagues_test`, which is what the evidence above rests on.
+  **The dev database still needs `pnpm db:migrate` before this branch is run
+  locally.**

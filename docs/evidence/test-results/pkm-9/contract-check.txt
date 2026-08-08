@@ -1,0 +1,8 @@
+### pnpm contract:check
+$ pnpm contract:generate && test -z "$(git status --porcelain -- openapi)" || (git status --porcelain -- openapi && echo 'openapi/ is stale: run pnpm contract:generate and commit the result' && exit 1)
+$ pnpm --filter @picksleagues/api generate:openapi
+$ tsx scripts/generate-openapi.ts && openapi-typescript ../../openapi/openapi.json -o ../../openapi/client/schema.d.ts
+Wrote /Users/paulmacfarlane/code/picksleagues/.claude/worktrees/pkm-9/picksleagues/openapi/openapi.json
+✨ openapi-typescript 7.13.0
+🚀 ../../openapi/openapi.json → ../../openapi/client/schema.d.ts [73.5ms]
+exit=0
