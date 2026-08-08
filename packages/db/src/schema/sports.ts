@@ -142,6 +142,14 @@ export const games = pgTable(
     // number is kept — the odds sync overwrites it (ADR-0018); the audit that
     // matters is `pickem_picks.spread_at_pick`, what the member accepted.
     spread: doublePrecision("spread"),
+    // The book `spread` came from (PKM-9), written in the same `set()` as
+    // `spread` in sync-odds so the two can never drift apart — free text, never
+    // a const set, because ESPN has rotated the attributed book before. A
+    // provider field like `spread` itself (never an `override_*`, arch D15):
+    // ingestion writes it, and a read resolves it to null wherever
+    // `override_spread` is set, since a commissioner's correction is not the
+    // book's line.
+    spreadSource: text("spread_source"),
     // Live in-game state (DATA-8): the 1-based period (5+ in overtime) and the
     // seconds remaining in it, normalized by the provider adapter — never its
     // display string. Both null unless the game is in progress, so they go back

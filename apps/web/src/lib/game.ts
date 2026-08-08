@@ -243,6 +243,27 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
 }
 
 /**
+ * The "Spread by <book>" credit line (PKM-9), rendered once per pick card and
+ * once on the week detail — never per game row, since a slate prices from one
+ * provider response and a per-row credit would repeat the same string.
+ *
+ * Null in SU leagues (no spread shown at all) and when none of the given games
+ * carries a source: suppression is per-game server-side (null under an
+ * admin's `override_spread`, arch D15, or under `SimulatedProvider`, SIM-6),
+ * and the credit line composes that as "show it while at least one displayed
+ * game still has one" — a whole slate's credit must not vanish because one
+ * game was corrected.
+ */
+export function spreadSourceCredit(
+  games: readonly { spreadSource: string | null }[],
+  pickType: PickType,
+): string | null {
+  if (pickType !== PICK_TYPE.AGAINST_THE_SPREAD) return null;
+  const source = games.find((game) => game.spreadSource !== null)?.spreadSource;
+  return source ? `Spread by ${source}` : null;
+}
+
+/**
  * Home-relative spread, flipped for the away side (spec §ATS) — the sign a
  * member reads next to the side they'd be picking, not the raw stored number.
  * Shared by the Pick'em entry grid and the week/pick detail view so the two

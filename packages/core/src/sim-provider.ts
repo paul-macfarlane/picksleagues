@@ -177,6 +177,9 @@ function toProviderGame(fixture: SimFixtureGameRow, now: Date): ProviderGame {
     period: projected.period,
     clockSeconds: projected.clockSeconds,
     spread: fixture.spread,
+    // Fixture spreads are synthesized (SIM-6), not sourced from any real book,
+    // so there is nothing honest to credit (PKM-9).
+    spreadSource: null,
   };
 }
 

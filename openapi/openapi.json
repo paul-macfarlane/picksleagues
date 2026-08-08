@@ -1101,6 +1101,12 @@
               "null"
             ]
           },
+          "spreadSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "period": {
             "type": [
               "integer",
@@ -1133,6 +1139,7 @@
           "homeScore",
           "awayScore",
           "spread",
+          "spreadSource",
           "period",
           "clockSeconds",
           "stateAsOf",
@@ -1458,6 +1465,12 @@
               "null"
             ]
           },
+          "spreadSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "outcome": {
             "$ref": "#/components/schemas/NullablePickOutcome"
           },
@@ -1471,6 +1484,7 @@
           "gameId",
           "side",
           "spread",
+          "spreadSource",
           "outcome",
           "updatedAt"
         ]

@@ -1,0 +1,7 @@
+### pnpm test:integration
+
+ Test Files  32 passed (32)
+      Tests  589 passed (589)
+   Start at  20:18:40
+   Duration  32.38s (transform 671ms, setup 0ms, import 15.79s, tests 13.71s, environment 2ms)
+

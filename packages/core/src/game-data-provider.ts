@@ -60,6 +60,11 @@ export type ProviderGame = {
   // Home-relative spread (negative = home favored); null when the provider
   // has no line yet.
   spread: number | null;
+  // The book the spread came from (PKM-9) — free text from the provider, not a
+  // const set: ESPN has rotated books before and a fixed set would go stale the
+  // next time it does. Null whenever `spread` is null, and also when the
+  // provider reports odds with no attributed book.
+  spreadSource: string | null;
 };
 
 export type ProviderTeam = {

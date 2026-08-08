@@ -18,6 +18,11 @@ export type GameOverrideFields = {
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
+  // The book `spread` came from (PKM-9) — not one of the fields below with an
+  // `override_*` counterpart of its own; suppression is keyed off
+  // `overrideSpread` instead (see `resolveGameOverrides`), since a corrected
+  // number is never the book's.
+  spreadSource: string | null;
   period: number | null;
   clockSeconds: number | null;
   overrideKickoffAt: Date | null;
@@ -35,6 +40,10 @@ export type ResolvedGame = {
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
+  // Null whenever `overrideSpread` is set (PKM-9): a commissioner's correction
+  // is not the book's line, so the credit must not follow the resolved number
+  // onto a value the book never priced.
+  spreadSource: string | null;
   // Live in-game state (DATA-8). Display-only: a period and a clock say where a
   // game is, never what its outcome was, so nothing that grades a pick reads
   // them.
@@ -49,6 +58,7 @@ export function resolveGameOverrides(game: GameOverrideFields): ResolvedGame {
     homeScore: game.overrideHomeScore ?? game.homeScore,
     awayScore: game.overrideAwayScore ?? game.awayScore,
     spread: game.overrideSpread ?? game.spread,
+    spreadSource: game.overrideSpread === null ? game.spreadSource : null,
     period: game.overridePeriod ?? game.period,
     clockSeconds: game.overrideClockSeconds ?? game.clockSeconds,
   };

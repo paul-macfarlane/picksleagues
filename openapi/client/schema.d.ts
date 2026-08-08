@@ -1006,6 +1006,7 @@ export interface components {
             homeScore: number | null;
             awayScore: number | null;
             spread: number | null;
+            spreadSource: string | null;
             period: number | null;
             clockSeconds: number | null;
             /** Format: date-time */
@@ -1085,6 +1086,7 @@ export interface components {
             gameId: string;
             side: components["schemas"]["PickemPickSide"];
             spread: number | null;
+            spreadSource: string | null;
             outcome: components["schemas"]["NullablePickOutcome"];
             /** Format: date-time */
             updatedAt: string;

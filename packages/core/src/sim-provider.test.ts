@@ -285,6 +285,13 @@ describe("SimulatedProvider", () => {
     });
   });
 
+  // Fixture spreads are synthesized (SIM-6) and carry no book, whatever the
+  // fixture's own spread is (PKM-9).
+  it("never carries a spread source, even when the fixture is priced", async () => {
+    const [game] = await makeProvider(at(-1)).fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
+    expect(game?.spreadSource).toBeNull();
+  });
+
   // A sync job fetches week by week; every read within it must see one snapshot.
   it("reads fixtures once per instance no matter how many calls it serves", async () => {
     let reads = 0;

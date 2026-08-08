@@ -176,6 +176,13 @@
       "when": 1786139403033,
       "tag": "0024_brave_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786147588351,
+      "tag": "0025_jittery_blacklash",
+      "breakpoints": true
     }
   ]
 }
