@@ -1739,7 +1739,9 @@ under the evidence root as policy requires.
 
 ## [CLOSEOUT] — ELM-4, ELM-5, ELM-6, ELM-7
 
-Work package `elm-4-6`, one repository, one pull request. Verified at
+Work package `elm-4-6`, one repository, one pull request:
+**https://github.com/paul-macfarlane/picksleagues/pull/47** — awaiting human
+review. Verified at
 **`0ade1d0`**; the evidence and closeout commits that follow it change only
 documentation.
 
