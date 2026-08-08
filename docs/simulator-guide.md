@@ -131,8 +131,12 @@ Library scenarios are re-materialized from their code definition on every load
 and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
-`docs/runbooks/pickem-regression.md` drives most of these as a manual Pick'em
-regression pass — what to click and what to assert, per scenario.
+Two manual regression runbooks drive them — what to click and what to assert.
+`docs/runbooks/pickem-regression.md` takes most of the single-week edge cases as
+independent Pick'em passes; `docs/runbooks/survivor-regression.md` takes
+`survivor-season` as one continuous four-week run, because the Survivor rules
+worth clicking through (the team ledger, elimination, revival, the ending) are
+facts about a season rather than a week.
 
 ## Replay a real season
 
