@@ -38,7 +38,7 @@ import {
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
-import { settlePicksForGames } from "../src/services/pickem/settlement";
+import { settlePicksForGames } from "../src/services/settlement";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
