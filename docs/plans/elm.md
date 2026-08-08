@@ -1857,3 +1857,182 @@ for this repository by policy.
     and error handling predates the current rules (LNCH-8 is the retrofit), and
     `listMyLeagues` still runs one `leagueStartAt` query per league, commented in
     place as an accepted tradeoff.
+
+## [SCOPE CHANGE] — ELM-8, ELM-9, ELM-10 added to work package `elm-4-6` (2026-08-08, owner)
+
+The owner drove the delivered Survivor feature by hand after ELM-7 and returned
+eight findings. Four became work in this package on their explicit approval;
+one became a ticket in another epic; one was answered rather than fixed.
+
+| Finding | Disposition |
+| --- | --- |
+| Team logos on the board | ELM-8 |
+| Winner named as soon as one member is left, not at range end | ELM-9 |
+| Board ordered by elimination | already true — no work |
+| No invites once a season is under way | `LG-13`, leagues epic, deferred |
+| Cancelled game keeps the team consumed | expected, not a defect — explained below, and the sheet gap it exposed folded into ELM-8 |
+| A locked week should show only the game you picked | ELM-8 |
+| Settled picks should show their outcome on the sheet | ELM-8 |
+| Revival should be configurable | ELM-10 |
+
+**The cancellation finding was an explanation, not a fix.** A cancelled game
+hands the team back when the week is *graded*, not when it is cancelled, so
+until every other game in that week has finished and settled the team stays on
+the used list. The runbook was right and the code was right; what was missing is
+that the pick sheet never said the week was ungraded — the board did. That gap
+is ELM-8's fourth item, and it is why the correct behaviour read as a bug.
+
+**One owner correction is recorded because it changed an artifact.** The
+orchestrator argued ELM-9 was safe *because* revival would catch a lone
+survivor who busted. The owner corrected it: once one member is standing the
+league ends, so there is no later pick and nothing to bust. The original
+argument reasoned about a week the rule itself prevents. ADR-0027 was in
+flight; the correction reached the worker before the ADR was final, so the
+recorded rationale is the self-securing one and never the revival-dependent
+one. `ELM-10` lost its `deps: ELM-9` edge in the same correction.
+
+## [AI CODE REVIEW] — ELM-8, ELM-9, ELM-10
+
+Reviewed at `3684c7d` across the three feature commits and the test fix.
+
+### Axis 1 — technical implementation and spec conformity
+
+**One defect found by review, not by the suites, and it was the largest thing in
+this run.** `replaySeason` had no notion of a season being decided. ELM-9 ends a
+season at a sole survivor and the pick endpoint then refuses that member — so
+every later week held no pick of theirs, and the grader read each one as a
+*missed pick*. Under the default Everyone Out setting the winner was the whole
+alive set, so they busted and were revived every remaining week without bound;
+under co-win they were eliminated in a week *after* the one they won, moving the
+season's recorded ending. Both were reproduced before being fixed: on a
+three-week league decided in week 1, `revivedCount: 2` under `revive`, and a
+week-2 elimination under `co_win`. The replay now stops where the derivation
+says the season ended.
+
+The defect is instructive about where it came from. ELM-9's worker changed only
+the derivation and said so plainly; ELM-10's worker noticed the co-win half and
+called the two arms "in agreement" — true of *who* wins, false of *when*. Neither
+was wrong about its own deliverable. It was reachable only by holding both, which
+is the acceptance screen's job and not a worker's.
+
+**Everything else on this axis passed.** The visibility rule survives the new
+`outcome` field, which is nested inside `SurvivorPick` rather than beside it —
+a grade names the winning side as surely as the team does, and nesting makes
+disclosure structurally impossible rather than a rule to remember. The
+everyone-out winner derivation reads the last elimination week from
+`survivor_state`, which is provably the final alive set. Settlement stayed pure
+and recomputable; the new stop is deterministic, so a full recompute reaches the
+same week.
+
+### Axis 2 — coding standards
+
+Const-object value sets, no inline `.nullable()` on a registered component (the
+contract delta is a `$ref` to the existing `NullablePickOutcome`, not a widened
+one), comments citing ADR numbers rather than plan-internal numbering, tests
+bound to roles and testids rather than prose, and the `useState` carve-out
+respected for the settings forms.
+
+Three orchestrator fixes, recorded so provenance stays honest:
+
+1. **The settlement stop** above — dispatched as its own deliverable rather than
+   fixed inline, because it needed reproduction tests at two settings values.
+2. **A doc comment ELM-10 falsified.** `SURVIVOR_PICK_STATUS` still said
+   `ELIMINATED` outranks every other state; co-win makes winners *be* eliminated
+   members, so `pick-status.ts` had already inverted that order in code. The
+   comment was corrected inline.
+3. **An order-dependent test assertion** (`3684c7d`) that compared two
+   same-tick leagues positionally. It failed once in a full run and passed in
+   isolation — the behaviour under test admits either order.
+
+One existing test changed meaning and is called out rather than quietly
+updated: the late-correction cascade test used a two-member league where week 1
+eliminated one member, which under ADR-0027 is now a season decided in week 1.
+Its fixture was rebuilt to four members in two pairs so the season genuinely
+runs on; the assertion's subject is unchanged. Repairing the fixture rather
+than the assertion is what keeps the coverage.
+
+## [CLOSEOUT] — ELM-8, ELM-9, ELM-10
+
+Same work package, same branch, same pull request
+(**https://github.com/paul-macfarlane/picksleagues/pull/47**). Verified at
+**`3684c7d`**.
+
+### Deliverables and who built them
+
+| # | Ticket | Deliverable | Worker | Commit |
+| --- | --- | --- | --- | --- |
+| E1 | ELM-9 | Shared season-state home; season ends at a sole survivor | `atlas-worker` (Opus) | `3c28eb1` |
+| E3 | ELM-10 | Everyone Out setting, ADR-0028, co-win derivation | `atlas-worker` (Opus) | `f1fa5e8` |
+| E4 | — | Settlement stops at a decided season (defect found in review) | `atlas-worker` (Opus) | `f1fa5e8` |
+| E2 | ELM-8 | Board logos, sheet outcomes, frozen week, ungraded notice | `atlas-worker` (Opus) | `9cbe445` |
+
+Strictly sequential on one checkout. Two ADRs were written before their code
+moved, as the locked-docs policy requires: **ADR-0027** (season ends at a sole
+survivor) and **ADR-0028** (Everyone Out is a setting).
+
+E4 was dispatched between E3 and E2 rather than deferred, because it shared
+files with both and a defect fix riding behind unrelated UI work would have
+been harder to review than the feature it corrects.
+
+### Verdicts
+
+| Criterion | Verdict | Evidence |
+| --- | --- | --- |
+| Season ends at a sole survivor, not at range end | PASS | `survivor-standings.test.ts`, `survivor-picks.test.ts` |
+| Reduction, not arithmetic — a solo league is not won pre-kickoff | PASS | `leagues.test.ts` glance suite, and a settlement case |
+| Decided season refuses further picks | PASS | `survivor-picks.test.ts` — 409, nothing persisted |
+| Everyone Out `revive` is the default and unchanged | PASS | scoring `it.each` over both values; e2e revival week green |
+| Everyone Out `co_win` names the last group co-winners | PASS | `survivor-standings.test.ts` through real settlement |
+| Stored settings rows still parse | PASS | `league-settings.test.ts` — default materializes |
+| A decided season is graded no further | PASS | two reproductions, red before and green after |
+| Idempotency across the new stop | PASS | re-settle produces identical state |
+| Outcome withheld from a non-owner pre-kickoff | PASS | `survivor-picks.test.ts` — red for the right reason first |
+| Contract in sync, no widened component | PASS | `$ref` delta only; regeneration idempotent |
+| Repository gates | PASS | full chain at `3684c7d` |
+
+No criterion is `FAIL`, `BLOCKED`, or `SKIPPED`.
+
+**Verified run commands**, all at `3684c7d`: `pnpm format:check && pnpm lint &&
+pnpm typecheck && pnpm contract:check && pnpm test && pnpm test:integration &&
+pnpm --filter @picksleagues/web build`, then `pnpm test:e2e`. Unit 528,
+integration 626, e2e 18.
+
+### Deviations and judgement calls for the owner
+
+1. **The everyone-out co-win arm is gated on the setting**, not on an empty
+   alive set alone. Under `revive` settlement can never empty a league, so an
+   empty alive set there is data settlement did not write, and crowning off it
+   would name a winner the rules eliminated. Settings are pre-start-only, so a
+   league cannot change modes and lose its winners retroactively.
+2. **`outcome` went inside `SurvivorPick`, not beside it** on
+   `SurvivorMemberPick` as the packet worded it. The nested form makes the
+   visibility rule carry the grade structurally. Accepted as the better shape.
+3. **A dead branch was deleted rather than kept.** `pick-status.ts` carried a
+   decided-season guard that no longer had a live path once winner membership
+   was tested first; its `continue` would also have reported nothing at all for
+   the league. Unreachability was proved across all three ending arms before
+   deletion. A future fourth arm has to re-answer the question rather than
+   inherit an answer.
+4. **The board half of ELM-8's decided-season item did not reproduce.** The
+   board renders no week columns — a member's history lists only weeks they
+   picked — so there were no empty future columns to clip. No change made, and
+   the claim is evidenced by a screenshot of a decided board.
+5. **Leagues settled before the E4 fix carry the bad rows** — an inflated
+   `revivedCount`, or a winner eliminated in a later week under `co_win`.
+   Settlement is a pure derivation so an admin rebuild corrects them, but
+   nothing triggers that automatically. No such league exists on real data.
+6. **`LG-13` (no invites once a season is under way) was deferred**, on the
+   owner's call that it belongs to the leagues epic. It carries a constraint
+   worth keeping: `MANAGE_INVITES` has to split, because *revoking* an invite
+   must stay available mid-season even when creating one does not.
+7. **`ELM-10` shipped with a second question the owner should know is now
+   answered by co-win alone.** With revival off, the final group of two or more
+   can all bust in one week, taking a league from several standing straight to
+   nobody. That is what the setting's co-win value resolves; it never passes
+   through a sole survivor, so ADR-0027 does not reach it.
+8. **The duplication count went up by one.** `settlement.ts` and `season.ts`
+   now restate two rules to each other — week-completeness and the decided
+   stop — enforced only by reciprocal comments. A `settled_through_week_id`
+   marker on `league_seasons` is the single-source fix for both at once and is
+   ADR-shaped; **escalated, not taken**, and it is the same fix deviation 7 of
+   the previous closeout already names.
