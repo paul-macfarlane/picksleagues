@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 import { QueryState } from "@/components/query-state";
 import { StatusPill } from "@/components/status-pill";
+import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
 
 /**
@@ -218,6 +219,17 @@ function ConsumedTeams({
           return (
             <li key={teamId}>
               <StatusPill data-testid="survivor-consumed-team" data-team={team?.abbreviation}>
+                {team && (
+                  <TeamLogo
+                    logoLightUrl={team.logoLightUrl}
+                    logoDarkUrl={team.logoDarkUrl}
+                    size="sm"
+                    // Down to the pill's own type scale: the sm logo is sized
+                    // for a button, and at that size here it sets the pill's
+                    // height instead of sitting inside it.
+                    className="size-4"
+                  />
+                )}
                 <span title={team?.name}>{team?.abbreviation ?? "—"}</span>
               </StatusPill>
             </li>
@@ -262,6 +274,13 @@ function PickHistory({
             >
               <span className="text-muted-foreground">{weekLabels.get(pick.weekId)}</span>
               <span className="flex items-center gap-1.5">
+                {team && (
+                  <TeamLogo
+                    logoLightUrl={team.logoLightUrl}
+                    logoDarkUrl={team.logoDarkUrl}
+                    size="sm"
+                  />
+                )}
                 <span className={team ? "font-medium text-foreground" : "text-muted-foreground"}>
                   {/* A pick whose game hasn't kicked off is present but nameless
                       — the league knows they're in, not who they took. */}

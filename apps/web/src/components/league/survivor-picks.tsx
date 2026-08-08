@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { SlateGame, SlateTeam, SurvivorPick, WeekSlateResponse } from "@picksleagues/schemas";
-import { useSubmitSurvivorPick, useSurvivorWeekPicks } from "@/api/survivor";
+import { useSubmitSurvivorPick, useSurvivorStandings, useSurvivorWeekPicks } from "@/api/survivor";
 import { useWeekSlate } from "@/api/weeks";
 import { isClosedToPicks } from "@/lib/game";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryState } from "@/components/query-state";
-import { SurvivorGameRow } from "@/components/league/survivor-game-row";
+import { SurvivorGameRow, SurvivorPickedGameRow } from "@/components/league/survivor-game-row";
 
 /** A team taken out of a specific game — the shape both the sheet and the write path speak. */
 export type SurvivorSelection = { gameId: string; teamId: string };
@@ -75,14 +75,32 @@ function SurvivorPicksSkeleton() {
 export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: string }) {
   const slate = useWeekSlate(weekId);
   const picks = useSurvivorWeekPicks(leagueId, weekId);
+  // The board, for the one thing the week's own response has no field for:
+  // whether the season is already decided. A decided season refuses every write
+  // with `league_concluded` (ADR-0027) while its later weeks stay in the
+  // league's range, so without this the members who *won* get a full sheet and
+  // a Save the API can only refuse. `concluded` is already on the wire, which
+  // is why this reads the board rather than growing a field here.
+  const season = useSurvivorStandings(leagueId);
   // The endpoint refuses a non-member outright, so the viewer is always among
   // the members it returns; the guard narrows the type rather than covering a
   // state the screen can reach.
   const viewer = picks.data?.members.find((member) => member.isViewer);
+  const concluded = season.data?.concluded === true;
+  // **Winning outranks being out**, the order `pick-status.ts` resolves the
+  // dashboard glance in: under the co-win Everyone Out setting a season's
+  // winners *are* eliminated members (ADR-0028), so asking about elimination
+  // first would tell the member who just won that they are out.
+  const won =
+    concluded && season.data?.members.find((member) => member.isViewer)?.isWinner === true;
 
   return (
     <QueryState
-      isPending={slate.isPending || picks.isPending}
+      // The board sits in the pending gate but deliberately not the error one:
+      // waiting for it keeps a sheet from rendering a beat before it turns into
+      // a season-over card, while a board that failed to load must never cost a
+      // member a pick they can still make.
+      isPending={slate.isPending || picks.isPending || season.isPending}
       pendingFallback={<SurvivorPicksSkeleton />}
       isError={slate.isError || picks.isError}
       onRetry={() => {
@@ -96,7 +114,9 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
       {slate.data &&
         picks.data &&
         viewer &&
-        (viewer.eliminated ? (
+        (won || (concluded && !viewer.eliminated) ? (
+          <SeasonOverWeek slate={slate.data} pick={viewer.pick} won={won} />
+        ) : viewer.eliminated ? (
           <EliminatedWeek slate={slate.data} pick={viewer.pick} />
         ) : (
           <SurvivorPickSheet
@@ -106,11 +126,63 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
             leagueId={leagueId}
             weekId={weekId}
             slate={slate.data}
-            saved={selectionOf(viewer.pick)}
+            pick={viewer.pick}
             consumedTeamIds={picks.data.consumedTeamIds}
           />
         ))}
     </QueryState>
+  );
+}
+
+/**
+ * The member's own pick for a week they can no longer act on — shown as the one
+ * game it is in, never as the whole slate. With nothing left to choose, the
+ * other games are rows they can only scan past.
+ */
+function PickedGame({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
+  const game = pick ? slate.games.find((candidate) => candidate.id === pick.gameId) : undefined;
+  if (!pick || !game) return null;
+
+  return (
+    <CardContent>
+      <ul className="flex flex-col gap-3">
+        <SurvivorPickedGameRow game={game} teamId={pick.teamId} outcome={pick.outcome} />
+      </ul>
+    </CardContent>
+  );
+}
+
+/**
+ * The week as a member of a decided season sees it (spec §End of League,
+ * ADR-0027): a result, not a sheet.
+ *
+ * A season ends when its range plays out *or* when settlement leaves one member
+ * standing, and the weeks after that second ending are still in the league's
+ * range — so a member can navigate to one and the week list will offer it. What
+ * they must not get there is a sheet, because every Save on it is a refusal the
+ * server has already decided.
+ */
+function SeasonOverWeek({
+  slate,
+  pick,
+  won,
+}: {
+  slate: WeekSlateResponse;
+  pick: SurvivorPick | null;
+  won: boolean;
+}) {
+  return (
+    <Card data-testid="survivor-season-over" data-won={won ? "true" : "false"}>
+      <CardHeader>
+        <CardTitle>{won ? "You made it" : "Season over"}</CardTitle>
+        <CardDescription>
+          {won
+            ? "This season is decided and you're one of the members left standing, so there are no more picks to make."
+            : "This league's season is over, so there are no more picks to make."}
+        </CardDescription>
+      </CardHeader>
+      <PickedGame slate={slate} pick={pick} />
+    </Card>
   );
 }
 
@@ -123,8 +195,6 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
  * full visibility of the league (spec §Game Mode 2 — Core Rules).
  */
 function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
-  const team = pick ? (teamsById(slate.games).get(pick.teamId) ?? null) : null;
-
   return (
     <Card data-testid="survivor-eliminated">
       <CardHeader>
@@ -140,13 +210,7 @@ function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: Survi
           follow the league.
         </CardDescription>
       </CardHeader>
-      {team && (
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {`Your pick for ${slate.label}: ${team.name}.`}
-          </p>
-        </CardContent>
-      )}
+      <PickedGame slate={slate} pick={pick} />
     </Card>
   );
 }
@@ -157,24 +221,26 @@ function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: Survi
  * Closed games stay on screen rather than being filtered out the way Pick'em's
  * sheet filters them — with only one pick to place, a member scanning for a
  * team needs to see that the game it was in has already gone, not find it
- * missing.
+ * missing. That rationale is about a member who can **still act**, which is why
+ * a frozen week drops it below and shows their own game alone.
  */
 function SurvivorPickSheet({
   leagueId,
   weekId,
   slate,
-  saved,
+  pick,
   consumedTeamIds,
 }: {
   leagueId: string;
   weekId: string;
   slate: WeekSlateResponse;
-  saved: SurvivorSelection | null;
+  pick: SurvivorPick | null;
   consumedTeamIds: string[];
 }) {
   const submit = useSubmitSurvivorPick(leagueId, weekId);
   const [selection, setSelection] = useState<SurvivorSelection | null>(null);
 
+  const saved = selectionOf(pick);
   const held = heldSurvivorSelection(slate.games, selection, saved);
   const changed = held !== null && (held.gameId !== saved?.gameId || held.teamId !== saved?.teamId);
   const consumed = new Set(consumedTeamIds);
@@ -220,16 +286,23 @@ function SurvivorPickSheet({
             <p className="text-sm text-muted-foreground">You didn&apos;t make a pick this week.</p>
           )}
           <ul className="flex flex-col gap-3">
-            {slate.games.map((game) => (
-              <SurvivorGameRow
-                key={game.id}
-                game={game}
-                heldTeamId={held?.gameId === game.id ? held.teamId : null}
-                consumedTeamIds={consumed}
-                frozen={frozen}
-                onSelect={(teamId) => setSelection({ gameId: game.id, teamId })}
-              />
-            ))}
+            {frozen && savedGame && pick ? (
+              // Their own game alone. A slate of teams none of which can be
+              // taken is an offer that isn't there: the write path refuses every
+              // change out of a pick whose game has kicked off, so what is left
+              // to say about this week is how the one pick they hold is doing.
+              <SurvivorPickedGameRow game={savedGame} teamId={pick.teamId} outcome={pick.outcome} />
+            ) : (
+              slate.games.map((game) => (
+                <SurvivorGameRow
+                  key={game.id}
+                  game={game}
+                  heldTeamId={held?.gameId === game.id ? held.teamId : null}
+                  consumedTeamIds={consumed}
+                  onSelect={(teamId) => setSelection({ gameId: game.id, teamId })}
+                />
+              ))
+            )}
           </ul>
         </CardContent>
       </Card>

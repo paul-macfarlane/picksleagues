@@ -1,6 +1,11 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { isUniqueViolation, survivorPicks, survivorState } from "@picksleagues/db";
+import {
+  isUniqueViolation,
+  survivorPickResults,
+  survivorPicks,
+  survivorState,
+} from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
@@ -185,6 +190,25 @@ export async function getSurvivorWeekPicks(
   const eliminated = await eliminatedMemberIds(db, leagueSeasonId);
   const picksByMember = new Map(picks.map((pick) => [pick.leagueMemberId, pick]));
 
+  // Scoped to this week's picks by id rather than by week, so a result row that
+  // outlived the pick it graded could not attach itself to the replacement.
+  const results =
+    picks.length === 0
+      ? []
+      : await db
+          .select({
+            survivorPickId: survivorPickResults.survivorPickId,
+            outcome: survivorPickResults.outcome,
+          })
+          .from(survivorPickResults)
+          .where(
+            inArray(
+              survivorPickResults.survivorPickId,
+              picks.map((pick) => pick.id),
+            ),
+          );
+  const outcomeByPickId = new Map(results.map((row) => [row.survivorPickId, row.outcome]));
+
   const serialized: SurvivorMemberPick[] = members.map(({ member, user }) => {
     const own = picksByMember.get(member.id) ?? null;
     const isViewer = member.userId === userId;
@@ -209,6 +233,10 @@ export async function getSurvivorWeekPicks(
               weekId: own.weekId,
               gameId: own.gameId,
               teamId: own.teamId,
+              // Nested inside the withheld object on purpose: a grade discloses
+              // the winning side, so it must never survive the pick it grades
+              // (spec §Pick Visibility, as `standings.ts` resolves it too).
+              outcome: outcomeByPickId.get(own.id) ?? null,
             }
           : null,
       eliminated: eliminated.has(member.id),

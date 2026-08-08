@@ -1150,6 +1150,7 @@ export interface components {
             weekId: string;
             gameId: string;
             teamId: string;
+            outcome: components["schemas"]["NullablePickOutcome"];
         } | null;
         SurvivorStandingsResponse: {
             weeks: components["schemas"]["SurvivorStandingsWeek"][];

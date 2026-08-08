@@ -40,6 +40,18 @@ export const SurvivorPickSchema = z
     weekId: z.string(),
     gameId: z.string(),
     teamId: z.string(),
+    /**
+     * How settlement graded this pick, or null while it has none — a week the
+     * settlement prefix hasn't reached has no result row at all (arch D10),
+     * which is a different state from "no pick" and from "not yet kicked off".
+     *
+     * **Inside the pick rather than beside it, so the visibility rule carries
+     * it.** A grade names the side that won as surely as the team does, so
+     * "correct" on a pick the league may not see yet would disclose exactly
+     * what withholding the pick protects (spec §Pick Visibility) — nested here,
+     * a withheld pick structurally cannot ship one.
+     */
+    outcome: NullablePickOutcomeSchema,
   })
   .openapi("SurvivorPick");
 
@@ -225,15 +237,18 @@ export type SurvivorStandingsResponse = z.infer<typeof SurvivorStandingsResponse
  * picks-in-of-N count a multi-pick mode would need.
  *
  * Three of these carry a rule worth stating where the values live:
- * - `ELIMINATED` outranks every other state. A member settlement has put out
- *   owes no pick, so prompting them for one would be wrong whatever their week
- *   looks like — and they can still hold a pick for it, since elimination is
- *   settled a week behind the pick that caused it.
- * - `WON` is the same kind of fact one rank below it: the season is over and
- *   this member is one of the members alive when it ended (spec §End of League,
- *   ADR-0027). It outranks every week-shaped state for the same reason —
- *   a decided league owes nobody a pick — and never applies to an eliminated
- *   member, who is answered by the state above.
+ * - `WON` outranks every other state, elimination included, and that order is
+ *   load-bearing. Under the co-win Everyone Out setting a season's winners
+ *   *are* eliminated members — the week that emptied the league is the week
+ *   they won it (ADR-0028) — so ranking elimination first would tell a member
+ *   who just won that they are out.
+ * - `ELIMINATED` outranks every week-shaped state below it. A member settlement
+ *   has put out owes no pick, so prompting them for one would be wrong whatever
+ *   their week looks like — and they can still hold a pick for it, since
+ *   elimination is settled a week behind the pick that caused it.
+ * - Both are answered before any week is looked up, because each is a fact
+ *   about the member's season rather than about a week they owe: a league with
+ *   no current week must still report them (spec §End of League, ADR-0027).
  * - `LOCKED` means *every* game in the week has kicked off with no pick
  *   standing. Not the first kickoff: a member may take any unstarted game in
  *   the week, so the week closes against them only when none is left (spec

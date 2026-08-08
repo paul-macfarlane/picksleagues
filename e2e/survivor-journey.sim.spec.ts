@@ -4,6 +4,7 @@ import { latestInviteCode } from "./setup/league-seed";
 import { SIM_GAME_DURATION_MS } from "../packages/core/src/sim-provider";
 import {
   APP_ROLE,
+  PICK_OUTCOME,
   SIM_CLOCK_ADJUSTMENT_KIND,
   SIM_RESET_SCOPE,
   SURVIVOR_MEMBER_STATUS,
@@ -340,6 +341,18 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
       own.locator('[data-testid="survivor-consumed-team"][data-team="BUF"]'),
     ).toBeVisible();
 
+    // The same settlement on the member's own sheet, which is the other half of
+    // the round trip: their pick's game has kicked off, so the week shows the
+    // one game they were in — graded — rather than a slate they can't act on.
+    await page1.goto(`/leagues/${leagueId}/my-picks?weekId=${weeks[0]!.id}`);
+    const gradedRow = page1.getByTestId("survivor-game-row");
+    await expect(gradedRow).toHaveCount(1);
+    await expect(gradedRow).toHaveAttribute("data-picked-team", "BUF");
+    await expect(gradedRow.getByTestId("pick-outcome")).toHaveAttribute(
+      "data-outcome",
+      PICK_OUTCOME.CORRECT,
+    );
+
     // The same verdict on the surface M3 actually lands on first (ELM-6).
     await page3.goto("/");
     await expect(page3.getByTestId("survivor-pick-status")).toHaveAttribute(
@@ -437,5 +450,11 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     const out = boardRow(board, name3);
     await expect(out).toHaveAttribute("data-winner", "false");
     await expect(out).toHaveAttribute("data-status", SURVIVOR_MEMBER_STATUS.ELIMINATED);
+
+    // And the pick screen agrees: a decided season is a result, not a sheet —
+    // every Save on one is a refusal the server has already made.
+    await page1.goto(`/leagues/${leagueId}/my-picks`);
+    await expect(page1.getByTestId("survivor-season-over")).toHaveAttribute("data-won", "true");
+    await expect(saveControl(page1)).toHaveCount(0);
   });
 });

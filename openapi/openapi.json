@@ -1651,13 +1651,17 @@
           },
           "teamId": {
             "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/NullablePickOutcome"
           }
         },
         "required": [
           "id",
           "weekId",
           "gameId",
-          "teamId"
+          "teamId",
+          "outcome"
         ]
       },
       "SurvivorStandingsResponse": {
