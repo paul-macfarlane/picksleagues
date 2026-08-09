@@ -205,8 +205,9 @@ export function leagueRoutes(deps: AppDeps) {
 
   app.openapi(getMyLeagues, async (c) => {
     const db = c.get("db");
+    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const leagues = await listMyLeagues(db, sessionUser.id);
+    const leagues = await listMyLeagues(db, clock, sessionUser.id);
     return c.json({ leagues }, 200);
   });
 

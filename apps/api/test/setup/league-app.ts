@@ -93,6 +93,12 @@ export function makeLeagueTestHarness() {
     });
   }
 
+  function getSurvivorStandings(cookie: string | undefined, leagueId: string, on: App = app) {
+    return on.request(`/api/leagues/${leagueId}/survivor/standings`, {
+      headers: withCookie(cookie),
+    });
+  }
+
   function getStandings(cookie: string | undefined, leagueId: string, query = "", on: App = app) {
     return on.request(`/api/leagues/${leagueId}/pickem/standings${query}`, {
       headers: withCookie(cookie),
@@ -116,6 +122,7 @@ export function makeLeagueTestHarness() {
     putPicks,
     getSurvivorPicks,
     putSurvivorPick,
+    getSurvivorStandings,
     getStandings,
     getPickSummary,
   };

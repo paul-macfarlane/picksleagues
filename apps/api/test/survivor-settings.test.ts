@@ -67,7 +67,10 @@ function patchLeague(
 }
 
 function settingsWith(overrides: Partial<SurvivorSettingsInput> = {}): SurvivorSettingsInput {
-  return { pushTieResolution: DEFAULT_SURVIVOR_SETTINGS.pushTieResolution, ...overrides };
+  return {
+    pushTieResolution: DEFAULT_SURVIVOR_SETTINGS.pushTieResolution,
+    ...overrides,
+  };
 }
 
 /** Total Survivor pick rows on a league's current season instance. */

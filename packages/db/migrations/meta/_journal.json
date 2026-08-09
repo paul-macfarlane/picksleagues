@@ -176,6 +176,13 @@
       "when": 1786139403033,
       "tag": "0024_brave_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786146823835,
+      "tag": "0025_colossal_hiroim",
+      "breakpoints": true
     }
   ]
 }

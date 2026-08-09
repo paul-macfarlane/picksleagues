@@ -332,13 +332,17 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 
 ```ts
 settlePickemWeek(picks, results, settings) → PickOutcome[]
-settleSurvivorWeek(state, picks, results, settings) → SurvivorOutcome[]
+settleSurvivorWeek(aliveMemberIds, picks, results, settings) → SurvivorWeekSettlement
 scoreBracket(bracket, tournamentResults, settings) → BracketScore
 ```
 
 Each handles its mode's edge-case matrix from the product spec: Pick'em's fixed half-point push, Survivor's advance-or-eliminate tie resolution, confidence compression on short weeks, cancellation-as-push, revival when everyone busts in the same week, bracket auto-advance neutrality. Table-driven unit tests, one per spec rule.
 
-The settlement job orchestrates: load inputs → call pure functions → persist `pickem_pick_results` → rebuild `pickem_standings` for affected leagues in one transaction. Nothing is stored for tiebreaking: Pick'em leaderboards are a sort on points alone, and members who tie share the rank.
+The settlement job dispatches on the league's mode into that mode's own orchestration module, each writing only its own tables (ADR-0016) in one transaction per league season: load inputs — resolving `override_* ?? provider_*` — → call the pure functions → persist.
+
+Pick'em grades each pick against its own game, so a week settles in isolation: persist `pickem_pick_results` → rebuild `pickem_standings` for the affected weeks. Survivor cannot, because missed-pick elimination and the everyone-out revival are week totals over the alive-set the previous week produced. It therefore replays a league season's weeks **in prefix order**, settling a week only once every game in it is terminal and every in-range prior week has settled, and writes `survivor_pick_results`, `survivor_state`, and the `survivor_picks.released` team ledger (ADR-0025). A correction to an already-settled week replays every week after it on the same trigger rather than waiting for the nightly sweep.
+
+Nothing is stored for tiebreaking: Pick'em leaderboards are a sort on points alone, and members who tie share the rank.
 
 ## API Surface (MVP sketch)
 

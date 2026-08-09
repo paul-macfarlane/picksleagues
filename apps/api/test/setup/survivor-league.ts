@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { survivorPicks, survivorState } from "@picksleagues/db";
+import { games, survivorPickResults, survivorPicks, survivorState, teams } from "@picksleagues/db";
 import {
+  GAME_STATUS,
   MEMBER_ROLE,
   LEAGUE_MODE,
+  SPORT,
   type LeagueStatus,
   type SurvivorSettings,
 } from "@picksleagues/schemas";
@@ -18,6 +21,9 @@ import {
   seedSeason,
   type SeededWeek,
 } from "./league-helpers";
+import { WEEK1_KICKOFF } from "./league-app";
+
+export const SURVIVOR_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface SeedSurvivorLeagueMemberSpec {
   username?: string;
@@ -84,6 +90,65 @@ export async function seedSurvivorLeague(
   const members = await membersOf(db, league.id);
   const leagueSeasonId = await seasonIdFor(db, league.id);
   return { league, seasonId, leagueSeasonId, weekIds, gameIds, teamIds, users, members };
+}
+
+/** One week of a `seedSurvivorSeason` fixture, with the single game it holds. */
+export interface SeededSurvivorSeasonWeek {
+  weekId: string;
+  gameId: string;
+  homeTeamId: string;
+  awayTeamId: string;
+}
+
+export interface SeedSurvivorSeasonOptions {
+  weekCount?: number;
+  memberCount?: number;
+  settings?: SurvivorSettings;
+  year?: number;
+  usernamePrefix?: string;
+}
+
+/**
+ * A Survivor league season of N single-game weeks, each played between its own
+ * pair of teams and kicking off a week after the last. The per-week pair is the
+ * point: the team ledger is the mode's central constraint, so a fixture sharing
+ * one pair across the slate would cap every member at two legal picks.
+ *
+ * Shared by the settlement and board suites — both need a whole season to say
+ * anything, and a second copy would drift from this one the first time the
+ * ledger's shape changed.
+ */
+export async function seedSurvivorSeason(
+  db: Db,
+  auth: Auth,
+  opts: SeedSurvivorSeasonOptions = {},
+): Promise<SeededSurvivorLeague & { weeks: SeededSurvivorSeasonWeek[]; memberIds: string[] }> {
+  const { weekCount = 1, memberCount = 2, settings, year, usernamePrefix = "member" } = opts;
+
+  const base = await seedSurvivorLeague(db, auth, {
+    weeks: Array.from({ length: weekCount }, (_unused, i) => ({ weekNumber: i + 1 })),
+    settings,
+    year,
+    members: Array.from({ length: memberCount }, (_unused, i) => ({
+      username: `${usernamePrefix}_${i}`,
+    })),
+  });
+
+  const weeks: SeededSurvivorSeasonWeek[] = [];
+  for (let i = 0; i < weekCount; i += 1) {
+    const weekId = base.weekIds.get(`regular:${i + 1}`)!;
+    const game = await seedSurvivorGame(db, {
+      weekId,
+      kickoffAt: new Date(WEEK1_KICKOFF.getTime() + i * SURVIVOR_WEEK_MS),
+    });
+    weeks.push({ weekId, ...game });
+  }
+
+  return {
+    ...base,
+    weeks,
+    memberIds: base.users.map((user) => base.members.get(user.user.id)!),
+  };
 }
 
 /**
@@ -160,4 +225,74 @@ export function survivorPicksFor(db: Db, leagueSeasonId: string, leagueMemberId:
         eq(survivorPicks.leagueMemberId, leagueMemberId),
       ),
     );
+}
+
+/**
+ * Adds a game, by default between two teams nothing else in the fixture uses.
+ * `seedSeason` shares one pair across its whole slate, which is fine for
+ * Pick'em but caps a Survivor member at two legal picks per season — the team
+ * ledger is the mode's central constraint, so a multi-week fixture needs a
+ * fresh pair per week. Pass `teams` to reuse an earlier week's pair, which is
+ * what arranges the re-pick a cancellation legitimately allows.
+ */
+export async function seedSurvivorGame(
+  db: Db,
+  opts: {
+    weekId: string;
+    kickoffAt: Date;
+    teams?: { homeTeamId: string; awayTeamId: string };
+  },
+): Promise<{ gameId: string; homeTeamId: string; awayTeamId: string }> {
+  const pair = opts.teams ?? (await insertTeamPair(db));
+
+  const [game] = await db
+    .insert(games)
+    .values({
+      weekId: opts.weekId,
+      providerGameId: randomUUID(),
+      homeTeamId: pair.homeTeamId,
+      awayTeamId: pair.awayTeamId,
+      kickoffAt: opts.kickoffAt,
+      status: GAME_STATUS.SCHEDULED,
+      createdAt: SEED_AT,
+      updatedAt: SEED_AT,
+    })
+    .returning();
+  if (!game) throw new Error("game insert returned no row");
+
+  return { gameId: game.id, ...pair };
+}
+
+async function insertTeamPair(db: Db): Promise<{ homeTeamId: string; awayTeamId: string }> {
+  const [homeTeam, awayTeam] = await Promise.all(
+    ["H", "A"].map(async (side) => {
+      const suffix = randomUUID().slice(0, 6);
+      const [team] = await db
+        .insert(teams)
+        .values({
+          sport: SPORT.NFL,
+          abbreviation: `${side}${suffix}`,
+          name: `Team ${side}${suffix}`,
+          createdAt: SEED_AT,
+          updatedAt: SEED_AT,
+        })
+        .returning();
+      if (!team) throw new Error("team insert returned no row");
+      return team;
+    }),
+  );
+  return { homeTeamId: homeTeam!.id, awayTeamId: awayTeam!.id };
+}
+
+/** Settlement's graded outcomes for one league-season instance. */
+export function survivorPickResultsFor(db: Db, leagueSeasonId: string) {
+  return db
+    .select()
+    .from(survivorPickResults)
+    .where(eq(survivorPickResults.leagueSeasonId, leagueSeasonId));
+}
+
+/** Settlement's member ledger for one league-season instance. Absence means alive. */
+export function survivorStateFor(db: Db, leagueSeasonId: string) {
+  return db.select().from(survivorState).where(eq(survivorState.leagueSeasonId, leagueSeasonId));
 }

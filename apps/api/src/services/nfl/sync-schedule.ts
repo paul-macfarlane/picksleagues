@@ -10,7 +10,7 @@ import { JOB_SKIP_REASON, WEEK_TYPE, type WeekType } from "@picksleagues/schemas
 import { fetchSeasonGames } from "./fetch-season-games";
 import { ingestSeasonSnapshot } from "./ingest-season";
 import { SEASON_CONCLUSION, nflSeasonConclusion } from "./season-lifecycle";
-import { settlePicksForGames } from "../pickem/settlement";
+import { settlePicksForGames } from "../settlement";
 
 const UPCOMING_STATUS = {
   REAL: "real",

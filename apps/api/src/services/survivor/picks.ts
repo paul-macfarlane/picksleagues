@@ -1,13 +1,16 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { isUniqueViolation, survivorPicks, survivorState } from "@picksleagues/db";
+import {
+  isUniqueViolation,
+  survivorPickResults,
+  survivorPicks,
+  survivorState,
+} from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
-  WEEK_TYPE,
-  nflSeasonOrdinal,
   type LeagueStatus,
   type SubmitSurvivorPickRequest,
   type SurvivorMemberPick,
@@ -22,6 +25,7 @@ import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import { resolveUserImage } from "../users";
 import { getWeek, loadResolvedWeekGames, resolveLockStates } from "../slate";
+import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
 
 /**
  * Survivor pick entry (spec §Game Mode 2 — Core Rules) and the kickoff-gated
@@ -59,20 +63,27 @@ export const SURVIVOR_REFUSAL = {
 export type SurvivorRefusal = (typeof SURVIVOR_REFUSAL)[keyof typeof SURVIVOR_REFUSAL];
 
 /**
+ * Everything resolving and authorizing the *league* can refuse — `loadContext`'s
+ * own set, and all a surface with no week in its path (the board) can produce.
+ */
+export type SurvivorLeagueRefusal = Extract<
+  SurvivorRefusal,
+  "league_not_found" | "wrong_league_mode"
+>;
+
+/**
  * The refusals reachable from resolving and authorizing a league-week — all a
  * read can produce. Split from the full set so the read route doesn't have to
  * declare the write-only conflicts it can never emit. (The handler maps stay
  * keyed by the full set on purpose, so adding a reason is a compile error.)
  */
-export type SurvivorReadRefusal = Extract<
-  SurvivorRefusal,
-  "league_not_found" | "wrong_league_mode" | "week_out_of_range"
->;
+export type SurvivorReadRefusal =
+  SurvivorLeagueRefusal | Extract<SurvivorRefusal, "week_out_of_range">;
 
 export type SurvivorResult<T, R extends SurvivorRefusal = SurvivorRefusal> =
   { ok: true; value: T } | { ok: false; reason: R };
 
-interface SurvivorContext {
+export interface SurvivorContext {
   leagueSeasonId: string;
   seasonId: string;
   membershipId: string;
@@ -81,15 +92,19 @@ interface SurvivorContext {
 }
 
 /**
- * Resolves and authorizes the league both paths need. A non-member gets
- * `league_not_found`, indistinguishable from a league that doesn't exist —
+ * Resolves and authorizes the league every Survivor surface needs. A non-member
+ * gets `league_not_found`, indistinguishable from a league that doesn't exist —
  * private leagues stay hidden (matching `getLeague`).
+ *
+ * Module-public so the board reads the same gate the pick paths do: two Survivor
+ * surfaces disagreeing about who may see a league is exactly the divergence a
+ * second copy of this would produce.
  */
-async function loadContext(
+export async function loadContext(
   db: Db,
   leagueId: string,
   userId: string,
-): Promise<SurvivorResult<SurvivorContext, "league_not_found" | "wrong_league_mode">> {
+): Promise<SurvivorResult<SurvivorContext, SurvivorLeagueRefusal>> {
   const current = await getLeagueWithCurrentSeason(db, leagueId);
   if (!current) return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_NOT_FOUND };
 
@@ -117,13 +132,7 @@ async function loadContext(
   };
 }
 
-/**
- * Whether the requested week is one this league plays. Survivor is
- * **regular-season only** (spec §Game Mode 2 — Core Rules), so the week type is
- * checked in its own right rather than left to the ordinal comparison: the
- * stored range can only ever name regular weeks, but stating the mode's rule
- * where it applies keeps it true if a stored range is ever widened.
- */
+/** Whether the requested week is one this league plays, and one of its season's. */
 async function isWeekInRange(
   db: Db,
   seasonId: string,
@@ -132,12 +141,7 @@ async function isWeekInRange(
 ): Promise<boolean> {
   const week = await getWeek(db, weekId);
   if (!week || week.seasonId !== seasonId) return false;
-  if (week.weekType !== WEEK_TYPE.REGULAR) return false;
-
-  const ordinal = nflSeasonOrdinal({ type: WEEK_TYPE.REGULAR, number: week.weekNumber });
-  return (
-    ordinal >= nflSeasonOrdinal(settings.startWeek) && ordinal <= nflSeasonOrdinal(settings.endWeek)
-  );
+  return isSurvivorRangeWeek(week, settings);
 }
 
 /** The member ids settlement has eliminated. A member with no row is alive. */
@@ -186,6 +190,25 @@ export async function getSurvivorWeekPicks(
   const eliminated = await eliminatedMemberIds(db, leagueSeasonId);
   const picksByMember = new Map(picks.map((pick) => [pick.leagueMemberId, pick]));
 
+  // Scoped to this week's picks by id rather than by week, so a result row that
+  // outlived the pick it graded could not attach itself to the replacement.
+  const results =
+    picks.length === 0
+      ? []
+      : await db
+          .select({
+            survivorPickId: survivorPickResults.survivorPickId,
+            outcome: survivorPickResults.outcome,
+          })
+          .from(survivorPickResults)
+          .where(
+            inArray(
+              survivorPickResults.survivorPickId,
+              picks.map((pick) => pick.id),
+            ),
+          );
+  const outcomeByPickId = new Map(results.map((row) => [row.survivorPickId, row.outcome]));
+
   const serialized: SurvivorMemberPick[] = members.map(({ member, user }) => {
     const own = picksByMember.get(member.id) ?? null;
     const isViewer = member.userId === userId;
@@ -210,6 +233,10 @@ export async function getSurvivorWeekPicks(
               weekId: own.weekId,
               gameId: own.gameId,
               teamId: own.teamId,
+              // Nested inside the withheld object on purpose: a grade discloses
+              // the winning side, so it must never survive the pick it grades
+              // (spec §Pick Visibility, as `standings.ts` resolves it too).
+              outcome: outcomeByPickId.get(own.id) ?? null,
             }
           : null,
       eliminated: eliminated.has(member.id),
@@ -255,7 +282,31 @@ export async function submitSurvivorPick(
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, seasonId, membershipId, settings, status } = preflight.value;
 
+  // Both readings of "this season is over", because they answer at different
+  // times: the stored status is what LG-12 will persist and nothing writes yet,
+  // while the derived state is true the moment settlement leaves one member
+  // standing or the range plays out (ADR-0027). Keeping the status check is what
+  // stops persistence needing this rewritten.
   if (status === LEAGUE_STATUS.CONCLUDED) {
+    return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
+  }
+
+  // Pre-flight rather than inside the write transaction, unlike the lock and
+  // ledger invariants below: this is settled state, and it carries the same
+  // deliberate lag the eliminated check does (ADR-0025) — a pick landing between
+  // the season being decided and this reading it grades to nothing, where a
+  // kickoff moving under an unvalidated write would let a locked pick through.
+  const season = await resolveSurvivorSeasonState(db, {
+    leagueSeasonId,
+    leagueId,
+    seasonId,
+    settings,
+  });
+  // Only for a member the season decided *for*. A decided season's winners are
+  // exactly its alive set, so everyone else here is eliminated — and the refusal
+  // about them personally is the one they need, the same one a league with three
+  // members and one survivor would have given them.
+  if (season.decided && season.winnerMemberIds.has(membershipId)) {
     return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
   }
 

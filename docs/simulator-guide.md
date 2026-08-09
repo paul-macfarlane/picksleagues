@@ -116,18 +116,27 @@ you end up reading a confusing mix of two seasons.
 
 ## Scenario library
 
-Six canned NFL edge cases (`apps/api/src/services/sim/scenarios/`), each
+Seven canned NFL scenarios (`apps/api/src/services/sim/scenarios/`), each
 covering a specific spec rule:
 
 `push-ats` · `tie-game` · `cancelled-game` · `postponed-game` ·
-`all-eliminated` · `mixed-week`
+`all-eliminated` · `mixed-week` · `survivor-season`
+
+The first six are single-week edge cases. `survivor-season` is the exception:
+four consecutive weeks (15–18) so a Survivor league can be played to its end —
+its range resolves to those four weeks rather than the whole regular season,
+which is what lets the board reach a conclusion and name co-winners.
 
 Library scenarios are re-materialized from their code definition on every load
 and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
-`docs/runbooks/pickem-regression.md` drives most of these as a manual Pick'em
-regression pass — what to click and what to assert, per scenario.
+Two manual regression runbooks drive them — what to click and what to assert.
+`docs/runbooks/pickem-regression.md` takes most of the single-week edge cases as
+independent Pick'em passes; `docs/runbooks/survivor-regression.md` takes
+`survivor-season` as one continuous four-week run, because the Survivor rules
+worth clicking through (the team ledger, elimination, revival, the ending) are
+facts about a season rather than a week.
 
 ## Replay a real season
 

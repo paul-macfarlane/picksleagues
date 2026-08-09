@@ -4,17 +4,20 @@ import {
   index,
   integer,
   pgTable,
+  text,
   timestamp,
   unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { PickOutcome } from "@picksleagues/schemas";
 import { leagueMembers, leagueSeasons } from "./leagues";
 import { games, teams, weeks } from "./sports";
 
 /**
- * Survivor's own storage (spec §Game Mode 2): the weekly pick ledger and the
- * settlement-maintained member state. ADR-0025 records the design.
+ * Survivor's own storage (spec §Game Mode 2): the weekly pick ledger, the
+ * graded outcomes, and the settlement-maintained member state. ADR-0025 records
+ * the design.
  *
  * Per-mode tables (arch D9, ADR-0016) rather than a share of Pick'em's: the
  * rules the database has to encode here are a *team* ledger and a life count,
@@ -94,6 +97,50 @@ export const survivorPicks = pgTable(
     // Serves settlement's "which picks does this game resolve" lookup when a
     // single game goes final.
     index("survivor_picks_game_idx").on(table.gameId),
+  ],
+);
+
+/**
+ * Settlement's graded outcomes, completing the per-mode triple (ADR-0016,
+ * ADR-0025). A pure derivation of (picks, results, settings) like every other
+ * settlement output (arch D10): a full recompute must reproduce it exactly.
+ *
+ * **No points column, deliberately.** Survivor grades survive-or-eliminate and
+ * has no ranking to feed (ADR-0016), so a points column would be one this mode
+ * never writes — the shape that ADR rejected. The outcome vocabulary is the
+ * shared `PICK_OUTCOME`, since correct/incorrect/push mean the same thing here
+ * as in Pick'em; what the mode does with a push is Survivor's own rule.
+ */
+export const survivorPickResults = pgTable(
+  "survivor_pick_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /**
+     * The pick this grades. Cascades: a deleted pick has no result, and the
+     * pick endpoint's upsert rewrites rows freely, so results must follow.
+     */
+    survivorPickId: uuid("survivor_pick_id")
+      .notNull()
+      .references(() => survivorPicks.id, { onDelete: "cascade" }),
+    // Denormalized from the pick so a season replay can scope its delete
+    // without joining through picks that may already be gone.
+    leagueSeasonId: uuid("league_season_id")
+      .notNull()
+      .references(() => leagueSeasons.id, { onDelete: "cascade" }),
+    leagueMemberId: uuid("league_member_id")
+      .notNull()
+      .references(() => leagueMembers.id, { onDelete: "cascade" }),
+    weekId: uuid("week_id")
+      .notNull()
+      .references(() => weeks.id, { onDelete: "restrict" }),
+    outcome: text("outcome").$type<PickOutcome>().notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // One result per pick — the constraint that makes re-settling idempotent
+    // rather than additive.
+    unique("survivor_pick_results_pick_unique").on(table.survivorPickId),
+    index("survivor_pick_results_season_week_idx").on(table.leagueSeasonId, table.weekId),
   ],
 );
 

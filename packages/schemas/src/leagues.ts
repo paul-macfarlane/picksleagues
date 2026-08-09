@@ -9,6 +9,7 @@ import {
 import { LeagueStatusSchema } from "./league-status";
 import { LeagueVisibilitySchema } from "./league-visibility";
 import { MemberRoleSchema } from "./member-role";
+import { NullableSurvivorPickStatusSchema } from "./survivor";
 
 /**
  * mvp-spec §Leagues names no length rule for league names; 1-50 trimmed is
@@ -174,6 +175,18 @@ export const LeagueSummarySchema = z
     // See LeagueResponse.renewable — drives the dashboard "New season available"
     // badge without an extra per-league fetch.
     renewable: z.boolean(),
+    /**
+     * The viewer's own Survivor week at a glance (spec §Screens — Dashboard),
+     * null for every other mode. Named for its mode because it is shaped by it:
+     * one pick per week is Survivor's rule, and an unqualified `pickStatus`
+     * would leave Pick'em and March Madness no symmetric home when their own
+     * glances land.
+     *
+     * Viewer-scoped, which is safe only because this schema is reached solely
+     * through `MyLeaguesResponse` — public discovery serializes its own shape.
+     * Anything added here inherits that scoping.
+     */
+    survivorPickStatus: NullableSurvivorPickStatusSchema,
   })
   .openapi("LeagueSummary");
 

@@ -11,7 +11,7 @@ import {
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
 import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
-import { settlePicksForGames } from "../pickem/settlement";
+import { settlePicksForGames } from "../settlement";
 
 /** A refresh target: one provider week fetch mapped to our week row. */
 type ScoreTarget = {

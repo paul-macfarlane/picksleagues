@@ -43,7 +43,7 @@ import {
 } from "../services/admin-data";
 import { setGameOverride } from "../services/admin-overrides";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
-import { rebuildLeagueSeason, settleSweep } from "../services/pickem/settlement";
+import { rebuildLeagueSeason, settleSweep } from "../services/settlement";
 import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
 
 const AdminNflJobParamsSchema = z.object({ job: NflSyncJobSchema });

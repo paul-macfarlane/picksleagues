@@ -2,13 +2,18 @@ import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ChevronRightIcon } from "lucide-react";
-import { MEMBER_ROLE, type LeagueSummary } from "@picksleagues/schemas";
+import {
+  MEMBER_ROLE,
+  SURVIVOR_PICK_STATUS,
+  type LeagueSummary,
+  type SurvivorPickStatus,
+} from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
 import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusPill } from "@/components/status-pill";
+import { StatusPill, type StatusPillTone } from "@/components/status-pill";
 
 export const Route = createFileRoute("/_authed/")({
   component: Dashboard,
@@ -135,9 +140,43 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
             ))}
         </div>
         <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
-        {/* Pick tables land in later epics — nothing to summarize yet. */}
-        <p className="text-xs text-muted-foreground/70">Pick status coming soon</p>
+        {league.survivorPickStatus ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill
+              tone={SURVIVOR_GLANCE[league.survivorPickStatus].tone}
+              data-testid="survivor-pick-status"
+              data-status={league.survivorPickStatus}
+            >
+              {SURVIVOR_GLANCE[league.survivorPickStatus].label}
+            </StatusPill>
+          </div>
+        ) : (
+          // Only Survivor has a glance so far (ELM-6); the other modes' pick
+          // tables land in later epics.
+          <p className="text-xs text-muted-foreground/70">Pick status coming soon</p>
+        )}
       </CardContent>
     </Card>
   );
 }
+
+/**
+ * The glance's words, which are presentation and free to change; the state
+ * behind each is not, and the card carries it as `data-status` so a test binds
+ * to that rather than to the copy.
+ *
+ * "Week closed" rather than a missed-pick accusation on purpose: the state also
+ * covers a week a member sat out knowingly, and only settlement gets to say
+ * someone is out.
+ *
+ * "Winner" covers the co-winner case too. The card has no room to say how many
+ * shared it and the board beside it does, so a label that hedged would cost
+ * every sole winner their moment to spare a plural that is one click away.
+ */
+const SURVIVOR_GLANCE = {
+  [SURVIVOR_PICK_STATUS.ELIMINATED]: { tone: "danger", label: "Eliminated" },
+  [SURVIVOR_PICK_STATUS.WON]: { tone: "accent", label: "Winner" },
+  [SURVIVOR_PICK_STATUS.PICK_IN]: { tone: "success", label: "Pick in" },
+  [SURVIVOR_PICK_STATUS.PICK_NEEDED]: { tone: "highlight", label: "Pick needed" },
+  [SURVIVOR_PICK_STATUS.LOCKED]: { tone: "neutral", label: "Week closed" },
+} as const satisfies Record<SurvivorPickStatus, { tone: StatusPillTone; label: string }>;

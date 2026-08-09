@@ -21,3 +21,12 @@ export const PICK_OUTCOME = {
 export type PickOutcome = (typeof PICK_OUTCOME)[keyof typeof PICK_OUTCOME];
 
 export const PickOutcomeSchema = z.enum(PICK_OUTCOME).openapi("PickOutcome");
+
+/**
+ * Registered under its own component name rather than wrapped inline at each
+ * use: `.nullable()` on the already-registered node above would fold `null`
+ * into that shared component and widen every other reference to it. Lives here
+ * beside its base because both NFL modes now serialize "settled, or not yet".
+ */
+export const NullablePickOutcomeSchema =
+  PickOutcomeSchema.nullable().openapi("NullablePickOutcome");

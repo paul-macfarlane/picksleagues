@@ -13,12 +13,8 @@ import {
   type PickemSettings,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
-import {
-  rebuildLeagueSeason,
-  settlePicksForGames,
-  settleLeagueSeasonWeeks,
-  settleSweep,
-} from "../src/services/pickem/settlement";
+import { rebuildLeagueSeason, settlePicksForGames, settleSweep } from "../src/services/settlement";
+import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
@@ -151,7 +147,7 @@ async function seedThreeOutcomeWeek() {
   return { leagueSeasonId, weekId, picker, nonPicker };
 }
 
-describe("settleLeagueSeasonWeeks — results correctness", () => {
+describe("settlePickemLeagueSeasonWeeks — results correctness", () => {
   it("grades a straight-up week's correct/incorrect/push picks", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement({
       weeks: [
@@ -196,7 +192,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // tie
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const results = await pickResultsFor(db, leagueSeasonId);
     const byGame = new Map(results.map((row) => [row.pickemPickId, row]));
@@ -242,7 +238,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
@@ -264,7 +260,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
@@ -317,7 +313,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       await setGame(db, g1!, { status: GAME_STATUS.CANCELLED });
 
       const clock = new FixedClock(new Date(clockAt));
-      await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+      await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
       const picks = await db
         .select()
@@ -333,7 +329,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
       expect(byGame.get(g2!)).toBeUndefined();
 
       // Settling again lands on identical state: the push isn't provisional.
-      await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+      await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
       expect(snapshotResults(await pickResultsFor(db, leagueSeasonId))).toEqual(
         snapshotResults(results),
       );
@@ -392,7 +388,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id]);
 
     const results = await pickResultsFor(db, leagueSeasonId);
     const picks = await db
@@ -430,7 +426,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
@@ -457,7 +453,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const [result] = await pickResultsFor(db, leagueSeasonId);
     expect(result).toMatchObject({ outcome: PICK_OUTCOME.PUSH });
@@ -478,7 +474,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    const summary = await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    const summary = await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     expect(summary.results).toBe(0);
     expect(summary.unsettled).toBe(1);
@@ -501,7 +497,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL }); // no scores
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    const summary = await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    const summary = await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     expect(summary.results).toBe(0);
     expect(summary.unsettled).toBe(1);
@@ -509,7 +505,7 @@ describe("settleLeagueSeasonWeeks — results correctness", () => {
   });
 });
 
-describe("settleLeagueSeasonWeeks — standings", () => {
+describe("settlePickemLeagueSeasonWeeks — standings", () => {
   it("writes both a weekly row (week_id set) and a season row (week_id null)", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement();
     const weekId = weekIds.get("regular:1")!;
@@ -526,7 +522,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const rows = await standingsFor(db, leagueSeasonId);
     const weekly = rows.filter((row) => row.weekId === weekId);
@@ -573,7 +569,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
 
     const rows = await standingsFor(db, leagueSeasonId);
     const season = rows.find((row) => row.weekId === null && row.leagueMemberId === memberId)!;
@@ -629,7 +625,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 15, awayScore: 20 }); // F: incorrect, 0pts
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const season = (await standingsFor(db, leagueSeasonId)).filter((row) => row.weekId === null);
     const byMember = new Map(season.map((row) => [row.leagueMemberId, row]));
@@ -642,7 +638,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     const { leagueSeasonId, weekId, picker, nonPicker } = await seedThreeOutcomeWeek();
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const rows = await standingsFor(db, leagueSeasonId);
     const weekly = (memberId: string) =>
@@ -690,7 +686,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
 
     const rows = await standingsFor(db, leagueSeasonId);
     const row = (weekId: string | null) =>
@@ -718,7 +714,7 @@ describe("settleLeagueSeasonWeeks — standings", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const rows = await standingsFor(db, leagueSeasonId);
     const weeklyNonPicker = rows.find(
@@ -817,11 +813,11 @@ describe("settlement idempotency (arch D10)", () => {
     const { leagueSeasonId, weekId } = await seedSimpleSettledWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     const resultsOnce = snapshotResults(await pickResultsFor(db, leagueSeasonId));
     const standingsOnce = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     const resultsTwice = snapshotResults(await pickResultsFor(db, leagueSeasonId));
     const standingsTwice = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
@@ -838,7 +834,7 @@ describe("settlement idempotency (arch D10)", () => {
     const { leagueSeasonId, weekId, picker } = await seedThreeOutcomeWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     const once = snapshotStandings(await standingsFor(db, leagueSeasonId));
     expect(
       once
@@ -849,7 +845,7 @@ describe("settlement idempotency (arch D10)", () => {
       [1, 1, 1],
     ]); // weekly + season, both the real record
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     await rebuildLeagueSeason(db, clock, leagueSeasonId);
 
     expect(snapshotStandings(await standingsFor(db, leagueSeasonId))).toEqual(once);
@@ -859,7 +855,7 @@ describe("settlement idempotency (arch D10)", () => {
     const { leagueSeasonId, weekId } = await seedSimpleSettledWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     const resultsIncremental = snapshotResults(await pickResultsFor(db, leagueSeasonId));
     const standingsIncremental = snapshotStandings(await standingsFor(db, leagueSeasonId));
 
@@ -875,14 +871,14 @@ describe("settlement idempotency (arch D10)", () => {
     const { leagueSeasonId, weekId, gameId, memberId } = await seedSimpleSettledWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     const before = await pickResultsFor(db, leagueSeasonId);
     expect(before).toHaveLength(1);
     expect(before[0]).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, points: 1 });
 
     // An admin corrects the final score, flipping the outcome.
     await setGame(db, gameId, { overrideHomeScore: 5, overrideAwayScore: 20 });
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const after = await pickResultsFor(db, leagueSeasonId);
     expect(after).toHaveLength(1); // updated in place, not appended
@@ -898,11 +894,11 @@ describe("settlement idempotency (arch D10)", () => {
     const { leagueSeasonId, weekId, gameId } = await seedSimpleSettledWeek();
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
     expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);
 
     await setGame(db, gameId, { status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null });
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(0);
   });
@@ -938,7 +934,7 @@ describe("settlePicksForGames", () => {
 
     // League 2 is already settled once with its original (correct) score...
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, league2.leagueSeasonId, [week2Id]);
+    await settlePickemLeagueSeasonWeeks(db, clock, league2.leagueSeasonId, [week2Id]);
     const league2Before = (await pickResultsFor(db, league2.leagueSeasonId))[0]!;
     expect(league2Before).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
 
@@ -1058,12 +1054,12 @@ describe("concurrent settlement of one league season (FOR UPDATE row lock)", () 
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
 
-    // Both call settleLeagueSeasonWeeks directly (each opens its own
+    // Both call settlePickemLeagueSeasonWeeks directly (each opens its own
     // transaction and takes lockLeagueSeasonRow) so they genuinely overlap on
     // the pool rather than serializing through a shared caller.
     const [summaryA, summaryB] = await Promise.all([
-      settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]),
-      settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]),
+      settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]),
+      settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]),
     ]);
 
     expect(summaryA.results).toBe(1);
@@ -1094,7 +1090,7 @@ describe("settlement grades on game status, not the clock", () => {
 
     // A clock instant well before the game's own (seeded) kickoff.
     const earlyClock = new FixedClock(new Date(WEEK1_KICKOFF.getTime() - 30 * 24 * 60 * 60 * 1000));
-    const summary = await settleLeagueSeasonWeeks(db, earlyClock, leagueSeasonId, [weekId]);
+    const summary = await settlePickemLeagueSeasonWeeks(db, earlyClock, leagueSeasonId, [weekId]);
 
     expect(summary.results).toBe(1);
     expect(await pickResultsFor(db, leagueSeasonId)).toHaveLength(1);

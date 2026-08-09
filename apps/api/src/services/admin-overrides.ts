@@ -13,7 +13,7 @@ import {
 import { logError } from "../lib/logger";
 import { loadAdminGame } from "./admin-data";
 import { resolveGameOverrides, type ResolvedGame } from "./games";
-import { settlePicksForGames } from "./pickem/settlement";
+import { settlePicksForGames } from "./settlement";
 import { isLocked } from "./slate";
 
 /**

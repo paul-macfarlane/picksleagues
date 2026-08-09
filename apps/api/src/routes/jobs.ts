@@ -12,7 +12,7 @@ import {
 } from "../lib/nfl-sync-jobs";
 import { jobSecretMiddleware } from "../middleware/job-secret";
 import { SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
-import { settleSweep } from "../services/pickem/settlement";
+import { settleSweep } from "../services/settlement";
 
 const jobResponses = {
   200: jobRunResponses[200],
