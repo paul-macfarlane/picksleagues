@@ -6,9 +6,13 @@ import {
   LEAGUE_STATUS,
   MEMBER_ROLE,
   PICKEM_PICK_SIDE,
+  PICKEM_SEASON_RANGE_PRESET,
+  PICK_TYPE,
   SPORT,
+  WEEK_TYPE,
   type LeagueResponse,
   type LeagueStatus,
+  type PickemSettings,
 } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
@@ -24,7 +28,7 @@ import { insertSurvivorPick, insertSurvivorState } from "./setup/survivor-league
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
-const { db, auth, app, appAfterKickoff } = makeLeagueTestHarness();
+const { db, auth, app, appAfterKickoff, appAtKickoff } = makeLeagueTestHarness();
 
 // The Pick'em wire shape names a season-range preset and no week refs
 // (ADR-0020); the server resolves the range it stores.
@@ -522,9 +526,11 @@ describe("GET /api/leagues", () => {
       myRole: "commissioner",
       startsAt: WEEK1_KICKOFF.toISOString(),
       // Each glance answers for its own mode, so this Pick'em league carries the
-      // Pick'em one and no Survivor one.
+      // Pick'em one and no Survivor one. `locked` because this fixture's current
+      // week is its week 2, which holds no games — the states themselves are
+      // pinned in the §pickemPickStatus block below.
       survivorPickStatus: null,
-      pickemPickStatus: "picks_needed",
+      pickemPickStatus: "locked",
     });
   });
 
@@ -630,6 +636,19 @@ describe("GET /api/leagues", () => {
       expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "locked" });
     });
 
+    it("still asks for a pick in a week whose schedule has not been ingested", async () => {
+      // A week holding no games has closed against nobody — settlement refuses
+      // to grade one (ADR-0025), so a miss there would name an elimination that
+      // cannot happen. The mode's own rule, and the opposite of Pick'em's answer
+      // to the same week.
+      const { seasonId } = await seedGlanceSeason([]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertSurvivorLeagueFor(seasonId, user.id, "Survivor");
+
+      const body = await readMyLeagues(cookie, appAfterKickoff);
+      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "pick_needed" });
+    });
+
     it("reports elimination ahead of a pick that is already in", async () => {
       const { seasonId, weekIds, gameIds, teamIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
       const { user, cookie } = await createAuthenticatedUser(auth);
@@ -731,12 +750,13 @@ describe("GET /api/leagues", () => {
       seasonId: string,
       userId: string,
       name: string,
-      status: LeagueStatus = LEAGUE_STATUS.ACTIVE,
+      { status, settings }: { status?: LeagueStatus; settings?: PickemSettings } = {},
     ) {
       const league = await insertLeague(db, {
         seasonId,
         name,
         status,
+        settings,
         members: [{ userId, role: MEMBER_ROLE.COMMISSIONER }],
       });
       const members = await membersOf(db, league.id);
@@ -801,13 +821,74 @@ describe("GET /api/leagues", () => {
       expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "locked" });
     });
 
+    it("closes the week at the kickoff instant itself, not a moment after", async () => {
+      // The half-open rule (arch D11), asked of the glance rather than trusted
+      // to arrive intact through the shared slate helpers.
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem");
+
+      const body = await readMyLeagues(cookie, appAtKickoff);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "locked" });
+    });
+
+    it("closes a week whose schedule has not been ingested, exactly as its pick screen does", async () => {
+      // A postseason week exists before its games are assigned, and the pick
+      // screen heads that week "This week is closed" — so a "Picks needed"
+      // prompt here would lead to a screen with nothing to pick. Deliberately
+      // the opposite of Survivor's answer below, where an ungraded week must not
+      // announce a miss (ADR-0025); Pick'em has no miss penalty.
+      const { seasonId } = await seedGlanceSeason([]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem");
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "locked" });
+    });
+
+    it("still asks for picks in an ATS week whose lines have not landed yet", async () => {
+      // Games are unstarted and unpriced: the week is waiting on the odds sync,
+      // which is what its pick screen says too — not a week that has closed. The
+      // one state where the glance deliberately diverges from
+      // `requiredPickemPickCount`, which counts an unpriced game out of the set.
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
+        settings: { ...DEFAULT_PICKEM_SETTINGS, pickType: PICK_TYPE.AGAINST_THE_SPREAD },
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "picks_needed" });
+    });
+
+    it("reports nothing for a league whose season holds no week it plays", async () => {
+      // A playoffs-only league over a season ingested only through the regular
+      // season: there is no week to owe picks for, and inventing one would
+      // announce a state the schedule never made possible.
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
+        settings: {
+          ...DEFAULT_PICKEM_SETTINGS,
+          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
+          startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
+          endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+        },
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: null });
+    });
+
     it("reports a concluded season ahead of the week it would otherwise fall back to", async () => {
       // The week is wide open, which is exactly what settlement's stored ending
       // overrides (ADR-0030): the league is over, so nothing about that week is
       // a prompt.
       const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
       const { user, cookie } = await createAuthenticatedUser(auth);
-      await insertPickemLeagueFor(seasonId, user.id, "Pickem", LEAGUE_STATUS.CONCLUDED);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
+        status: LEAGUE_STATUS.CONCLUDED,
+      });
 
       const body = await readMyLeagues(cookie);
       expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "season_complete" });

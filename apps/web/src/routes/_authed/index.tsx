@@ -165,9 +165,15 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
  * Survivor's can say a member is out of it for good. A league of a mode with no
  * glance yet, or one whose season holds no week to report on, gets none.
  */
-function pickStatusGlance(
-  league: LeagueSummary,
-): { tone: StatusPillTone; label: string; testId: string; status: string } | null {
+function pickStatusGlance(league: LeagueSummary): {
+  tone: StatusPillTone;
+  label: string;
+  testId: string;
+  // The union, not `string`: this is the one place the two state sets meet, so
+  // a mode wired to the wrong label table has to be a compile error here or
+  // nowhere.
+  status: SurvivorPickStatus | PickemPickStatus;
+} | null {
   if (league.survivorPickStatus) {
     return {
       ...SURVIVOR_GLANCE[league.survivorPickStatus],

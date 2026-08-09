@@ -131,14 +131,18 @@ export interface LeagueWeekFrameInput {
 
 export interface LeagueWeekFrame {
   weekId: string;
-  /**
-   * Whether the week is still open to a pick: some game in it is unstarted and
-   * pickable, or the week holds no ingested games at all. The second arm is not
-   * a fallback — a week whose schedule hasn't landed has closed against nobody,
-   * and settlement refuses to grade one holding no games (ADR-0025), so
-   * reporting it shut would announce a miss the schedule never made possible.
-   */
+  /** Some game in the week is unstarted and pickable. */
   open: boolean;
+  /**
+   * Whether the week holds ingested games at all — reported as a fact rather
+   * than folded into `open`, because what an empty week *means* is the caller's
+   * rule and the two modes answer it differently: a Survivor week that has
+   * closed against nobody must not announce a miss, while a Pick'em week with
+   * nothing to pick is the same closed week its pick screen already shows.
+   * Reachable well past preseason: postseason weeks exist before their games
+   * are assigned.
+   */
+  hasGames: boolean;
 }
 
 /**
@@ -221,7 +225,8 @@ export async function resolveLeagueWeekFrames(
   for (const [leagueSeasonId, weekId] of currentWeekByLeague) {
     frames.set(leagueSeasonId, {
       weekId,
-      open: weeksStillOpen.has(weekId) || !weeksWithGames.has(weekId),
+      open: weeksStillOpen.has(weekId),
+      hasGames: weeksWithGames.has(weekId),
     });
   }
 

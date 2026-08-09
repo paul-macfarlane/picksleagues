@@ -105,11 +105,17 @@ export async function resolvePickemPickStatuses(
       continue;
     }
 
-    // `open` is "some game is still unstarted and pickable", not "a full set can
-    // be submitted right now": a member arriving mid-week submits a smaller set
-    // of what is left (`requiredPickemPickCount`), and an ATS week whose lines
-    // haven't landed yet is a week waiting on the odds sync rather than one that
-    // has closed against anybody.
+    // Exactly the pick screen's own test — it heads a week with no pickable
+    // game "This week is closed" — so the card and the screen behind it cannot
+    // disagree. That makes a week whose games haven't been ingested closed here,
+    // deliberately unlike Survivor, where an ungraded week must not announce a
+    // miss (ADR-0025): Pick'em has no miss penalty, and a "Picks needed" prompt
+    // leading to a screen with nothing to pick is the worse answer.
+    //
+    // `open` is not "a full set can be submitted right now": a member arriving
+    // mid-week submits a smaller set of what is left (`requiredPickemPickCount`),
+    // and an ATS week whose lines haven't landed is waiting on the odds sync —
+    // which is what its own pick screen says too, rather than calling it closed.
     statuses.set(
       league.leagueSeasonId,
       frame.open ? PICKEM_PICK_STATUS.PICKS_NEEDED : PICKEM_PICK_STATUS.LOCKED,

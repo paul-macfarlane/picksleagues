@@ -141,9 +141,15 @@ export async function resolveSurvivorPickStatuses(
       continue;
     }
 
+    // A week whose schedule hasn't been ingested has closed against nobody —
+    // settlement's prefix refuses to grade a week holding no games (ADR-0025),
+    // so reporting a miss there would name an elimination that cannot happen.
+    // Survivor's own rule, which is why the frame reports the two facts and
+    // leaves the judgement here.
+    const open = frame.open || !frame.hasGames;
     statuses.set(
       league.leagueSeasonId,
-      frame.open ? SURVIVOR_PICK_STATUS.PICK_NEEDED : SURVIVOR_PICK_STATUS.LOCKED,
+      open ? SURVIVOR_PICK_STATUS.PICK_NEEDED : SURVIVOR_PICK_STATUS.LOCKED,
     );
   }
 
