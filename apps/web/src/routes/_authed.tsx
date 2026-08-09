@@ -166,6 +166,14 @@ function AuthedLayout() {
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
         <Outlet />
       </div>
+      <footer className="mx-auto flex w-full max-w-5xl items-center gap-4 px-4 py-4 text-xs text-muted-foreground sm:px-6">
+        <Link to="/terms" className="hover:text-foreground">
+          Terms
+        </Link>
+        <Link to="/privacy" className="hover:text-foreground">
+          Privacy
+        </Link>
+      </footer>
     </div>
   );
 }

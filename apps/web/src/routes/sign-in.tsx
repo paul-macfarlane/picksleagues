@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
@@ -81,6 +81,17 @@ function SignIn() {
           </Button>
         </CardContent>
       </Card>
+      <p className="text-xs text-muted-foreground">
+        By continuing you agree to the{" "}
+        <Link to="/terms" className="underline hover:text-foreground">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link to="/privacy" className="underline hover:text-foreground">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </main>
   );
 }
