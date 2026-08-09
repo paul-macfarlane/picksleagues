@@ -285,11 +285,19 @@ describe("SimulatedProvider", () => {
     });
   });
 
-  // Fixture spreads are synthesized (SIM-6) and carry no book, whatever the
-  // fixture's own spread is (PKM-9).
-  it("never carries a spread source, even when the fixture is priced", async () => {
-    const [game] = await makeProvider(at(-1)).fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
-    expect(game?.spreadSource).toBeNull();
+  // The simulator mirrors production's attributed book so a sim-driven run
+  // exercises what a member sees; a priced fixture therefore carries one and an
+  // unpriced fixture does not (PKM-9).
+  it("carries a spread source on a priced fixture and none on an unpriced one", async () => {
+    const [priced] = await makeProvider(at(-1)).fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
+    expect(priced?.spread).not.toBeNull();
+    expect(priced?.spreadSource).toBe("DraftKings");
+
+    const unpriced = await makeProvider(at(-1), async () => ({
+      ...snapshot,
+      games: snapshot.games.map((game) => ({ ...game, spread: null })),
+    })).fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
+    expect(unpriced[0]?.spreadSource).toBeNull();
   });
 
   // A sync job fetches week by week; every read within it must see one snapshot.

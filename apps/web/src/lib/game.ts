@@ -248,11 +248,10 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
  * provider response and a per-row credit would repeat the same string.
  *
  * Null in SU leagues (no spread shown at all) and when none of the given games
- * carries a source: suppression is per-game server-side (null under an
- * admin's `override_spread`, arch D15, or under `SimulatedProvider`, SIM-6),
- * and the credit line composes that as "show it while at least one displayed
- * game still has one" — a whole slate's credit must not vanish because one
- * game was corrected.
+ * carries a source: suppression is per-game server-side (null on an unpriced
+ * game, and under an admin's `override_spread`, arch D15), and the credit line
+ * composes that as "show it while at least one displayed game still has one" —
+ * a whole slate's credit must not vanish because one game was corrected.
  */
 export function spreadSourceCredit(
   games: readonly { spreadSource: string | null }[],

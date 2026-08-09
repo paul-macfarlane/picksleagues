@@ -123,6 +123,35 @@ defaults to the local Docker Postgres URL and reads no `.env`.
 - PKM-9-D1 delivered by one `atlas-worker` (sonnet); accepted after two
   orchestrator fixes and one added test (below).
 
+## [SCOPE CHANGE] — the simulator now reports a book
+
+**Approved by the repository owner, 2026-08-08, reversing a clause the ticket
+states explicitly.** PKM-9 reads: "Render it only where the displayed number is
+actually that book's: … not under `SimulatedProvider` (fixture spreads are
+synthesized, SIM-6, and carry no source)." `SimulatedProvider` now returns
+`"DraftKings"` — production's currently attributed book — on any priced fixture.
+
+**Why the change was asked for, and why it is right:** the original clause made
+the credit unreachable from the simulator, which is this repository's primary
+verification harness. That is precisely why AC5's rendered output could not be
+verified at delivery: no local surface could produce a source at all. Mirroring
+production means a sim-driven run exercises what a member actually sees.
+
+**What it costs, stated so it is not rediscovered as a bug:** a real book is
+credited for numbers it never priced. Contained because the simulator is
+dev-only — `SIM_ENABLED` gates it and its routes are not registered in
+production (ADR-0011) — so no member sees this string. Screenshots and demos of
+a simulated slate do misattribute; that is the accepted cost. The name is a
+single constant, `SIMULATED_SPREAD_SOURCE` in `packages/core/src/sim-provider.ts`,
+carrying the reasoning and the condition under which it should become an
+obviously-synthetic name: if simulated slates ever become externally visible.
+
+An unpriced fixture still yields `null` — nothing priced is nothing to credit.
+
+**The ticket line still carries the reversed clause** and is stale as written.
+Amending ticket text needs a preview under `docs/agents/issue-tracker.md`, so it
+is left to the owner rather than edited here.
+
 ## [AI CODE REVIEW]
 
 Single formal review, both axes, by the frontier orchestrator over the complete

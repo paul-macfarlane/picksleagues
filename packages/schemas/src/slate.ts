@@ -41,11 +41,12 @@ export const SlateGameSchema = z
     spread: z.number().nullable(),
     /**
      * The book `spread` came from (PKM-9) — free text from the provider, never a
-     * const set (ESPN has rotated books before). Null under `SimulatedProvider`
-     * (fixture spreads are synthesized, SIM-6) and on any game whose
-     * `override_spread` is set — a commissioner's correction is not the book's
-     * line (arch D15). This slate is mode-agnostic, so like `spread` itself it is
-     * simply unused in straight-up leagues rather than nulled here.
+     * const set (ESPN has rotated books before). Null on an unpriced game and on
+     * any game whose `override_spread` is set — a commissioner's correction is
+     * not the book's line (arch D15). This slate is mode-agnostic, so like
+     * `spread` itself it is simply unused in straight-up leagues rather than
+     * nulled here. The simulator populates it too, deliberately mirroring
+     * production's attributed book; see `SIMULATED_SPREAD_SOURCE`.
      */
     spreadSource: z.string().nullable(),
     /**
