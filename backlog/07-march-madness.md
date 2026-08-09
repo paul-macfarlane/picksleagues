@@ -2,6 +2,13 @@
 
 Bracket pools — last MVP mode; needed by Feb 2027 (picks open after the First Four). Flesh out acceptance criteria when this epic starts. Ref: spec §Game Mode 3; arch §External Data (NCAA), §Background Jobs.
 
+> **The mode ships gated (owner decision, 2026-08-09).** `LNCH-12` refuses
+> March Madness league creation server-side until this epic delivers, because a
+> league in a mode with no bracket, scoring, or board is a dead league someone
+> already invited friends to. Lifting that gate is part of this epic's
+> completion, not a follow-up — MM is not done while members still can't create
+> one.
+
 - [x] **MM-1** — `MarchMadnessSettings` Zod schema (max brackets 1–10, standard-doubling vs custom per-round values) + settings form. _(deps: LG-2)_ (landed with LG-2, not as a dedicated MM task)
 - [ ] **MM-2** — Bracket ingestion: NCAA bracket/seeds/regions/results through `GameDataProvider`; `sync-bracket` job (5-min cadence on tournament days). _(deps: DATA-2, DATA-3)_
 - [ ] **MM-3** — `brackets` + `bracket_picks` schema (63 slots per bracket as a constraint, champ score prediction) + submission endpoint: complete-only, immutable after first R64 tip, max-brackets cap, per-bracket labels. _(deps: MM-1, MM-2, FND-6)_
