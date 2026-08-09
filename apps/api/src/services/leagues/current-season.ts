@@ -1,6 +1,7 @@
 import { desc, eq, max, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { leagueSeasons, leagues, sportSeasons } from "@picksleagues/db";
+import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
   SPORT,
@@ -10,7 +11,7 @@ import {
   type LeagueStatus,
   type Sport,
 } from "@picksleagues/schemas";
-import { leagueStartAt } from "./start";
+import { isPreStart, leagueStartAt } from "./start";
 import { loadMembers, serializeLeague, type LeagueRow } from "./serialize";
 
 /** The sport whose seasons a mode's leagues bind to (create + renewal). */
@@ -119,6 +120,26 @@ export async function getLeagueWithCurrentSeason(
       status: row.status,
     },
   };
+}
+
+/**
+ * The window axis of the LEAGUE_ACTION matrix, resolved for one league: its
+ * current instance's start (arch §Locking Model) against the injected Clock.
+ * A caller inside a transaction passes its `tx` so the read shares the
+ * snapshot its lock established. An absent league reads as started — the
+ * caller's role gate has already refused a non-member by then, so the only
+ * way here is a league that vanished mid-request, and refusing is the safe
+ * side of that race.
+ */
+export async function leagueIsPreStart(db: Db, clock: Clock, leagueId: string): Promise<boolean> {
+  const current = await getLeagueWithCurrentSeason(db, leagueId);
+  if (!current) return false;
+  const startsAt = await leagueStartAt(
+    db,
+    { mode: current.league.mode, seasonId: current.season.seasonId },
+    current.season.settings,
+  );
+  return isPreStart(startsAt, clock);
 }
 
 /**

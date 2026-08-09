@@ -13,9 +13,7 @@ import {
   authorizeLeagueAction,
   countActiveCommissionerships,
   countMembers,
-  getLeagueWithCurrentSeason,
-  isPreStart,
-  leagueStartAt,
+  leagueIsPreStart,
   lockLeagueRow,
   lockUserRow,
 } from "./leagues";
@@ -239,16 +237,4 @@ export async function leaveLeague(
     }
     throw error;
   }
-}
-
-/** Pre-start check against the current instance read INSIDE the caller's transaction. */
-async function leagueIsPreStart(tx: Db, clock: Clock, leagueId: string): Promise<boolean> {
-  const current = await getLeagueWithCurrentSeason(tx, leagueId);
-  if (!current) return false;
-  const startsAt = await leagueStartAt(
-    tx,
-    { mode: current.league.mode, seasonId: current.season.seasonId },
-    current.season.settings,
-  );
-  return isPreStart(startsAt, clock);
 }

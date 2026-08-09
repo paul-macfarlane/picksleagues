@@ -189,7 +189,7 @@ export interface paths {
         /** List a league's invites with derived status (commissioner) */
         get: operations["listInvites"];
         put?: never;
-        /** Generate an invite link code (commissioner, anytime) */
+        /** Generate an invite link code (commissioner, pre-start only) */
         post: operations["createInvite"];
         delete?: never;
         options?: never;
@@ -2369,6 +2369,15 @@ export interface operations {
             };
             /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The league has started — new invite links can no longer be created */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

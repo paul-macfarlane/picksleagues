@@ -22,6 +22,7 @@ const SPEC_POWERS: Array<{
   { action: "kick_member", commissionerOnly: true, preStartOnly: true },
   { action: "promote_member", commissionerOnly: true, preStartOnly: false },
   { action: "demote_commissioner", commissionerOnly: true, preStartOnly: false },
+  { action: "create_invite", commissionerOnly: true, preStartOnly: true },
   { action: "manage_invites", commissionerOnly: true, preStartOnly: false },
   { action: "leave_league", commissionerOnly: false, preStartOnly: true },
   { action: "renew_season", commissionerOnly: true, preStartOnly: false },
