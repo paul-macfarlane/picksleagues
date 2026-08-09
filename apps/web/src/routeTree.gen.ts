@@ -21,6 +21,8 @@ import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as AuthedSimRouteRouteImport } from './routes/_authed/sim/route'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
+import { Route as RulesPickemRouteImport } from './routes/rules/pickem'
+import { Route as RulesSurvivorRouteImport } from './routes/rules/survivor'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
 import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
@@ -95,6 +97,16 @@ const AuthedSimRouteRoute = AuthedSimRouteRouteImport.update({
 const JoinCodeRoute = JoinCodeRouteImport.update({
   id: '/join/$code',
   path: '/join/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesPickemRoute = RulesPickemRouteImport.update({
+  id: '/rules/pickem',
+  path: '/rules/pickem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesSurvivorRoute = RulesSurvivorRouteImport.update({
+  id: '/rules/survivor',
+  path: '/rules/survivor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedAdminIndexRoute = AuthedAdminIndexRouteImport.update({
@@ -196,6 +208,8 @@ export interface FileRoutesByFullPath {
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/rules/pickem': typeof RulesPickemRoute
+  '/rules/survivor': typeof RulesSurvivorRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
@@ -222,6 +236,8 @@ export interface FileRoutesByTo {
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/rules/pickem': typeof RulesPickemRoute
+  '/rules/survivor': typeof RulesSurvivorRoute
   '/': typeof AuthedIndexRoute
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
@@ -252,6 +268,8 @@ export interface FileRoutesById {
   '/_authed/discovery': typeof AuthedDiscoveryRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/rules/pickem': typeof RulesPickemRoute
+  '/rules/survivor': typeof RulesSurvivorRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/_authed/admin/audit': typeof AuthedAdminAuditRoute
@@ -284,6 +302,8 @@ export interface FileRouteTypes {
     | '/discovery'
     | '/profile'
     | '/join/$code'
+    | '/rules/pickem'
+    | '/rules/survivor'
     | '/leagues/$leagueId'
     | '/admin/audit'
     | '/admin/games'
@@ -310,6 +330,8 @@ export interface FileRouteTypes {
     | '/discovery'
     | '/profile'
     | '/join/$code'
+    | '/rules/pickem'
+    | '/rules/survivor'
     | '/'
     | '/admin/audit'
     | '/admin/games'
@@ -339,6 +361,8 @@ export interface FileRouteTypes {
     | '/_authed/discovery'
     | '/_authed/profile'
     | '/join/$code'
+    | '/rules/pickem'
+    | '/rules/survivor'
     | '/_authed/'
     | '/_authed/leagues/$leagueId'
     | '/_authed/admin/audit'
@@ -366,6 +390,8 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   WelcomeRoute: typeof WelcomeRoute
   JoinCodeRoute: typeof JoinCodeRoute
+  RulesPickemRoute: typeof RulesPickemRoute
+  RulesSurvivorRoute: typeof RulesSurvivorRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -452,6 +478,20 @@ declare module '@tanstack/react-router' {
       path: '/join/$code'
       fullPath: '/join/$code'
       preLoaderRoute: typeof JoinCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/pickem': {
+      id: '/rules/pickem'
+      path: '/rules/pickem'
+      fullPath: '/rules/pickem'
+      preLoaderRoute: typeof RulesPickemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/survivor': {
+      id: '/rules/survivor'
+      path: '/rules/survivor'
+      fullPath: '/rules/survivor'
+      preLoaderRoute: typeof RulesSurvivorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/admin/': {
@@ -660,6 +700,8 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   WelcomeRoute: WelcomeRoute,
   JoinCodeRoute: JoinCodeRoute,
+  RulesPickemRoute: RulesPickemRoute,
+  RulesSurvivorRoute: RulesSurvivorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

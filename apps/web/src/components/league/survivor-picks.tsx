@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { SlateGame, SlateTeam, SurvivorPick, WeekSlateResponse } from "@picksleagues/schemas";
 import { useSubmitSurvivorPick, useSurvivorStandings, useSurvivorWeekPicks } from "@/api/survivor";
 import { useWeekSlate } from "@/api/weeks";
@@ -282,6 +283,14 @@ function SurvivorPickSheet({
                 ? "This week is closed — no games are still open to pick."
                 : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."}
           </CardDescription>
+          <p className="text-xs">
+            <Link
+              to="/rules/survivor"
+              className="text-muted-foreground underline hover:text-foreground"
+            >
+              Full Survivor rules
+            </Link>
+          </p>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never covers
             the last row's controls when scrolled to the bottom — and is dropped

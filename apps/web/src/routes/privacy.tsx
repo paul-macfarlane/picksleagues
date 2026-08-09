@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LegalPage } from "@/components/legal-page";
+import { StaticPage } from "@/components/static-page";
 
 export const Route = createFileRoute("/privacy")({
   component: Privacy,
@@ -7,7 +7,7 @@ export const Route = createFileRoute("/privacy")({
 
 function Privacy() {
   return (
-    <LegalPage title="Privacy Policy" effectiveDate="August 9, 2026">
+    <StaticPage title="Privacy Policy" subtitle="Effective August 9, 2026">
       <section>
         <p>
           Picks Leagues stores the minimum it needs to run pick&apos;em leagues, and nothing else.
@@ -90,6 +90,6 @@ function Privacy() {
           you know them — most members do.
         </p>
       </section>
-    </LegalPage>
+    </StaticPage>
   );
 }

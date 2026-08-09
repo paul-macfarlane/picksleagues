@@ -3,17 +3,18 @@ import { Link } from "@tanstack/react-router";
 import { BrandMark } from "@/components/brand";
 
 /**
- * Shared shell for the public legal pages (LNCH-10). Outside the authed
- * layout on purpose: a visitor must be able to read these before signing in,
- * so the page brings its own minimal chrome instead of the app shell.
+ * Shared shell for the public static pages — legal (LNCH-10) and the rules
+ * guide (LNCH-1). Outside the authed layout on purpose: a visitor must be
+ * able to read these before signing in, so the page brings its own minimal
+ * chrome instead of the app shell.
  */
-export function LegalPage({
+export function StaticPage({
   title,
-  effectiveDate,
+  subtitle,
   children,
 }: {
   title: string;
-  effectiveDate: string;
+  subtitle?: string;
   children: ReactNode;
 }) {
   return (
@@ -27,7 +28,7 @@ export function LegalPage({
       </Link>
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-        <p className="text-sm text-muted-foreground">Effective {effectiveDate}</p>
+        {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       </header>
       <div className="flex flex-col gap-6 text-sm leading-relaxed text-foreground [&_h2]:text-base [&_h2]:font-semibold [&_li]:mt-1 [&_section]:flex [&_section]:flex-col [&_section]:gap-2 [&_ul]:list-disc [&_ul]:pl-5">
         {children}

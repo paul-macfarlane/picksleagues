@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   PICK_TYPE,
   requiredPickemPickCount,
@@ -281,6 +282,14 @@ function PickSheet({
               {credit}
             </p>
           )}
+          <p className="text-xs">
+            <Link
+              to="/rules/pickem"
+              className="text-muted-foreground underline hover:text-foreground"
+            >
+              Full Pick&apos;em rules
+            </Link>
+          </p>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom

@@ -1,6 +1,7 @@
+import { Link } from "@tanstack/react-router";
 import type { LeagueResponse } from "@picksleagues/schemas";
 import { formatDateTime } from "@/lib/format";
-import { leagueModeLabel } from "@/lib/league";
+import { leagueModeLabel, leagueModeRulesPath } from "@/lib/league";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/status-pill";
 
@@ -19,6 +20,17 @@ export function LeagueHeader({
             <CardTitle className="text-xl">{league.name}</CardTitle>
             <CardDescription>
               {leagueModeLabel(league.mode)} · {league.seasonYear}
+              {leagueModeRulesPath(league.mode) && (
+                <>
+                  {" · "}
+                  <Link
+                    to={leagueModeRulesPath(league.mode)!}
+                    className="underline hover:text-foreground"
+                  >
+                    Rules
+                  </Link>
+                </>
+              )}
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">

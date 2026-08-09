@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LegalPage } from "@/components/legal-page";
+import { StaticPage } from "@/components/static-page";
 
 export const Route = createFileRoute("/terms")({
   component: Terms,
@@ -7,7 +7,7 @@ export const Route = createFileRoute("/terms")({
 
 function Terms() {
   return (
-    <LegalPage title="Terms of Service" effectiveDate="August 9, 2026">
+    <StaticPage title="Terms of Service" subtitle="Effective August 9, 2026">
       <section>
         <p>
           Picks Leagues is a free web app for running sports pick&apos;em leagues with people you
@@ -85,6 +85,6 @@ function Terms() {
           accept the updated terms.
         </p>
       </section>
-    </LegalPage>
+    </StaticPage>
   );
 }
