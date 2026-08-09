@@ -26,6 +26,8 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -72,6 +74,14 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  /* Brand mark colors (LNCH-7). Hex, not oklch, because the same literal
+     values are hardcoded in the static assets (public/favicon.svg, the
+     favicon/og PNGs), which can't read tokens — the formats must stay
+     byte-comparable. Not redefined in .dark: a logo's colors are fixed, and
+     "pigskin" orange holds contrast on both themes. Distinct on purpose from
+     the two semantic hues (destructive = loss, success = win). */
+  --brand: #d2622a;
+  --brand-foreground: #ffffff;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

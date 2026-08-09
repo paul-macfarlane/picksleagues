@@ -8,6 +8,7 @@ import { useMe } from "@/api/me";
 import { useMyLeagues } from "@/api/leagues";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
@@ -100,8 +101,9 @@ function AuthedLayout() {
           <div className="flex items-center gap-4">
             <Link
               to="/"
-              className="text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex items-center gap-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
+              <BrandMark className="size-6" />
               Picks Leagues
             </Link>
             {/* sm and up: full inline nav + league switcher. Below sm, this
@@ -185,7 +187,10 @@ function MobileNav() {
       </SheetTrigger>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>Picks Leagues</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            <BrandMark className="size-5" />
+            Picks Leagues
+          </SheetTitle>
         </SheetHeader>
         <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
           <Link
