@@ -27,25 +27,3 @@ coverage/
 .DS_Store
 .vercel
 .env*
-
-# Re-include committed PASS evidence, which the `test-results/` rule above would
-# otherwise swallow. The directory negation must precede the `/**` negation.
-!docs/evidence/test-results/
-!docs/evidence/test-results/**
-
-# ...but not images or video: those are attached to the pull request, where they
-# render inline for the reviewer, and they are the one artifact that can't be
-# removed later without rewriting history. Text evidence stays committed
-# (docs/evidence/README.md). Placed after the re-include above so these rules win.
-docs/evidence/test-results/**/*.png
-docs/evidence/test-results/**/*.jpg
-docs/evidence/test-results/**/*.jpeg
-docs/evidence/test-results/**/*.gif
-docs/evidence/test-results/**/*.webp
-docs/evidence/test-results/**/*.webm
-docs/evidence/test-results/**/*.mp4
-docs/evidence/test-results/**/*.zip
-
-# Python bytecode (Atlas hooks are Python; everything else here is TS)
-__pycache__/
-*.py[cod]
