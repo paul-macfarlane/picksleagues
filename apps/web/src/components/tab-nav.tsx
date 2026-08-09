@@ -16,7 +16,9 @@ export const tabLinkProps = {
   className: tabLinkClassName,
   inactiveProps: { className: "text-muted-foreground" },
   activeProps: {
-    className: cn(tabLinkClassName, "border-foreground font-medium text-foreground"),
+    // Brand underline, foreground text: the orange marks position without
+    // recoloring the label (LNCH-9's one signature accent).
+    className: cn(tabLinkClassName, "border-primary font-medium text-foreground"),
     "aria-current": "page" as const,
   },
 };
