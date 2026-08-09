@@ -2036,3 +2036,106 @@ integration 626, e2e 18.
    marker on `league_seasons` is the single-source fix for both at once and is
    ADR-shaped; **escalated, not taken**, and it is the same fix deviation 7 of
    the previous closeout already names.
+
+## [SCOPE CHANGE] — ELM-10 reverted, ELM-11 added (2026-08-08, owner)
+
+Two owner decisions after driving the ELM-8/9/10 build.
+
+**ELM-10 was scrapped after it was built and verified** — "no need to make
+revivals configurable when there is no demand." The revert is surgical rather
+than a `git revert`, because `f1fa5e8` carried both ELM-10 and a settlement
+defect fix, and the fix stays: it corrected a sole survivor being revived every
+remaining week without bound, which was always the *default* path and is now the
+only path. `ADR-0028` was deleted rather than marked withdrawn — it recorded a
+decision that never merged — and the number returned to the pool, where ELM-11
+took it.
+
+The consequence worth keeping is recorded as an owner-decision note in
+`backlog/06-survivor.md`: because revival is unconditional the alive set can
+never empty, so a season ends only by its range playing out or by reduction to a
+sole survivor. That leaves a decided season's winners exactly its alive set in
+both arms, which is what lets every surface answer "who won" from the alive set
+alone. ADR-0027 stands and never depended on the setting.
+
+**ELM-11 came from the owner reporting what looked like a missed elimination:**
+sim past one game, sync scores, and the member who backed the loser still reads
+`alive`. That is ADR-0025's unit grading, and the diagnosis is that the rule was
+wider than its own justification. Filed and delivered in the same session.
+
+## [AI CODE REVIEW] — ELM-11
+
+Reviewed at `64f4083`.
+
+### Axis 1 — technical implementation and spec conformity
+
+**The safety argument is the whole deliverable, and it holds.** A member may go
+out early only when some member who entered the week alive holds a graded pick
+that does not eliminate them. Revival fires only when *every* alive member busts,
+so one confirmed survivor makes it impossible for that week.
+
+The screen checked the consequence the worker flagged and nothing in the packet
+named: a provisional elimination can leave exactly one member alive and so decide
+a season mid-week under ADR-0027. **It is sound, and the reason is worth
+recording.** A confirmed survivor is by definition never eliminated, so they are
+always among the members still alive; if exactly one remains, that one *is* the
+confirmed survivor. A mid-week ending therefore cannot crown a member whose own
+pick is ungraded, and cannot crown a member who never picked — the pickless are
+skipped entirely, since a member with no pick can still take any unstarted game.
+
+`isGradableAlone` accepts a cancelled game, which is correct rather than an
+oversight: a cancellation is a push that never eliminates whatever
+`pushTieResolution` says, so its holder is a confirmed survivor.
+
+### Axis 2 — coding standards
+
+`packages/scoring` stayed pure. The complete-week grader is untouched in
+behaviour — the only edit inside it threads a caller label into two thrown
+messages, and the complete path's strings are byte-identical. `contract:check` is
+green, which is the right outcome: no schema, no route, no wire change.
+
+One orchestrator fix: an unrelated `.gitignore` edit was in the working tree and
+went into the ELM-11 commit before it was noticed. Split out as `b4867e5` before
+pushing, so the feature commit's provenance stays honest.
+
+## [CLOSEOUT] — ELM-10 revert, ELM-11
+
+Same work package, branch and pull request. Verified at `64f4083`.
+
+| # | Ticket | Deliverable | Worker | Commit |
+| --- | --- | --- | --- | --- |
+| E5 | ELM-10 | Revert the Everyone Out setting, keep the defect fix | `atlas-worker` (Opus) | `1d4a2c2` |
+| E6 | ELM-11 | Provisional elimination + ADR-0028 | `atlas-worker` (Opus) | `64f4083` |
+
+| Criterion | Verdict | Evidence |
+| --- | --- | --- |
+| Confirmed loser goes out mid-week beside a confirmed survivor | PASS | `survivor-settlement.test.ts` |
+| No confirmed survivor yet — nobody goes early | PASS | `survivor-settlement.test.ts` |
+| A pickless member is never provisional | PASS | `survivor-settlement.test.ts` |
+| Week completion confirms rather than revises the early call | PASS | `survivor-settlement.test.ts` |
+| Re-settling mid-week is idempotent | PASS | `survivor-settlement.test.ts` |
+| Everyone-out revival intact when no survivor is ever confirmed | PASS | scoring table + e2e week 17 |
+| ELM-10 fully removed, no stale references | PASS | greps clean outside `backlog/`, `docs/plans/`, `docs/evidence/` |
+| Sole-survivor ending and the unbounded-revival fix survive the revert | PASS | ADR-0027 suite + the reproduction test |
+| Contract unchanged by ELM-11 | PASS | `contract:check` green |
+
+**Verified run commands** at `64f4083`: the full chain plus `pnpm test:e2e`.
+Unit 532, integration 624, e2e 18.
+
+### Deviations and judgement calls for the owner
+
+1. **ELM-11 writes eliminations only, never result rows.** Grading terminal
+   picks early would surface outcome badges sooner, but `teamConsumed` feeds
+   `resolveReleasedFlags`, which is a cross-week answer; partial consumption is
+   where the ledger would diverge from the full pass. Accepted consequence: a
+   provisionally eliminated member is told they are out while their pick still
+   carries no outcome badge, which the sheet's "not graded yet" notice explains.
+2. **A season can now be decided mid-week.** Argued sound above and in ADR-0028.
+3. **`isGradableAlone` and `blockingGames` state one rule from two ends**, comment-
+   coupled only — the third such pair in this subsystem. The
+   `settled_through_week_id` marker already escalated twice would not fix this
+   one; it is a genuinely new drift surface.
+4. **The manual regression runbook has a gap and was left alone.** ELM-11 adds an
+   observable state no pass reaches — one game final, the rest of the week open,
+   one member out and one alive. It belongs in `docs/runbooks/survivor-regression.md`,
+   whose stated method is that every pass was written by running it, so adding an
+   unexecuted pass would degrade the artifact. **Escalated, not taken.**
