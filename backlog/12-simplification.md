@@ -64,6 +64,6 @@ Ref: spec §Game Mode 1; arch §Spread strategy, §Locking Model, D10–D11, D15
 ## Technical plan
 
 The `[EXECUTION PLAN]` for this epic lives at **`docs/plans/simp.md`**
-(`/atlas-plan`, 2026-08-03; the three decisions in its §Decisions were ruled by
-the owner 2026-08-04). Plans are kept out of epic files so the ticket list stays
-a thin contract — see `docs/agents/issue-tracker.md` §Planning artifact storage.
+(recorded 2026-08-03 during the Atlas experiment; the three decisions in its
+§Decisions were ruled by the owner 2026-08-04). Plans are kept out of epic files
+so the ticket list stays a thin contract — see `docs/plans/README.md`.

@@ -16,9 +16,15 @@ Status markers:
 
 - `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-Keep the ID stable once created — commands, ADRs, and commits reference it. Add new tasks by appending the next number in that epic; don't renumber.
+These four are the entire state vocabulary — don't invent others. `[~]` covers every working phase (planning, implementation, review, PR open); the backlog deliberately does not distinguish them, so moving between phases is no transition at all. `[!]` is a flag, not a lifecycle stage — it can sit on a task in any phase and always carries a note naming the blocker. A task is **available** when it is `[ ]` and every ID in its `deps:` is `[x]`.
 
-Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/architecture.md` section that defines it. Don't restate doc mechanics in the task line — the docs are the source of truth for _how_, and inline copies drift.
+Keep the ID stable once created — commands, ADRs, and commits reference it. Add new tasks by appending the next number in that epic; don't renumber. This tracker is the only one: GitHub Issues is unused and stays that way — never `gh issue create` here.
+
+Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/architecture.md` section that defines it. Don't restate doc mechanics in the task line — the docs are the source of truth for _how_, and inline copies drift. A thin task line is therefore normal, not a readiness gap: the referenced doc section is the contract.
+
+**Triage tags** ride as trailing tags on the task line, after the deps — e.g. `_(deps: none)_ _(needs-info)_`. The vocabulary: `needs-triage` (owner must evaluate), `needs-info` (waiting on reporter), `ready-for-agent` (fully specified, agent-runnable), `ready-for-human` (requires human implementation), `wontfix`. A tag never replaces the state marker — they are separate axes.
+
+**Technical plans never live in epic files.** Epic-scale or parallel work writes its plan to `docs/plans/<work-package-id>.md` (see `docs/plans/README.md`); the epic file gets a `## Technical plan` pointer line and nothing more. A 400-line plan inlined among ticket lines destroys the thin contract this file format exists to keep.
 
 ## Epics
 

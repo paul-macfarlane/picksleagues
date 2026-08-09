@@ -1,14 +1,12 @@
 # Evidence root
 
-Committed proof that a work package's acceptance criteria and DoD items actually hold. This is the configured evidence root for the Atlas experiment (`docs/atlas-experiment.md`); give this path — `docs/evidence` — when `/setup-atlas` asks for the proof-artifact directory.
+Committed proof that a work package's acceptance criteria actually hold. This document is the authoritative evidence policy.
 
 ## Why not `test-results/`
 
-`test-results/` is Playwright's scratch output and is gitignored. Atlas's verification contract requires that any artifact cited as `PASS` evidence be **committed on the feature branch** — "never describe an uncommitted local file as attached evidence". Rather than un-ignoring Playwright's full output (traces, videos, and per-retry directories on every run), evidence is deliberately curated into this directory. `test-results/` stays gitignored and stays scratch.
+`test-results/` is Playwright's scratch output and is gitignored. Any artifact cited as `PASS` evidence must be **committed on the feature branch** — never describe an uncommitted local file as attached evidence. Rather than un-ignoring Playwright's full output (traces, videos, and per-retry directories on every run), evidence is deliberately curated into this directory. `test-results/` stays gitignored and stays scratch.
 
 ## Rules
-
-`docs/agents/testing.md` §Evidence policy is authoritative; this restates it for anyone who lands here first.
 
 - **One directory per work package, and nothing is ever cleared.** `docs/evidence/test-results/<work-package-id>/…`, lowercased. Scoping is what stops stale proof reading as current — deleting a previous package's evidence was the old rule and it cost more than it bought: every PR carried deletions unrelated to its change, concurrent branches collided here, and a PR about one feature removed the proof for another. Within a package, one subdirectory per test name; rerunning a test replaces that directory.
 - **Text only. Images and video go in the pull request.** Screenshots and video are attached to the PR description or a comment, where they render inline for the reviewer instead of sitting behind a repo path — and a PNG is the one artifact that can't be removed later without rewriting history. `.gitignore` enforces this. Captured command output, vitest reports, and simulator transcripts stay committed here: small, greppable from a checkout, and they survive a mirror.

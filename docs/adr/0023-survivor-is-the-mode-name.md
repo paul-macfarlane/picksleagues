@@ -53,7 +53,7 @@ becomes unreadable rather than merely mislabelled.
 
 ## Consequences
 
-**ELM ticket IDs do not change, and never will.** `docs/agents/issue-tracker.md`
+**ELM ticket IDs do not change, and never will.** `backlog/README.md`
 makes IDs stable for the life of the tracker: commits, ADRs, plan files, and PR
 titles all cite them, and an ID that gets rewritten turns every one of those
 references into a dead pointer. So the epic file is renamed
