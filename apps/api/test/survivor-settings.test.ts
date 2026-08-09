@@ -69,7 +69,6 @@ function patchLeague(
 function settingsWith(overrides: Partial<SurvivorSettingsInput> = {}): SurvivorSettingsInput {
   return {
     pushTieResolution: DEFAULT_SURVIVOR_SETTINGS.pushTieResolution,
-    everyoneOut: DEFAULT_SURVIVOR_SETTINGS.everyoneOut,
     ...overrides,
   };
 }

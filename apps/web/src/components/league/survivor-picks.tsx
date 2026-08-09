@@ -87,10 +87,9 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
   // state the screen can reach.
   const viewer = picks.data?.members.find((member) => member.isViewer);
   const concluded = season.data?.concluded === true;
-  // **Winning outranks being out**, the order `pick-status.ts` resolves the
-  // dashboard glance in: under the co-win Everyone Out setting a season's
-  // winners *are* eliminated members (ADR-0028), so asking about elimination
-  // first would tell the member who just won that they are out.
+  // Asked of the board's winner set rather than of "concluded and still alive",
+  // matching the precedence `pick-status.ts` resolves the dashboard glance in so
+  // the sheet and the glance cannot disagree about who won.
   const won =
     concluded && season.data?.members.find((member) => member.isViewer)?.isWinner === true;
 

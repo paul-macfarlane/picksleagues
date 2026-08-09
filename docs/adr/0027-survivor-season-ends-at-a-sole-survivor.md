@@ -8,7 +8,7 @@
   [0024](0024-survivor-settings-carry-a-resolved-range.md) (the resolved range this rule
   short-circuits), [0025](0025-survivor-team-ledger-and-prefix-ordered-settlement.md)
   (settlement is prefix-ordered, and `survivor_state` absence means alive); backlog ELM-9,
-  ELM-10, LG-12
+  LG-12
 
 ## Context
 
@@ -81,13 +81,12 @@ board names the winner mid-season, the pick endpoint refuses further submissions
 `league_concluded` refusal that existed but was unreachable, and the dashboard says "Winner"
 instead of "Pick needed". Nothing waits on a range that can no longer change the outcome.
 
-**ELM-10 owns a different question, and this rule does not depend on it.** Making the
-everyone-out revival rule configurable cannot reach a season this rule has already ended:
-with no further week there is no bust to revive from, so nothing here becomes conditional on
-that setting. What ELM-10 does have to answer is the case that never passes through a sole
-survivor at all — with revival disabled, the final **two or more** alive members can all bust
-in the same week, taking a league from several standing straight to nobody standing. Who wins
-then is the everyone-out week's question, and the spec has no answer for it today.
+**The everyone-out case never reaches this rule, because revival is unconditional.** When
+every member still alive busts in the same week they are all revived and the season runs on
+(spec §Game Mode 2 — Core Rules), so the alive set cannot empty and a league can only arrive
+at an ending through a sole survivor or its range playing out. That leaves the winners of a
+decided season exactly its alive set, in both arms above — which is what lets every surface
+answer "who won" from the alive set alone, with no separate ledger of who went out last.
 
 **A season can un-decide itself, and that is the honest behaviour.** An admin override that
 reverses a week's result, or a member joining before the cutoff, changes the alive set and

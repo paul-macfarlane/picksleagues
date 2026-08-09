@@ -6,7 +6,6 @@ import {
   LEAGUE_STATUS,
   MEMBER_ROLE,
   SPORT,
-  SURVIVOR_EVERYONE_OUT,
   type LeagueResponse,
 } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
@@ -672,56 +671,6 @@ describe("GET /api/leagues", () => {
       // The week is wide open, which is exactly what the season being decided
       // overrides (ADR-0027) — and the member they beat still reads as out.
       expect((await readMyLeagues(survivor.cookie)).leagues[0]).toMatchObject({
-        survivorPickStatus: "won",
-      });
-      expect((await readMyLeagues(beaten.cookie)).leagues[0]).toMatchObject({
-        survivorPickStatus: "eliminated",
-      });
-    });
-
-    it("calls a co-winner a winner, not a member who is out", async () => {
-      const { seasonId, weekIds } = await seedSeason(db, {
-        weeks: [
-          {
-            weekNumber: 1,
-            startsAt: GLANCE_WEEK_STARTS,
-            endsAt: GLANCE_WEEK_ENDS,
-            kickoffs: [{ kickoffAt: WEEK1_KICKOFF }],
-          },
-          { weekNumber: 2, kickoffs: [{ kickoffAt: LATE_KICKOFF }] },
-        ],
-      });
-      const coWinner = await createAuthenticatedUser(auth);
-      const beaten = await createAuthenticatedUser(auth);
-      const league = await insertLeague(db, {
-        seasonId,
-        name: "Survivor",
-        mode: LEAGUE_MODE.SURVIVOR,
-        settings: { ...DEFAULT_SURVIVOR_SETTINGS, everyoneOut: SURVIVOR_EVERYONE_OUT.CO_WIN },
-        members: [
-          { userId: coWinner.user.id, role: MEMBER_ROLE.COMMISSIONER },
-          { userId: beaten.user.id, role: MEMBER_ROLE.MEMBER },
-        ],
-      });
-      const members = await membersOf(db, league.id);
-      const leagueSeasonId = await seasonIdFor(db, league.id);
-      // The ledger a co-win league leaves behind: nobody is alive, and the
-      // member who went out last is the one who won it (ADR-0028).
-      await insertSurvivorState(db, {
-        leagueSeasonId,
-        leagueMemberId: members.get(beaten.user.id)!,
-        eliminatedWeekId: weekIds.get("regular:1")!,
-      });
-      await insertSurvivorState(db, {
-        leagueSeasonId,
-        leagueMemberId: members.get(coWinner.user.id)!,
-        eliminatedWeekId: weekIds.get("regular:2")!,
-      });
-
-      // The winner is an eliminated member here, which is the whole point: an
-      // elimination-first glance would tell them they are out of a season they
-      // just won.
-      expect((await readMyLeagues(coWinner.cookie)).leagues[0]).toMatchObject({
         survivorPickStatus: "won",
       });
       expect((await readMyLeagues(beaten.cookie)).leagues[0]).toMatchObject({

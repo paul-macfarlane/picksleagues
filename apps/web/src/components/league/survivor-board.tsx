@@ -53,7 +53,7 @@ export function SurvivorBoard({ leagueId }: { leagueId: string }) {
         <CardTitle>Survivor board</CardTitle>
         <CardDescription>
           {standings.data?.concluded
-            ? "The season is over — the members who lasted longest share first place."
+            ? "The season is over — everyone still standing shares first place."
             : "Who's still alive, the teams they've used, and every pick that has kicked off."}
         </CardDescription>
       </CardHeader>
@@ -162,12 +162,7 @@ function BoardRow({
               data-week={member.eliminatedWeekId}
               className="block truncate text-xs text-muted-foreground"
             >
-              {/* A co-win winner is eliminated *and* a winner at once
-                  (ADR-0028): the week that emptied the league is the week they
-                  won it. Printing "Out in Week 17" beside a "Co-winner" pill
-                  would read as two unrelated verdicts, so the same week is
-                  phrased as what it was for them. */}
-              {member.isWinner ? "Last standing in" : "Out in"} {eliminatedIn}
+              Out in {eliminatedIn}
             </span>
           )}
         </UserIdentity>

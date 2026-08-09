@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   CreateLeagueRequestSchema,
   DEFAULT_MAX_MEMBERS,
-  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
@@ -13,7 +12,6 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  type SurvivorEveryoneOut,
   type SurvivorPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
@@ -65,9 +63,6 @@ function NewLeague() {
 
   const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
     SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-  );
-  const [survivorEveryoneOut, setSurvivorEveryoneOut] = useState<SurvivorEveryoneOut>(
-    SURVIVOR_EVERYONE_OUT.REVIVE,
   );
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(5);
@@ -121,14 +116,11 @@ function NewLeague() {
           picksPerWeek: pickemPicksPerWeek,
         };
       } else if (mode === LEAGUE_MODE.SURVIVOR) {
-        // The two grading rules are the whole of a Survivor settings request:
-        // no range on the wire (ADR-0024, the mode is regular-season only, so
-        // the server resolves the refs it stores against the clock) and no pick
-        // type (ADR-0026, the mode is straight-up only).
-        settings = {
-          pushTieResolution: survivorPushTie,
-          everyoneOut: survivorEveryoneOut,
-        };
+        // The push/tie rule is the whole of a Survivor settings request: no
+        // range on the wire (ADR-0024, the mode is regular-season only, so the
+        // server resolves the refs it stores against the clock) and no pick type
+        // (ADR-0026, the mode is straight-up only).
+        settings = { pushTieResolution: survivorPushTie };
       } else {
         settings =
           mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -246,8 +238,6 @@ function NewLeague() {
               <SurvivorSettingsFields
                 pushTie={survivorPushTie}
                 onPushTieChange={setSurvivorPushTie}
-                everyoneOut={survivorEveryoneOut}
-                onEveryoneOutChange={setSurvivorEveryoneOut}
               />
             )}
 

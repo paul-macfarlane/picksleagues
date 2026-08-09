@@ -222,7 +222,6 @@ describe("survivorSettingsInvalidatePicks", () => {
     startWeek: regular(1),
     endWeek: regular(18),
     pushTieResolution: "advance",
-    everyoneOut: "revive",
   };
 
   it("invalidates when startWeek moves later in season order", () => {
@@ -237,9 +236,6 @@ describe("survivorSettingsInvalidatePicks", () => {
       label: "pushTieResolution changes",
       next: { ...base, pushTieResolution: "eliminate" as const },
     },
-    // Same reason (ADR-0028): the everyone-out rule is read when the emptying
-    // week is graded, so a stored pick is as gradeable under either value.
-    { label: "everyoneOut changes", next: { ...base, everyoneOut: "co_win" as const } },
     {
       label: "startWeek moves earlier (widens the range)",
       previous: { ...base, startWeek: regular(2) },
@@ -359,17 +355,10 @@ describe("SurvivorSettingsSchema", () => {
     expect(SurvivorSettingsSchema.parse(base).pushTieResolution).toBe("advance");
   });
 
-  // The default is what makes ADR-0028 additive: a settings row written before
-  // the field existed still parses, and parses to the rule it was created under.
-  it("applies default: everyone-out revives", () => {
-    expect(SurvivorSettingsSchema.parse(base).everyoneOut).toBe("revive");
-  });
-
   it.each([
     { label: "full regular season", input: base },
     { label: "single week", input: { ...base, startWeek: regular(7), endWeek: regular(7) } },
     { label: "eliminate on push", input: { ...base, pushTieResolution: "eliminate" } },
-    { label: "co-win when everyone goes out", input: { ...base, everyoneOut: "co_win" } },
   ])("accepts $label", ({ input }) => {
     expect(SurvivorSettingsSchema.safeParse(input).success).toBe(true);
   });
@@ -383,9 +372,6 @@ describe("SurvivorSettingsSchema", () => {
     { label: "postseason end (regular-season only)", input: { ...base, endWeek: postseason(1) } },
     { label: "week 0", input: { ...base, startWeek: regular(0) } },
     { label: "week 19", input: { ...base, endWeek: regular(19) } },
-    // Void-and-re-run is a real pool rule this deliberately does not offer
-    // (ADR-0028) — accepting the word would store a setting nothing honours.
-    { label: "an everyone-out rule outside the set", input: { ...base, everyoneOut: "void_week" } },
   ])("rejects $label", ({ input }) => {
     expect(SurvivorSettingsSchema.safeParse(input).success).toBe(false);
   });
@@ -397,7 +383,6 @@ describe("SurvivorSettingsSchema", () => {
       startWeek: regular(5),
       endWeek: regular(18),
       pushTieResolution: "advance" as const,
-      everyoneOut: "revive" as const,
     };
     expect(SurvivorSettingsSchema.parse(stored)).toEqual(stored);
   });
@@ -409,10 +394,7 @@ describe("SurvivorSettingsSchema", () => {
 
 describe("SurvivorSettingsInputSchema", () => {
   it("carries only the settings a commissioner still chooses", () => {
-    expect(SurvivorSettingsInputSchema.parse({})).toEqual({
-      pushTieResolution: "advance",
-      everyoneOut: "revive",
-    });
+    expect(SurvivorSettingsInputSchema.parse({})).toEqual({ pushTieResolution: "advance" });
   });
 
   // Everything else a client might send is decided somewhere other than the
@@ -433,10 +415,7 @@ describe("SurvivorSettingsInputSchema", () => {
     },
     { label: "a pick type", input: { pickType: "straight_up" } },
   ])("strips $label from the wire", ({ input }) => {
-    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({
-      pushTieResolution: "advance",
-      everyoneOut: "revive",
-    });
+    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({ pushTieResolution: "advance" });
   });
 });
 

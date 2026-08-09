@@ -858,18 +858,12 @@ export interface components {
                 number: number;
             };
             pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
-            everyoneOut?: components["schemas"]["SurvivorEveryoneOut"];
         };
         /**
          * @default advance
          * @enum {string}
          */
         SurvivorPushTieResolution: "advance" | "eliminate";
-        /**
-         * @default revive
-         * @enum {string}
-         */
-        SurvivorEveryoneOut: "revive" | "co_win";
         /** @enum {string} */
         MemberRole: "commissioner" | "member";
         LeagueMember: {
@@ -914,7 +908,6 @@ export interface components {
         };
         SurvivorSettingsInput: {
             pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
-            everyoneOut?: components["schemas"]["SurvivorEveryoneOut"];
         };
         MarchMadnessSettings: {
             /** @default 5 */

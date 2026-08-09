@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FixedClock } from "@picksleagues/core";
 import {
-  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   MEMBER_ROLE,
@@ -440,7 +439,6 @@ describe("League-scoped endpoint gating (AC5)", () => {
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
         pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-        everyoneOut: SURVIVOR_EVERYONE_OUT.REVIVE,
       },
       members: [{ userId: commissioner.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

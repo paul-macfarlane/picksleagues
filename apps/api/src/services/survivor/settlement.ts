@@ -267,23 +267,18 @@ function replaySeason(
     // From the week that reduces the league to a sole survivor, the pick
     // endpoint refuses every member — the winner included — so no later week
     // holds a pick of theirs however completely it plays out. Grading on would
-    // read each of those weeks as a missed pick and so unpick the winner:
-    // under the default Everyone Out setting they are the whole alive set, so
-    // they bust and are revived every remaining week without bound, and under
-    // co-win (ADR-0028) they are eliminated in a week *after* the one they won,
-    // which moves the season's ending as well as flipping their status.
+    // read each of those weeks as a missed pick and so bust the sole survivor,
+    // who is by then the whole alive set: revival hands their life straight
+    // back, every remaining week, without bound.
     //
     // Reduction is the test rather than the bare count, for the reason the same
     // rule gives in this module's `season.ts` sibling: a member alone in a
     // league nobody joined has won nothing and is still owed every week of it.
-    // Zero alive is the co-win ending — under the default, revival is what
-    // stops the set emptying at all — and needs no arm of its own, since a
-    // season with nobody left has no one to grade either way.
     //
     // Nothing couples this to the ending `season.ts` derives, so a change here
     // needs the same change there; disagreeing would leave the grader and the
     // board naming different weeks as the season's last.
-    if (alive.length <= 1 && alive.length < memberIds.length) break;
+    if (alive.length === 1 && memberIds.length > 1) break;
   }
 
   return replay;

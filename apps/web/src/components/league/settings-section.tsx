@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Field } from "@base-ui/react/field";
 import { toast } from "sonner";
 import {
-  SURVIVOR_EVERYONE_OUT,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
@@ -12,7 +11,6 @@ import {
   PICKEM_NOMINAL_RANGE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
-  type SurvivorEveryoneOut,
   type SurvivorPushTieResolution,
   type LeagueResponse,
   type LeagueVisibility,
@@ -179,9 +177,6 @@ function SettingsForm({
   const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
     survivorSettings?.pushTieResolution ?? SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
-  const [survivorEveryoneOut, setSurvivorEveryoneOut] = useState<SurvivorEveryoneOut>(
-    survivorSettings?.everyoneOut ?? SURVIVOR_EVERYONE_OUT.REVIVE,
-  );
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
     marchMadnessSettings?.maxBracketsPerMember ?? 5,
@@ -265,13 +260,9 @@ function SettingsForm({
     // No range on the wire (ADR-0024) — and none in the dirty check either: a
     // save re-resolves the stored refs server-side against the clock, so the
     // range is never something this form has an opinion about.
-    assembledSettings = {
-      pushTieResolution: survivorPushTie,
-      everyoneOut: survivorEveryoneOut,
-    };
+    assembledSettings = { pushTieResolution: survivorPushTie };
     settingsDirty = survivorSettings
-      ? survivorPushTie !== survivorSettings.pushTieResolution ||
-        survivorEveryoneOut !== survivorSettings.everyoneOut
+      ? survivorPushTie !== survivorSettings.pushTieResolution
       : true;
     // `wouldInvalidatePicks` stays false, and that is a statement about the
     // form rather than about the mode. Survivor's one invalidating change is an
@@ -458,8 +449,6 @@ function SettingsForm({
             seasonRange={survivorSettings ?? undefined}
             pushTie={survivorPushTie}
             onPushTieChange={setSurvivorPushTie}
-            everyoneOut={survivorEveryoneOut}
-            onEveryoneOutChange={setSurvivorEveryoneOut}
           />
         )}
 

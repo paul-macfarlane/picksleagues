@@ -457,9 +457,6 @@
           },
           "pushTieResolution": {
             "$ref": "#/components/schemas/SurvivorPushTieResolution"
-          },
-          "everyoneOut": {
-            "$ref": "#/components/schemas/SurvivorEveryoneOut"
           }
         },
         "required": [
@@ -474,14 +471,6 @@
           "eliminate"
         ],
         "default": "advance"
-      },
-      "SurvivorEveryoneOut": {
-        "type": "string",
-        "enum": [
-          "revive",
-          "co_win"
-        ],
-        "default": "revive"
       },
       "MemberRole": {
         "type": "string",
@@ -655,9 +644,6 @@
         "properties": {
           "pushTieResolution": {
             "$ref": "#/components/schemas/SurvivorPushTieResolution"
-          },
-          "everyoneOut": {
-            "$ref": "#/components/schemas/SurvivorEveryoneOut"
           }
         }
       },

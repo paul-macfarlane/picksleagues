@@ -162,17 +162,14 @@ export async function resolveSurvivorPickStatuses(
     const key = memberKey(league.leagueSeasonId, league.membershipId);
     const season = seasonStates.get(league.leagueSeasonId);
 
-    // **Winning outranks being out, and that order is load-bearing.** Under the
-    // co-win Everyone Out setting a season's winners are eliminated members —
-    // the week that emptied the league is the week they won it (ADR-0028) — so
-    // asking about elimination first would tell the member who just won that
-    // they are out. Winner membership is the whole test; whether the winners
-    // are the alive set or the last group standing belongs to the season state
-    // (ADR-0027), not here.
+    // Winner membership is the whole of the "won" test, asked of the season
+    // state that owns the rule (ADR-0027) rather than re-derived from a decided
+    // flag and this member's elimination. Winners are a decided season's alive
+    // set, so the two orderings agree; this one states what it means directly.
     //
-    // Both answers come before the week lookup for the same reason: they are
-    // facts about the member's season rather than about a week they owe, so a
-    // league with no current week must still report them.
+    // Both answers come before the week lookup because they are facts about the
+    // member's season rather than about a week they owe: a league with no
+    // current week must still report them.
     if (season?.winnerMemberIds.has(league.membershipId) === true) {
       statuses.set(league.leagueSeasonId, SURVIVOR_PICK_STATUS.WON);
       continue;

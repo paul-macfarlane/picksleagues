@@ -237,18 +237,18 @@ export type SurvivorStandingsResponse = z.infer<typeof SurvivorStandingsResponse
  * picks-in-of-N count a multi-pick mode would need.
  *
  * Three of these carry a rule worth stating where the values live:
- * - `WON` outranks every other state, elimination included, and that order is
- *   load-bearing. Under the co-win Everyone Out setting a season's winners
- *   *are* eliminated members — the week that emptied the league is the week
- *   they won it (ADR-0028) — so ranking elimination first would tell a member
- *   who just won that they are out.
+ * - `WON` is asked first, of the season state's winner set: the season is over
+ *   and this member is one of the members alive when it ended (spec §End of
+ *   League, ADR-0027). Winners are a decided season's alive set, so it never
+ *   collides with the state below — the order simply asks the question that
+ *   states the member's standing directly.
  * - `ELIMINATED` outranks every week-shaped state below it. A member settlement
  *   has put out owes no pick, so prompting them for one would be wrong whatever
  *   their week looks like — and they can still hold a pick for it, since
  *   elimination is settled a week behind the pick that caused it.
  * - Both are answered before any week is looked up, because each is a fact
  *   about the member's season rather than about a week they owe: a league with
- *   no current week must still report them (spec §End of League, ADR-0027).
+ *   no current week must still report them.
  * - `LOCKED` means *every* game in the week has kicked off with no pick
  *   standing. Not the first kickoff: a member may take any unstarted game in
  *   the week, so the week closes against them only when none is left (spec

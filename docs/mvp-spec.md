@@ -140,7 +140,6 @@ A survivor pool. Each week, every member picks one team to win **straight up**. 
 
 ### League Settings
 1. **Push/Tie Resolution** — on a tie: member advances and the team is consumed (default), or member is eliminated
-2. **Everyone Out** — when every remaining member is eliminated in the same week: all of them are revived and the season continues (default), or all of them are **co-winners** and the season ends there (ADR-0028)
 
 **Survivor has no Pick Type setting.** The mode is straight up only, so a pick carries no spread and there is nothing to accept at pick time. Picks stay changeable until kickoff (below), and against-the-spread grading is priced at pick time — the two together would let a member re-pick the same team purely to be re-graded against a friendlier line, which rewards refreshing rather than picking. Pick'em keeps its own Pick Type, because its week is a single immutable submission and has no second write to shop with. (ADR-0026.)
 
@@ -152,18 +151,16 @@ A survivor pool. Each week, every member picks one team to win **straight up**. 
 - **Team reuse:** a member may pick each NFL team at most once per league. Consumed teams are unavailable for that member's future weeks.
 - Picks can be made or changed until the picked game's kickoff, and become visible to the league at kickoff.
 - **Missed pick:** the member is eliminated (resolved at settlement after the week completes).
-- **Everyone eliminated in the same week:** decided by the league's **Everyone Out** setting. By default all members eliminated that week are revived and continue; under co-win they stay eliminated and share the win, and the season ends (see End of League). Either way it applies regardless of elimination cause — wrong picks, missed picks, or a mix. Revival is a common pool answer rather than the only one — pools also end there and split — which is why it is a setting and not a rule (ADR-0028).
+- **Everyone eliminated in the same week:** all members eliminated that week are revived and continue. (Applies regardless of elimination cause — wrong picks, missed picks, or a mix.)
 - **Cancelled game:** pick resolves as a push — the member survives and the team is **not** consumed (available for future use). A game the provider moves to another week is not a modelled event in either NFL mode (ADR-0019); an admin corrects it with a `cancelled` status override, which lands here.
 - **Postponed within the same week:** pick resolves normally when the game is played.
 - Eliminated members remain league members with full pick visibility.
 - **Eliminated members cannot pick.** Once a member's elimination has *settled*, the pick endpoint refuses them. A pick made before that settlement — in the gap between busting and the week being settled — is accepted and simply grades to nothing; that gap is what keeps the revival rule above honest, since revived members' next-week picks were legitimately made while they still read as alive (ADR-0025).
 
 ### End of League
-The league concludes at whichever comes first: the last week of its resolved range settles, settlement leaves **exactly one member alive**, or — in a league set to co-win — an everyone-out week leaves **nobody** alive. The members alive at that moment win it — if there are several, they are **co-winners** and share first place. There are no extension weeks and no further tiebreaker.
+The league concludes at whichever comes first: the last week of its resolved range settles, or settlement leaves **exactly one member alive**. The members alive at that moment win it — if there are several, they are **co-winners** and share first place. There are no extension weeks and no further tiebreaker.
 
 A sole survivor ends the season because ending it is what settles the result: no further week is played, so there is no later pick that could change who won, and a decided winner is never asked to play on against nobody. Being the only member a league ever had is not the same thing — the season ends when it has been *reduced* to one. (ADR-0027.)
-
-Under the co-win Everyone Out setting the final group can go from several standing to nobody standing in one week, which is the one ending where the winners are not the alive set: they are the members that week eliminated, because everyone alive going into it was eliminated in it. They stay eliminated on the board and are named its co-winners. (ADR-0028.)
 
 ### Standings View
 A survivor board: every member with status (alive/eliminated), week eliminated, weekly pick history (revealed per kickoff), and teams consumed.
