@@ -4,6 +4,7 @@ import {
   SURVIVOR_PUSH_TIE_RESOLUTION,
   SurvivorSettingsInputSchema,
   SurvivorSettingsSchema,
+  isWeekInSeasonRange,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
@@ -26,6 +27,10 @@ import { WEEK_TYPE } from "./week-type";
 // rules §Quality).
 const regular = (number: number) => ({ type: "regular" as const, number });
 const postseason = (number: number) => ({ type: "postseason" as const, number });
+const regularRange = (start: number, end: number) => ({
+  startWeek: regular(start),
+  endWeek: regular(end),
+});
 
 describe("nflSeasonOrdinal", () => {
   it.each([
@@ -35,6 +40,58 @@ describe("nflSeasonOrdinal", () => {
     { label: "Super Bowl is last", week: postseason(4), expected: 22 },
   ])("$label", ({ week, expected }) => {
     expect(nflSeasonOrdinal(week)).toBe(expected);
+  });
+});
+
+describe("isWeekInSeasonRange", () => {
+  const week = (weekType: "regular" | "postseason", weekNumber: number) => ({
+    weekType,
+    weekNumber,
+  });
+
+  it.each([
+    {
+      label: "first week of the range",
+      w: week("regular", 1),
+      range: regularRange(1, 18),
+      in: true,
+    },
+    {
+      label: "last week of the range",
+      w: week("regular", 18),
+      range: regularRange(1, 18),
+      in: true,
+    },
+    { label: "before the range", w: week("regular", 3), range: regularRange(5, 18), in: false },
+    { label: "after the range", w: week("regular", 6), range: regularRange(1, 5), in: false },
+    // The whole reason this isn't a `weekNumber` compare: a postseason week 1
+    // is *after* regular week 18, and a naive numeric test reads it as before.
+    {
+      label: "Wild Card is outside a regular-season range",
+      w: week("postseason", 1),
+      range: regularRange(1, 18),
+      in: false,
+    },
+    {
+      label: "Wild Card is inside a postseason range",
+      w: week("postseason", 1),
+      range: { startWeek: postseason(1), endWeek: postseason(4) },
+      in: true,
+    },
+    {
+      label: "regular week 18 is outside a postseason range",
+      w: week("regular", 18),
+      range: { startWeek: postseason(1), endWeek: postseason(4) },
+      in: false,
+    },
+    {
+      label: "a full-season range spans the boundary",
+      w: week("postseason", 4),
+      range: { startWeek: regular(1), endWeek: postseason(4) },
+      in: true,
+    },
+  ])("$label", ({ w, range, in: expected }) => {
+    expect(isWeekInSeasonRange(w, range)).toBe(expected);
   });
 });
 

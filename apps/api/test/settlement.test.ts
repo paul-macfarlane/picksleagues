@@ -9,6 +9,7 @@ import {
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
+  WEEK_TYPE,
   type JobRunResponse,
   type PickemSettings,
 } from "@picksleagues/schemas";
@@ -20,6 +21,7 @@ import {
   DEFAULT_PICKEM_SETTINGS,
   insertPick,
   pickResultsFor,
+  seedSeason,
   setGame,
   standingsFor,
   type SeededWeek,
@@ -956,6 +958,177 @@ describe("settlePicksForGames", () => {
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
     const summary = await settlePicksForGames(db, clock, []);
     expect(summary).toEqual({ leagueSeasons: 0, weeks: 0, results: 0, unsettled: 0, failed: 0 });
+  });
+});
+
+describe("league season conclusion (ADR-0030)", () => {
+  /** Two weeks, one game each — a range short enough to play all the way out. */
+  const TWO_WEEK_SLATE: SeededWeek[] = [
+    { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+    {
+      weekNumber: 2,
+      kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000) }],
+    },
+  ];
+
+  /** The league's range is exactly the seeded slate, so "played out" is reachable. */
+  const TWO_WEEK_RANGE: PickemSettings = {
+    ...DEFAULT_PICKEM_SETTINGS,
+    endWeek: { type: WEEK_TYPE.REGULAR, number: 2 },
+  };
+
+  async function statusOf(leagueSeasonId: string) {
+    const [row] = await db
+      .select({ status: leagueSeasons.status })
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.id, leagueSeasonId));
+    return row?.status;
+  }
+
+  async function seedTwoWeekLeague() {
+    const league = await seedLeagueForSettlement({
+      settings: TWO_WEEK_RANGE,
+      weeks: TWO_WEEK_SLATE,
+    });
+    return {
+      ...league,
+      week1Game: league.gameIds.get("regular:1")![0]!,
+      week2Game: league.gameIds.get("regular:2")![0]!,
+    };
+  }
+
+  const clock = () => new FixedClock(new Date("2026-12-20T00:00:00.000Z"));
+
+  it("concludes once every in-range week has played out — with nobody having picked", async () => {
+    const { leagueSeasonId, week1Game, week2Game } = await seedTwoWeekLeague();
+    for (const gameId of [week1Game, week2Game]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+
+    // A league nobody played still has to end (ADR-0030): keying conclusion on
+    // results would leave this one running forever.
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
+  });
+
+  it("stays active while one week of the range is still outstanding", async () => {
+    const { leagueSeasonId, week1Game } = await seedTwoWeekLeague();
+    await setGame(db, week1Game, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.ACTIVE);
+  });
+
+  it("stays active for a final game an override left without a score", async () => {
+    const { leagueSeasonId, week1Game, week2Game } = await seedTwoWeekLeague();
+    await setGame(db, week1Game, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    // The provider fault an admin override exists to fix. Conclusion must not
+    // outrun the grader, which refuses this game for the same reason.
+    await setGame(db, week2Game, { status: GAME_STATUS.FINAL, homeScore: null, awayScore: null });
+
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.ACTIVE);
+  });
+
+  it("counts a cancelled game as played — it will never be played in this week", async () => {
+    const { leagueSeasonId, week1Game, week2Game } = await seedTwoWeekLeague();
+    await setGame(db, week1Game, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    await setGame(db, week2Game, { status: GAME_STATUS.CANCELLED });
+
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
+  });
+
+  it("reopens a concluded season when a correction takes a game back out of final", async () => {
+    const { leagueSeasonId, week1Game, week2Game } = await seedTwoWeekLeague();
+    for (const gameId of [week1Game, week2Game]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
+
+    await setGame(db, week2Game, { overrideStatus: GAME_STATUS.POSTPONED });
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+
+    // Written in both directions, which is what keeps the column a derivation an
+    // operator can correct rather than a one-way flag needing a database edit.
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.ACTIVE);
+  });
+
+  it("still settles a concluded season when one of its games is corrected", async () => {
+    const { leagueSeasonId, weekIds, members, users, week1Game, week2Game } =
+      await seedTwoWeekLeague();
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: members.get(users[0]!.user.id)!,
+      weekId: weekIds.get("regular:1")!,
+      gameId: week1Game,
+      side: PICKEM_PICK_SIDE.HOME,
+    });
+    for (const gameId of [week1Game, week2Game]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, clock(), leagueSeasonId);
+    expect((await pickResultsFor(db, leagueSeasonId))[0]?.outcome).toBe(PICK_OUTCOME.CORRECT);
+
+    // Leaving the nightly sweep is not being stranded: the incremental path
+    // finds a league season by its picks, never by its status.
+    await setGame(db, week1Game, { homeScore: 10, awayScore: 24 });
+    await settlePicksForGames(db, clock(), [week1Game]);
+
+    expect((await pickResultsFor(db, leagueSeasonId))[0]?.outcome).toBe(PICK_OUTCOME.INCORRECT);
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
+  });
+
+  it("concludes a superseded instance from the sweep, even with its own range unfinished", async () => {
+    const { league, leagueSeasonId, week1Game } = await seedTwoWeekLeague();
+    // Week 2 never plays, so the mode arm can never fire — this is the arm that
+    // retires an instance whose schedule the league has simply moved past, and
+    // the one that will clear every legacy `active` row on the first sweep.
+    await setGame(db, week1Game, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    const { seasonId: y2027 } = await seedSeason(db, {
+      year: 2027,
+      weeks: [{ weekNumber: 1, kickoffs: [] }],
+    });
+    await db.insert(leagueSeasons).values({
+      leagueId: league.id,
+      seasonId: y2027,
+      settings: TWO_WEEK_RANGE,
+      status: LEAGUE_STATUS.ACTIVE,
+      createdAt: WEEK1_KICKOFF,
+      updatedAt: WEEK1_KICKOFF,
+    });
+
+    await settleSweep(db, clock());
+
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
+  });
+
+  it("drops a season out of the sweep the night after it concludes", async () => {
+    const { leagueSeasonId, week1Game, week2Game } = await seedTwoWeekLeague();
+    for (const gameId of [week1Game, week2Game]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+
+    await settleSweep(db, clock());
+    expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
+
+    // The bound this whole change exists to put on the job (ADR-0030): a season
+    // it has retired costs it nothing on every subsequent night.
+    const [row] = await db
+      .select({ updatedAt: leagueSeasons.updatedAt })
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.id, leagueSeasonId));
+    expect(await settleSweep(db, clock())).toMatchObject({ leagueSeasons: 0 });
+    const [after] = await db
+      .select({ updatedAt: leagueSeasons.updatedAt })
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.id, leagueSeasonId));
+    expect(after?.updatedAt).toEqual(row?.updatedAt);
   });
 });
 

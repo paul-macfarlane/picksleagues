@@ -93,7 +93,7 @@ export async function getSurvivorStandings(
 ): Promise<SurvivorStandingsResult> {
   const context = await loadContext(db, leagueId, userId);
   if (!context.ok) return context;
-  const { leagueSeasonId, seasonId, settings } = context.value;
+  const { leagueSeasonId, seasonId, settings, status } = context.value;
 
   const inRangeWeeks = await loadInRangeWeeks(db, seasonId, settings);
   const weekIds = inRangeWeeks.map((week) => week.id);
@@ -147,12 +147,7 @@ export async function getSurvivorStandings(
   // playing out, and the league being reduced to a single member — after which
   // no further week is played, so waiting for the range would withhold a result
   // nothing left to come can change.
-  const season = await resolveSurvivorSeasonState(db, {
-    leagueSeasonId,
-    leagueId,
-    seasonId,
-    settings,
-  });
+  const season = await resolveSurvivorSeasonState(db, { leagueSeasonId, leagueId, status });
 
   const picksByMemberId = new Map<string, Array<typeof survivorPicks.$inferSelect>>();
   for (const pick of picks) {

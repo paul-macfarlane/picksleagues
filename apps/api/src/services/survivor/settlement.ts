@@ -17,8 +17,8 @@ import {
   ADMIN_AUDIT_TARGET_TABLE,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
-  WEEK_TYPE,
   nflSeasonOrdinal,
+  toNflWeekRef,
   type SurvivorSettings,
 } from "@picksleagues/schemas";
 import {
@@ -29,6 +29,7 @@ import {
   type SurvivorGameResult,
 } from "@picksleagues/scoring";
 import { resolveGameOverrides } from "../games";
+import { applyLeagueSeasonConclusion } from "../leagues/conclusion";
 import { lockLeagueSeasonRow } from "../leagues/locks";
 import { logInfo } from "../../lib/logger";
 import { addSummary, EMPTY_SUMMARY, type SettlementSummary } from "../settlement";
@@ -122,11 +123,7 @@ async function loadSeasonWeeks(db: Db, season: SettleableSurvivorSeason): Promis
       // Every week gets an ordinal, in range or not: the replay order is the
       // whole season's, and a postseason week still has to sort after the
       // regular ones it follows.
-      ordinal: nflSeasonOrdinal(
-        row.weekType === WEEK_TYPE.REGULAR
-          ? { type: WEEK_TYPE.REGULAR, number: row.weekNumber }
-          : { type: WEEK_TYPE.POSTSEASON, number: row.weekNumber },
-      ),
+      ordinal: nflSeasonOrdinal(toNflWeekRef(row)),
       inRange: isSurvivorRangeWeek(row, season.settings),
     }))
     .sort((a, b) => a.ordinal - b.ordinal);
@@ -164,6 +161,12 @@ interface SeasonReplay {
   revivedCountByMember: Map<string, number>;
   weeks: number;
   unsettled: number;
+  /**
+   * Whether the replay ended the season — Survivor's arm of the conclusion rule
+   * (ADR-0030), which is the replay's own answer rather than a second reading of
+   * the game rows. Both of ADR-0027's endings are exactly where this loop stops.
+   */
+  decided: boolean;
 }
 
 /**
@@ -195,23 +198,19 @@ function replaySeason(
     revivedCountByMember: new Map(),
     weeks: 0,
     unsettled: 0,
+    decided: false,
   };
 
   let alive: readonly string[] = memberIds;
+  const inRangeWeeks = seasonWeeks.filter((week) => week.inRange);
 
-  for (const week of seasonWeeks) {
-    if (!week.inRange) continue;
-
+  for (const week of inRangeWeeks) {
     const picks = picksByWeek.get(week.id) ?? [];
     const results = gamesForWeek(week.id);
     // A week with no games is not a complete week, it is a week the schedule
     // has not filled. Grading it would eliminate every member for missing a
     // pick in a week they were never offered, so it blocks the prefix exactly
     // as a postponed game does.
-    //
-    // `rangePlayedOut` in this module's `season.ts` sibling mirrors this
-    // completeness rule to decide when a season has run its range out. Nothing
-    // couples them, so a change here needs the same change there.
     if (results.length === 0) break;
 
     const pickInputs = picks.map((pick) => ({
@@ -244,6 +243,19 @@ function replaySeason(
       for (const memberId of provisional.eliminatedMemberIds) {
         replay.eliminatedWeekByMember.set(memberId, week.id);
       }
+
+      // **`decided` stays false here even when this week has already settled
+      // the result** (ADR-0030). A provisional pass can leave one member
+      // standing, and the board does say so — but it derives that from
+      // `survivor_state` in this module's `season.ts` sibling rather than from
+      // this flag, precisely because the two questions come apart at this line.
+      // "Who won" is answerable now; "is there anything left to grade" is not,
+      // because this week is by definition ungradeable and has written no result
+      // rows. Retiring the season on the first answer strands the second: a
+      // concluded season leaves the nightly sweep, and the games still open here
+      // hold no pick by anyone left alive, so the incremental path — which finds
+      // a season only through a pick on the changed game — would never bring it
+      // back when they go final. The week would stay ungraded forever.
 
       for (const game of settlement.unsettled) {
         // A final game with no score is a provider fault an admin override
@@ -294,14 +306,23 @@ function replaySeason(
     // who is by then the whole alive set: revival hands their life straight
     // back, every remaining week, without bound.
     //
-    // Reduction is the test rather than the bare count, for the reason the same
-    // rule gives in this module's `season.ts` sibling: a member alone in a
-    // league nobody joined has won nothing and is still owed every week of it.
-    //
-    // Nothing couples this to the ending `season.ts` derives, so a change here
-    // needs the same change there; disagreeing would leave the grader and the
-    // board naming different weeks as the season's last.
-    if (alive.length === 1 && memberIds.length > 1) break;
+    // Reduction is the test rather than the bare count: a member alone in a
+    // league nobody joined has won nothing and is still owed every week of it
+    // (ADR-0027).
+    if (alive.length === 1 && memberIds.length > 1) {
+      replay.decided = true;
+      break;
+    }
+  }
+
+  // The other ending (ADR-0027): every week the league plays has been graded, so
+  // the loop above ran to exhaustion rather than breaking. `weeks` counts graded
+  // weeks and every iteration either grades or breaks, so the equality *is* "it
+  // never broke" — which is what makes this the replay's answer and not a second
+  // walk of the game rows. A season with no in-range week has an un-ingested
+  // schedule, not an instantly-finished range.
+  if (!replay.decided && inRangeWeeks.length > 0 && replay.weeks === inRangeWeeks.length) {
+    replay.decided = true;
   }
 
   return replay;
@@ -456,6 +477,12 @@ export async function rebuildSurvivorLeagueSeason(
     );
 
     await writeReplay(tx, clock, season, memberIds, picks, seasonWeeks, replay);
+
+    // In the same transaction as the state it describes (ADR-0030), so a
+    // rolled-back replay can't leave a season marked finished on rows that were
+    // never written — and so the board, which now reads this status rather than
+    // re-deriving the ending, can never see one without the other.
+    await applyLeagueSeasonConclusion(tx, clock, leagueSeasonId, replay.decided);
 
     return {
       leagueSeasons: 1,

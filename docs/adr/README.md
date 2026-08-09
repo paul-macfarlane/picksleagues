@@ -39,3 +39,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0027](0027-survivor-season-ends-at-a-sole-survivor.md) | A Survivor season ends the moment one member is left standing | Accepted |
 | [0028](0028-survivor-provisional-elimination.md) | A Survivor member goes out as soon as their loss is certain | Accepted |
 | [0029](0029-invite-creation-is-pre-start-only.md) | Invite creation closes at league start; revocation stays open | Accepted |
+| [0030](0030-league-season-conclusion-is-settlement-output.md) | A league season's conclusion is settlement's output, recomputed both ways | Accepted |

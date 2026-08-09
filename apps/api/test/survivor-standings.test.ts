@@ -1,7 +1,10 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { leagueSeasons } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   GAME_STATUS,
+  LEAGUE_STATUS,
   MEMBER_ROLE,
   PICK_OUTCOME,
   SURVIVOR_MEMBER_STATUS,
@@ -9,12 +12,13 @@ import {
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
-import { rebuildLeagueSeason } from "../src/services/settlement";
+import { rebuildLeagueSeason, settleSweep } from "../src/services/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, seedSeason, setGame } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import {
   insertSurvivorPick,
+  seedSurvivorGame,
   seedSurvivorSeason,
   SURVIVOR_WEEK_MS,
   type SeedSurvivorSeasonOptions,
@@ -49,6 +53,14 @@ afterAll(async () => {
 /** Home wins by two touchdowns — the fixture's ordinary "this game is over". */
 async function finalizeHomeWin(gameId: string) {
   await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+}
+
+async function statusOf(leagueSeasonId: string) {
+  const [row] = await db
+    .select({ status: leagueSeasons.status })
+    .from(leagueSeasons)
+    .where(eq(leagueSeasons.id, leagueSeasonId));
+  return row?.status;
 }
 
 async function board(
@@ -311,6 +323,64 @@ describe("GET /api/leagues/:leagueId/survivor/standings — settled state", () =
     expect(body.concluded).toBe(true);
     expect(memberEntry(body, memberA).isWinner).toBe(true);
     expect(memberEntry(body, memberB).isWinner).toBe(false);
+  });
+
+  it("crowns the sole survivor mid-week, before the week can be graded as a unit", async () => {
+    const fixture = await seedFixture({ weekCount: 3, memberCount: 2 });
+    const [memberA, memberB] = fixture.memberIds as [string, string];
+    const [week1] = fixture.weeks as [(typeof fixture.weeks)[number]];
+    // A second game in week 1 that never finishes, so the week cannot settle as
+    // a unit and settlement takes the provisional path (ADR-0028).
+    const openGame = await seedSurvivorGame(db, {
+      weekId: week1.weekId,
+      kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000),
+    });
+    expect(openGame.gameId).not.toBe(week1.gameId);
+
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberA,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.homeTeamId,
+    });
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberB,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.awayTeamId,
+    });
+    await finalizeHomeWin(week1.gameId);
+    await rebuildLeagueSeason(db, settleClock, fixture.leagueSeasonId);
+
+    const body = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
+
+    // A is safe and B cannot be revived, so the season is over even though the
+    // week is not graded — "a season can be decided mid-week, and that is
+    // correct rather than a surprise" (ADR-0028).
+    expect(body.concluded).toBe(true);
+    expect(memberEntry(body, memberA).isWinner).toBe(true);
+    expect(memberEntry(body, memberB).isWinner).toBe(false);
+
+    // **And the season has NOT been retired**, because the week still has to be
+    // graded (ADR-0030). Nobody alive holds a pick on `openGame`, so the
+    // incremental path could never bring this season back — the nightly sweep is
+    // the only thing that will, and a stored `concluded` would have excluded it
+    // from that forever, leaving week 1 ungraded and the winner's own pick
+    // showing no outcome.
+    expect(await statusOf(fixture.leagueSeasonId)).toBe(LEAGUE_STATUS.ACTIVE);
+
+    await finalizeHomeWin(openGame.gameId);
+    await settleSweep(db, settleClock);
+
+    const graded = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
+    expect(memberEntry(graded, memberA).picks).toEqual([
+      { weekId: week1.weekId, teamId: week1.homeTeamId, outcome: PICK_OUTCOME.CORRECT },
+    ]);
+    expect(graded.concluded).toBe(true);
+    expect(memberEntry(graded, memberA).isWinner).toBe(true);
+    expect(await statusOf(fixture.leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
   });
 
   it("leaves a season with two members still alive undecided", async () => {
