@@ -29,19 +29,21 @@ Then implement, following `.claude/rules/engineering.md` and the architecture do
 
 ## 3. Test & review
 
-**Tests land with the behavior:** new or changed behavior gets an automated test at the cheapest layer that can pin it (the testing ladder in `.claude/rules/engineering.md`). Driving the simulator by hand is the proof of last resort, for what no layer can pin — visual layout, third-party behavior.
+**Tests land with the behavior:** new or changed behavior gets an automated test at the cheapest layer that can pin it (the testing ladder in `.claude/rules/engineering.md`).
 
-Then: `pnpm typecheck && pnpm lint && pnpm test` scoped to what you touched, plus demonstrating the affected flow works — prefer the simulator; mechanics in `docs/runbooks/verification.md`. `pnpm test:integration` and `pnpm test:e2e` share databases and ports, so they run one at a time.
+Then: `pnpm typecheck && pnpm lint && pnpm test` scoped to what you touched. **The full gate stack (integration, e2e, contract:check) runs once, after review fixes settle, before pushing** — during fix loops run only the tests scoped to the fix, because a full suite re-run per fix multiplies minutes-long suites by the number of findings and proves nothing the final pass won't. `pnpm test:integration` and `pnpm test:e2e` share databases and ports, so they run one at a time.
+
+Demonstrate by hand **only what no automated layer pins** — visual layout, a new UI surface, third-party behavior; mechanics in `docs/runbooks/verification.md`. A flow an integration or e2e test already asserts needs no live drive on top: the second proof costs real minutes and can only agree with the first.
 
 Review by risk:
 
-- **Risk-gated independent review:** if the diff touches `packages/scoring`, lock/visibility semantics, settlement/recompute, override precedence, or a migration, dispatch the `evaluator` (fresh context) briefed with the diff, the plan, the acceptance criteria, and two standing checks: **the unhandled-error/observability path** (service throws → logged JSON 500; framework 4xx refusals pass through) and **boundary instants** for anything clock-derived. Confirmed findings get fixed and re-verified by the same evaluator via `SendMessage`; rejected findings get a recorded rationale.
+- **Risk-gated independent review:** if the diff touches `packages/scoring`, lock/visibility semantics, settlement/recompute, override precedence, or a migration, dispatch the `evaluator` (fresh context) briefed with the diff, the plan, the acceptance criteria, and two standing checks: **the unhandled-error/observability path** (service throws → logged JSON 500; framework 4xx refusals pass through) and **boundary instants** for anything clock-derived. **The loop is bounded at two rounds:** one full hunt, then one re-verify via `SendMessage` scoped to the fixes. A non-blocker finding the re-verify surfaces gets recorded in the PR's Human-review section, not a third round — an unbounded loop converges on verification churn, not on new bugs (the real finds come from the first hunt). Rejected findings get a recorded rationale.
 - **Everything else:** self-review the full diff against the plan and `.claude/rules/engineering.md`. `/code-review` (bugs) and `/simplify` (reuse, dedup, altitude) are available on demand; run both over the full diff for epic-scale work or any run of 3+ tasks, where cross-task duplication accumulates.
 - In `--test=manual`, describe what to test and wait for the result. `--test=skip` only when there is no runtime surface.
 
 ## 4. Share
 
-Docs updated if behavior or architecture changed, non-obvious decisions recorded via `/adr`, task marked `[x]`. Commit to the feature branch (conventional-prefix messages, logically grouped), push, and open a PR targeting `staging` with `gh pr create` — summary, task IDs, test and review outcomes.
+Docs updated if behavior or architecture changed, non-obvious decisions recorded via `/adr`, task marked `[x]`. Commit to the feature branch (conventional-prefix messages, logically grouped), push, and open a PR targeting `staging` with `gh pr create` — summary, task IDs, test and review outcomes. **Keep the body compact:** a paragraph of what shipped, a checklist of gates and review outcomes, then the Human-review section — which is the one part written in full, since it's the part only the human can act on. Narrative that restates the diff costs minutes to write and the reviewer reads the diff anyway.
 
 **The PR body ends with a `## Human review` section** — three subsections, each written even when the answer is "none":
 
