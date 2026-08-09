@@ -216,13 +216,15 @@ function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: Survi
 }
 
 /**
- * The live week: every game, both teams, and one Save.
+ * The live week: the games still open to a pick, both teams, and one Save.
  *
- * Closed games stay on screen rather than being filtered out the way Pick'em's
- * sheet filters them — with only one pick to place, a member scanning for a
- * team needs to see that the game it was in has already gone, not find it
- * missing. That rationale is about a member who can **still act**, which is why
- * a frozen week drops it below and shows their own game alone.
+ * A game that has kicked off is dropped unless it is the member's own, matching
+ * how Pick'em's sheet filters its week — a row offering two teams neither of
+ * which can be taken is an offer that isn't there, and at phone width it pushes
+ * the ones that can be taken off screen. **The member's own game is the
+ * exception and stays whatever its state**, because a pick on a cancelled game
+ * is still live (it grades as a push) and dropping it would hide the one row
+ * carrying the "not graded yet" explanation for why the team hasn't come back.
  */
 function SurvivorPickSheet({
   leagueId,
@@ -255,6 +257,11 @@ function SurvivorPickSheet({
   const frozen = savedGame?.locked === true;
   const openGames = slate.games.filter((game) => !isClosedToPicks(game));
   const canPick = !frozen && openGames.length > 0;
+  // Their own game is kept by id rather than by state: a pick whose game was
+  // cancelled is closed to picks but still the member's live pick for the week.
+  const visibleGames = slate.games.filter(
+    (game) => !isClosedToPicks(game) || game.id === saved?.gameId,
+  );
 
   function handleSave() {
     if (!held) return;
@@ -293,7 +300,7 @@ function SurvivorPickSheet({
               // to say about this week is how the one pick they hold is doing.
               <SurvivorPickedGameRow game={savedGame} teamId={pick.teamId} outcome={pick.outcome} />
             ) : (
-              slate.games.map((game) => (
+              visibleGames.map((game) => (
                 <SurvivorGameRow
                   key={game.id}
                   game={game}
