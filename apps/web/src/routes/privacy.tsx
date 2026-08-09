@@ -86,8 +86,11 @@ function Privacy() {
         <h2>Contact</h2>
         <p>
           Picks Leagues is a personally operated project. Questions or requests about your data:
-          open an issue on the project&apos;s GitHub repository or contact the operator directly if
-          you know them — most members do.
+          email{" "}
+          <a href="mailto:picksleagues@gmail.com" className="underline hover:text-foreground">
+            picksleagues@gmail.com
+          </a>
+          .
         </p>
       </section>
     </StaticPage>
