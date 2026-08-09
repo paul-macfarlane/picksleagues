@@ -6,6 +6,7 @@ import { gameStatusLabel, scoreText } from "@/lib/game";
 import { GameOverrideForm } from "@/components/admin/game-override-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 
 // `LabeledSelect` renders one label string for both the closed trigger and
@@ -72,6 +73,9 @@ export function GamesBrowser({
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
           errorMessage="Couldn't load seasons."
+          pendingFallback={
+            <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+          }
           isEmpty={all.length === 0}
           emptyMessage="No seasons synced yet."
         >
@@ -109,6 +113,9 @@ export function GamesBrowser({
               isError={games.isError}
               onRetry={() => games.refetch()}
               errorMessage="Couldn't load games."
+              pendingFallback={
+                <RowsSkeleton label="Loading games" rows={6} rowClassName="h-14 w-full" />
+              }
               isEmpty={!effectiveWeekId || games.data?.games.length === 0}
               emptyMessage={
                 effectiveWeekId

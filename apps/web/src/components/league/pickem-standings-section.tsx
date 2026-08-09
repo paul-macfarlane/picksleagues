@@ -2,6 +2,7 @@ import { useLeagueWeeks } from "@/api/weeks";
 import { LabeledSelect } from "@/components/labeled-select";
 import { PickemStandingsTable } from "@/components/league/pickem-standings-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 
 // Not a real week id — the season-cumulative board's option in the toggle
@@ -49,7 +50,9 @@ export function PickemStandingsSection({
         <CardContent className="flex flex-col gap-4">
           <QueryState
             isPending={weeks.isPending}
-            pendingMessage="Loading weeks…"
+            pendingFallback={
+              <RowsSkeleton label="Loading weeks" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+            }
             isError={weeks.isError}
             onRetry={() => weeks.refetch()}
             errorMessage="Couldn't load this league's weeks."

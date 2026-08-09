@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RowsSkeleton } from "@/components/loading";
 import { toast } from "sonner";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
@@ -40,7 +41,9 @@ export function InvitePanel({
         <CardDescription>Share a link so others can join.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {invites.isPending && <p className="text-sm text-muted-foreground">Loading invites…</p>}
+        {invites.isPending && (
+          <RowsSkeleton label="Loading invites" rows={2} rowClassName="h-14 w-full" />
+        )}
         {invites.data && invites.data.invites.length === 0 && (
           <p className="text-sm text-muted-foreground">No invites yet.</p>
         )}

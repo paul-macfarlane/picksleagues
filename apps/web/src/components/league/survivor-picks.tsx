@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { SurvivorGameRow, SurvivorPickedGameRow } from "@/components/league/survivor-game-row";
 
@@ -51,16 +52,15 @@ function selectionOf(pick: SurvivorPick | null): SurvivorSelection | null {
 
 function SurvivorPicksSkeleton() {
   return (
-    <div
-      role="status"
-      aria-label="Loading this week's games"
+    <LoadingRegion
+      label="Loading this week's games"
       className="flex flex-col gap-3 rounded-xl border border-border p-4"
     >
       <Skeleton className="h-5 w-32" />
       {Array.from({ length: 4 }, (_unused, index) => (
         <Skeleton key={index} className="h-28 w-full" />
       ))}
-    </div>
+    </LoadingRegion>
   );
 }
 

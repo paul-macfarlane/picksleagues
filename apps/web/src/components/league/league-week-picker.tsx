@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useLeagueWeeks } from "@/api/weeks";
 import { LabeledSelect } from "@/components/labeled-select";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 
 /**
@@ -46,7 +47,9 @@ export function LeagueWeekPicker({
     <div className="flex flex-col gap-4">
       <QueryState
         isPending={weeks.isPending}
-        pendingMessage="Loading weeks…"
+        pendingFallback={
+          <RowsSkeleton label="Loading weeks" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+        }
         isError={weeks.isError}
         onRetry={() => weeks.refetch()}
         errorMessage="Couldn't load this league's weeks."

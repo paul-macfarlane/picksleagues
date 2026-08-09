@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useMe } from "@/api/me";
 import { Button } from "@/components/ui/button";
+import { PageSkeleton } from "@/components/loading";
 import { TabNav, tabLinkProps } from "@/components/tab-nav";
 
 export const Route = createFileRoute("/_authed/admin")({
@@ -19,8 +20,8 @@ function AdminLayout() {
 
   if (me.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+        <PageSkeleton label="Loading" />
       </main>
     );
   }

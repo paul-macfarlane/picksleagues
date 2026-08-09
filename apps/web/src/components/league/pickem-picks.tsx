@@ -27,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { SheetGameRow, SubmittedPickRow } from "@/components/league/pickem-game-row";
 
@@ -92,7 +93,9 @@ export function PickemPicks({
   return (
     <QueryState
       isPending={slate.isPending || picks.isPending}
-      pendingMessage="Loading this week…"
+      pendingFallback={
+        <RowsSkeleton label="Loading this week" rows={4} rowClassName="h-28 w-full" />
+      }
       isError={slate.isError || picks.isError}
       onRetry={() => {
         void slate.refetch();
