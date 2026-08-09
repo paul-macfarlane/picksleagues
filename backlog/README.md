@@ -24,7 +24,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 
 **Triage tags** ride as trailing tags on the task line, after the deps — e.g. `_(deps: none)_ _(needs-info)_`. The vocabulary: `needs-triage` (owner must evaluate), `needs-info` (waiting on reporter), `ready-for-agent` (fully specified, agent-runnable), `ready-for-human` (requires human implementation), `wontfix`. A tag never replaces the state marker — they are separate axes.
 
-**Technical plans never live in epic files.** Epic-scale or parallel work writes its plan to `docs/plans/<work-package-id>.md` (see `docs/plans/README.md`); the epic file gets a `## Technical plan` pointer line and nothing more. A 400-line plan inlined among ticket lines destroys the thin contract this file format exists to keep.
+**Technical plans never live in epic files.** Planning happens in the working conversation; what outlives it goes to an ADR or the PR body. A 400-line plan inlined among ticket lines destroys the thin contract this file format exists to keep — the first one written that way took `12-simplification.md` from 63 lines to 460.
 
 ## Epics
 

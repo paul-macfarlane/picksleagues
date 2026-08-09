@@ -1,6 +1,6 @@
 # Verifying Picks Leagues changes at runtime
 
-Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator). This is the repository's operational verification knowledge — the *how*. Evidence **policy** (what counts as proof, where it is stored) lives in `docs/evidence/README.md`. Formerly the `/verify` skill; kept as a doc so any skill or session cites exact commands from one place.
+Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator). Kept as a doc rather than a skill so any session cites exact commands from one place.
 
 ## Launch
 
@@ -41,13 +41,10 @@ Sign-in is OAuth-only (Google/Discord), so headless verification mints a session
 
 ## Parallel sessions
 
-Unrelated work packages may run concurrently, one session each. The second+ session works in a sibling worktree — `/worktree` bootstraps it (branch, env files, install), because a bare `git worktree add` lacks the gitignored env files and fails silently, `pnpm test:e2e` first.
+A second session works in a sibling worktree (`/worktree`). What's shared, and therefore what collides:
 
-Shared state between concurrent sessions:
-
-- The dev Postgres (:5433) and dev servers (5173/3000) are one shared instance. Don't reset the simulator or reseed while another session is mid-verification — coordinate through the human.
-- `pnpm test:integration` (picksleagues_test) and `pnpm test:e2e` (picksleagues_e2e, ports 5273/3100) are **exclusive across sessions**: one at a time, confirm before running. Per-chunk gates (typecheck, lint, unit tests) are collision-free and always safe.
-- PRs land on `staging` in sequence; the later branch rebases on `staging` after an earlier PR merges.
+- The dev Postgres (:5433) and dev servers (5173/3000) are one instance. Don't reset the simulator or reseed while another session is mid-verification.
+- `pnpm test:integration` (picksleagues_test) and `pnpm test:e2e` (picksleagues_e2e, ports 5273/3100) are **exclusive across sessions** — one at a time. Typecheck, lint, and unit tests are collision-free and always safe.
 
 ## Gotchas
 

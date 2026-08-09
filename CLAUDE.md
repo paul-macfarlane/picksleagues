@@ -8,8 +8,7 @@ Web app where friends create and compete in sports pick'em leagues. Solo project
 - **Architecture:** `docs/architecture.md` — locked stack, environments, simulator, data model, and decision log (D1–D15). Source of truth for _how_.
 - **Engineering rules:** `.claude/rules/engineering.md` — standards every change must follow (imported below).
 - **Backlog:** `backlog/` — work split by epic. Pick tasks from here.
-- **Simulator:** `docs/simulator-guide.md` — operator runbook for driving the season simulator (the repo's primary verification harness).
-- **Runtime verification:** `docs/agents/verification-runbook.md` — how to launch, drive, and prove a change works locally (ports, session minting, sim endpoints, test layers).
+- **Runtime verification:** `docs/runbooks/verification.md` — how to launch, drive, and prove a change works locally (ports, session minting, sim endpoints, test layers). `docs/simulator-guide.md` goes deeper on the simulator itself, the repo's primary verification harness.
 - **Decisions:** `docs/adr/` — architecture decision records.
 
 ## Stack (see docs/architecture.md for rationale)
@@ -23,11 +22,9 @@ pnpm workspaces monorepo · Vite + React + TanStack Router/Query/Form SPA · Hon
 ## Working here
 
 - **Git flow:** feature branches branch off **`staging`** and PRs target `staging`; `staging` → `main` promotes to prod. Pushing feature branches needs no confirmation; anything touching `staging`/`main` prompts (guard hook in `.claude/hooks/`).
-- **Backlog-driven.** Work comes from `backlog/`, in the sequence given by `backlog/README.md` §Build order — not the order the epic files sort in. `/ask` answers questions read-only; `/adr` records decisions.
-- **Execution model.** Work runs through the repo's own pipeline: `/task` delivers a work package (clarify → plan → implement → verify → close out), `/backlog` shows status and the next runnable task, `/feedback` applies a review round, `/simplify` is the craft pass at epic close-out. `/adr` records decisions; `/ask` answers questions read-only. Agents: `scout` (read-only surveys), `implementer` (parallel mechanical slices), `evaluator` (mandatory fresh-context review on scoring/locking/settlement/override-precedence/migration diffs).
-- **Parallel sessions.** Unrelated work packages may run in concurrent sessions: the second+ session works in a sibling worktree bootstrapped by `/worktree` (it copies the env files a worktree otherwise lacks). `/task`'s claim-time conflict check flags overlapping file surfaces — overlap means sequential. Heavy suites (`test:integration`, `test:e2e`) share databases and ports and are one-at-a-time across sessions; the dev DB on :5433 is shared state. Merge order: the later branch rebases on `staging` after an earlier PR merges.
-- **Decisions get recorded.** Any non-obvious architectural choice → `/adr`. If a choice contradicts `docs/architecture.md`, update that doc too.
-- Both docs are **locked at v0.3** and mutually reconciled — deviate only with a recorded reason (ADR), and keep them reconciled with each other.
+- **Execution model.** Work comes from `backlog/`, in build order. `/task` delivers it — clarify → execute → test & review → share; `/backlog` shows status and what's next; `/feedback` applies a review round; `/ask` answers questions read-only; `/adr` records decisions. The one custom agent is `evaluator`: a fresh-context review, mandatory on diffs touching scoring, lock/visibility semantics, settlement, override precedence, or a migration.
+- **Parallel sessions.** A second session works in a sibling worktree from `/worktree` (it copies the env files a bare `git worktree add` silently omits). The dev DB on :5433 and the integration/e2e suites are shared state — heavy suites run one at a time, and the later branch rebases on `staging` after an earlier PR merges.
+- **Decisions get recorded.** Any non-obvious architectural choice → `/adr`. If a choice contradicts `docs/architecture.md`, update that doc too — `mvp-spec.md` and `architecture.md` are **locked at v0.3** and mutually reconciled, so deviating needs a recorded reason and keeps them in step with each other.
 - **Time discipline is the repo's most load-bearing convention:** no raw `Date.now()`, no `new Date()` for "now", no SQL `now()` in domain logic — everything reads the injected `Clock` (arch D13). A lint rule enforces it from FND-6 on.
 - **The shell is zsh.** Quote a glob meant for the *tool* rather than the shell (`grep --include='*.ts'`) — unquoted, zsh tries to expand it first and the command dies with `no matches found`. In a compound command that `cd`s, use absolute paths afterwards: relative ones resolve against the new directory and fail quietly, which is how a capture ends up half-empty rather than obviously broken.
 
@@ -41,7 +38,7 @@ pnpm workspaces monorepo · Vite + React + TanStack Router/Query/Form SPA · Hon
 
 ## Tracker
 
-Local markdown in `backlog/` — one file per epic, stable IDs, four checkbox states (`[ ]`/`[~]`/`[x]`/`[!]`), deps-based availability, build order from `backlog/README.md` §Build order. GitHub Issues is unused — never `gh issue create` here. Conventions, triage tags, and the plan-file pointer rule live in `backlog/README.md`.
+Local markdown in `backlog/` — one file per epic, stable IDs, four checkbox states (`[ ]`/`[~]`/`[x]`/`[!]`), deps-based availability. Build order comes from `backlog/README.md`, not the order the files sort in: file numbers record when an epic was written, not its priority. GitHub Issues is unused — never `gh issue create` here. Conventions and triage tags live in `backlog/README.md`.
 
 @.claude/rules/engineering.md
 
