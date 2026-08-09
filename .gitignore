@@ -28,24 +28,15 @@ coverage/
 .vercel
 .env*
 
-# <!-- atlas-v3:gitignore:start -->
-# The markers above and below are Atlas's block delimiters. They are commented
-# because `#` is gitignore's comment character — uncommented, git parses them as
-# literal patterns. Atlas detects its markers by substring, so the `# ` prefix is
-# safe and the block stays team-owned across scaffold reruns.
-.claude/worktrees/
-.claude/atlas-state/
 # Re-include committed PASS evidence, which the `test-results/` rule above would
 # otherwise swallow. The directory negation must precede the `/**` negation.
 !docs/evidence/test-results/
 !docs/evidence/test-results/**
-# <!-- atlas-v3:gitignore:end -->
 
 # ...but not images or video: those are attached to the pull request, where they
 # render inline for the reviewer, and they are the one artifact that can't be
 # removed later without rewriting history. Text evidence stays committed
-# (docs/agents/testing.md §Evidence policy). Deliberately outside the Atlas block
-# above so a scaffold rerun can't drop it, and after it so these rules win.
+# (docs/evidence/README.md). Placed after the re-include above so these rules win.
 docs/evidence/test-results/**/*.png
 docs/evidence/test-results/**/*.jpg
 docs/evidence/test-results/**/*.jpeg

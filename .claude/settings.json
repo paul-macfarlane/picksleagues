@@ -22,12 +22,7 @@
       "Bash(git push origin main*)",
       "Bash(git push -u origin main*)"
     ],
-    "ask": [
-      "Edit(CLAUDE.md)",
-      "Edit(**/.claude/settings.json)",
-      "Edit(**/.claude/hooks/**)",
-      "Bash(git worktree remove*)"
-    ]
+    "ask": ["Bash(git worktree remove*)"]
   },
   "hooks": {
     "PreToolUse": [
@@ -37,36 +32,6 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-destructive.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Read|Edit|Write|NotebookEdit|Grep|Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" file",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" bash",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/atlas/guard.py\" mcp",
-            "timeout": 5
           }
         ]
       }

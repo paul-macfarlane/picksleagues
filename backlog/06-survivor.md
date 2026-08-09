@@ -55,12 +55,12 @@ Survivor pool mode on top of the shared settlement core. Ref: spec §Game Mode 2
 
 ## Technical plan
 
-`docs/plans/elm.md` — recorded by `/atlas-plan` 2026-08-07, red-team reviewed
-(1 blocking + 5 major findings resolved in revision). Owner ruled on every
-flagged decision at plan review the same day: sticky-release confirmed,
-verbatim renewal confirmed, ELM-6 appended, mode renamed **Survivor**
-(plan decision 10). `/atlas-implement ELM` is the remaining
-approval-to-execute.
+`docs/plans/elm.md` — recorded 2026-08-07 (during the Atlas experiment, by
+`/atlas-plan`), red-team reviewed (1 blocking + 5 major findings resolved in
+revision). Owner ruled on every flagged decision at plan review the same day:
+sticky-release confirmed, verbatim renewal confirmed, ELM-6 appended, mode
+renamed **Survivor** (plan decision 10). The remaining tickets run through
+`/task` against that plan.
 
 **ELM-7** was appended 2026-08-07 (owner, plan decision 11) after the plan was
 red-teamed — the manual-regression runbook Pick'em has and Survivor does not.

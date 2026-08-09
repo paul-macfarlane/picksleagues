@@ -1,8 +1,6 @@
 # Verifying Picks Leagues changes at runtime
 
-Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator). This is the repository's operational verification knowledge — the *how*. `docs/agents/testing.md` owns verification **policy** (what counts as evidence, where it is stored, what earns a `PASS`) and points here for the mechanics.
-
-Formerly the `/verify` skill; moved to a team-owned doc during the Atlas experiment so Atlas execution packets can cite exact commands from it (see `docs/atlas-experiment.md`).
+Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator). This is the repository's operational verification knowledge — the *how*. Evidence **policy** (what counts as proof, where it is stored) lives in `docs/evidence/README.md`. Formerly the `/verify` skill; kept as a doc so any skill or session cites exact commands from one place.
 
 ## Launch
 
@@ -24,7 +22,12 @@ pnpm test:integration   # in-process Hono + real Postgres; auto-creates + migrat
 pnpm test:e2e           # Playwright chromium against its OWN stack — picksleagues_e2e on :5273/:3100, never the dev DB or dev ports (override with E2E_DATABASE_URL)
 pnpm typecheck          # every workspace package, then e2e/tsconfig.json (e2e/ is in no workspace)
 pnpm typecheck && pnpm lint && pnpm contract:check   # static gates; contract:check fails if openapi/ is stale
+pnpm --filter @picksleagues/web build                # the ONLY build in the repo — there is no root `pnpm build`
 ```
+
+**Scoping a partial vitest run: use `--project`, never `--dir` or a bare path.** The two projects in `vitest.config.ts` are selected by name, and `--dir` is only a path filter applied *within every* project — so `vitest run --dir packages/scoring` still runs the `integration` project, whose `globalSetup` creates and migrates the test database. Narrow with `vitest run --project unit <path>`. This matters because `--dir` reads like a scope filter and is not one, so a run meant to stay off the database can reach it while believing it has not.
+
+**Copy-decoupling probe — three runs, not two.** To prove the e2e suite is decoupled from copy (the standing guarantee QLTY-2 established): (1) run the gate green on current copy; (2) reword the bound strings in the SPA and re-run — it must still pass; (3) revert and re-run to prove the revert is clean. Back the reverts with byte-exact file copies rather than hand edits, and confirm with `git status` before reporting.
 
 ## Drive
 
@@ -34,7 +37,17 @@ pnpm typecheck && pnpm lint && pnpm contract:check   # static gates; contract:ch
 
 ## Auth-gated flows
 
-Sign-in is OAuth-only (Google/Discord), so headless verification mints a session instead: `createAuthenticatedUser(auth, overrides?)` in `apps/api/test/setup/auth-helpers.ts` creates a user + session through Better Auth's internal adapter and returns `{ user, session, cookie }` where `cookie` is the ready-to-send `Cookie` header value (the signed `better-auth.session_token`). Integration tests pass `cookie` to in-process `app.request(..., { headers: { cookie } })`. For a live dev server, run a tiny tsx script from `apps/api` that calls `loadEnv` → `createDb` → `createAuth` → `createAuthenticatedUser`, then curl with `-b "<cookie>"`. **Load the env from inside the script** (`process.loadEnvFile("../../.env")` as its first statement), not with a `--env-file` flag: the Atlas guard hook refuses any Bash command whose text mentions `.env`, so `pnpm exec tsx --env-file=../../.env <script>` — which this runbook used to recommend — is blocked before it runs. Loading it in-process reads the same file without naming it on the command line, and the guard is doing its job, so the recipe moved rather than the guard. For Playwright, `e2e/setup/session.ts` wraps the same flow: `mintSession()` returns a cookie shaped for `context.addCookies`, plus `cleanup(userIds)` (ADR-0006; see `e2e/identity.spec.ts` for usage). Clean up minted rows afterward (`DELETE FROM users WHERE ...` cascades sessions). Smoke-level checks that don't need a session: `POST /api/auth/sign-in/social` with `{"provider":"google","callbackURL":"/"}` returns a provider redirect URL even with placeholder creds.
+Sign-in is OAuth-only (Google/Discord), so headless verification mints a session instead: `createAuthenticatedUser(auth, overrides?)` in `apps/api/test/setup/auth-helpers.ts` creates a user + session through Better Auth's internal adapter and returns `{ user, session, cookie }` where `cookie` is the ready-to-send `Cookie` header value (the signed `better-auth.session_token`). Integration tests pass `cookie` to in-process `app.request(..., { headers: { cookie } })`. For a live dev server, run a tiny tsx script from `apps/api` that calls `loadEnv` → `createDb` → `createAuth` → `createAuthenticatedUser`, then curl with `-b "<cookie>"`. **Load the env from inside the script** (`process.loadEnvFile("../../.env")` as its first statement) — it reads the same file as a `--env-file` flag without naming a secret-bearing path on the command line, which keeps the command clean of guard prompts and shell history alike. For Playwright, `e2e/setup/session.ts` wraps the same flow: `mintSession()` returns a cookie shaped for `context.addCookies`, plus `cleanup(userIds)` (ADR-0006; see `e2e/identity.spec.ts` for usage). Clean up minted rows afterward (`DELETE FROM users WHERE ...` cascades sessions). Smoke-level checks that don't need a session: `POST /api/auth/sign-in/social` with `{"provider":"google","callbackURL":"/"}` returns a provider redirect URL even with placeholder creds.
+
+## Parallel sessions
+
+Unrelated work packages may run concurrently, one session each. The second+ session works in a sibling worktree — `/worktree` bootstraps it (branch, env files, install), because a bare `git worktree add` lacks the gitignored env files and fails silently, `pnpm test:e2e` first.
+
+Shared state between concurrent sessions:
+
+- The dev Postgres (:5433) and dev servers (5173/3000) are one shared instance. Don't reset the simulator or reseed while another session is mid-verification — coordinate through the human.
+- `pnpm test:integration` (picksleagues_test) and `pnpm test:e2e` (picksleagues_e2e, ports 5273/3100) are **exclusive across sessions**: one at a time, confirm before running. Per-chunk gates (typecheck, lint, unit tests) are collision-free and always safe.
+- PRs land on `staging` in sequence; the later branch rebases on `staging` after an earlier PR merges.
 
 ## Gotchas
 
@@ -42,3 +55,4 @@ Sign-in is OAuth-only (Google/Discord), so headless verification mints a session
 - `BETTER_AUTH_URL` must be `http://localhost:5173` (the SPA origin), or the session cookie lands where the SPA can't see it.
 - `apps/web/src/routeTree.gen.ts` is regenerated by the router plugin on dev/build; it's ignored by ESLint/Prettier — never hand-edit or reformat it.
 - Playwright reuses already-running dev servers locally; if a run leaves stray servers behind, check `lsof -nP -iTCP:3000 -iTCP:5173 -sTCP:LISTEN`.
+- **Toasts are the one sanctioned exception to "never bind to DOM structure"** (`.claude/rules/engineering.md` §Quality): sonner exposes no data-attribute pass-through for our own handle, so `[data-sonner-toast][data-type="error"]` (as `e2e/identity.spec.ts` uses) is the binding. Accepted risk, named so it isn't rediscovered as a bug — a sonner major that renames those attributes fails the merge gate with no product change. The alternative is binding to toast copy, which is worse: copy changes on the owner's judgement alone and must not tax that.

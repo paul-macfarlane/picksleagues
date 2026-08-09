@@ -2,9 +2,19 @@
 
 Running [`atlas-v3`](https://github.com/JahnelGroup/atlas-plugin-v3) as this repo's development harness in place of the repo's own `/task` pipeline, to find out whether it's a net improvement for a solo, single-repo project.
 
-**Status:** set up. `/setup-matt-pocock-skills` and `/setup-atlas` both ran on 2026-08-03; the scaffold verifier passes every check except the git-hook activation, which is a deliberate human prerequisite (see §7). No real work package has gone through `/atlas-implement` yet.
+**Status: concluded — reverted 2026-08-09.** See [Outcome](#outcome-2026-08-09). The document below is the historical record of the experiment as it ran; paths and instructions in it no longer describe the repo at HEAD.
 
-Everything below lives on the `chore/atlas-experiment` branch (off `staging`). Reverting is `git checkout staging && git branch -D chore/atlas-experiment` plus the two commands under [Rollback](#rollback).
+## Outcome (2026-08-09)
+
+The experiment ran 2026-08-03 → 2026-08-09; real work packages went through `/atlas-implement` (the `docs/plans/` files from `simp` through `pkm-9` are its records). The owner reverted to the repo's own harness, restored from `.claude/_parked/` and amended (branch `chore/restore-harness`), for the reasons §6 predicted plus what the run surfaced:
+
+- **The two named risks were real.** Self-review by the orchestrating context replaced the risk-gated fresh-context `evaluator` on exactly the surfaces this repo's bugs live on, and nothing covered `/simplify`'s craft pass.
+- **The multi-repo/policy apparatus cost more than it returned on a solo single-repo project** — the router/policy layer in `CLAUDE.md` and seven generated `docs/agents/*` documents restated repo conventions that already had homes, and the scaffold's abstract-setting-vs-concrete-instruction defect pattern (§ "The pattern worth watching") kept requiring hand-patches.
+- The git-hook switch (`core.hooksPath .githooks`) was never activated, so husky remained in force throughout.
+
+**What the experiment permanently improved:** the `/verify` skill became `docs/agents/verification-runbook.md` and stays a doc; committed technical plans in `docs/plans/` (with the pointer-only rule for epic files) stay; the per-work-package, never-cleared evidence policy (`docs/evidence/README.md`, now authoritative) stays. The restored harness also picked up amendments the experiment motivated: a mandatory clarify gate for feature work, a tests-land-with-behavior bar, a Human-review PR section, and multi-session parallel work via `/worktree` plus a claim-time conflict check in `/task`.
+
+The [Rollback](#rollback) recipe below was deliberately not followed verbatim — the runbook was kept as a doc rather than re-skilled, `docs/agents/*` was audited and folded into `backlog/README.md` / `docs/plans/README.md` / the runbook rather than deleted blind, and both plugins (atlas-v3 and mattpocock-skills) were uninstalled.
 
 ---
 
