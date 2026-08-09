@@ -1,15 +1,14 @@
 import { inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, leagueMembers, survivorPickResults, survivorState, weeks } from "@picksleagues/db";
+import { leagueMembers, survivorState } from "@picksleagues/db";
 import {
-  GAME_STATUS,
+  isWeekInSeasonRange,
+  LEAGUE_STATUS,
   WEEK_TYPE,
-  isUnplayedStatus,
-  nflSeasonOrdinal,
+  type LeagueStatus,
   type SurvivorSettings,
   type WeekType,
 } from "@picksleagues/schemas";
-import { resolveGameOverrides } from "../games";
 
 /**
  * **The one home for "is this Survivor season over, and who won it"** (spec
@@ -20,23 +19,37 @@ import { resolveGameOverrides } from "../games";
  * running on another.
  *
  * A season ends at whichever comes first: every in-range week has played out, or
- * settlement has reduced the league to a single member still alive. The second
- * arm is self-securing — ending the season is what leaves nothing that could
- * unsettle it, since there is no later week, no later pick, and nothing further
- * to grade against the winner.
+ * settlement has reduced the league to a single member still alive.
  *
- * Derived rather than read off `league_seasons.status`, which nothing in this
- * codebase writes: a status check would answer "active" for a season that
- * finished in January. Persisting conclusion is LG-12's, and this is what will
- * decide what it persists.
+ * **The stored status answers this, except in the one case where it cannot.**
+ * Settlement writes `league_seasons.status` when it has finished grading
+ * (ADR-0030), and reading that is what retired the old `rangePlayedOut` — a
+ * second walk of the game rows restating settlement's completeness rule, which
+ * could name a different week as the season's last than the grader did.
+ *
+ * The exception is the reduction that becomes certain *inside* an ungradeable
+ * week (ADR-0028). Settlement deliberately does not write `concluded` there,
+ * because that week still has to be graded and a retired season leaves the
+ * nightly sweep — so the board derives that arm here, from the `survivor_state`
+ * the provisional pass just wrote. It is the cheap half of the old derivation
+ * and not the duplicated half: a count over the alive set, not a re-reading of
+ * whether the schedule has finished.
+ *
+ * Either way *who won* is the same fact — the alive set — which no status can
+ * carry and which is therefore always computed here.
  */
 
 /** What resolving a season's decided state needs, and all it needs. */
 export interface SurvivorSeasonStateInput {
   leagueSeasonId: string;
   leagueId: string;
-  seasonId: string;
-  settings: SurvivorSettings;
+  /**
+   * Settlement's stored ending. Taken from the caller rather than re-queried
+   * because every caller has already read the league's current instance to get
+   * here, and a second read could disagree with the one their other fields came
+   * from.
+   */
+  status: LeagueStatus;
 }
 
 export interface SurvivorSeasonState {
@@ -69,10 +82,7 @@ export function isSurvivorRangeWeek(
   settings: SurvivorSettings,
 ): boolean {
   if (week.weekType !== WEEK_TYPE.REGULAR) return false;
-  const ordinal = nflSeasonOrdinal({ type: WEEK_TYPE.REGULAR, number: week.weekNumber });
-  return (
-    ordinal >= nflSeasonOrdinal(settings.startWeek) && ordinal <= nflSeasonOrdinal(settings.endWeek)
-  );
+  return isWeekInSeasonRange(week, settings);
 }
 
 export async function resolveSurvivorSeasonState(
@@ -128,161 +138,26 @@ export async function resolveSurvivorSeasonStates(
     else eliminatedBySeason.set(row.leagueSeasonId, new Set([row.leagueMemberId]));
   }
 
-  // "Settlement has written this season" — the guard on the range arm below,
-  // which must not crown a winner off game statuses the grader hasn't graded.
-  // Both tables count and neither alone suffices: a week everyone survived
-  // writes results and no state, and a member eliminated for missing every week
-  // writes state and no results.
-  const gradedSeasonIds = new Set(
-    (
-      await db
-        .selectDistinct({ leagueSeasonId: survivorPickResults.leagueSeasonId })
-        .from(survivorPickResults)
-        .where(inArray(survivorPickResults.leagueSeasonId, leagueSeasonIds))
-    ).map((row) => row.leagueSeasonId),
-  );
-  const settledSeasonIds = new Set([
-    ...gradedSeasonIds,
-    ...stateRows.map((row) => row.leagueSeasonId),
-  ]);
-
-  const pending: Array<{ input: SurvivorSeasonStateInput; alive: string[] }> = [];
   for (const input of inputs) {
     const eliminated = eliminatedBySeason.get(input.leagueSeasonId);
     const alive = (membersByLeague.get(input.leagueId) ?? []).filter(
       (memberId) => !eliminated?.has(memberId),
     );
 
-    // The sole-survivor arm (ADR-0027). It turns on the league having been
-    // *reduced* to one: a member alone in a league nobody joined has won
-    // nothing, and telling them so would end their season before its first
+    // The reduction arm, for the window where settlement knows the answer but
+    // has not retired the season (see the module header). It turns on the league
+    // having been *reduced* to one: a member alone in a league nobody joined has
+    // won nothing, and telling them so would end their season before its first
     // kickoff.
-    //
-    // The settlement replay in this module's `settlement.ts` sibling stops on
-    // that same reduction test. Nothing couples the two, so a change here needs
-    // the same change there: a grader that ran past the deciding week would read
-    // the weeks after it as missed picks and unpick the very winner this arm
-    // names.
-    if (eliminated !== undefined && eliminated.size > 0 && alive.length === 1) {
-      states.set(input.leagueSeasonId, { decided: true, winnerMemberIds: new Set(alive) });
-      continue;
-    }
+    const reducedToOne = eliminated !== undefined && eliminated.size > 0 && alive.length === 1;
 
-    if (!settledSeasonIds.has(input.leagueSeasonId)) {
-      states.set(input.leagueSeasonId, RUNNING);
-      continue;
-    }
-    pending.push({ input, alive });
-  }
-
-  if (pending.length === 0) return states;
-
-  const weeksByPending = await loadInRangeWeekIds(
-    db,
-    pending.map(({ input }) => input),
-  );
-  const gamesByWeek = await loadGamesByWeek(db, [...new Set([...weeksByPending.values()].flat())]);
-
-  for (const { input, alive } of pending) {
-    const weekIds = weeksByPending.get(input.leagueSeasonId) ?? [];
-    const playedOut = rangePlayedOut(weekIds, gamesByWeek);
     states.set(
       input.leagueSeasonId,
-      playedOut ? { decided: true, winnerMemberIds: new Set(alive) } : RUNNING,
+      input.status === LEAGUE_STATUS.CONCLUDED || reducedToOne
+        ? { decided: true, winnerMemberIds: new Set(alive) }
+        : RUNNING,
     );
   }
 
   return states;
-}
-
-/** The in-range week ids of each input, keyed by `leagueSeasonId`. */
-async function loadInRangeWeekIds(
-  db: Db,
-  inputs: readonly SurvivorSeasonStateInput[],
-): Promise<Map<string, string[]>> {
-  const seasonIds = [...new Set(inputs.map((input) => input.seasonId))];
-  const rows = await db
-    .select({
-      id: weeks.id,
-      seasonId: weeks.seasonId,
-      weekType: weeks.weekType,
-      weekNumber: weeks.weekNumber,
-    })
-    .from(weeks)
-    .where(inArray(weeks.seasonId, seasonIds));
-
-  const bySeason = new Map<string, typeof rows>();
-  for (const row of rows) {
-    const bucket = bySeason.get(row.seasonId);
-    if (bucket) bucket.push(row);
-    else bySeason.set(row.seasonId, [row]);
-  }
-
-  // Clipped per league rather than per season: two leagues can share a season
-  // and resolve different ranges over it (ADR-0024).
-  return new Map(
-    inputs.map((input) => [
-      input.leagueSeasonId,
-      (bySeason.get(input.seasonId) ?? [])
-        .filter((row) => isSurvivorRangeWeek(row, input.settings))
-        .map((row) => row.id),
-    ]),
-  );
-}
-
-type EffectiveGame = ReturnType<typeof resolveGameOverrides>;
-
-async function loadGamesByWeek(
-  db: Db,
-  weekIds: readonly string[],
-): Promise<Map<string, EffectiveGame[]>> {
-  const byWeek = new Map<string, EffectiveGame[]>(weekIds.map((weekId) => [weekId, []]));
-  if (weekIds.length === 0) return byWeek;
-
-  const rows = await db
-    .select()
-    .from(games)
-    .where(inArray(games.weekId, [...weekIds]));
-  for (const row of rows) {
-    byWeek.get(row.weekId)?.push(resolveGameOverrides(row));
-  }
-  return byWeek;
-}
-
-/**
- * Whether every week the league plays has finished — the spec's original ending,
- * and the one a season that never loses a member reaches.
- *
- * **This restates settlement's completeness rule rather than reading its output,
- * and the two must not drift.** The sibling copy is the week loop in
- * `settlement.ts`; change one and this answers a different question than the
- * grader did, which here means crowning a winner mid-season or never crowning
- * one at all. The duplication exists because settlement stores no "settled
- * through week N" marker, and results coverage cannot stand in for one — a week
- * nobody alive picked, and an eliminated member's ungraded pick, both
- * legitimately produce no result row. A stored marker is the right fix if this
- * ever needs a third caller.
- */
-function rangePlayedOut(
-  weekIds: readonly string[],
-  gamesByWeek: ReadonlyMap<string, EffectiveGame[]>,
-): boolean {
-  if (weekIds.length === 0) return false;
-
-  return weekIds.every((weekId) => {
-    const weekGames = gamesByWeek.get(weekId) ?? [];
-    // A week with no games is not a week that finished, it is a week the
-    // schedule never filled — and it blocks the replay for the same reason.
-    if (weekGames.length === 0) return false;
-    return weekGames.every((game) => {
-      // `isUnplayedStatus` is cancelled and nothing else — a game that will
-      // never be played in this week, which the spec resolves as a push. It
-      // reads like the opposite of what it gates, so: cancelled counts as done,
-      // scheduled and in-progress and postponed do not.
-      if (isUnplayedStatus(game.status)) return true;
-      return (
-        game.status === GAME_STATUS.FINAL && game.homeScore !== null && game.awayScore !== null
-      );
-    });
-  });
 }

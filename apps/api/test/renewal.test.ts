@@ -5,6 +5,7 @@ import { FixedClock } from "@picksleagues/core";
 import {
   JOIN_BLOCKED_REASON,
   LEAGUE_MODE,
+  LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
   MEMBER_ROLE,
   PICK_TYPE,
@@ -112,6 +113,32 @@ describe("POST /api/leagues/:leagueId/seasons", () => {
     const newInstance = instances.find((i) => i.seasonId !== y2026);
     expect(newInstance?.settings).toMatchObject({ picksPerWeek: 3 });
     expect(newInstance?.status).toBe("active");
+  });
+
+  it("concludes the instance it supersedes, leaving only the new one active", async () => {
+    const { seasonId: y2026 } = await seedSeason(db, {
+      year: 2026,
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: Y2026_KICKOFF }] }],
+    });
+    await seedSeason(db, { year: 2027, weeks: [{ weekNumber: 1, kickoffs: [] }] });
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    const league = await insertLeague(db, {
+      seasonId: y2026,
+      members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+    });
+
+    expect((await postRenew(cookie, league.id)).status).toBe(201);
+
+    // The superseded instance is over whatever its own weeks say (ADR-0030) —
+    // week 1 here never went final, and the old season still leaves the nightly
+    // sweep's working set.
+    const byYear = new Map(
+      (await db.select().from(leagueSeasons).where(eq(leagueSeasons.leagueId, league.id))).map(
+        (row) => [row.seasonId === y2026 ? 2026 : 2027, row.status],
+      ),
+    );
+    expect(byYear.get(2026)).toBe(LEAGUE_STATUS.CONCLUDED);
+    expect(byYear.get(2027)).toBe(LEAGUE_STATUS.ACTIVE);
   });
 
   it("flips a league's `renewable` false after renewal", async () => {

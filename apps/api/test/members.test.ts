@@ -422,14 +422,19 @@ describe("DELETE /api/me — last-commissioner guard (LG-6 closes the ID-3 TODO)
     expect((await deleteMe(solo.cookie)).status).toBe(204);
   });
 
-  it("deletes the last commissioner of a CONCLUDED league (guard is active-only)", async () => {
+  it("409s the last commissioner of a CONCLUDED league — a finished league is not a disposable one", async () => {
     const { commish, league } = await seedLeague();
     // Status is per-instance now (ADR-0009) — conclude the current instance.
     await db
       .update(leagueSeasons)
       .set({ status: LEAGUE_STATUS.CONCLUDED })
       .where(eq(leagueSeasons.leagueId, league.id));
-    expect((await deleteMe(commish.cookie)).status).toBe(204);
+
+    // The guard was active-only while nothing wrote `concluded`; ADR-0030 gave
+    // that column a writer, and letting this through would strand the league —
+    // renewal into the next season is commissioner-only and no code path grants
+    // the role, so the remaining members could never act on it again.
+    expect((await deleteMe(commish.cookie)).status).toBe(409);
   });
 
   it("404s member routes with a malformed member id", async () => {

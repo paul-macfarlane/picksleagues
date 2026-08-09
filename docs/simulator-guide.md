@@ -216,5 +216,12 @@ POST  /api/sim/settle                    {leagueId?} — omit for every active l
 its season standings and each settled week's standings and result count, ordered
 so two runs diff cleanly by eye.
 
+**A finished league drops out of the no-`leagueId` scope.** Settlement writes
+`league_seasons.status = concluded` once a season's range has played out, or once
+Survivor is down to one member (ADR-0030), and the omit-`leagueId` form mirrors
+`settle-sweep` by taking active seasons only. Naming the league explicitly always
+settles it, concluded or not — so if a replay looks like it stopped grading, pass
+`leagueId` rather than assuming settlement broke.
+
 To mint an admin session for a local script, see `.claude/skills/verify` and
 `e2e/setup/session.ts` (`mintSession({ appRole: "admin" })`).

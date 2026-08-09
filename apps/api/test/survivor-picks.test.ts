@@ -397,18 +397,26 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       league,
       memberA,
       memberAId,
-      memberBId,
       leagueSeasonId,
       week1,
+      week1Game1,
+      week1Game2,
       week2,
       week2Game1,
       teamIds,
     } = await seedLeague();
-    await insertSurvivorState(db, {
-      leagueSeasonId,
-      leagueMemberId: memberBId,
-      eliminatedWeekId: week1,
+    // Settled rather than seeded: the ending is settlement's own stop, stored on
+    // the league season (ADR-0030), so a hand-written ledger row would assert
+    // against a state no replay produced. Member B never picks, so week 1 puts
+    // them out for a missed pick and leaves A alone.
+    await putSurvivorPick(memberA.cookie, league.id, week1, {
+      gameId: week1Game1,
+      teamId: teamIds.home,
     });
+    for (const gameId of [week1Game1, week1Game2]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, new FixedClock(WEEK1_KICKOFF), leagueSeasonId);
 
     const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
       gameId: week2Game1,
@@ -417,7 +425,46 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
 
     expect(response.status).toBe(409);
     expect(((await response.json()) as { error: string }).error).toBe("league_concluded");
-    expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
+    // The week-1 pick that won them the league stands; the week-2 one never landed.
+    expect(
+      (await survivorPicksFor(db, leagueSeasonId, memberAId)).map((row) => row.weekId),
+    ).toEqual([week1]);
+  });
+
+  it("tells a member they went out, not that the league is over — elimination outranks conclusion", async () => {
+    const {
+      league,
+      memberA,
+      memberB,
+      leagueSeasonId,
+      week1,
+      week1Game1,
+      week1Game2,
+      week2,
+      week2Game1,
+      teamIds,
+    } = await seedLeague();
+    // The same really-settled, really-concluded season as the test above: A wins
+    // it, B is out for a missed pick.
+    await putSurvivorPick(memberA.cookie, league.id, week1, {
+      gameId: week1Game1,
+      teamId: teamIds.home,
+    });
+    for (const gameId of [week1Game1, week1Game2]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, new FixedClock(WEEK1_KICKOFF), leagueSeasonId);
+
+    const response = await putSurvivorPick(memberB.cookie, league.id, week2, {
+      gameId: week2Game1,
+      teamId: teamIds.home,
+    });
+
+    expect(response.status).toBe(409);
+    // ADR-0027 §4: the refusal about *them* wins. A season they lost being over
+    // is true but is not the fact they need, and the winner is the only member
+    // the conclusion refusal is for.
+    expect(((await response.json()) as { error: string }).error).toBe("member_eliminated");
   });
 
   it("still takes a pick while two members are alive", async () => {

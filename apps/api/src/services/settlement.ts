@@ -147,6 +147,22 @@ export async function settlePicksForGames(
  * league season from stored results, catching late stat corrections, admin
  * overrides, and any tick the incremental path missed.
  *
+ * **The `active` filter is what bounds this job's cost over years** (ADR-0030).
+ * Settlement retires a season by writing `concluded`, and Survivor's replay is
+ * whole-season by construction (ADR-0025), so without that filter doing anything
+ * the nightly bill would grow with seasons × weeks and never fall.
+ *
+ * **A concluded season therefore has no automatic recompute, and that is a real
+ * gap rather than a free win.** `settlePicksForGames` finds a league season only
+ * through *picks on the changed game*, so a correction to a game the league
+ * holds a pick on still reaches it — but a correction to one nobody there picked
+ * does not, and this job will not pick it up either. In Survivor that is most of
+ * a week's slate. The remedy is the admin rebuild
+ * (`POST /admin/leagues/:id/rebuild`), which is status-blind; until someone runs
+ * it, a concluded season can hold derived state a full recompute would not
+ * reproduce. Widening the sweep to concluded seasons whose games have moved is
+ * the fix if this ever bites.
+ *
  * Per-season transactions rather than one global one — a single league's bad
  * data must not roll back everyone else's reconciliation, and nothing here
  * depends on cross-league atomicity.

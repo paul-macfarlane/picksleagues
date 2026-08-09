@@ -4,6 +4,7 @@ import { games, survivorPicks, survivorState, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   SURVIVOR_PICK_STATUS,
+  type LeagueStatus,
   type SurvivorPickStatus,
   type SurvivorSettings,
 } from "@picksleagues/schemas";
@@ -32,12 +33,14 @@ import { isSurvivorRangeWeek, resolveSurvivorSeasonStates } from "./season";
  *   member at a different week than the pick screen does.
  */
 
+/** A superset of `SurvivorSeasonStateInput`, so the batch below passes straight through. */
 export interface SurvivorPickStatusInput {
   leagueSeasonId: string;
   leagueId: string;
   seasonId: string;
   membershipId: string;
   settings: SurvivorSettings;
+  status: LeagueStatus;
 }
 
 function memberKey(leagueSeasonId: string, membershipId: string): string {
