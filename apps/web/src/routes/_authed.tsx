@@ -44,9 +44,13 @@ export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ location }) => {
     const { data: session } = await authClient.getSession();
     if (!session) {
-      // Preserve the deep link so sign-in returns here afterward (mvp-spec
-      // §Invites: "Visiting a link while signed out routes through sign-in
-      // and back").
+      // A bare "/" is a visitor at the front door, not a deep link — show the
+      // splash (LNCH-11). Any deeper URL preserves the sign-in-and-return flow
+      // (mvp-spec §Invites: "Visiting a link while signed out routes through
+      // sign-in and back").
+      if (location.pathname === "/") {
+        throw redirect({ to: "/welcome" });
+      }
       throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }
     // First-time-only claim step per spec onboarding flow (OAuth → claim

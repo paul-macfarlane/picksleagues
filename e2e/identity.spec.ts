@@ -190,10 +190,13 @@ test.describe("identity", () => {
 
       await expect(page).toHaveURL("/sign-in");
 
-      // Revisit while signed out: `_authed`'s beforeLoad threads the current
-      // location through as `?redirect=` (ID-1 deep-link preservation), so
-      // match the path rather than an exact "/sign-in" with no query.
+      // Revisit while signed out: a bare "/" is the front door and lands on
+      // the public splash (LNCH-11); a deep link still routes through sign-in
+      // with the destination threaded as `?redirect=` (ID-1 deep-link
+      // preservation), so match the path rather than an exact URL.
       await page.goto("/");
+      await expect(page).toHaveURL(/\/welcome/);
+      await page.goto("/profile");
       await expect(page).toHaveURL(/\/sign-in/);
     } finally {
       // Delete-account anonymizes rather than removing the row (mvp-spec

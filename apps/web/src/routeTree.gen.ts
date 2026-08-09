@@ -14,6 +14,7 @@ import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
@@ -59,6 +60,11 @@ const SignInRoute = SignInRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/sim': typeof AuthedSimRouteRouteWithChildren
   '/discovery': typeof AuthedDiscoveryRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
   '/_authed/sim': typeof AuthedSimRouteRouteWithChildren
   '/_authed/discovery': typeof AuthedDiscoveryRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sign-in'
     | '/terms'
+    | '/welcome'
     | '/admin'
     | '/sim'
     | '/discovery'
@@ -296,6 +306,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sign-in'
     | '/terms'
+    | '/welcome'
     | '/discovery'
     | '/profile'
     | '/join/$code'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sign-in'
     | '/terms'
+    | '/welcome'
     | '/_authed/admin'
     | '/_authed/sim'
     | '/_authed/discovery'
@@ -352,6 +364,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
   TermsRoute: typeof TermsRoute
+  WelcomeRoute: typeof WelcomeRoute
   JoinCodeRoute: typeof JoinCodeRoute
 }
 
@@ -390,6 +403,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/': {
@@ -638,6 +658,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,
   TermsRoute: TermsRoute,
+  WelcomeRoute: WelcomeRoute,
   JoinCodeRoute: JoinCodeRoute,
 }
 export const routeTree = rootRouteImport
