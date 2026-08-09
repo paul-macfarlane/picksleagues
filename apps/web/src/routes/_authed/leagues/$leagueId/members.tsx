@@ -29,8 +29,11 @@ function LeagueMembers() {
     <div className="flex flex-col gap-4">
       <MembersSection league={league.data} isCommissioner={isCommissioner} started={started} />
 
+      {/* MANAGE_INVITES (list + revoke) is the anytime half of the split
+          capability, so the panel outlives the start; CREATE_INVITE's window
+          is what `started` closes inside it. */}
       {canActOnLeague(league.data, LEAGUE_ACTION.MANAGE_INVITES, now) && (
-        <InvitePanel leagueId={league.data.id} isCommissioner={isCommissioner} />
+        <InvitePanel leagueId={league.data.id} isCommissioner={isCommissioner} started={started} />
       )}
     </div>
   );
