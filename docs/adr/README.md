@@ -38,3 +38,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0026](0026-survivor-is-straight-up-only.md) | Survivor is straight-up only; the Pick Type setting is removed | Accepted |
 | [0027](0027-survivor-season-ends-at-a-sole-survivor.md) | A Survivor season ends the moment one member is left standing | Accepted |
 | [0028](0028-survivor-provisional-elimination.md) | A Survivor member goes out as soon as their loss is certain | Accepted |
+| [0029](0029-invite-creation-is-pre-start-only.md) | Invite creation closes at league start; revocation stays open | Accepted |

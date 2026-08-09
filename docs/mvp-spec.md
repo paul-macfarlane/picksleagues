@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), and ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), and ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -52,10 +52,10 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 - **Public:** appears in the discovery list and is joinable directly.
 
 ### Invites
-- Any commissioner generates invite links containing an opaque code.
+- Any commissioner generates invite links containing an opaque code, **pre-start only** — once the league starts no new link can be minted, because the join cutoff below would refuse every use of it. (ADR-0029)
 - Links may optionally have an expiry and/or max-use cap.
 - Visiting a link while signed out routes through sign-in and back to the join screen.
-- Any commissioner can revoke an outstanding invite link at any time.
+- Any commissioner can revoke an outstanding invite link at any time, including after the league has started — a link minted pre-start outlives the start, so killing a leaked one has to stay possible for as long as the link does. (ADR-0029)
 - Invite links work for public leagues too (they're just an alternate path to the same join).
 
 ### Membership
@@ -76,9 +76,10 @@ A league has **one or more commissioners**, all with identical powers, and must 
 | Delete league | Pre-start only |
 | Promote a member to commissioner | Anytime (subject to the recipient's cap) |
 | Demote a commissioner (including stepping down) | Anytime, while at least one commissioner remains |
-| Generate/revoke invite links | Anytime (joins still blocked after cutoff) |
+| Generate invite links | Pre-start only (a link minted after the start could never be used) |
+| Revoke invite links | Anytime (a pre-start link outlives the start, so it stays killable) |
 
-Once a league starts: membership and settings are frozen except cosmetics and commissioner promotion/demotion. No mid-season kicks, deletes, leaves, or settings changes — disputes resolve socially, not in-app.
+Once a league starts: membership and settings are frozen except cosmetics, commissioner promotion/demotion, and revoking an outstanding invite link. No mid-season kicks, deletes, leaves, settings changes, or new invite links — disputes resolve socially, not in-app.
 
 ### Pick Visibility (all modes)
 A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. Eliminated players (Survivor mode) retain identical visibility rights to active players.
@@ -227,7 +228,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 3. **Join a league** — invite link or public discovery → confirm → member
 4. **Make picks** — league page → weekly slate (NFL modes) or bracket builder (MM) → submit. Pick'em: the week's full set goes in one confirmed, irreversible submission, which is also where ATS spreads are accepted. Survivor: the week's pick can be changed until its game kicks off. March Madness: a bracket can be revised until the first Round of 64 tip, then freezes.
 5. **Check results** — scores and standings refresh every ~5 minutes on game days
-6. **Commission** — settings pre-start, invite management, kick/delete pre-start, promote/demote commissioners anytime
+6. **Commission** — settings pre-start, invite links generated pre-start and revocable anytime, kick/delete pre-start, promote/demote commissioners anytime
 
 ## Screens (MVP inventory)
 
