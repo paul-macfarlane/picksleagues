@@ -1,0 +1,12 @@
+- generic [ref=f4e2]:
+    - generic [ref=f4e3]:
+        - banner [ref=f4e4]:
+            - generic [ref=f4e5]:
+                - link "Picks Leagues" [ref=f4e7] [cursor=pointer]:
+                    - /url: /
+                - generic [ref=f4e11]:
+                    - button "Open navigation" [ref=f4e12]
+                    - button "Change theme" [ref=f4e13]
+        - main [ref=f4e15]:
+            - paragraph [ref=f4e16]: Loading your leagues…
+    - region "Notifications alt+T"
