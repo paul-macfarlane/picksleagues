@@ -1,0 +1,6 @@
+<!-- Static copy of the app mark — geometry/colors mirrored in
+     src/components/brand.tsx; a mark change edits both or they drift. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <path d="M0.5 16 C5 5 27 5 31.5 16 C27 27 5 27 0.5 16 Z" transform="rotate(-45 16 16)" fill="#d2622a" />
+  <path d="M10 16.5 L14.3 20.8 L22.5 11.5" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

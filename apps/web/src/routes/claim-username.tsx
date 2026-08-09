@@ -5,6 +5,7 @@ import { UsernameSchema } from "@picksleagues/schemas";
 import { useUpdateMe } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
+import { BrandMark } from "@/components/brand";
 import { FormTextField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
@@ -67,6 +68,7 @@ function ClaimUsername() {
     <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
+          <BrandMark className="mx-auto size-12" />
           <h1 className="text-2xl font-semibold text-foreground">Choose your username</h1>
           <CardDescription>
             3-20 characters: letters, numbers, and underscores. This is how other players will see

@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
+import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { GoogleIcon, DiscordIcon } from "@/components/icons";
@@ -32,6 +33,7 @@ function SignIn() {
     <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
+          <BrandMark className="mx-auto size-12" />
           <h1 className="text-2xl font-semibold text-foreground">Picks Leagues</h1>
           <CardDescription>Sports pick&apos;em with friends.</CardDescription>
         </CardHeader>
