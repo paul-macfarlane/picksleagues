@@ -1,7 +1,0 @@
-### pnpm test (unit)
-
- Test Files  29 passed (29)
-      Tests  521 passed (521)
-   Start at  20:18:38
-   Duration  1.05s (transform 1.53s, setup 0ms, import 3.91s, tests 277ms, environment 2ms)
-

@@ -1,4 +1,0 @@
-### pnpm typecheck
-apps/web typecheck$ tsc -b
-apps/web typecheck: Done
-apps/api typecheck: Done
