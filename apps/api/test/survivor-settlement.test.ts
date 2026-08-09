@@ -422,6 +422,145 @@ describe("revival when everyone busts in the same week", () => {
   });
 });
 
+describe("provisional elimination mid-week (ADR-0028)", () => {
+  /**
+   * One week holding two games: the first is played out, the second is not. That
+   * is the shape the owner hit — a result on the screen while the week is still
+   * running — and the only shape in which the safety rule has anything to decide.
+   */
+  async function seedPartlyPlayedWeek(memberCount: number) {
+    const fixture = await seedSeasonFixture({ weekCount: 1, memberCount });
+    const [week] = fixture.weeks as [FixtureWeek];
+    const open = await seedSurvivorGame(db, { weekId: week.weekId, kickoffAt: WEEK1_KICKOFF });
+    return { fixture, week, open };
+  }
+
+  const pickInWeek = (
+    fixture: Awaited<ReturnType<typeof seedPartlyPlayedWeek>>["fixture"],
+    weekId: string,
+    leagueMemberId: string,
+    gameId: string,
+    teamId: string,
+  ) =>
+    insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId,
+      weekId,
+      gameId,
+      teamId,
+    });
+
+  /** A survives the played game, B busts on it, C has not picked at all. */
+  async function seedOneSurvivorOneLoserOneAbsentee() {
+    const { fixture, week, open } = await seedPartlyPlayedWeek(3);
+    const [memberA, memberB, memberC] = fixture.memberIds as [string, string, string];
+
+    await pickInWeek(fixture, week.weekId, memberA, week.gameId, week.homeTeamId);
+    await pickInWeek(fixture, week.weekId, memberB, week.gameId, week.awayTeamId);
+    await finalizeHomeWin(week.gameId);
+
+    return { fixture, week, open, memberA, memberB, memberC };
+  }
+
+  it("puts out the member whose loss is certain, and leaves the survivor and the member who has not picked alone", async () => {
+    const { fixture, week, memberB } = await seedOneSurvivorOneLoserOneAbsentee();
+
+    const summary = await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual([
+      {
+        leagueMemberId: memberB,
+        livesRemaining: 0,
+        eliminatedWeekId: week.weekId,
+        revivedCount: 0,
+      },
+    ]);
+    // Eliminations only: grading terminal picks early would feed the whole-season
+    // `released` ledger a partial week's consumption data (ADR-0028 decision 2).
+    expect(await survivorPickResultsFor(db, fixture.leagueSeasonId)).toHaveLength(0);
+    // And the week itself is still unsettled, so the replay stopped on it.
+    expect(summary).toMatchObject({ leagueSeasons: 1, weeks: 0, results: 0, unsettled: 1 });
+  });
+
+  it("puts out nobody while no alive member's pick has confirmed them safe", async () => {
+    const { fixture, week, open } = await seedPartlyPlayedWeek(2);
+    const [memberA, memberB] = fixture.memberIds as [string, string];
+
+    // A is riding the game that has not been played; B has already lost. Nothing
+    // rules out the week busting them both and reviving them, so B stays in.
+    await pickInWeek(fixture, week.weekId, memberA, open.gameId, open.homeTeamId);
+    await pickInWeek(fixture, week.weekId, memberB, week.gameId, week.awayTeamId);
+    await finalizeHomeWin(week.gameId);
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect(await survivorStateFor(db, fixture.leagueSeasonId)).toHaveLength(0);
+    expect(await survivorPickResultsFor(db, fixture.leagueSeasonId)).toHaveLength(0);
+  });
+
+  it("the completed week confirms the provisional elimination rather than revising it", async () => {
+    const { fixture, week, open, memberB, memberC } = await seedOneSurvivorOneLoserOneAbsentee();
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+    const provisional = snapshotState(await survivorStateFor(db, fixture.leagueSeasonId));
+
+    await finalizeHomeWin(open.gameId);
+    const completed = await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    // The same elimination, in the same week — plus the one only a complete week
+    // can make, C's missed pick.
+    const state = snapshotState(await survivorStateFor(db, fixture.leagueSeasonId));
+    expect(state).toEqual(
+      [memberB, memberC].sort().map((leagueMemberId) => ({
+        leagueMemberId,
+        livesRemaining: 0,
+        eliminatedWeekId: week.weekId,
+        revivedCount: 0,
+      })),
+    );
+    for (const row of provisional) expect(state).toContainEqual(row);
+    expect(completed).toMatchObject({ weeks: 1, unsettled: 0 });
+  });
+
+  it("re-settling a partly played week lands on identical state (arch D10)", async () => {
+    const { fixture } = await seedOneSurvivorOneLoserOneAbsentee();
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+    const once = snapshotState(await survivorStateFor(db, fixture.leagueSeasonId));
+
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual(once);
+    expect(once).toHaveLength(1);
+  });
+
+  it("still revives everyone when the week completes with no survivor at any point", async () => {
+    const { fixture, week, open } = await seedPartlyPlayedWeek(2);
+
+    for (const leagueMemberId of fixture.memberIds) {
+      await pickInWeek(fixture, week.weekId, leagueMemberId, week.gameId, week.homeTeamId);
+    }
+    await finalizeAwayWin(week.gameId);
+
+    // Mid-week: both members' picks have lost and nobody is confirmed safe, so
+    // nothing may go early — this is precisely the week revival exists for.
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+    expect(await survivorStateFor(db, fixture.leagueSeasonId)).toHaveLength(0);
+
+    await finalizeHomeWin(open.gameId);
+    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
+
+    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual(
+      [...fixture.memberIds].sort().map((leagueMemberId) => ({
+        leagueMemberId,
+        livesRemaining: 1,
+        eliminatedWeekId: null,
+        revivedCount: 1,
+      })),
+    );
+  });
+});
+
 describe("a decided season is graded no further (ADR-0027)", () => {
   /**
    * Week 1 reduces the league to one member alive, which ends the season

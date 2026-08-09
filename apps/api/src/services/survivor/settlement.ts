@@ -23,6 +23,7 @@ import {
 } from "@picksleagues/schemas";
 import {
   settleSurvivorWeek,
+  settleSurvivorWeekProvisionally,
   SURVIVOR_TRANSITION,
   SURVIVOR_UNSETTLED_REASON,
   type SurvivorGameResult,
@@ -174,6 +175,10 @@ interface SeasonReplay {
  *
  * It stops again on the week that decides the season (ADR-0027), for the reason
  * given where that `break` sits.
+ *
+ * The week it stops *on* is not necessarily blank: a week that has graded one
+ * member safe has already put out every member whose own pick lost, and that
+ * elimination is written before the stop (ADR-0028).
  */
 function replaySeason(
   season: SettleableSurvivorSeason,
@@ -209,19 +214,37 @@ function replaySeason(
     // couples them, so a change here needs the same change there.
     if (results.length === 0) break;
 
-    const settlement = settleSurvivorWeek(
-      alive,
-      picks.map((pick) => ({
-        pickId: pick.id,
-        memberId: pick.leagueMemberId,
-        gameId: pick.gameId,
-        teamId: pick.teamId,
-      })),
-      results,
-      season.settings,
-    );
+    const pickInputs = picks.map((pick) => ({
+      pickId: pick.id,
+      memberId: pick.leagueMemberId,
+      gameId: pick.gameId,
+      teamId: pick.teamId,
+    }));
+
+    const settlement = settleSurvivorWeek(alive, pickInputs, results, season.settings);
 
     if (settlement.unsettled.length > 0) {
+      // **A week that cannot be graded as a unit may still be over for some of
+      // its members** (ADR-0028): once one member who entered it alive is
+      // confirmed safe, revival cannot fire, and every member whose own pick has
+      // already lost is out for good. Only `survivor_state` is written — no
+      // result rows and so no `teamConsumed`, because the `released` ledger
+      // below is a whole-season answer that partial consumption data would
+      // corrupt.
+      //
+      // The stop below still happens. The alive set this leaves is not final —
+      // the week's ungraded picks have yet to say anything — so week N+1 must
+      // not be graded against it (ADR-0025).
+      const provisional = settleSurvivorWeekProvisionally(
+        alive,
+        pickInputs,
+        results,
+        season.settings,
+      );
+      for (const memberId of provisional.eliminatedMemberIds) {
+        replay.eliminatedWeekByMember.set(memberId, week.id);
+      }
+
       for (const game of settlement.unsettled) {
         // A final game with no score is a provider fault an admin override
         // fixes — worth a log line, unlike the ordinary not-yet-played case.
