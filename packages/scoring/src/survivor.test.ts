@@ -8,6 +8,7 @@ import {
 } from "@picksleagues/schemas";
 import {
   settleSurvivorWeek,
+  settleSurvivorWeekProvisionally,
   type SurvivorGameResult,
   type SurvivorPickInput,
   type SurvivorScoringSettings,
@@ -292,52 +293,53 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
   });
   const losingResult = result({ homeScore: 17, awayScore: 24 });
 
-  it("revives every member when they all busted on wrong picks", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [loser("a", "pick-a"), loser("b", "pick-b")],
-      [losingResult],
-      settings(),
-    );
-
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "revived" },
-      { memberId: "b", transition: "revived" },
-    ]);
-    expect(settlement.aliveMemberIds).toEqual(["a", "b"]);
-  });
-
-  it("revives on a mix of wrong picks and missed picks", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [loser("a", "pick-a")],
-      [losingResult],
-      settings(),
-    );
-
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "revived" },
-      { memberId: "b", transition: "revived" },
-    ]);
-    expect(settlement.aliveMemberIds).toEqual(["a", "b"]);
-  });
-
-  it("revives on a mix that includes a fatal tie", () => {
-    const settlement = settleSurvivorWeek(
-      ["a", "b"],
-      [
+  /**
+   * One emptying week per row, differing only in what busted the alive set —
+   * the spec's rule applies "regardless of elimination cause", so wrong picks,
+   * a missed pick, and a fatal tie all have to reach the same answer.
+   */
+  const emptyingWeeks: Array<{
+    name: string;
+    alive: string[];
+    picks: SurvivorPickInput[];
+    results: SurvivorGameResult[];
+    pushTieResolution?: SurvivorPushTieResolution;
+  }> = [
+    {
+      name: "every member busted on a wrong pick",
+      alive: ["a", "b"],
+      picks: [loser("a", "pick-a"), loser("b", "pick-b")],
+      results: [losingResult],
+    },
+    {
+      name: "one busted and one missed the week",
+      alive: ["a", "b"],
+      picks: [loser("a", "pick-a")],
+      results: [losingResult],
+    },
+    {
+      name: "one busted and one drew a fatal tie",
+      alive: ["a", "b"],
+      picks: [
         loser("a", "pick-a"),
         { ...loser("b", "pick-b"), gameId: CONTROL_GAME, teamId: CONTROL_TEAM },
       ],
-      [losingResult, { ...controlResult, homeScore: 10, awayScore: 10 }],
-      settings(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE),
-    );
+      results: [losingResult, { ...controlResult, homeScore: 10, awayScore: 10 }],
+      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
+    },
+  ];
 
-    expect(settlement.transitions).toEqual([
-      { memberId: "a", transition: "revived" },
-      { memberId: "b", transition: "revived" },
-    ]);
-  });
+  it.each(emptyingWeeks)(
+    "revives everyone when $name",
+    ({ alive, picks, results, pushTieResolution }) => {
+      const settlement = settleSurvivorWeek(alive, picks, results, settings(pushTieResolution));
+
+      expect(settlement.transitions).toEqual(
+        alive.map((memberId) => ({ memberId, transition: "revived" })),
+      );
+      expect(settlement.aliveMemberIds).toEqual(alive);
+    },
+  );
 
   it("restores the life only — teams the busting picks spent stay spent", () => {
     const settlement = settleSurvivorWeek(
@@ -350,7 +352,7 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
     expect(settlement.outcomes.every((row) => row.teamConsumed)).toBe(true);
   });
 
-  it("does not revive when one member survived", () => {
+  it("is inert when one member survived", () => {
     const settlement = settleSurvivorWeek(
       ["a", CONTROL_MEMBER],
       [loser("a", "pick-a"), controlPick],
@@ -605,6 +607,220 @@ describe("settleSurvivorWeek — purity", () => {
     settleSurvivorWeek(alive, picks, results, config);
 
     expect({ alive, picks, results, config }).toEqual(before);
+  });
+});
+
+describe("settleSurvivorWeekProvisionally — a certain loss lands before the week does", () => {
+  /**
+   * ADR-0028's safety rule is the whole matrix below: a member goes out early
+   * **only** while some member who entered the week alive holds a graded pick
+   * that does not eliminate them, because that is exactly what makes the
+   * everyone-out revival impossible for the week.
+   */
+  const OPEN_GAME = "game-open";
+  const OPEN_HOME = "team-open-home";
+  const OPEN_AWAY = "team-open-away";
+
+  /** A game of the same week that has not been played — what makes the week partial. */
+  const openResult: SurvivorGameResult = {
+    gameId: OPEN_GAME,
+    status: GAME_STATUS.SCHEDULED,
+    homeTeamId: OPEN_HOME,
+    awayTeamId: OPEN_AWAY,
+    homeScore: null,
+    awayScore: null,
+  };
+
+  const openPick = (memberId: string): SurvivorPickInput => ({
+    pickId: `pick-open-${memberId}`,
+    memberId,
+    gameId: OPEN_GAME,
+    teamId: OPEN_HOME,
+  });
+
+  /** On `result()`, where home wins: `HOME_TEAM` survives and `AWAY_TEAM` busts. */
+  const gradedPick = (memberId: string, teamId: string): SurvivorPickInput => ({
+    pickId: `pick-graded-${memberId}`,
+    memberId,
+    gameId: GAME_ID,
+    teamId,
+  });
+
+  const controlPickBy = (memberId: string): SurvivorPickInput => ({
+    ...controlPick,
+    pickId: `pick-control-${memberId}`,
+    memberId,
+  });
+
+  const cases: Array<{
+    name: string;
+    alive: string[];
+    picks: SurvivorPickInput[];
+    results: SurvivorGameResult[];
+    pushTieResolution?: SurvivorPushTieResolution;
+    eliminated: string[];
+  }> = [
+    {
+      name: "a confirmed survivor makes the confirmed loser final",
+      alive: ["a", "b"],
+      picks: [gradedPick("a", HOME_TEAM), gradedPick("b", AWAY_TEAM)],
+      results: [result(), openResult],
+      eliminated: ["b"],
+    },
+    {
+      name: "nobody is confirmed safe yet, so the confirmed loser stays in",
+      alive: ["a", "b"],
+      picks: [openPick("a"), gradedPick("b", AWAY_TEAM)],
+      results: [result(), openResult],
+      eliminated: [],
+    },
+    {
+      name: "a member with no pick is never provisional — the open game is still theirs to take",
+      alive: ["a", "b", "c"],
+      picks: [gradedPick("a", HOME_TEAM), gradedPick("b", AWAY_TEAM)],
+      results: [result(), openResult],
+      eliminated: ["b"],
+    },
+    {
+      name: "a cancelled game confirms its picker safe",
+      alive: ["a", "b"],
+      picks: [controlPickBy("a"), gradedPick("b", AWAY_TEAM)],
+      results: [
+        result(),
+        { ...controlResult, status: GAME_STATUS.CANCELLED, homeScore: null, awayScore: null },
+        openResult,
+      ],
+      eliminated: ["b"],
+    },
+    {
+      name: "a tie the settings advance on confirms its picker safe",
+      alive: ["a", "b"],
+      picks: [controlPickBy("a"), gradedPick("b", AWAY_TEAM)],
+      results: [result(), { ...controlResult, homeScore: 10, awayScore: 10 }, openResult],
+      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+      eliminated: ["b"],
+    },
+    {
+      name: "a tie the settings eliminate on confirms nobody, so neither member goes early",
+      alive: ["a", "b"],
+      picks: [controlPickBy("a"), gradedPick("b", AWAY_TEAM)],
+      results: [result(), { ...controlResult, homeScore: 10, awayScore: 10 }, openResult],
+      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
+      eliminated: [],
+    },
+    {
+      name: "a winning pick by a member who is already out confirms nothing — they are not in the revival set",
+      alive: ["b"],
+      picks: [gradedPick("zombie", HOME_TEAM), gradedPick("b", AWAY_TEAM)],
+      results: [result(), openResult],
+      eliminated: [],
+    },
+    {
+      name: "a final with no scores is not a grade, and neither confirms nor eliminates its picker",
+      alive: ["a", "b", "c"],
+      picks: [controlPickBy("a"), gradedPick("b", AWAY_TEAM), gradedPick("c", HOME_TEAM)],
+      results: [result(), { ...controlResult, homeScore: null, awayScore: null }, openResult],
+      eliminated: ["b"],
+    },
+    {
+      name: "the week where every graded pick busts — the revival case, which must never go early",
+      alive: ["a", "b"],
+      picks: [gradedPick("a", AWAY_TEAM), gradedPick("b", AWAY_TEAM)],
+      results: [result(), openResult],
+      eliminated: [],
+    },
+    {
+      name: "a week nobody has picked yet",
+      alive: ["a", "b"],
+      picks: [],
+      results: [openResult],
+      eliminated: [],
+    },
+    {
+      name: "an empty alive set",
+      alive: [],
+      picks: [],
+      results: [result()],
+      eliminated: [],
+    },
+  ];
+
+  it.each(cases)("$name", ({ alive, picks, results, pushTieResolution, eliminated }) => {
+    expect(
+      settleSurvivorWeekProvisionally(alive, picks, results, settings(pushTieResolution)),
+    ).toEqual({ eliminatedMemberIds: eliminated });
+  });
+
+  it("puts out nobody the completed week does not also put out (ADR-0028 — a superset, never a contradiction)", () => {
+    const alive = ["a", "b", "c"];
+    const picks = [gradedPick("a", HOME_TEAM), gradedPick("b", AWAY_TEAM), openPick("c")];
+
+    const provisional = settleSurvivorWeekProvisionally(
+      alive,
+      picks,
+      [result(), openResult],
+      settings(),
+    );
+    expect(provisional.eliminatedMemberIds).toEqual(["b"]);
+
+    // The open game lands, and it busts c as well — the completed week decides
+    // strictly more than the provisional pass did, and reverses none of it.
+    const complete = settleSurvivorWeek(
+      alive,
+      picks,
+      [result(), { ...openResult, status: GAME_STATUS.FINAL, homeScore: 3, awayScore: 10 }],
+      settings(),
+    );
+    const eliminatedByWeek = complete.transitions
+      .filter((row) => row.transition === "eliminated")
+      .map((row) => row.memberId);
+
+    expect(eliminatedByWeek).toEqual(["b", "c"]);
+    for (const memberId of provisional.eliminatedMemberIds) {
+      expect(eliminatedByWeek).toContain(memberId);
+    }
+  });
+
+  it("returns the same answer for the same inputs and mutates none of them (arch D10)", () => {
+    const alive = ["a", "b"];
+    const picks = [gradedPick("a", HOME_TEAM), gradedPick("b", AWAY_TEAM)];
+    const results = [result(), openResult];
+    const config = settings();
+    const before: unknown = JSON.parse(JSON.stringify({ alive, picks, results, config }));
+
+    expect(settleSurvivorWeekProvisionally(alive, picks, results, config)).toEqual(
+      settleSurvivorWeekProvisionally(alive, picks, results, config),
+    );
+    expect({ alive, picks, results, config }).toEqual(before);
+  });
+
+  it("surfaces the same loader and write-path bugs the complete grade does", () => {
+    expect(() =>
+      settleSurvivorWeekProvisionally(
+        [MEMBER],
+        [pick({ gameId: "game-missing" })],
+        [result()],
+        settings(),
+      ),
+    ).toThrow(/absent from the supplied results/);
+
+    expect(() =>
+      settleSurvivorWeekProvisionally(
+        [MEMBER],
+        [pick({ teamId: "team-elsewhere" })],
+        [result()],
+        settings(),
+      ),
+    ).toThrow(/not playing in game/);
+
+    expect(() =>
+      settleSurvivorWeekProvisionally(
+        [MEMBER],
+        [pick(), pick({ pickId: "pick-2", gameId: CONTROL_GAME, teamId: CONTROL_TEAM })],
+        [result(), controlResult],
+        settings(),
+      ),
+    ).toThrow(/more than one pick/);
   });
 });
 

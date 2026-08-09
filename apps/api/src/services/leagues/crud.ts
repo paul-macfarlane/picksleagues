@@ -4,6 +4,8 @@ import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
+  LEAGUE_MODE,
+  LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
@@ -15,6 +17,7 @@ import {
   type LeagueVisibility,
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { resolveSurvivorPickStatuses } from "../survivor/pick-status";
 import { resetPicksInvalidatedBySettings } from "./settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
 import { resolveLeagueSettings } from "./season-range";
@@ -371,16 +374,22 @@ export async function getLeague(
   return readAndSerializeLeague(db, leagueId, userId);
 }
 
-export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSummary[]> {
+export async function listMyLeagues(
+  db: Db,
+  clock: Clock,
+  userId: string,
+): Promise<LeagueSummary[]> {
   const current = currentLeagueSeason(db);
   const rows = await db
     .select({
       league: leagues,
+      leagueSeasonId: current.instanceId,
       settings: current.settings,
       status: current.status,
       seasonId: current.seasonId,
       seasonYear: current.seasonYear,
       myRole: leagueMembers.role,
+      membershipId: leagueMembers.id,
     })
     .from(leagueMembers)
     .innerJoin(leagues, eq(leagueMembers.leagueId, leagues.id))
@@ -404,6 +413,29 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
   // The per-sport latest ingested year, fetched once (not per league) — the
   // `renewable` signal compares each league's current-instance year against it.
   const latestBySport = await latestSeasonYearBySport(db);
+
+  // The Survivor glance rides this payload rather than a per-card fetch: this is
+  // the list the dashboard already renders from, and a request per card is the
+  // N+1 a member in many leagues pays on every load. Resolved for all of them at
+  // once for the same reason. Settings are parsed rather than trusted so schema
+  // defaults materialize on rows written before a field existed.
+  const survivorStatuses = await resolveSurvivorPickStatuses(
+    db,
+    clock,
+    rows.flatMap((row) =>
+      row.league.mode === LEAGUE_MODE.SURVIVOR
+        ? [
+            {
+              leagueSeasonId: row.leagueSeasonId,
+              leagueId: row.league.id,
+              seasonId: row.seasonId,
+              membershipId: row.membershipId,
+              settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
+            },
+          ]
+        : [],
+    ),
+  );
 
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
@@ -429,6 +461,7 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
           latestBySport.get(sportForMode(row.league.mode)) ?? null,
           row.seasonYear,
         ),
+        survivorPickStatus: survivorStatuses.get(row.leagueSeasonId) ?? null,
       };
     }),
   );

@@ -14,7 +14,7 @@ import {
   type PickemStandingsResponse,
   type PickemSettings,
 } from "@picksleagues/schemas";
-import { settleLeagueSeasonWeeks } from "../src/services/pickem/settlement";
+import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   insertLeague,
@@ -42,7 +42,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
   /**
    * A league + season/members, seeded directly. Standings are written
    * exclusively by settlement (arch D10), so these tests insert picks
-   * straight into `pickem_picks` and drive `settleLeagueSeasonWeeks` rather
+   * straight into `pickem_picks` and drive `settlePickemLeagueSeasonWeeks` rather
    * than going through the pick-submission API — mirrors settlement.test.ts.
    */
   async function seedStandingsLeague(
@@ -169,7 +169,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
       side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 });
-    await settleLeagueSeasonWeeks(
+    await settlePickemLeagueSeasonWeeks(
       db,
       new FixedClock(new Date("2026-09-20T00:00:00.000Z")),
       leagueSeasonId,
@@ -242,7 +242,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 15, awayScore: 20 }); // charlie: incorrect, 0pts
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);
@@ -315,7 +315,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // push
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const body = (await (
       await getStandings(users[0]!.cookie, league.id)
@@ -367,7 +367,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
 
     const weeklyRes = await getStandings(users[0]!.cookie, league.id, `?week=${week1Id}`);
     expect(weeklyRes.status).toBe(200);
@@ -403,7 +403,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const res = await getStandings(nonPicker.cookie, league.id);
     expect(res.status).toBe(200);
@@ -429,7 +429,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);

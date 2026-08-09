@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
 import { PICK_TYPE, type PickType } from "./pick-type";
-import { PickOutcomeSchema } from "./pick-outcome";
+import { NullablePickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
 
 /**
@@ -143,11 +143,6 @@ export const SubmitPickemPicksRequestSchema = z
   .openapi("SubmitPickemPicksRequest");
 
 export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSchema>;
-
-// Registered under its own component name rather than wrapped inline: reusing
-// the registered `PickOutcome` node here would fold `null` into that shared
-// component and widen every other reference to it.
-const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
 
 export const PickemPickSchema = z
   .object({

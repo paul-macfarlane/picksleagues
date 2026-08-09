@@ -2,14 +2,17 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { isUniqueViolation } from "@picksleagues/db";
+import { FixedClock } from "@picksleagues/core";
 import {
   GAME_STATUS,
   MEMBER_ROLE,
+  PICK_OUTCOME,
   SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type SurvivorSettings,
   type SurvivorWeekPicksResponse,
 } from "@picksleagues/schemas";
+import { rebuildLeagueSeason } from "../src/services/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_SURVIVOR_SETTINGS,
@@ -378,6 +381,9 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
 
       expect(response.status).toBe(expected);
       if (expected === 409) {
+        // The refusal about *them*, not the one about the league: this two-member
+        // fixture is also a decided season now, and the personal reason wins
+        // (ADR-0027).
         expect(((await response.json()) as { error: string }).error).toBe("member_eliminated");
         expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
       } else {
@@ -385,6 +391,57 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       }
     },
   );
+
+  it("refuses the last member standing — a decided season takes no more picks", async () => {
+    const {
+      league,
+      memberA,
+      memberAId,
+      memberBId,
+      leagueSeasonId,
+      week1,
+      week2,
+      week2Game1,
+      teamIds,
+    } = await seedLeague();
+    await insertSurvivorState(db, {
+      leagueSeasonId,
+      leagueMemberId: memberBId,
+      eliminatedWeekId: week1,
+    });
+
+    const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+      gameId: week2Game1,
+      teamId: teamIds.home,
+    });
+
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: string }).error).toBe("league_concluded");
+    expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
+  });
+
+  it("still takes a pick while two members are alive", async () => {
+    const base = await seedSurvivorLeague(db, auth, {
+      weeks: TWO_WEEK_SLATE,
+      members: [{ username: "alive_a" }, { username: "alive_b" }, { username: "out_c" }],
+    });
+    const memberAId = base.members.get(base.users[0]!.user.id)!;
+    await insertSurvivorState(db, {
+      leagueSeasonId: base.leagueSeasonId,
+      leagueMemberId: base.members.get(base.users[2]!.user.id)!,
+      eliminatedWeekId: base.weekIds.get("regular:1")!,
+    });
+
+    const response = await putSurvivorPick(
+      base.users[0]!.cookie,
+      base.league.id,
+      base.weekIds.get("regular:2")!,
+      { gameId: base.gameIds.get("regular:2")![0]!, teamId: base.teamIds.home },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await survivorPicksFor(db, base.leagueSeasonId, memberAId)).toHaveLength(1);
+  });
 });
 
 describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
@@ -423,7 +480,62 @@ describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
 
     const own = body.members.find((member) => member.leagueMemberId === memberAId);
     expect(own).toMatchObject({ isViewer: true, hasPicked: true });
-    expect(own?.pick).toMatchObject({ gameId: week1Game1, teamId: teamIds.home });
+    // Ungraded until settlement reaches the week — the state the sheet reports
+    // as "not graded yet", and distinct from having no pick at all.
+    expect(own?.pick).toMatchObject({ gameId: week1Game1, teamId: teamIds.home, outcome: null });
+  });
+
+  it("withholds a settled pick's outcome from the league until its game kicks off", async () => {
+    const {
+      league,
+      memberA,
+      memberB,
+      memberAId,
+      leagueSeasonId,
+      week1,
+      week1Game1,
+      week1Game2,
+      teamIds,
+    } = await seedLeague();
+    await putSurvivorPick(memberA.cookie, league.id, week1, {
+      gameId: week1Game1,
+      teamId: teamIds.home,
+    });
+    // Both of the week's games, because settlement grades whole weeks in order
+    // (ADR-0025) — one unfinished game leaves the week ungraded.
+    for (const gameId of [week1Game1, week1Game2]) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, new FixedClock(WEEK1_KICKOFF), leagueSeasonId);
+
+    const before = (await (
+      await getSurvivorPicks(memberB.cookie, league.id, week1)
+    ).json()) as SurvivorWeekPicksResponse;
+    const after = (await (
+      await getSurvivorPicks(memberB.cookie, league.id, week1, appAfterKickoff)
+    ).json()) as SurvivorWeekPicksResponse;
+    const own = (await (
+      await getSurvivorPicks(memberA.cookie, league.id, week1)
+    ).json()) as SurvivorWeekPicksResponse;
+
+    // The grade is as disclosing as the team: "correct" on a pick nobody may
+    // see yet names the side that won (spec §Pick Visibility), so it is
+    // withheld with the pick it grades rather than beside it.
+    expect(before.members.find((member) => member.leagueMemberId === memberAId)).toMatchObject({
+      hasPicked: true,
+      pick: null,
+    });
+    expect(after.members.find((member) => member.leagueMemberId === memberAId)?.pick).toMatchObject(
+      {
+        teamId: teamIds.home,
+        outcome: PICK_OUTCOME.CORRECT,
+      },
+    );
+    // Their own pick carries it whatever the clock says.
+    expect(own.members.find((member) => member.leagueMemberId === memberAId)?.pick).toMatchObject({
+      teamId: teamIds.home,
+      outcome: PICK_OUTCOME.CORRECT,
+    });
   });
 
   it("reports elimination from the settled ledger, treating a missing row as alive", async () => {

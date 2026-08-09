@@ -1,5 +1,5 @@
 {
-  "id": "2c8ef80d-911f-4908-8e89-b8f34d760eae",
+  "id": "69216d5b-17db-46ec-b10f-522eab6175c1",
   "prevId": "d4d4501b-76d7-4565-bceb-9bfd7f2b1fd2",
   "version": "7",
   "dialect": "postgresql",
@@ -1961,12 +1961,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "spread_source": {
-          "name": "spread_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "period": {
           "name": "period",
           "type": "integer",
@@ -2419,6 +2413,145 @@
             "season_id",
             "week_type",
             "week_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.survivor_pick_results": {
+      "name": "survivor_pick_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "survivor_pick_id": {
+          "name": "survivor_pick_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "league_season_id": {
+          "name": "league_season_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "league_member_id": {
+          "name": "league_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week_id": {
+          "name": "week_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "survivor_pick_results_season_week_idx": {
+          "name": "survivor_pick_results_season_week_idx",
+          "columns": [
+            {
+              "expression": "league_season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "week_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "survivor_pick_results_survivor_pick_id_survivor_picks_id_fk": {
+          "name": "survivor_pick_results_survivor_pick_id_survivor_picks_id_fk",
+          "tableFrom": "survivor_pick_results",
+          "tableTo": "survivor_picks",
+          "columnsFrom": [
+            "survivor_pick_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "survivor_pick_results_league_season_id_league_seasons_id_fk": {
+          "name": "survivor_pick_results_league_season_id_league_seasons_id_fk",
+          "tableFrom": "survivor_pick_results",
+          "tableTo": "league_seasons",
+          "columnsFrom": [
+            "league_season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "survivor_pick_results_league_member_id_league_members_id_fk": {
+          "name": "survivor_pick_results_league_member_id_league_members_id_fk",
+          "tableFrom": "survivor_pick_results",
+          "tableTo": "league_members",
+          "columnsFrom": [
+            "league_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "survivor_pick_results_week_id_weeks_id_fk": {
+          "name": "survivor_pick_results_week_id_weeks_id_fk",
+          "tableFrom": "survivor_pick_results",
+          "tableTo": "weeks",
+          "columnsFrom": [
+            "week_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "survivor_pick_results_pick_unique": {
+          "name": "survivor_pick_results_pick_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "survivor_pick_id"
           ]
         }
       },

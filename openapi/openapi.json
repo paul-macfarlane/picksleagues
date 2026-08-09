@@ -749,6 +749,9 @@
           },
           "renewable": {
             "type": "boolean"
+          },
+          "survivorPickStatus": {
+            "$ref": "#/components/schemas/NullableSurvivorPickStatus"
           }
         },
         "required": [
@@ -761,7 +764,22 @@
           "maxMembers",
           "myRole",
           "startsAt",
-          "renewable"
+          "renewable",
+          "survivorPickStatus"
+        ]
+      },
+      "NullableSurvivorPickStatus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "eliminated",
+          "won",
+          "pick_in",
+          "pick_needed",
+          "locked",
+          null
         ]
       },
       "UpdateLeagueRequest": {
@@ -1633,13 +1651,171 @@
           },
           "teamId": {
             "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/NullablePickOutcome"
           }
         },
         "required": [
           "id",
           "weekId",
           "gameId",
-          "teamId"
+          "teamId",
+          "outcome"
+        ]
+      },
+      "SurvivorStandingsResponse": {
+        "type": "object",
+        "properties": {
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorStandingsWeek"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorStandingsMember"
+            }
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlateTeam"
+            }
+          },
+          "concluded": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "weeks",
+          "members",
+          "teams",
+          "concluded",
+          "updatedAt"
+        ]
+      },
+      "SurvivorStandingsWeek": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekId",
+          "label"
+        ]
+      },
+      "SurvivorStandingsMember": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isViewer": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SurvivorMemberStatus"
+          },
+          "eliminatedWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revivedCount": {
+            "type": "integer"
+          },
+          "isWinner": {
+            "type": "boolean"
+          },
+          "picks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorStandingsPick"
+            }
+          },
+          "consumedTeamIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "isViewer",
+          "status",
+          "eliminatedWeekId",
+          "revivedCount",
+          "isWinner",
+          "picks",
+          "consumedTeamIds"
+        ]
+      },
+      "SurvivorMemberStatus": {
+        "type": "string",
+        "enum": [
+          "alive",
+          "eliminated"
+        ]
+      },
+      "SurvivorStandingsPick": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/NullablePickOutcome"
+          }
+        },
+        "required": [
+          "weekId",
+          "teamId",
+          "outcome"
         ]
       },
       "SubmitSurvivorPickRequest": {
@@ -5052,6 +5228,75 @@
           },
           "400": {
             "description": "Not a Survivor league (wrong_league_mode), or the week is outside this league's season or resolved range, or is not a regular-season week (week_out_of_range)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/survivor/standings": {
+      "get": {
+        "operationId": "getSurvivorStandings",
+        "summary": "The survivor board — every member's status, history, and burned teams",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per member: alive or eliminated, the week they went out, how many times the revival rule brought them back, and their weekly picks — each pick's team present only once its game has kicked off, and each member's consumed teams derived from the picks the caller can see. `concluded` marks the season over, at which point every member still alive is a (co-)winner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurvivorStandingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Survivor league (wrong_league_mode)",
             "content": {
               "application/json": {
                 "schema": {

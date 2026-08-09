@@ -21,7 +21,7 @@ import {
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
-import { settlePicksForGames } from "../src/services/pickem/settlement";
+import { settlePicksForGames } from "../src/services/settlement";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import {
   insertPick,

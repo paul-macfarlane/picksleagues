@@ -20,7 +20,7 @@ import {
   type PickemWeekPicksResponse,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { settleLeagueSeasonWeeks } from "../src/services/pickem/settlement";
+import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
@@ -694,7 +694,7 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 });
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 });
-    await settleLeagueSeasonWeeks(
+    await settlePickemLeagueSeasonWeeks(
       db,
       new FixedClock(new Date("2026-09-20T00:00:00.000Z")),
       leagueSeasonId,

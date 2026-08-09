@@ -98,8 +98,14 @@ export async function listLeagueWeeks(
  * Which week a member lands on by default: the one in progress, else the next
  * one to start, else the last played. Null only when the league has no weeks.
  * Derived from the Clock per request — never stored (arch D11).
+ *
+ * The single definition of "the current week" for every surface that has to name
+ * one, week list and dashboard glance alike. A second definition surfaces as the
+ * dashboard and the pick screen disagreeing about which week a member owes, so
+ * callers pass their own in-range rows here rather than re-deriving the choice.
+ * Rows must arrive in season order — the last-played fallback is positional.
  */
-function resolveCurrentWeekId(
+export function resolveCurrentWeekId(
   rows: ReadonlyArray<{ id: string; startsAt: Date; endsAt: Date }>,
   clock: Clock,
 ): string | null {

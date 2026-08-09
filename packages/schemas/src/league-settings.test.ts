@@ -393,7 +393,7 @@ describe("SurvivorSettingsSchema", () => {
 });
 
 describe("SurvivorSettingsInputSchema", () => {
-  it("carries only the one setting a commissioner still chooses", () => {
+  it("carries only the settings a commissioner still chooses", () => {
     expect(SurvivorSettingsInputSchema.parse({})).toEqual({ pushTieResolution: "advance" });
   });
 

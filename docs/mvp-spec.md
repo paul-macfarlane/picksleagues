@@ -158,7 +158,9 @@ A survivor pool. Each week, every member picks one team to win **straight up**. 
 - **Eliminated members cannot pick.** Once a member's elimination has *settled*, the pick endpoint refuses them. A pick made before that settlement — in the gap between busting and the week being settled — is accepted and simply grades to nothing; that gap is what keeps the revival rule above honest, since revived members' next-week picks were legitimately made while they still read as alive (ADR-0025).
 
 ### End of League
-The league concludes once the last week of its resolved range has settled. If multiple members are still alive, they are **co-winners** and share first place. There are no extension weeks and no further tiebreaker.
+The league concludes at whichever comes first: the last week of its resolved range settles, or settlement leaves **exactly one member alive**. The members alive at that moment win it — if there are several, they are **co-winners** and share first place. There are no extension weeks and no further tiebreaker.
+
+A sole survivor ends the season because ending it is what settles the result: no further week is played, so there is no later pick that could change who won, and a decided winner is never asked to play on against nobody. Being the only member a league ever had is not the same thing — the season ends when it has been *reduced* to one. (ADR-0027.)
 
 ### Standings View
 A survivor board: every member with status (alive/eliminated), week eliminated, weekly pick history (revealed per kickoff), and teams consumed.

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   leagueMembers,
@@ -22,14 +22,18 @@ import {
   type WeekType,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
-import { rebuildLeagueSeason } from "../pickem/settlement";
+import { rebuildLeagueSeason } from "../settlement";
 
 /**
  * The simulator's step-through settlement (SIM-5; spec §Testing & Internal
- * Tooling; arch §Simulator & Time). A thin operator wrapper over PKM-4's
- * `rebuildLeagueSeason` — the point of this module is reading the resulting
- * `pickem_pick_results`/`pickem_standings` back out into an inspectable shape, never a
- * second settlement implementation.
+ * Tooling; arch §Simulator & Time). A thin operator wrapper over the
+ * mode-dispatching `rebuildLeagueSeason` — the point of this module is reading
+ * the resulting rows back out into an inspectable shape, never a second
+ * settlement implementation.
+ *
+ * The standings it reads back are Pick'em's, because they are the only ranked
+ * board the MVP has: a settled Survivor season reports its summary here and is
+ * read in full through the survivor board endpoint.
  */
 
 export type SettleForSimResult =
@@ -45,11 +49,11 @@ interface SettleTarget {
 }
 
 /**
- * Every active Pick'em league season — the "omitted `leagueId`" scope,
- * mirroring `settleSweep`. Filtered to Pick'em because settlement only grades
- * that mode today: including the others would render them as empty boards with
+ * Every active league season settlement can grade — the "omitted `leagueId`"
+ * scope, mirroring `settleSweep`. Filtered to the modes that have a settlement
+ * module: a March Madness season would otherwise render as an empty board with
  * a zero summary, which reads to an operator as "settled and found nothing"
- * rather than "not settleable yet". ELM-4/MM-6 widen this with their modes.
+ * rather than "not settleable yet". MM-6 widens this with its mode.
  */
 async function loadActiveTargets(db: Db): Promise<SettleTarget[]> {
   return db
@@ -63,7 +67,10 @@ async function loadActiveTargets(db: Db): Promise<SettleTarget[]> {
     .innerJoin(leagues, eq(leagues.id, leagueSeasons.leagueId))
     .innerJoin(sportSeasons, eq(sportSeasons.id, leagueSeasons.seasonId))
     .where(
-      and(eq(leagueSeasons.status, LEAGUE_STATUS.ACTIVE), eq(leagues.mode, LEAGUE_MODE.PICKEM)),
+      and(
+        eq(leagueSeasons.status, LEAGUE_STATUS.ACTIVE),
+        inArray(leagues.mode, [LEAGUE_MODE.PICKEM, LEAGUE_MODE.SURVIVOR]),
+      ),
     );
 }
 

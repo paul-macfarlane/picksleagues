@@ -119,7 +119,7 @@ export async function loadResolvedWeekGames(
       // true: score sync writes only when something it reads moved.
       stateAsOf: game.updatedAt,
       locked: isLocked(effective.kickoffAt, now),
-      pickable: !isUnplayedStatus(effective.status),
+      pickable: isPickable(effective.status),
     };
   });
 }
@@ -131,6 +131,17 @@ export async function loadResolvedWeekGames(
  */
 export function isLocked(effectiveKickoffAt: Date, now: Date): boolean {
   return effectiveKickoffAt.getTime() <= now.getTime();
+}
+
+/**
+ * Whether a fresh pick may be placed on a game, by its *effective* status. A
+ * cancelled game settles as a push, so accepting a new pick on one would mint a
+ * guaranteed result (ADR-0015 rule 2). Exported beside `isLocked` because the
+ * pair is what "can this member still act on this week?" is made of, and a
+ * caller answering it away from the slate loader must not restate either half.
+ */
+export function isPickable(effectiveStatus: GameStatus): boolean {
+  return !isUnplayedStatus(effectiveStatus);
 }
 
 /**

@@ -26,6 +26,12 @@ import {
  * against the alive-set the previous one produced, which is why the entering
  * alive-set is an argument here and the surviving one is a return value.
  *
+ * The one thing a partly played week *can* decide is who it has already put out
+ * for good, which `settleSurvivorWeekProvisionally` answers under the narrow
+ * condition that makes revival impossible (ADR-0028). It is a second function
+ * rather than a mode of the first: every settled season rests on the complete
+ * grade, and a rule about incomplete weeks does not belong inside it.
+ *
  * Survivor is straight-up only (ADR-0026), so nothing here consults a spread
  * and `pushTieResolution` decides exactly one thing: a tied final score. There
  * is no shared grading helper with `pickem.ts` for the same reason — with ATS
@@ -165,29 +171,9 @@ export function settleSurvivorWeek(
   results: readonly SurvivorGameResult[],
   settings: SurvivorScoringSettings,
 ): SurvivorWeekSettlement {
-  const resultsByGameId = new Map(results.map((result) => [result.gameId, result]));
-  for (const pick of picks) {
-    if (!resultsByGameId.has(pick.gameId)) {
-      throw new Error(
-        `settleSurvivorWeek: pick ${pick.pickId} references game ${pick.gameId}, which is absent from the supplied results`,
-      );
-    }
-  }
-
+  const resultsByGameId = indexResults(COMPLETE, picks, results);
   const aliveEntering = new Set(aliveMemberIds);
-  // Keyed over every pick, not only the live ones: the database constraint this
-  // backstops holds for eliminated members too, so a second row there is the
-  // same write-path bug and is worth the same noise. Entries for members who
-  // are already out are simply never read.
-  const pickByMemberId = new Map<string, SurvivorPickInput>();
-  for (const pick of picks) {
-    if (pickByMemberId.has(pick.memberId)) {
-      throw new Error(
-        `settleSurvivorWeek: member ${pick.memberId} holds more than one pick for this week`,
-      );
-    }
-    pickByMemberId.set(pick.memberId, pick);
-  }
+  const pickByMemberId = indexPicksByMember(COMPLETE, picks);
 
   const unsettled = blockingGames(picks, results, resultsByGameId, aliveEntering);
   if (unsettled.length > 0) {
@@ -206,7 +192,7 @@ export function settleSurvivorWeek(
       continue;
     }
 
-    const graded = gradePick(pick, resultsByGameId.get(pick.gameId)!, settings);
+    const graded = gradePick(COMPLETE, pick, resultsByGameId.get(pick.gameId)!, settings);
     outcomes.push(graded.outcome);
     if (graded.eliminates) {
       eliminated.add(memberId);
@@ -236,6 +222,135 @@ export function settleSurvivorWeek(
       : aliveMemberIds.filter((memberId) => !eliminated.has(memberId)),
     unsettled,
   };
+}
+
+/**
+ * What a **partly graded** week has already decided for good — nothing else, and
+ * usually nothing at all.
+ */
+export interface SurvivorProvisionalSettlement {
+  /**
+   * Members who entered the week alive and have now left it eliminated, whatever
+   * the week's remaining games do. Empty whenever the safety rule below is not
+   * met, which is the ordinary mid-week case rather than a failure.
+   */
+  eliminatedMemberIds: string[];
+}
+
+/**
+ * Decides who a week has already put out while it is still being played
+ * (ADR-0028).
+ *
+ * **A member goes out early only while some member who entered the week alive
+ * holds a graded pick that does not eliminate them** — a win, a cancellation, or
+ * a tie the settings advance on. That *confirmed survivor* is the exact negation
+ * of the everyone-out revival (spec §Game Mode 2 — Everyone eliminated in the
+ * same week): with one member certain to come through, revival cannot fire this
+ * week however the open games land, so a graded losing pick is a final answer
+ * rather than one a revival might reverse.
+ *
+ * The same condition is what keeps ADR-0025's pick-in-the-gap rule intact. That
+ * rule lets a busted member keep picking until their elimination settles
+ * *because* revival might bring them back; eliminating them here would refuse
+ * them that pick, and the confirmed-survivor test is the guarantee they will
+ * never need it.
+ *
+ * **A member with no pick is never returned.** Every unstarted game in the week
+ * is still theirs to take, so a missed pick stays what the spec calls it —
+ * resolved after the week completes (§Game Mode 2 — Missed pick).
+ *
+ * Deliberately no outcomes and no `teamConsumed`: the caller writes
+ * `survivor_state` from this and nothing else, because the `released` ledger is
+ * a whole-season answer that partial consumption data would silently corrupt
+ * (ADR-0028 decision 2).
+ *
+ * Separate from `settleSurvivorWeek` rather than a mode of it, and it never
+ * grades a member that function would not: the complete week's eliminations are
+ * always a superset of these.
+ *
+ * @throws on the same loader and write-path bugs `settleSurvivorWeek` surfaces.
+ */
+export function settleSurvivorWeekProvisionally(
+  aliveMemberIds: readonly string[],
+  picks: readonly SurvivorPickInput[],
+  results: readonly SurvivorGameResult[],
+  settings: SurvivorScoringSettings,
+): SurvivorProvisionalSettlement {
+  const resultsByGameId = indexResults(PROVISIONAL, picks, results);
+  const pickByMemberId = indexPicksByMember(PROVISIONAL, picks);
+
+  const eliminatedMemberIds: string[] = [];
+  let confirmedSurvivor = false;
+
+  for (const memberId of aliveMemberIds) {
+    const pick = pickByMemberId.get(memberId);
+    if (!pick) continue;
+
+    // Non-null because `indexResults` rejects a pick with no matching result.
+    const result = resultsByGameId.get(pick.gameId)!;
+    if (!isGradableAlone(result)) continue;
+
+    if (gradePick(PROVISIONAL, pick, result, settings).eliminates) {
+      eliminatedMemberIds.push(memberId);
+    } else {
+      confirmedSurvivor = true;
+    }
+  }
+
+  return { eliminatedMemberIds: confirmedSurvivor ? eliminatedMemberIds : [] };
+}
+
+// Whether one pick can be graded without waiting for the rest of the week: the
+// game is terminal, and a played one carries the scores to grade against.
+//
+// `blockingGames` below states the same test from the other end — which games
+// hold the whole week open — and the two must not drift: a game this call
+// accepts while that one blocks on it would grade a member early against a
+// result the complete week refuses to grade at all.
+function isGradableAlone(result: SurvivorGameResult): boolean {
+  if (isUnplayedStatus(result.status)) return true;
+  return (
+    result.status === GAME_STATUS.FINAL && result.homeScore !== null && result.awayScore !== null
+  );
+}
+
+// Both entry points reject the same two caller bugs and name themselves in the
+// message, so a thrown error points at the pass that hit it.
+const COMPLETE = "settleSurvivorWeek";
+const PROVISIONAL = "settleSurvivorWeekProvisionally";
+
+function indexResults(
+  caller: string,
+  picks: readonly SurvivorPickInput[],
+  results: readonly SurvivorGameResult[],
+): Map<string, SurvivorGameResult> {
+  const resultsByGameId = new Map(results.map((result) => [result.gameId, result]));
+  for (const pick of picks) {
+    if (!resultsByGameId.has(pick.gameId)) {
+      throw new Error(
+        `${caller}: pick ${pick.pickId} references game ${pick.gameId}, which is absent from the supplied results`,
+      );
+    }
+  }
+  return resultsByGameId;
+}
+
+// Keyed over every pick, not only the live ones: the database constraint this
+// backstops holds for eliminated members too, so a second row there is the same
+// write-path bug and is worth the same noise. Entries for members who are
+// already out are simply never read.
+function indexPicksByMember(
+  caller: string,
+  picks: readonly SurvivorPickInput[],
+): Map<string, SurvivorPickInput> {
+  const pickByMemberId = new Map<string, SurvivorPickInput>();
+  for (const pick of picks) {
+    if (pickByMemberId.has(pick.memberId)) {
+      throw new Error(`${caller}: member ${pick.memberId} holds more than one pick for this week`);
+    }
+    pickByMemberId.set(pick.memberId, pick);
+  }
+  return pickByMemberId;
 }
 
 // The week is settleable only once every game in it is terminal — final or
@@ -280,6 +395,7 @@ interface GradedSurvivorPick {
 }
 
 function gradePick(
+  caller: string,
   pick: SurvivorPickInput,
   result: SurvivorGameResult,
   settings: SurvivorScoringSettings,
@@ -296,7 +412,7 @@ function gradePick(
     };
   }
 
-  const margin = pickedTeamMargin(pick, result);
+  const margin = pickedTeamMargin(caller, pick, result);
   if (margin > 0) {
     return {
       outcome: { ...graded, outcome: PICK_OUTCOME.CORRECT, teamConsumed: true },
@@ -319,7 +435,11 @@ function gradePick(
 }
 
 // Positive if the picked team won, negative if it lost, zero on a tie.
-function pickedTeamMargin(pick: SurvivorPickInput, result: SurvivorGameResult): number {
+function pickedTeamMargin(
+  caller: string,
+  pick: SurvivorPickInput,
+  result: SurvivorGameResult,
+): number {
   // Non-null by the completeness check above: a final game missing either score
   // blocks the week rather than reaching here.
   const homeScore = result.homeScore!;
@@ -328,6 +448,6 @@ function pickedTeamMargin(pick: SurvivorPickInput, result: SurvivorGameResult): 
   if (pick.teamId === result.homeTeamId) return homeScore - awayScore;
   if (pick.teamId === result.awayTeamId) return awayScore - homeScore;
   throw new Error(
-    `settleSurvivorWeek: pick ${pick.pickId} rides team ${pick.teamId}, which is not playing in game ${pick.gameId}`,
+    `${caller}: pick ${pick.pickId} rides team ${pick.teamId}, which is not playing in game ${pick.gameId}`,
   );
 }

@@ -11,8 +11,7 @@ import type { SimWeekDef } from "../definition";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
-const WEEK1_STARTS_AT_OFFSET_MS = 0;
-const WEEK1_ENDS_AT_OFFSET_MS = 7 * DAY_MS;
+const WEEK_SPAN_MS = 7 * DAY_MS;
 
 /**
  * Kickoff offset for the `gameIndex`-th (0-indexed) game of a week starting at
@@ -25,16 +24,29 @@ export function kickoffOffsetMs(weekStartOffsetMs: number, gameIndex: number): n
 }
 
 /**
- * Week 1 of the shared regular-season cast, reused by every scenario.
+ * The `index`-th (0-based) week a scenario declares, numbered `weekNumber` in
+ * the regular season and occupying its own seven-day window.
  *
- * It is the only week the library declares: no scenario spans two, since week
- * moves went out of scope (ADR-0019). A scenario that genuinely needs a second
- * week adds it back with its own reason.
+ * Consecutive and gapless because `resolveCurrentWeekId` picks the week whose
+ * `[startsAt, endsAt)` contains the simulated now: a gap between two windows is
+ * an instant at which a multi-week scenario has no current week at all, and the
+ * pick screen would open on the wrong one rather than fail.
  */
-export const WEEK_1: SimWeekDef = {
-  weekType: WEEK_TYPE.REGULAR,
-  weekNumber: 1,
-  label: "Week 1",
-  startsAtOffsetMs: WEEK1_STARTS_AT_OFFSET_MS,
-  endsAtOffsetMs: WEEK1_ENDS_AT_OFFSET_MS,
-};
+export function regularSeasonWeek(weekNumber: number, index: number): SimWeekDef {
+  const startsAtOffsetMs = index * WEEK_SPAN_MS;
+  return {
+    weekType: WEEK_TYPE.REGULAR,
+    weekNumber,
+    label: `Week ${weekNumber}`,
+    startsAtOffsetMs,
+    endsAtOffsetMs: startsAtOffsetMs + WEEK_SPAN_MS,
+  };
+}
+
+/**
+ * Week 1 of the shared regular-season cast, reused by every single-week
+ * scenario — which is all of the edge-case fixtures, since a push, tie,
+ * cancellation or postponement is a fact about one game and needs no season
+ * around it. `survivor-season` is the exception, and states its own reason.
+ */
+export const WEEK_1: SimWeekDef = regularSeasonWeek(1, 0);

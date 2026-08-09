@@ -5,6 +5,7 @@ import { cancelledGameScenario } from "./cancelled-game";
 import { mixedWeekScenario } from "./mixed-week";
 import { postponedGameScenario } from "./postponed-game";
 import { pushAtsScenario } from "./push-ats";
+import { survivorSeasonScenario } from "./survivor-season";
 import { tieGameScenario } from "./tie-game";
 
 /**
@@ -19,6 +20,7 @@ export const SIM_SCENARIO_LIBRARY: Record<string, SimScenarioDefinition> = {
   [postponedGameScenario.slug]: postponedGameScenario,
   [allEliminatedScenario.slug]: allEliminatedScenario,
   [mixedWeekScenario.slug]: mixedWeekScenario,
+  [survivorSeasonScenario.slug]: survivorSeasonScenario,
 };
 
 /** The library's wire shape (`SimStateResponse.library`) — no fixtures required to list it. */

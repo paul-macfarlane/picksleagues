@@ -5,18 +5,16 @@ import { FixedClock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
   ADMIN_AUDIT_TARGET_TABLE,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
+  MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICKEM_PICK_SIDE,
-  PICK_TYPE,
-  WEEK_TYPE,
   type AdminAuditResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
-import { settlePicksForGames, settleSweep } from "../src/services/pickem/settlement";
+import { settlePicksForGames, settleSweep } from "../src/services/settlement";
 import { settleForSim } from "../src/services/sim/settle";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { insertLeague, insertPick, seedSeason, setGame } from "./setup/league-helpers";
@@ -231,14 +229,14 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
     const { seasonId } = await seedSeason(db, {
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: KICKOFF }] }],
     });
+    // March Madness is the mode with no settlement module (MM-6); Pick'em and
+    // Survivor both grade and both audit their own rebuild.
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.SURVIVOR,
+      mode: LEAGUE_MODE.MARCH_MADNESS,
       settings: {
-        startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
-        endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-        pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
+        scoringModel: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
+        maxBracketsPerMember: 5,
       },
       members: [{ userId, role: MEMBER_ROLE.COMMISSIONER }],
     });
