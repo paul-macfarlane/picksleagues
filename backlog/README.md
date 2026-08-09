@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Both NFL modes ship today end-to-end (epics 00–06, 11), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. What stands between that and a launchable product is the tail of each mode (`PKM-10`, `ELM-11`), gating the one mode that doesn't exist yet (`LNCH-12`), and the rest of `09-launch`.
+Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. What stands between that and a launchable product is gating the one mode that doesn't exist yet (`LNCH-12`) and the rest of `09-launch`.
 
 ## Task format
 
@@ -50,8 +50,8 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 File numbers are historical, not priority — they record the order epics were
 written. The order work is actually taken (owner, 2026-08-09):
 
-1. **`05-pickem`, remainder** — `PKM-10`, the dashboard pick-status glance the launch mode still answers with a placeholder.
-2. **`06-survivor`, remainder** — `ELM-11`, eliminating a member the moment their loss is certain.
+1. **`05-pickem`, remainder** — `PKM-10`, the dashboard pick-status glance the launch mode still answers with a placeholder. **Done** (PR #54).
+2. **`06-survivor`, remainder** — `ELM-11`, eliminating a member the moment their loss is certain. **Done** (delivered 2026-08-08, ADR-0028; the checkbox lagged the merge, which is how this list re-listed it).
 3. **`LNCH-12`** — gate March Madness so nobody can create a league in a mode that doesn't exist. Ahead of the rest of launch because it is the one item where shipping without it strands real members in a dead league.
 4. **`09-launch`, remainder** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover. Within it the visual + legal slice (LNCH-7, 9, 10, 11) comes first: it is what makes the app read as a product rather than a project.
 5. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and two items (`FB-2`, `FB-7`) are questions whose answers get better once there is real usage to point at.
