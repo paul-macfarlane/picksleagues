@@ -3977,7 +3977,7 @@
     "/api/leagues/{leagueId}/invites": {
       "post": {
         "operationId": "createInvite",
-        "summary": "Generate an invite link code (commissioner, anytime)",
+        "summary": "Generate an invite link code (commissioner, pre-start only)",
         "parameters": [
           {
             "schema": {
@@ -4041,6 +4041,16 @@
           },
           "404": {
             "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The league has started — new invite links can no longer be created",
             "content": {
               "application/json": {
                 "schema": {

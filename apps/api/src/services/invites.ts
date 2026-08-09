@@ -8,6 +8,7 @@ import {
   JOIN_BLOCKED_REASON,
   LEAGUE_ACTION,
   LEAGUE_STATUS,
+  leagueActionIsPreStartOnly,
   type Invite,
   type InviteStatus,
   type JoinBlockedReason,
@@ -23,6 +24,7 @@ import {
   isPreStart,
   JoinRefusedError,
   joinLeagueInTx,
+  leagueIsPreStart,
   LeagueMissingError,
   leagueStartAt,
 } from "./leagues";
@@ -54,13 +56,15 @@ const INVITE_STATUS_TO_REASON: Record<
   [INVITE_STATUS.EXHAUSTED]: JOIN_BLOCKED_REASON.INVITE_EXHAUSTED,
 };
 
-// MANAGE_INVITES is an anytime power in the matrix (spec §Commissioner
-// Powers) — the shared gate covers the role axis and there is no window axis
-// to check here.
+// MANAGE_INVITES (listing and revoking) is an anytime power — the shared gate
+// covers its only axis. Creation is the split-off CREATE_INVITE, which has a
+// window and checks it below.
 type CommissionerGateFailure = { ok: false; reason: "league_not_found" | "not_commissioner" };
 
 export type CreateInviteResult =
-  { ok: true; invite: Invite } | CommissionerGateFailure | { ok: false; reason: "expiry_in_past" };
+  | { ok: true; invite: Invite }
+  | CommissionerGateFailure
+  | { ok: false; reason: "expiry_in_past" | "league_started" };
 
 export async function createInvite(
   db: Db,
@@ -69,8 +73,19 @@ export async function createInvite(
   userId: string,
   input: { expiresAt?: Date; maxUses?: number },
 ): Promise<CreateInviteResult> {
-  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.MANAGE_INVITES);
+  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.CREATE_INVITE);
   if (!gate.ok) return gate;
+
+  // No transaction around check-then-insert: the boundary is a wall-clock
+  // instant, so a tx couldn't stop it passing mid-request, and an invite that
+  // slipped through is inert anyway — the join endpoint re-derives the same
+  // cutoff and refuses with `join_closed` (ADR-0029).
+  if (
+    leagueActionIsPreStartOnly(LEAGUE_ACTION.CREATE_INVITE) &&
+    !(await leagueIsPreStart(db, clock, leagueId))
+  ) {
+    return { ok: false, reason: "league_started" };
+  }
 
   const now = clock.now();
   if (input.expiresAt !== undefined && input.expiresAt.getTime() <= now.getTime()) {

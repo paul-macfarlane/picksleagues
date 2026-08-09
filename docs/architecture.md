@@ -298,7 +298,7 @@ Spec-driven notes:
 - Commissioner generates a link containing an opaque code (`/join/:code`); codes live in `league_invites` with optional expiry and max-use caps
 - Visiting the link while logged out routes through auth then back to the join flow
 - Public leagues are discoverable and joinable without a code; private leagues require one
-- Join cutoff (first week started / Round of 64 tipped) enforced at the join endpoint, derived from game timestamps — same query-time pattern as pick locking
+- Join cutoff (first week started / Round of 64 tipped) derived from game timestamps — same query-time pattern as pick locking. Enforced at the join endpoint, and at invite *creation* (ADR-0029), so a commissioner can't mint a link the cutoff would refuse every use of; revoking stays available past the cutoff
 
 ## MVP Rule Scope (finalized — mirrors spec v0.3)
 

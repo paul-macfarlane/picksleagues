@@ -9,12 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const CREATE_LOCKED_REASON_ID = "invite-create-locked-reason";
+
 export function InvitePanel({
   leagueId,
   isCommissioner,
+  started,
 }: {
   leagueId: string;
   isCommissioner: boolean;
+  started: boolean;
 }) {
   // Only a commissioner can list invites (403 otherwise) — this panel is
   // only ever mounted for commissioners, but the guard stays explicit.
@@ -52,9 +56,13 @@ export function InvitePanel({
             ))}
           </ul>
         )}
+        {/* The panel itself survives the start — revoking a leaked link stays
+            available for as long as the link does (ADR-0029). Only minting a
+            new one closes, and it says so rather than vanishing. */}
         <NewInviteForm
           onCreate={(body) => createInvite.mutate(body)}
           isPending={createInvite.isPending}
+          locked={started}
         />
       </CardContent>
     </Card>
@@ -117,12 +125,15 @@ function InviteRow({
 function NewInviteForm({
   onCreate,
   isPending,
+  locked,
 }: {
   onCreate: (body: CreateInviteRequest) => void;
   isPending: boolean;
+  locked: boolean;
 }) {
   const [expiresAt, setExpiresAt] = useState("");
   const [maxUses, setMaxUses] = useState("");
+  const describedBy = locked ? CREATE_LOCKED_REASON_ID : undefined;
 
   return (
     <form
@@ -140,12 +151,22 @@ function NewInviteForm({
       }}
     >
       <h3 className="text-sm font-semibold text-foreground">New invite</h3>
+      {/* One note serves every control below, each pointing at it via
+          aria-describedby — the server's 409 stays the enforcement. */}
+      {locked && (
+        <p id={CREATE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+          New invite links can&apos;t be created once the league starts. Existing links can still be
+          revoked.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <LabeledDateTimeField
           id="invite-expires-at"
           label="Expires (optional)"
           value={expiresAt}
           onChange={setExpiresAt}
+          disabled={locked}
+          aria-describedby={describedBy}
         />
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="invite-max-uses">Max uses (optional)</Label>
@@ -158,10 +179,18 @@ function NewInviteForm({
             step={1}
             value={maxUses}
             onChange={(event) => setMaxUses(event.target.value)}
+            disabled={locked}
+            aria-describedby={describedBy}
           />
         </div>
       </div>
-      <Button type="submit" size="sm" className="self-start" disabled={isPending}>
+      <Button
+        type="submit"
+        size="sm"
+        className="self-start"
+        disabled={locked || isPending}
+        aria-describedby={describedBy}
+      >
         Create invite link
       </Button>
     </form>

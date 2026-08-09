@@ -14,11 +14,15 @@ export function LabeledDateTimeField({
   label,
   value,
   onChange,
+  disabled,
+  "aria-describedby": ariaDescribedby,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
+  "aria-describedby"?: string;
 }) {
   const labelId = `${id}-label`;
 
@@ -27,7 +31,14 @@ export function LabeledDateTimeField({
       <Label id={labelId} htmlFor={id}>
         {label}
       </Label>
-      <DateTimePicker id={id} value={value} onChange={onChange} aria-labelledby={labelId} />
+      <DateTimePicker
+        id={id}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        aria-labelledby={labelId}
+        aria-describedby={ariaDescribedby}
+      />
     </div>
   );
 }
