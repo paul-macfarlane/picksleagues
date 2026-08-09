@@ -9,9 +9,11 @@ import {
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
+  OFFERED_LEAGUE_MODES,
   leagueActionIsPreStartOnly,
   type CreateLeagueRequest,
   type LeagueAction,
+  type LeagueMode,
   type LeagueResponse,
   type LeagueSummary,
   type LeagueVisibility,
@@ -41,7 +43,10 @@ import {
 
 export type CreateLeagueResult =
   | { ok: true; league: LeagueResponse }
-  | { ok: false; reason: "no_active_season" | "cap_exceeded" | "start_week_passed" };
+  | {
+      ok: false;
+      reason: "mode_unavailable" | "no_active_season" | "cap_exceeded" | "start_week_passed";
+    };
 
 class CapExceededError extends Error {}
 
@@ -51,6 +56,12 @@ export async function createLeague(
   userId: string,
   input: CreateLeagueRequest,
 ): Promise<CreateLeagueResult> {
+  // Server-side gate, not just a hidden form option (LNCH-12): the contract
+  // still accepts the value and the SPA is not the only thing that may speak it.
+  if (!(OFFERED_LEAGUE_MODES as readonly LeagueMode[]).includes(input.mode)) {
+    return { ok: false, reason: "mode_unavailable" };
+  }
+
   // Latest ingested season for the mode's sport — leagues bind to a season at
   // creation so cutoffs/windows know which games to derive from.
   const season = await latestSeasonForSport(db, sportForMode(input.mode));

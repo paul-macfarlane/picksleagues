@@ -24,6 +24,7 @@ export const ERROR_CODE = {
   INVITE_NOT_FOUND: "invite_not_found",
   INVITE_INVALID: "invite_invalid",
   LEAGUE_STARTED: "league_started",
+  MODE_UNAVAILABLE: "mode_unavailable",
   START_WEEK_PASSED: "start_week_passed",
   CAP_EXCEEDED: "cap_exceeded",
   NO_ACTIVE_SEASON: "no_active_season",
