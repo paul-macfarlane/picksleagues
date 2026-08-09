@@ -230,3 +230,42 @@ export const PickemPickSummarySchema = z
   .openapi("PickemPickSummary");
 
 export type PickemPickSummary = z.infer<typeof PickemPickSummarySchema>;
+
+/**
+ * The viewer's own Pick'em week at a glance (spec §Screens — Dashboard). Its
+ * own state set rather than a widened shared one, because a Pick'em week is a
+ * different object from a Survivor week: N picks committed as **one atomic,
+ * immutable submission** (ADR-0018), not one pick a member may change until
+ * kickoff. Holding any pick for the week is therefore the whole of "submitted";
+ * there is no partial state to name.
+ *
+ * The order the states are asked in, and why:
+ * - `SEASON_COMPLETE` comes first, from the league season's stored ending
+ *   (ADR-0030). The current-week resolution falls back to the last week played,
+ *   so without this a finished league would report that week's state forever —
+ *   "Picks in" about a season nobody can act on.
+ * - `LOCKED` means no picks stand and no game in the week is still open to one.
+ *   Not the first kickoff: a member arriving mid-week submits a smaller set of
+ *   what is left (`requiredPickemPickCount`), so the week closes against them
+ *   only when nothing pickable remains.
+ */
+export const PICKEM_PICK_STATUS = {
+  SEASON_COMPLETE: "season_complete",
+  PICKS_IN: "picks_in",
+  PICKS_NEEDED: "picks_needed",
+  LOCKED: "locked",
+} as const;
+
+export type PickemPickStatus = (typeof PICKEM_PICK_STATUS)[keyof typeof PICKEM_PICK_STATUS];
+
+const PickemPickStatusSchema = z.enum(PICKEM_PICK_STATUS).openapi("PickemPickStatus");
+
+/**
+ * Registered under its own component name rather than wrapped inline, for the
+ * reason `NullableSurvivorPickStatus` is: a `.nullable()` on the registered
+ * node above would fold `null` into that shared component and widen every
+ * future `$ref` to it.
+ */
+export const NullablePickemPickStatusSchema = PickemPickStatusSchema.nullable().openapi(
+  "NullablePickemPickStatus",
+);

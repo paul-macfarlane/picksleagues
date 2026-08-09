@@ -9,6 +9,7 @@ import {
 import { LeagueStatusSchema } from "./league-status";
 import { LeagueVisibilitySchema } from "./league-visibility";
 import { MemberRoleSchema } from "./member-role";
+import { NullablePickemPickStatusSchema } from "./pickem";
 import { NullableSurvivorPickStatusSchema } from "./survivor";
 
 /**
@@ -176,17 +177,19 @@ export const LeagueSummarySchema = z
     // badge without an extra per-league fetch.
     renewable: z.boolean(),
     /**
-     * The viewer's own Survivor week at a glance (spec §Screens — Dashboard),
-     * null for every other mode. Named for its mode because it is shaped by it:
-     * one pick per week is Survivor's rule, and an unqualified `pickStatus`
-     * would leave Pick'em and March Madness no symmetric home when their own
-     * glances land.
+     * The viewer's own week at a glance (spec §Screens — Dashboard), one field
+     * per mode and null on every league of another mode. Named for their modes
+     * because each is shaped by its own: one changeable pick per week is
+     * Survivor's rule, N picks in a single irreversible submission is Pick'em's
+     * (ADR-0018), and an unqualified `pickStatus` would have to widen to hold
+     * both plus whatever March Madness needs.
      *
-     * Viewer-scoped, which is safe only because this schema is reached solely
-     * through `MyLeaguesResponse` — public discovery serializes its own shape.
-     * Anything added here inherits that scoping.
+     * Both are viewer-scoped, which is safe only because this schema is reached
+     * solely through `MyLeaguesResponse` — public discovery serializes its own
+     * shape. Anything added here inherits that scoping.
      */
     survivorPickStatus: NullableSurvivorPickStatusSchema,
+    pickemPickStatus: NullablePickemPickStatusSchema,
   })
   .openapi("LeagueSummary");
 
