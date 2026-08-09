@@ -12,6 +12,7 @@ import {
 import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { LoadingRegion } from "@/components/loading";
+import { QueryState } from "@/components/query-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAvatarPreview } from "@/lib/avatar-preview";
 import { FormTextField } from "@/components/form-field";
@@ -44,39 +45,35 @@ function Profile() {
 
   const me = useMe();
 
-  if (me.isPending) {
-    return (
-      <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
-        <LoadingRegion label="Loading profile" className="flex w-full flex-col items-center gap-4">
-          <Skeleton className="h-8 w-40 self-start" />
-          <Skeleton className="h-96 w-full max-w-sm" />
-        </LoadingRegion>
-      </main>
-    );
-  }
-
-  // Inline message + Retry, no toast: a failed view belongs in the space the
-  // content would have occupied (engineering rules §Quality).
-  if (me.isError || !me.data) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load your profile.</p>
-        <Button variant="outline" onClick={() => me.refetch()}>
-          Retry
-        </Button>
-      </main>
-    );
-  }
-
-  // Keyed on the server values so a successful save (which invalidates and
-  // refetches "me") remounts the form with fresh initial state instead of
-  // syncing local state from a prop in an effect.
   return (
-    <ProfileForm
-      key={`${me.data.username ?? ""}:${me.data.displayName}:${me.data.imageOverride ?? ""}`}
-      profile={me.data}
-      refetchSession={refetchSession}
-    />
+    <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
+      <QueryState
+        isPending={me.isPending}
+        pendingFallback={
+          <LoadingRegion
+            label="Loading profile"
+            className="flex w-full flex-col items-center gap-4"
+          >
+            <Skeleton className="h-8 w-40 self-start" />
+            <Skeleton className="h-96 w-full max-w-sm" />
+          </LoadingRegion>
+        }
+        isError={me.isError}
+        onRetry={() => void me.refetch()}
+        errorMessage="Couldn't load your profile."
+      >
+        {me.data && (
+          // Keyed on the server values so a successful save (which invalidates
+          // and refetches "me") remounts the form with fresh initial state
+          // instead of syncing local state from a prop in an effect.
+          <ProfileForm
+            key={`${me.data.username ?? ""}:${me.data.displayName}:${me.data.imageOverride ?? ""}`}
+            profile={me.data}
+            refetchSession={refetchSession}
+          />
+        )}
+      </QueryState>
+    </main>
   );
 }
 
@@ -147,8 +144,10 @@ function ProfileForm({
     providerImage: profile.providerImage,
   });
 
+  // Rendered inside Profile's <main> (which owns the page column and the
+  // QueryState gate) — this is content, not a page.
   return (
-    <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
+    <>
       {/* Every top-level page carries this heading in this style — the identity
           card below shows *who* you are, which is not the same as naming the
           page for a screen reader landing on it. */}
@@ -282,7 +281,7 @@ function ProfileForm({
         </CardContent>
       </Card>
       <DangerZone />
-    </main>
+    </>
   );
 }
 

@@ -12,6 +12,7 @@ export function LeagueHeader({
   league: LeagueResponse;
   isCommissioner: boolean;
 }) {
+  const rulesPath = leagueModeRulesPath(league.mode);
   return (
     <Card>
       <CardHeader>
@@ -20,13 +21,10 @@ export function LeagueHeader({
             <CardTitle className="text-xl">{league.name}</CardTitle>
             <CardDescription>
               {leagueModeLabel(league.mode)} · {league.seasonYear}
-              {leagueModeRulesPath(league.mode) && (
+              {rulesPath && (
                 <>
                   {" · "}
-                  <Link
-                    to={leagueModeRulesPath(league.mode)!}
-                    className="underline hover:text-foreground"
-                  >
+                  <Link to={rulesPath} className="underline hover:text-foreground">
                     Rules
                   </Link>
                 </>

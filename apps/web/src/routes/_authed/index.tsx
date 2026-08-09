@@ -11,9 +11,10 @@ import {
 import { useMyLeagues } from "@/api/leagues";
 import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardGridSkeleton } from "@/components/loading";
+import { QueryState } from "@/components/query-state";
 import { StatusPill, type StatusPillTone } from "@/components/status-pill";
 
 export const Route = createFileRoute("/_authed/")({
@@ -33,76 +34,66 @@ function DashboardHeader() {
 
 function Dashboard() {
   const myLeagues = useMyLeagues();
+  const leagues = myLeagues.data?.leagues ?? [];
 
-  if (myLeagues.isPending) {
-    return (
-      <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-        <DashboardHeader />
-        <CardGridSkeleton label="Loading your leagues" />
-      </main>
-    );
-  }
-
-  // Inline message + Retry, no toast: a failed view belongs in the space the
-  // content would have occupied, and pairing it with a toast leaves an
-  // actionable message beside a duplicate that expires (engineering rules
-  // §Quality).
-  if (myLeagues.isError || !myLeagues.data) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load your leagues.</p>
-        <Button variant="outline" onClick={() => myLeagues.refetch()}>
-          Retry
-        </Button>
-      </main>
-    );
-  }
-
-  const { leagues } = myLeagues.data;
-
-  if (leagues.length === 0) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 sm:p-6">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="items-center text-center">
-            <CardTitle>No leagues yet</CardTitle>
-            <CardDescription>
-              Create a league to start picking, or find a public one to join.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <Link
-              to="/leagues/new"
-              className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
-            >
-              Create a league
-            </Link>
-            <Link
-              to="/discovery"
-              className={buttonVariants({
-                variant: "outline",
-                size: "lg",
-                className: "w-full justify-center",
-              })}
-            >
-              Browse public leagues
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
+  // The no-leagues state is a designed call-to-action card, not QueryState's
+  // one-line emptyMessage — so it lives in children and isEmpty stays unset.
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <DashboardHeader />
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {leagues.map((league) => (
-          <li key={league.id}>
-            <LeagueCard league={league} />
-          </li>
-        ))}
-      </ul>
+      <QueryState
+        isPending={myLeagues.isPending}
+        pendingFallback={
+          <>
+            <DashboardHeader />
+            <CardGridSkeleton label="Loading your leagues" />
+          </>
+        }
+        isError={myLeagues.isError}
+        onRetry={() => void myLeagues.refetch()}
+        errorMessage="Couldn't load your leagues."
+      >
+        {leagues.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            <Card className="w-full max-w-sm">
+              <CardHeader className="items-center text-center">
+                <CardTitle>No leagues yet</CardTitle>
+                <CardDescription>
+                  Create a league to start picking, or find a public one to join.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <Link
+                  to="/leagues/new"
+                  className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
+                >
+                  Create a league
+                </Link>
+                <Link
+                  to="/discovery"
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "lg",
+                    className: "w-full justify-center",
+                  })}
+                >
+                  Browse public leagues
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <>
+            <DashboardHeader />
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {leagues.map((league) => (
+                <li key={league.id}>
+                  <LeagueCard league={league} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </QueryState>
     </main>
   );
 }

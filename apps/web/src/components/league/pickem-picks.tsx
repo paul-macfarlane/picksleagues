@@ -285,9 +285,13 @@ function PickSheet({
               {credit}
             </p>
           )}
+          {/* New tab on purpose: the sheet's draft lives only in local state, and a
+              same-tab navigation would unmount it and silently discard the picks. */}
           <p className="text-xs">
             <Link
               to="/rules/pickem"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground underline hover:text-foreground"
             >
               Full Pick&apos;em rules

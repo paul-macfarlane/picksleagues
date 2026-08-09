@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { BrandMark } from "@/components/brand";
+import { LegalFooter } from "@/components/legal-footer";
 
 /**
  * Shared shell for the public static pages — legal (LNCH-10) and the rules
@@ -33,14 +34,7 @@ export function StaticPage({
       <div className="flex flex-col gap-6 text-sm leading-relaxed text-foreground [&_h2]:text-base [&_h2]:font-semibold [&_li]:mt-1 [&_section]:flex [&_section]:flex-col [&_section]:gap-2 [&_ul]:list-disc [&_ul]:pl-5">
         {children}
       </div>
-      <footer className="flex gap-4 border-t border-border pt-4 text-sm text-muted-foreground">
-        <Link to="/terms" className="hover:text-foreground">
-          Terms of Service
-        </Link>
-        <Link to="/privacy" className="hover:text-foreground">
-          Privacy Policy
-        </Link>
-      </footer>
+      <LegalFooter className="border-t border-border pt-4" />
     </main>
   );
 }

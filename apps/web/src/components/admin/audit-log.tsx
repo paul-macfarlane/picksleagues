@@ -9,6 +9,7 @@ import { useAdminAudit } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -114,11 +115,11 @@ export function AuditLog({
 
 function AuditSkeleton() {
   return (
-    <div role="status" aria-label="Loading the audit log" className="flex flex-col gap-2">
+    <LoadingRegion label="Loading the audit log" className="flex flex-col gap-2">
       {Array.from({ length: 5 }, (_unused, index) => (
         <Skeleton key={index} className="h-10 w-full" />
       ))}
-    </div>
+    </LoadingRegion>
   );
 }
 

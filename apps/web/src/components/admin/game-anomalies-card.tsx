@@ -4,6 +4,7 @@ import { useAdminGameAnomalies } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryState } from "@/components/query-state";
 
@@ -58,9 +59,9 @@ export function GameAnomaliesCard() {
 
 function AnomaliesSkeleton() {
   return (
-    <div role="status" aria-label="Checking for unlocked games with known outcomes">
+    <LoadingRegion label="Checking for unlocked games with known outcomes">
       <Skeleton className="h-20 w-full" />
-    </div>
+    </LoadingRegion>
   );
 }
 
