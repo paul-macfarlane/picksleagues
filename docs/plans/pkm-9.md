@@ -234,7 +234,7 @@ inline fixes and one orchestrator-added test.
 | AC2 `SimulatedProvider` yields null | **PASS** | `unit.txt` |
 | AC3 column + same-`set()` write, re-run no-op | **PASS** | `integration.txt` — incl. a book rotation with the line unmoved, which the no-op guard now persists |
 | AC4 serialization + suppression + `openapi/` | **PASS** | `integration.txt`, `contract-check.txt`; generated nullable shape inspected directly |
-| AC5 credit rendered on both surfaces | **PARTIAL — data contract PASS, rendered output BLOCKED** | see below |
+| AC5 credit rendered on both surfaces | **PASS** | `e2e-ats-credit.txt` — browser assertion on an ATS league, proven red when the sim reports no book |
 | DoD1 typecheck | **PASS** | `typecheck.txt` |
 | DoD2 lint | **PASS** | `lint.txt` |
 | DoD3 test | **PASS** | `unit.txt` |
@@ -244,7 +244,29 @@ inline fixes and one orchestrator-added test.
 | DoD7 web build | **PASS** | `build.txt` |
 | DoD8 test:e2e | **PASS (CI)** | `e2e-ci.txt` — 13 passed on `38efb24`, none skipped or flaky |
 
-### AC5 and DoD8 — what is not proven here
+### AC5 closed after the scope change
+
+The `[SCOPE CHANGE]` above is what made this verifiable. With the simulator
+reporting a book, the credit became reachable from the one harness that drives
+the whole stack, and `e2e/pickem-journey.sim.spec.ts` now asserts it on an ATS
+league created before the clock advances — the journey's own league is Straight
+Up, which shows no spread, and by the end of the file every game is final so the
+pick sheet has no open games to credit.
+
+The assertion binds to the `spread-source-credit` testid and matches the book
+name, not the sentence: the wording is the owner's to change, the book named is
+the product claim. Verified non-vacuous by reverting `SimulatedProvider` to
+`spreadSource: null` and confirming the test fails, then restoring.
+
+This is the only *displayed value* asserted in that file, against its header's
+"journeys, not branches" rule. It earns the browser because no cheaper layer can
+hold it: the API halves are pinned in `pickem-picks.test.ts` and
+`nfl-sync-odds.test.ts`, and the render is presentation policy, which the
+engineering rules explicitly decline to freeze in a unit test. What the browser
+adds is the chain — sim fixture → `SimulatedProvider` → `sync-odds` →
+`games.spread_source` → slate DTO → the line.
+
+### The original gap, kept for the record
 
 Both need a running stack, and this worktree cannot start one. `packages/core/src/env.ts`
 validates `BETTER_AUTH_SECRET`, both OAuth client pairs, and `JOB_SECRET` at
