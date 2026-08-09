@@ -1,6 +1,8 @@
 import { z } from "@hono/zod-openapi";
 import { GAME_STATUS, GameStatusSchema } from "./game-status";
+import { LEAGUE_MODE } from "./league-mode";
 import { SportSchema } from "./sport";
+import { SurvivorMemberStatusSchema } from "./survivor";
 import { WeekTypeSchema } from "./week-type";
 
 /**
@@ -324,6 +326,8 @@ export const SimSettlementSummarySchema = z
     weeks: z.number().int(),
     results: z.number().int(),
     unsettled: z.number().int(),
+    /** League seasons whose settlement threw — see the `settle-sweep.season-failed` logs. */
+    failed: z.number().int(),
   })
   .openapi("SimSettlementSummary");
 
@@ -344,19 +348,107 @@ export const SimSettlePickemStandingsRowSchema = z
 
 export type SimSettlePickemStandingsRow = z.infer<typeof SimSettlePickemStandingsRowSchema>;
 
-/** One league-week's board, restricted to weeks that actually settled results. */
-export const SimSettleWeekResultSchema = z
+/**
+ * The week identity every mode's per-week entry carries, plus the count of that
+ * mode's own result rows for it. Shared because it is genuinely mode-agnostic —
+ * which week, and how much of it graded — while what settling the week *decided*
+ * is each mode's own and lives in the arms below.
+ */
+const simSettleWeekIdentity = {
+  weekId: z.string(),
+  label: z.string(),
+  weekType: WeekTypeSchema,
+  weekNumber: z.number().int(),
+  results: z.number().int(),
+};
+
+/** One league-week's Pick'em board, restricted to weeks that actually settled results. */
+export const SimSettlePickemWeekResultSchema = z
   .object({
-    weekId: z.string(),
-    label: z.string(),
-    weekType: WeekTypeSchema,
-    weekNumber: z.number().int(),
-    results: z.number().int(),
+    ...simSettleWeekIdentity,
     standings: z.array(SimSettlePickemStandingsRowSchema),
   })
-  .openapi("SimSettleWeekResult");
+  .openapi("SimSettlePickemWeekResult");
 
-export type SimSettleWeekResult = z.infer<typeof SimSettleWeekResultSchema>;
+export type SimSettlePickemWeekResult = z.infer<typeof SimSettlePickemWeekResultSchema>;
+
+/**
+ * One member's place in Survivor's ledger, as stored on `survivor_state` joined
+ * to their identity. A member settlement has decided nothing about has no row at
+ * all (ADR-0025) and is reported here as alive with a full life — absence is the
+ * untouched state, never an error.
+ */
+export const SimSettleSurvivorMemberRowSchema = z
+  .object({
+    leagueMemberId: z.string(),
+    // Null for deleted accounts and never-claimed edge states — same shape as
+    // `LeagueMember.username`.
+    username: z.string().nullable(),
+    displayName: z.string(),
+    status: SurvivorMemberStatusSchema,
+    eliminatedWeekId: z.string().nullable(),
+    livesRemaining: z.number().int(),
+    revivedCount: z.number().int(),
+  })
+  .openapi("SimSettleSurvivorMemberRow");
+
+export type SimSettleSurvivorMemberRow = z.infer<typeof SimSettleSurvivorMemberRowSchema>;
+
+/**
+ * One league-week of Survivor's replay. Listed when the week graded results **or**
+ * when it put someone out, which are not the same set: ADR-0028 lets a week that
+ * cannot be graded as a unit still eliminate every member whose own pick has
+ * already lost, writing `survivor_state` and no result rows at all. Keying the
+ * list on result rows alone would drop exactly the week an operator is looking at.
+ */
+export const SimSettleSurvivorWeekResultSchema = z
+  .object({
+    ...simSettleWeekIdentity,
+    eliminatedMemberIds: z.array(z.string()),
+  })
+  .openapi("SimSettleSurvivorWeekResult");
+
+export type SimSettleSurvivorWeekResult = z.infer<typeof SimSettleSurvivorWeekResultSchema>;
+
+/**
+ * What settling a league season left behind, in the shape of the mode that
+ * settled it — a discriminated union rather than one flat Pick'em shape (SIM-10).
+ *
+ * The flat shape was read out of `pickem_standings` whatever the league's mode
+ * was, so a settled Survivor season reported a real summary beside an empty
+ * board. That reads to an operator as "settled and found nothing" rather than
+ * "this mode grades survive-or-eliminate, and here is who is left" — the exact
+ * confusion the step-through exists to prevent (spec §Testing & Internal
+ * Tooling).
+ *
+ * Discriminated on `mode` for the reason `SimClockAdjustment` above is: each arm
+ * needs different fields, and an exhaustive `switch` in the service is what makes
+ * TypeScript prove a new mode was given a board rather than silently served
+ * another mode's.
+ */
+export const SimSettleBoardSchema = z
+  .discriminatedUnion("mode", [
+    z.object({
+      mode: z.literal(LEAGUE_MODE.PICKEM),
+      seasonStandings: z.array(SimSettlePickemStandingsRowSchema),
+      weeks: z.array(SimSettlePickemWeekResultSchema),
+    }),
+    // No ranking and no points, and that is the mode (ADR-0016): Survivor's
+    // board answers "who is left", so its season view is a ledger rather than a
+    // table of positions.
+    z.object({
+      mode: z.literal(LEAGUE_MODE.SURVIVOR),
+      members: z.array(SimSettleSurvivorMemberRowSchema),
+      weeks: z.array(SimSettleSurvivorWeekResultSchema),
+    }),
+    // Bare on purpose until MM-6 gives the mode a settlement module. Naming the
+    // mode with nothing under it is the honest answer — "not settleable yet" —
+    // and is what the old shape could not say.
+    z.object({ mode: z.literal(LEAGUE_MODE.MARCH_MADNESS) }),
+  ])
+  .openapi("SimSettleBoard");
+
+export type SimSettleBoard = z.infer<typeof SimSettleBoardSchema>;
 
 /** One targeted league season's post-rebuild state, the inspection surface. */
 export const SimSettleLeagueResultSchema = z
@@ -366,8 +458,7 @@ export const SimSettleLeagueResultSchema = z
     leagueSeasonId: z.string(),
     seasonYear: z.number().int(),
     summary: SimSettlementSummarySchema,
-    seasonStandings: z.array(SimSettlePickemStandingsRowSchema),
-    weeks: z.array(SimSettleWeekResultSchema),
+    board: SimSettleBoardSchema,
   })
   .openapi("SimSettleLeagueResult");
 
@@ -376,8 +467,12 @@ export type SimSettleLeagueResult = z.infer<typeof SimSettleLeagueResultSchema>;
 export const SimSettleResponseSchema = z
   .object({
     settledAt: z.iso.datetime(),
-    // Ordered by league name, weeks by week start, and standings rows by rank
-    // then displayName — stable and diffable across runs.
+    // Every list here is ordered so two runs diff cleanly by eye: leagues by
+    // name, Pick'em standings by rank then displayName and its weeks by week
+    // start, Survivor members by status (alive first) then displayName and its
+    // weeks by season ordinal — the order that mode's replay grades in
+    // (ADR-0025), which week start cannot stand in for since two weeks may share
+    // a start instant.
     leagues: z.array(SimSettleLeagueResultSchema),
   })
   .openapi("SimSettleResponse");

@@ -2943,17 +2943,8 @@
           "summary": {
             "$ref": "#/components/schemas/SimSettlementSummary"
           },
-          "seasonStandings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SimSettlePickemStandingsRow"
-            }
-          },
-          "weeks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SimSettleWeekResult"
-            }
+          "board": {
+            "$ref": "#/components/schemas/SimSettleBoard"
           }
         },
         "required": [
@@ -2962,8 +2953,7 @@
           "leagueSeasonId",
           "seasonYear",
           "summary",
-          "seasonStandings",
-          "weeks"
+          "board"
         ]
       },
       "SimSettlementSummary": {
@@ -2980,13 +2970,91 @@
           },
           "unsettled": {
             "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
           }
         },
         "required": [
           "leagueSeasons",
           "weeks",
           "results",
-          "unsettled"
+          "unsettled",
+          "failed"
+        ]
+      },
+      "SimSettleBoard": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "pickem"
+                ]
+              },
+              "seasonStandings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettlePickemStandingsRow"
+                }
+              },
+              "weeks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettlePickemWeekResult"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "seasonStandings",
+              "weeks"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "survivor"
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettleSurvivorMemberRow"
+                }
+              },
+              "weeks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettleSurvivorWeekResult"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "members",
+              "weeks"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "march_madness"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          }
         ]
       },
       "SimSettlePickemStandingsRow": {
@@ -3019,7 +3087,7 @@
           "rank"
         ]
       },
-      "SimSettleWeekResult": {
+      "SimSettlePickemWeekResult": {
         "type": "object",
         "properties": {
           "weekId": {
@@ -3051,6 +3119,81 @@
           "weekNumber",
           "results",
           "standings"
+        ]
+      },
+      "SimSettleSurvivorMemberRow": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SurvivorMemberStatus"
+          },
+          "eliminatedWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "livesRemaining": {
+            "type": "integer"
+          },
+          "revivedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "username",
+          "displayName",
+          "status",
+          "eliminatedWeekId",
+          "livesRemaining",
+          "revivedCount"
+        ]
+      },
+      "SimSettleSurvivorWeekResult": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "results": {
+            "type": "integer"
+          },
+          "eliminatedMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "weekId",
+          "label",
+          "weekType",
+          "weekNumber",
+          "results",
+          "eliminatedMemberIds"
         ]
       },
       "SimSettleRequest": {
