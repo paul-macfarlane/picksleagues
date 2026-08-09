@@ -1450,14 +1450,28 @@ export interface components {
             leagueSeasonId: string;
             seasonYear: number;
             summary: components["schemas"]["SimSettlementSummary"];
-            seasonStandings: components["schemas"]["SimSettlePickemStandingsRow"][];
-            weeks: components["schemas"]["SimSettleWeekResult"][];
+            board: components["schemas"]["SimSettleBoard"];
         };
         SimSettlementSummary: {
             leagueSeasons: number;
             weeks: number;
             results: number;
             unsettled: number;
+            failed: number;
+        };
+        SimSettleBoard: {
+            /** @enum {string} */
+            mode: "pickem";
+            seasonStandings: components["schemas"]["SimSettlePickemStandingsRow"][];
+            weeks: components["schemas"]["SimSettlePickemWeekResult"][];
+        } | {
+            /** @enum {string} */
+            mode: "survivor";
+            members: components["schemas"]["SimSettleSurvivorMemberRow"][];
+            weeks: components["schemas"]["SimSettleSurvivorWeekResult"][];
+        } | {
+            /** @enum {string} */
+            mode: "march_madness";
         };
         SimSettlePickemStandingsRow: {
             leagueMemberId: string;
@@ -1466,13 +1480,30 @@ export interface components {
             points: number;
             rank: number;
         };
-        SimSettleWeekResult: {
+        SimSettlePickemWeekResult: {
             weekId: string;
             label: string;
             weekType: components["schemas"]["WeekType"];
             weekNumber: number;
             results: number;
             standings: components["schemas"]["SimSettlePickemStandingsRow"][];
+        };
+        SimSettleSurvivorMemberRow: {
+            leagueMemberId: string;
+            username: string | null;
+            displayName: string;
+            status: components["schemas"]["SurvivorMemberStatus"];
+            eliminatedWeekId: string | null;
+            livesRemaining: number;
+            revivedCount: number;
+        };
+        SimSettleSurvivorWeekResult: {
+            weekId: string;
+            label: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            results: number;
+            eliminatedMemberIds: string[];
         };
         SimSettleRequest: {
             /** Format: uuid */

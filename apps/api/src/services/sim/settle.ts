@@ -7,6 +7,8 @@ import {
   pickemPickResults,
   pickemStandings,
   sportSeasons,
+  survivorPickResults,
+  survivorState,
   users,
   weeks,
 } from "@picksleagues/db";
@@ -15,10 +17,16 @@ import {
   ERROR_CODE,
   LEAGUE_MODE,
   LEAGUE_STATUS,
+  SURVIVOR_MEMBER_STATUS,
+  nflSeasonOrdinal,
+  toNflWeekRef,
+  type LeagueMode,
+  type SimSettleBoard,
   type SimSettleLeagueResult,
   type SimSettleRequest,
   type SimSettleResponse,
   type SimSettlePickemStandingsRow,
+  type SimSettleSurvivorMemberRow,
   type WeekType,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
@@ -31,9 +39,16 @@ import { rebuildLeagueSeason } from "../settlement";
  * the resulting rows back out into an inspectable shape, never a second
  * settlement implementation.
  *
- * The standings it reads back are Pick'em's, because they are the only ranked
- * board the MVP has: a settled Survivor season reports its summary here and is
- * read in full through the survivor board endpoint.
+ * **The read-back is dispatched on mode, exactly as the rebuild is** (SIM-10).
+ * Reading `pickem_standings` whatever the mode was is what left a settled
+ * Survivor season showing a real summary beside an empty board, and an operator
+ * cannot tell that from a settle that graded nothing. Each mode reads back the
+ * tables it actually writes (ADR-0016); a mode with no settlement module says so
+ * rather than borrowing another's empty board.
+ *
+ * Nothing here re-derives a rule. Every number is read from what settlement just
+ * stored, so a disagreement between this surface and the member-facing board is
+ * a bug in one of the two readers and never a second opinion about the season.
  */
 
 export type SettleForSimResult =
@@ -46,14 +61,18 @@ interface SettleTarget {
   leagueName: string;
   leagueSeasonId: string;
   seasonYear: number;
+  /** Chooses the board the read-back serves, and so which tables it reads. */
+  mode: LeagueMode;
 }
 
 /**
  * Every active league season settlement can grade — the "omitted `leagueId`"
  * scope, mirroring `settleSweep`. Filtered to the modes that have a settlement
- * module: a March Madness season would otherwise render as an empty board with
- * a zero summary, which reads to an operator as "settled and found nothing"
- * rather than "not settleable yet". MM-6 widens this with its mode.
+ * module: a March Madness season would otherwise be rebuilt to a zero summary
+ * every run for no reason. MM-6 widens this with its mode.
+ *
+ * A season this filter skips is still reachable by naming its `leagueId`, which
+ * is where the board union's "not settleable yet" arm gets served from.
  */
 async function loadActiveTargets(db: Db): Promise<SettleTarget[]> {
   return db
@@ -62,6 +81,7 @@ async function loadActiveTargets(db: Db): Promise<SettleTarget[]> {
       leagueName: leagues.name,
       leagueSeasonId: leagueSeasons.id,
       seasonYear: sportSeasons.year,
+      mode: leagues.mode,
     })
     .from(leagueSeasons)
     .innerJoin(leagues, eq(leagues.id, leagueSeasons.leagueId))
@@ -101,8 +121,8 @@ async function loadStandingsRows(
   return rows;
 }
 
-/** The weeks a rebuild actually produced a board for, ordered by week start. */
-async function loadSettledWeeks(
+/** The weeks a Pick'em rebuild actually produced a board for, ordered by week start. */
+async function loadPickemSettledWeeks(
   db: Db,
   leagueSeasonId: string,
 ): Promise<Array<{ weekId: string; label: string; weekType: WeekType; weekNumber: number }>> {
@@ -121,7 +141,7 @@ async function loadSettledWeeks(
 }
 
 /** `pickem_pick_results` row counts per week, for the weekly `results` count. */
-async function loadResultCountsByWeek(
+async function loadPickemResultCountsByWeek(
   db: Db,
   leagueSeasonId: string,
 ): Promise<Map<string, number>> {
@@ -133,18 +153,11 @@ async function loadResultCountsByWeek(
   return new Map(rows.map((row) => [row.weekId, row.resultCount]));
 }
 
-/** Rebuilds one league season, then reads its stored standings/results back into the wire shape. */
-async function settleTarget(
-  db: Db,
-  clock: Clock,
-  target: SettleTarget,
-): Promise<SimSettleLeagueResult> {
-  const summary = await rebuildLeagueSeason(db, clock, target.leagueSeasonId);
-
+async function loadPickemBoard(db: Db, target: SettleTarget): Promise<SimSettleBoard> {
   const [seasonStandings, weekMeta, resultCounts] = await Promise.all([
     loadStandingsRows(db, target.leagueSeasonId, null),
-    loadSettledWeeks(db, target.leagueSeasonId),
-    loadResultCountsByWeek(db, target.leagueSeasonId),
+    loadPickemSettledWeeks(db, target.leagueSeasonId),
+    loadPickemResultCountsByWeek(db, target.leagueSeasonId),
   ]);
 
   const weeksOut = await Promise.all(
@@ -158,14 +171,160 @@ async function settleTarget(
     })),
   );
 
+  return { mode: LEAGUE_MODE.PICKEM, seasonStandings, weeks: weeksOut };
+}
+
+/**
+ * Survivor's ledger for every member of the league, joined to their identity.
+ *
+ * A `left` join because **absence of a `survivor_state` row means alive and
+ * untouched** (ADR-0025) — nothing mints one at join time, so an inner join
+ * would silently drop every member the season has decided nothing about, which
+ * is the whole league before the first week grades.
+ */
+async function loadSurvivorMembers(
+  db: Db,
+  target: SettleTarget,
+): Promise<SimSettleSurvivorMemberRow[]> {
+  const rows = await db
+    .select({
+      leagueMemberId: leagueMembers.id,
+      username: users.username,
+      displayName: users.display_name,
+      eliminatedWeekId: survivorState.eliminatedWeekId,
+      livesRemaining: survivorState.livesRemaining,
+      revivedCount: survivorState.revivedCount,
+    })
+    .from(leagueMembers)
+    .innerJoin(users, eq(users.id, leagueMembers.userId))
+    .leftJoin(
+      survivorState,
+      and(
+        eq(survivorState.leagueMemberId, leagueMembers.id),
+        eq(survivorState.leagueSeasonId, target.leagueSeasonId),
+      ),
+    )
+    .where(eq(leagueMembers.leagueId, target.leagueId));
+
+  return rows
+    .map((row) => ({
+      leagueMemberId: row.leagueMemberId,
+      username: row.username,
+      displayName: row.displayName,
+      status:
+        row.eliminatedWeekId === null
+          ? SURVIVOR_MEMBER_STATUS.ALIVE
+          : SURVIVOR_MEMBER_STATUS.ELIMINATED,
+      eliminatedWeekId: row.eliminatedWeekId,
+      // The defaults a missing row stands for, spelled out rather than left
+      // null: one life per member in the MVP (spec §Game Mode 2 — Core Rules).
+      livesRemaining: row.livesRemaining ?? 1,
+      revivedCount: row.revivedCount ?? 0,
+    }))
+    .sort(
+      (a, b) =>
+        Number(a.status === SURVIVOR_MEMBER_STATUS.ELIMINATED) -
+          Number(b.status === SURVIVOR_MEMBER_STATUS.ELIMINATED) ||
+        a.displayName.localeCompare(b.displayName) ||
+        // Display names are not unique, so without a final total tiebreak two
+        // runs could order the same board differently — which is exactly the
+        // by-eye diffability this ordering exists to give the operator.
+        a.leagueMemberId.localeCompare(b.leagueMemberId),
+    );
+}
+
+/** `survivor_pick_results` row counts per week, for the weekly `results` count. */
+async function loadSurvivorResultCountsByWeek(
+  db: Db,
+  leagueSeasonId: string,
+): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ weekId: survivorPickResults.weekId, resultCount: count() })
+    .from(survivorPickResults)
+    .where(eq(survivorPickResults.leagueSeasonId, leagueSeasonId))
+    .groupBy(survivorPickResults.weekId);
+  return new Map(rows.map((row) => [row.weekId, row.resultCount]));
+}
+
+async function loadSurvivorBoard(db: Db, target: SettleTarget): Promise<SimSettleBoard> {
+  const [members, resultCounts] = await Promise.all([
+    loadSurvivorMembers(db, target),
+    loadSurvivorResultCountsByWeek(db, target.leagueSeasonId),
+  ]);
+
+  const eliminatedByWeek = new Map<string, string[]>();
+  for (const member of members) {
+    if (member.eliminatedWeekId === null) continue;
+    const bucket = eliminatedByWeek.get(member.eliminatedWeekId);
+    if (bucket) bucket.push(member.leagueMemberId);
+    else eliminatedByWeek.set(member.eliminatedWeekId, [member.leagueMemberId]);
+  }
+
+  // The union of "graded something" and "put someone out" — see
+  // `SimSettleSurvivorWeekResultSchema` for why those are not the same set.
+  const weekIds = [...new Set([...resultCounts.keys(), ...eliminatedByWeek.keys()])];
+  if (weekIds.length === 0) return { mode: LEAGUE_MODE.SURVIVOR, members, weeks: [] };
+
+  const weekMeta = await db
+    .select({
+      weekId: weeks.id,
+      label: weeks.label,
+      weekType: weeks.weekType,
+      weekNumber: weeks.weekNumber,
+    })
+    .from(weeks)
+    .where(inArray(weeks.id, weekIds));
+
+  // Sorted by the season ordinal, which is the order the replay grades in
+  // (ADR-0025). Week start cannot stand in for it: two weeks may share a start
+  // instant, and the ordinal is also what spans the regular/postseason boundary.
+  const weeksOut = weekMeta
+    .sort((a, b) => nflSeasonOrdinal(toNflWeekRef(a)) - nflSeasonOrdinal(toNflWeekRef(b)))
+    .map((week) => ({
+      weekId: week.weekId,
+      label: week.label,
+      weekType: week.weekType,
+      weekNumber: week.weekNumber,
+      results: resultCounts.get(week.weekId) ?? 0,
+      eliminatedMemberIds: eliminatedByWeek.get(week.weekId) ?? [],
+    }));
+
+  return { mode: LEAGUE_MODE.SURVIVOR, members, weeks: weeksOut };
+}
+
+/**
+ * The board for one settled league season, in its own mode's shape. The `switch`
+ * is the exhaustiveness proof: adding a `LEAGUE_MODE` member without a board
+ * here fails to compile rather than serving an empty one from another mode.
+ */
+async function loadBoard(db: Db, target: SettleTarget): Promise<SimSettleBoard> {
+  switch (target.mode) {
+    case LEAGUE_MODE.PICKEM:
+      return loadPickemBoard(db, target);
+    case LEAGUE_MODE.SURVIVOR:
+      return loadSurvivorBoard(db, target);
+    case LEAGUE_MODE.MARCH_MADNESS:
+      // `rebuildLeagueSeason` has no module for this mode and returns an empty
+      // summary, so there is nothing stored to read back (MM-6).
+      return { mode: LEAGUE_MODE.MARCH_MADNESS };
+  }
+}
+
+/** Rebuilds one league season, then reads its stored state back into the wire shape. */
+async function settleTarget(
+  db: Db,
+  clock: Clock,
+  target: SettleTarget,
+): Promise<SimSettleLeagueResult> {
+  const summary = await rebuildLeagueSeason(db, clock, target.leagueSeasonId);
+
   return {
     leagueId: target.leagueId,
     leagueName: target.leagueName,
     leagueSeasonId: target.leagueSeasonId,
     seasonYear: target.seasonYear,
     summary,
-    seasonStandings,
-    weeks: weeksOut,
+    board: await loadBoard(db, target),
   };
 }
 
@@ -184,6 +343,7 @@ export async function settleForSim(
         leagueName: current.league.name,
         leagueSeasonId: current.season.id,
         seasonYear: current.season.seasonYear,
+        mode: current.league.mode,
       },
     ];
   } else {

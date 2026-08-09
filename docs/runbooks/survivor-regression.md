@@ -107,6 +107,11 @@ last kickoff plus the game window, then Admin → Jobs → **Sync scores**, then
 season has actually got — under prefix ordering that number is the season's
 progress, not a per-run total.
 
+Its response also carries the ledger the passes below assert by eye (SIM-10):
+`board.members` is who is alive and who went out in which week, and
+`board.weeks[].eliminatedMemberIds` is that same answer per week — so a pass can
+be checked against one JSON body instead of reading the board screen back.
+
 ---
 
 ## Pass 1 — One team, changeable until it kicks off
