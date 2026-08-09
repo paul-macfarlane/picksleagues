@@ -104,7 +104,17 @@ const CompetitionSchema = z.looseObject({
     clock: z.number().optional(),
   }),
   competitors: z.array(CompetitorSchema),
-  odds: z.array(z.looseObject({ spread: z.number().optional() })).optional(),
+  // `provider.name` (PKM-9) is the book the spread came from — DraftKings as of
+  // 2026-08-07, but ESPN has rotated books before, so this is captured as free
+  // text rather than trusted to stay any one value.
+  odds: z
+    .array(
+      z.looseObject({
+        spread: z.number().optional(),
+        provider: z.looseObject({ name: z.string() }).optional(),
+      }),
+    )
+    .optional(),
 });
 
 const EventSchema = z.looseObject({
@@ -274,6 +284,10 @@ function mapCompetitionToGame(
   // scoreboard, 16/16 games consistent, 2026-07-21).
   const rawSpread = competition.odds?.[0]?.spread;
   const spread = typeof rawSpread === "number" && Number.isFinite(rawSpread) ? rawSpread : null;
+  // Same odds entry as the spread itself, so the two can never attribute a
+  // number to the wrong book (PKM-9).
+  const rawSource = competition.odds?.[0]?.provider?.name;
+  const spreadSource = typeof rawSource === "string" && rawSource.length > 0 ? rawSource : null;
 
   return {
     providerGameId: competition.id,
@@ -300,6 +314,7 @@ function mapCompetitionToGame(
     period: liveState.period,
     clockSeconds: liveState.clockSeconds,
     spread,
+    spreadSource,
   };
 }
 

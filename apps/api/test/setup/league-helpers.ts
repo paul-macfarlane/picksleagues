@@ -53,6 +53,8 @@ export interface SeededWeek {
      * straight-up fixtures, where no spread exists.
      */
     spread?: number;
+    /** The book behind `spread` (PKM-9). Omit for fixtures that don't care. */
+    spreadSource?: string;
   }>;
 }
 
@@ -148,6 +150,7 @@ export async function seedSeason(
           kickoffAt: game.kickoffAt,
           overrideKickoffAt: game.overrideKickoffAt ?? null,
           spread: game.spread ?? null,
+          spreadSource: game.spreadSource ?? null,
           status: GAME_STATUS.SCHEDULED,
           createdAt: SEED_AT,
           updatedAt: SEED_AT,

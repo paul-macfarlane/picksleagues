@@ -1,0 +1,5 @@
+### pnpm --filter @picksleagues/web build
+dist/assets/src-NOmbtZYK.js                                194.18 kB │ gzip: 44.97 kB
+dist/assets/index-Du2_XdBW.js                              260.90 kB │ gzip: 80.77 kB
+
+✓ built in 474ms

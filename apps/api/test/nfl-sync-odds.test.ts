@@ -271,6 +271,96 @@ describe("syncNflOdds", () => {
     expect(await spreadsByProviderId()).toEqual(new Map([["g2", -1.5]]));
   });
 
+  /**
+   * PKM-9: written in the same `set()` as `spread`, never as an `override_*`
+   * (arch D15) — asserted directly against the row since `spreadsByProviderId`
+   * only tracks the number.
+   */
+  describe("spread_source (PKM-9)", () => {
+    it("writes the book alongside the spread", async () => {
+      await seedSchedule([
+        providerGame({
+          providerGameId: "g2",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+          spread: 2.5,
+          spreadSource: "DraftKings",
+        }),
+      ]);
+
+      const details = await syncNflOdds(db, oddsClock, provider, {});
+      expect(details).toMatchObject({ spreadsUpdated: 1 });
+
+      const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+      expect(g2).toMatchObject({ spread: 2.5, spreadSource: "DraftKings" });
+    });
+
+    it("re-running with the same number and the same book leaves the row a true no-op", async () => {
+      await seedSchedule([
+        providerGame({
+          providerGameId: "g2",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+          spread: 2.5,
+          spreadSource: "DraftKings",
+        }),
+      ]);
+      await syncNflOdds(db, oddsClock, provider, {});
+      const afterFirst = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+
+      const second = await syncNflOdds(db, oddsClock, provider, {});
+      expect(second).toMatchObject({ spreadsUpdated: 0 });
+      expect(await db.select().from(games).where(eq(games.providerGameId, "g2"))).toEqual(
+        afterFirst,
+      );
+    });
+
+    it("writes when the book changes even though the number didn't move", async () => {
+      await seedSchedule([
+        providerGame({
+          providerGameId: "g2",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+          spread: 2.5,
+          spreadSource: "DraftKings",
+        }),
+      ]);
+      await syncNflOdds(db, oddsClock, provider, {});
+
+      provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
+        providerGame({
+          providerGameId: "g2",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
+          spread: 2.5,
+          spreadSource: "ESPN BET",
+        }),
+      ]);
+
+      const details = await syncNflOdds(db, oddsClock, provider, {});
+      expect(details).toMatchObject({ spreadsUpdated: 1 });
+      const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
+      expect(g2).toMatchObject({ spread: 2.5, spreadSource: "ESPN BET" });
+    });
+
+    it("never writes a source for a game with no line", async () => {
+      await seedSchedule([
+        providerGame({
+          providerGameId: "g3",
+          weekNumber: 1,
+          kickoffAt: new Date("2026-09-14T20:00:00.000Z"),
+          spread: null,
+          spreadSource: null,
+        }),
+      ]);
+
+      const details = await syncNflOdds(db, oddsClock, provider, {});
+      expect(details).toMatchObject({ gamesWithoutOdds: 1, spreadsUpdated: 0 });
+      const [g3] = await db.select().from(games).where(eq(games.providerGameId, "g3"));
+      expect(g3).toMatchObject({ spread: null, spreadSource: null });
+    });
+  });
+
   // Arch D15: ingestion writes provider columns only, so a correction outlives
   // every re-sync — and the resolved number an operator sees stays theirs.
   it("never clobbers an override_spread, and the override still wins after the re-sync", async () => {

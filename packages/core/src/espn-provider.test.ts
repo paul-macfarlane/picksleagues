@@ -409,8 +409,69 @@ describe("EspnProvider.fetchNflWeekGames", () => {
         period: null,
         clockSeconds: null,
         spread: -3.5,
+        spreadSource: "ESPN BET",
       },
     ]);
+  });
+
+  it("captures the book from odds[0].provider.name, and null when odds carry no provider", async () => {
+    const noProviderUrl = `${SITE_API_BASE_URL}/football/nfl/scoreboard?seasontype=2&week=2&dates=2026`;
+    const fetchImpl = stubFetch({
+      [noProviderUrl]: jsonResponse({
+        events: [
+          {
+            id: "411",
+            competitions: [
+              {
+                id: "411",
+                date: "2026-09-14T17:00Z",
+                status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+                competitors: [
+                  competitor({ homeAway: "home", abbreviation: "PHI", displayName: "Eagles" }),
+                  competitor({ homeAway: "away", abbreviation: "DAL", displayName: "Cowboys" }),
+                ],
+                // A spread with no attributed book — ESPN sometimes omits it.
+                odds: [{ spread: -3.5 }],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 2);
+
+    expect(game).toMatchObject({ spread: -3.5, spreadSource: null });
+  });
+
+  it("returns a null spreadSource alongside a null spread when odds are missing entirely", async () => {
+    const [game] = await (async () => {
+      const url = `${SITE_API_BASE_URL}/football/nfl/scoreboard?seasontype=2&week=3&dates=2026`;
+      const fetchImpl = stubFetch({
+        [url]: jsonResponse({
+          events: [
+            {
+              id: "412",
+              competitions: [
+                {
+                  id: "412",
+                  date: "2026-09-14T17:00Z",
+                  status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+                  competitors: [
+                    competitor({ homeAway: "home", abbreviation: "PHI", displayName: "Eagles" }),
+                    competitor({ homeAway: "away", abbreviation: "DAL", displayName: "Cowboys" }),
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      });
+      return makeProvider(fetchImpl).fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 3);
+    })();
+
+    expect(game).toMatchObject({ spread: null, spreadSource: null });
   });
 
   it("parses scores for an in-progress game", async () => {

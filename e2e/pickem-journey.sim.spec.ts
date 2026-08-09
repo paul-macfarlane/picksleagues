@@ -306,6 +306,33 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await expect(pageB).toHaveURL(new RegExp(`/leagues/${leagueId}$`));
   });
 
+  // The one assertion in this file about a *displayed* value rather than a
+  // journey outcome, and it earns the browser for a reason the header's rule
+  // allows: no cheaper layer can hold it. The book travels sim fixture →
+  // `SimulatedProvider` → the `sync-odds` job → `games.spread_source` → the
+  // slate DTO → this line, and only the full stack proves that chain end to
+  // end. The API halves are pinned in `apps/api/test/pickem-picks.test.ts` and
+  // `nfl-sync-odds.test.ts`; the render is presentation, which the engineering
+  // rules decline to freeze in a unit test — so this is its only home.
+  //
+  // A second league because the journey's own is Straight Up, which shows no
+  // spread and therefore no credit. Created before the clock advances: the
+  // credit is drawn from the *open* games on the pick sheet, and by the end of
+  // this file every game is final.
+  test("an ATS league names the book behind the spreads it shows", async () => {
+    await pageA.goto("/leagues/new");
+    await pageA.locator("#name").fill(`E2E ATS ${commishName.slice(-8)}`);
+    await pageA.getByRole("radio", { name: "Against the Spread" }).click();
+    await pageA.getByRole("button", { name: "Create league" }).click();
+    await expect(pageA).toHaveURL(/\/leagues\/[0-9a-f-]{36}$/);
+    const atsLeagueId = new URL(pageA.url()).pathname.split("/").at(-1)!;
+
+    await pageA.goto(`/leagues/${atsLeagueId}/my-picks`);
+    // Bound to the testid, not the sentence: the wording is the owner's to
+    // change, the book's name is the product claim being made.
+    await expect(pageA.getByTestId("spread-source-credit")).toContainText("DraftKings");
+  });
+
   test("both members commit week 1 as one irreversible full set", async () => {
     // Arranging state, not a user-facing assertion, so a direct API call is
     // fine here (per PKM-8's instructions) — the UI derives this same week/

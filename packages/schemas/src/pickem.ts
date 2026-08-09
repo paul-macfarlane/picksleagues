@@ -152,6 +152,16 @@ export const PickemPickSchema = z
     // The spread of record this pick was locked in against (null in SU leagues).
     spread: z.number().nullable(),
     /**
+     * The book that spread came from (PKM-9), read from the game row's frozen
+     * `spread_source` rather than a copy on the pick itself — freezing the
+     * source alongside the last-priced number is what keeps the credit correct
+     * on a submitted week whose game is long final. Null whenever `spread` above
+     * is — there is no number to attribute, which is every pick in a straight-up
+     * league — and under the same condition as `SlateGame.spreadSource`: a game
+     * whose `override_spread` is set.
+     */
+    spreadSource: z.string().nullable(),
+    /**
      * How this pick graded, or null while it has none — a pick whose game
      * hasn't reached a terminal state has no result row at all (arch D10:
      * results are a pure derivation). Null is therefore "not settled yet", not

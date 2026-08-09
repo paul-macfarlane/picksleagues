@@ -10,7 +10,13 @@ import {
 } from "@picksleagues/schemas";
 import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { gameStateAsOfLabel, gameStateLabel, pickStandingLabel, spreadLabel } from "@/lib/game";
+import {
+  gameStateAsOfLabel,
+  gameStateLabel,
+  pickStandingLabel,
+  spreadLabel,
+  spreadSourceCredit,
+} from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,6 +115,9 @@ export function PickemWeekDetail({
   const seasonByMember = byMemberId(seasonRows);
   const weekShared = sharedRankCounts(weekRows);
   const seasonShared = sharedRankCounts(seasonRows);
+  // Once per surface, not per pick row (PKM-9) — the whole slate prices from
+  // one provider response, so a per-row credit would repeat the same string.
+  const credit = spreadSourceCredit(slate.data?.games ?? [], pickType);
 
   return (
     // The card is addressed by testid and identified by the week it is for:
@@ -122,6 +131,11 @@ export function PickemWeekDetail({
             Best week first — open a member to see their picks. Each pick is revealed once its game
             kicks off.
           </CardDescription>
+        )}
+        {credit && (
+          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+            {credit}
+          </p>
         )}
       </CardHeader>
       <CardContent>

@@ -36,6 +36,9 @@ export interface ResolvedSlateGame {
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
+  // The book `spread` came from (PKM-9); null under `override_spread` — see
+  // `resolveGameOverrides`.
+  spreadSource: string | null;
   // Live in-game state and the instant it was observed (DATA-8) — see
   // `SlateGameSchema` for what `stateAsOf` means.
   period: number | null;
@@ -109,6 +112,7 @@ export async function loadResolvedWeekGames(
       homeScore: effective.homeScore,
       awayScore: effective.awayScore,
       spread: effective.spread,
+      spreadSource: effective.spreadSource,
       period: effective.period,
       clockSeconds: effective.clockSeconds,
       // The row's last observed change *is* the instant its live state was
@@ -173,6 +177,7 @@ function serializeSlateGame(game: ResolvedSlateGame) {
     homeScore: game.homeScore,
     awayScore: game.awayScore,
     spread: game.spread,
+    spreadSource: game.spreadSource,
     period: game.period,
     clockSeconds: game.clockSeconds,
     stateAsOf: game.stateAsOf.toISOString(),

@@ -15,6 +15,23 @@ import type {
 } from "./game-data-provider";
 
 /**
+ * The book the simulator reports behind its spreads. Deliberately the same name
+ * ESPN currently attributes in production, so a sim-driven run exercises exactly
+ * what a member sees rather than a shape only the simulator ever produces —
+ * which is the whole point of the simulator being this repo's primary
+ * verification harness.
+ *
+ * The trade-off, stated so nobody rediscovers it as a bug: these spreads are
+ * synthesized (SIM-6), so this credits a real book for numbers it never priced.
+ * That is contained because the simulator is dev-only — `SIM_ENABLED` gates it
+ * and its routes are not registered in production (ADR-0011) — so no member ever
+ * sees this string. A screenshot or demo of a simulated slate does misattribute,
+ * and that is the accepted cost. Change this to an obviously-synthetic name if
+ * simulated slates ever become externally visible.
+ */
+const SIMULATED_SPREAD_SOURCE = "DraftKings";
+
+/**
  * How long a game is reported `in_progress` after kickoff before its terminal
  * status takes effect. Roughly a real NFL broadcast window; the exact value only
  * has to be long enough that "advance an hour into the slate" lands mid-game.
@@ -177,6 +194,8 @@ function toProviderGame(fixture: SimFixtureGameRow, now: Date): ProviderGame {
     period: projected.period,
     clockSeconds: projected.clockSeconds,
     spread: fixture.spread,
+    // Null when the fixture has no line — nothing priced is nothing to credit.
+    spreadSource: fixture.spread === null ? null : SIMULATED_SPREAD_SOURCE,
   };
 }
 
