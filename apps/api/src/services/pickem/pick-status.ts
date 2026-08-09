@@ -35,10 +35,11 @@ export interface PickemPickStatusInput {
 /**
  * Keyed by `leagueSeasonId`. A league is absent — no glance rather than a state
  * — when its season holds no week it plays, or when the week it is on holds no
- * ingested games. Both are the same answer to the same question: there is
- * nothing to owe picks for yet, and any state would be a claim about a week
- * that doesn't exist to be closed or open. A season that has already ended
- * reports regardless, since that is a fact about the season, not the week.
+ * ingested games *and* the member holds no picks in it. Both absences are the
+ * same answer to the same question: there is nothing to owe picks for yet, and
+ * any state would be a claim about a week that doesn't exist to be closed or
+ * open. A concluded season and a submitted week both report regardless, being
+ * facts about the season and the member rather than about the week's inventory.
  */
 export async function resolvePickemPickStatuses(
   db: Db,
@@ -102,6 +103,17 @@ export async function resolvePickemPickStatuses(
     const frame = frames.get(league.leagueSeasonId);
     if (!frame) continue;
 
+    // Asked ahead of the week's own inventory below for the reason
+    // `SEASON_COMPLETE` is asked ahead of the week at all: having submitted is a
+    // fact about the member, and the schedule's later accounting must not
+    // retract it. A pick outlives its game's departure from the week
+    // (`nfl/ingest-season.ts`), so a week can be game-free and still
+    // pick-referenced.
+    if (submitted.has(`${league.leagueSeasonId}:${league.membershipId}:${frame.weekId}`)) {
+      statuses.set(league.leagueSeasonId, PICKEM_PICK_STATUS.PICKS_IN);
+      continue;
+    }
+
     // A week holding no ingested games gets no glance at all, which is the one
     // answer that can't be wrong: unseeded playoff rounds ingest zero games
     // while their weeks exist (ADR-0021), so this is a postseason week's normal
@@ -111,11 +123,6 @@ export async function resolvePickemPickStatuses(
     // prompt into a screen with nothing to pick. Saying nothing leaves the card
     // on its placeholder and still cannot contradict the pick screen.
     if (!frame.hasGames) continue;
-
-    if (submitted.has(`${league.leagueSeasonId}:${league.membershipId}:${frame.weekId}`)) {
-      statuses.set(league.leagueSeasonId, PICKEM_PICK_STATUS.PICKS_IN);
-      continue;
-    }
 
     // Exactly the pick screen's own test — it heads a week with no pickable
     // game "This week is closed" — so the card and the screen behind it cannot
