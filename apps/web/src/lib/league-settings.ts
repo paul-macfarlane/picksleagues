@@ -1,7 +1,7 @@
 import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
-  type EliminationSettings,
+  type SurvivorSettings,
   type LeagueResponse,
   type MarchMadnessSettings,
   type PickemSettings,
@@ -32,9 +32,9 @@ export function pickemSettingsOf(league: LeagueResponse): PickemSettings | null 
   return parsed.success ? parsed.data : null;
 }
 
-export function eliminationSettingsOf(league: LeagueResponse): EliminationSettings | null {
-  if (league.mode !== LEAGUE_MODE.ELIMINATION) return null;
-  const parsed = LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.ELIMINATION].safeParse(league.settings);
+export function survivorSettingsOf(league: LeagueResponse): SurvivorSettings | null {
+  if (league.mode !== LEAGUE_MODE.SURVIVOR) return null;
+  const parsed = LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].safeParse(league.settings);
   return parsed.success ? parsed.data : null;
 }
 

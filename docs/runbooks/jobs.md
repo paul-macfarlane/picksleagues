@@ -141,3 +141,27 @@ A bare (no-arg) sync-schedule run additionally carries the offseason self-heal o
 `upcoming` (`"real"` | `"provisional"` | `"skipped_not_concluded"` | `"skipped_no_weeks"`)
 and `upcomingSeasonYear`. `skipped_not_concluded` is the normal in-season/most-of-the-year
 result; `provisional`/`real` only appear once the default season has concluded.
+
+## Rotating `JOB_SECRET`
+
+Rotation is a two-writer dance — Vercel holds the value the API checks, cron-job.org
+holds the value it sends — and the API accepts exactly one value at a time, so the order
+below minimizes the failure window rather than eliminating it (acceptable: every job
+is idempotent and the next tick self-heals):
+
+1. Generate the new value: `openssl rand -base64 32`.
+2. Update the Vercel env var (`JOB_SECRET`, Production scope) and redeploy — from this
+   moment scheduled runs 401 until step 3.
+3. Update the `x-job-secret` header on **every** cron-job.org job (there is no shared
+   header store; each job carries its own copy).
+4. Confirm recovery: either wait for the next `nfl-sync-scores` tick (≤5 minutes) to
+   succeed in cron-job.org's execution history, or fire one job manually with the new
+   secret (§Manual triggering) against production.
+
+The 401s that cron-job.org sees between steps 2 and 3 will fire failure notifications —
+expected noise, not an incident. Rotate at a quiet hour (any time outside Sunday
+afternoons) and the window stays under a minute of real jobs.
+
+Staging and local rotate independently (per-environment values, see
+`docs/runbooks/environments.md`) and have no cron-job.org side — updating the env var is
+the whole rotation there.

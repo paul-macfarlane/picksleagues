@@ -20,24 +20,11 @@ coverage/
 # local review feedback (never committed — see /feedback)
 /feedback.md
 
+# local notes to myself about things I should do, add to backlog, next priorities, etc
+/todos.md
+
 # os
 .DS_Store
 .vercel
 .env*
-
-# <!-- atlas-v3:gitignore:start -->
-# The markers above and below are Atlas's block delimiters. They are commented
-# because `#` is gitignore's comment character — uncommented, git parses them as
-# literal patterns. Atlas detects its markers by substring, so the `# ` prefix is
-# safe and the block stays team-owned across scaffold reruns.
-.claude/worktrees/
-.claude/atlas-state/
-# Re-include committed PASS evidence, which the `test-results/` rule above would
-# otherwise swallow. The directory negation must precede the `/**` negation.
-!docs/evidence/test-results/
-!docs/evidence/test-results/**
-# <!-- atlas-v3:gitignore:end -->
-
-# Python bytecode (Atlas hooks are Python; everything else here is TS)
-__pycache__/
-*.py[cod]
+.playwright-mcp/

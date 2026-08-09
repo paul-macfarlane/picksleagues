@@ -57,8 +57,18 @@ export function isUnplayedStatus(status: GameStatus): boolean {
  * score check rather than folding "has a score" in here — `postponed` carrying
  * a score is knowable without ever having started, and this constant means what
  * it says.
+ *
+ * Exported as the list *as well as* behind `isStartedStatus`, unlike
+ * `UNPLAYED_GAME_STATUSES`: the admin anomaly query re-expresses that same guard
+ * in SQL over every game in the database, and a SQL `inArray` cannot push a
+ * predicate down. Restating the two values there would let the detection query
+ * and the guard it exists to backstop disagree about what "started" means, which
+ * is the one drift neither side would report.
  */
-const STARTED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.IN_PROGRESS, GAME_STATUS.FINAL];
+export const STARTED_GAME_STATUSES: readonly GameStatus[] = [
+  GAME_STATUS.IN_PROGRESS,
+  GAME_STATUS.FINAL,
+];
 
 export function isStartedStatus(status: GameStatus): boolean {
   return STARTED_GAME_STATUSES.includes(status);

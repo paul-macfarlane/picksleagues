@@ -3,17 +3,46 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { games, pickemPickResults, pickemPicks, pickemStandings } from "@picksleagues/db";
 import {
   GAME_STATUS,
+  LEAGUE_MODE,
   MEMBER_ROLE,
   PICKEM_PICK_SIDE,
+  SURVIVOR_MEMBER_STATUS,
+  type SimSettleLeagueResult,
   type SimSettleResponse,
 } from "@picksleagues/schemas";
 import { adminCaller, auth, closeSimDb, db, postJson } from "./setup/sim-helpers";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, SEED_AT, seedSeason } from "./setup/league-helpers";
 import { seedPickemLeague } from "./setup/pickem-league";
+import {
+  insertSurvivorPick,
+  seedSurvivorGame,
+  seedSurvivorSeason,
+  SURVIVOR_WEEK_MS,
+} from "./setup/survivor-league";
+import { WEEK1_KICKOFF } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
 const PAST_KICKOFF = new Date("2026-09-14T17:00:00.000Z");
+
+/**
+ * Narrow the board union to the mode under test. The throw is the point: a
+ * league that came back in another mode's shape is the SIM-10 defect itself, so
+ * it must fail the test rather than quietly yield `undefined` fields.
+ */
+function pickemBoard(result: SimSettleLeagueResult) {
+  const { board } = result;
+  if (board.mode !== LEAGUE_MODE.PICKEM)
+    throw new Error(`expected a pickem board, got ${board.mode}`);
+  return board;
+}
+
+function survivorBoard(result: SimSettleLeagueResult) {
+  const { board } = result;
+  if (board.mode !== LEAGUE_MODE.SURVIVOR)
+    throw new Error(`expected a survivor board, got ${board.mode}`);
+  return board;
+}
 
 beforeEach(async () => {
   await resetDb(db);
@@ -142,13 +171,14 @@ describe("POST /api/sim/settle", () => {
     expect(result.summary.results).toBe(4);
     expect(result.summary.unsettled).toBe(0);
 
-    expect(result.seasonStandings).toEqual([
+    const board = pickemBoard(result);
+    expect(board.seasonStandings).toEqual([
       expect.objectContaining({ leagueMemberId: memberARow.id, points: 2, rank: 1 }),
       expect.objectContaining({ leagueMemberId: memberBRow.id, points: 0, rank: 2 }),
     ]);
-    expect(result.weeks).toHaveLength(1);
-    expect(result.weeks[0]!.results).toBe(4);
-    expect(result.weeks[0]!.standings).toEqual(result.seasonStandings);
+    expect(board.weeks).toHaveLength(1);
+    expect(board.weeks[0]!.results).toBe(4);
+    expect(board.weeks[0]!.standings).toEqual(board.seasonStandings);
 
     const storedResults = await db
       .select()
@@ -167,8 +197,7 @@ describe("POST /api/sim/settle", () => {
     const second = await postJson(app, "/api/sim/settle", { leagueId: league.id }, cookie);
     const secondBody = (await second.json()) as SimSettleResponse;
 
-    expect(secondBody.leagues[0]!.seasonStandings).toEqual(firstBody.leagues[0]!.seasonStandings);
-    expect(secondBody.leagues[0]!.weeks).toEqual(firstBody.leagues[0]!.weeks);
+    expect(pickemBoard(secondBody.leagues[0]!)).toEqual(pickemBoard(firstBody.leagues[0]!));
 
     const resultRows = await db
       .select()
@@ -221,7 +250,7 @@ describe("POST /api/sim/settle", () => {
     // (ADR-0018). The assertion that matters here is that league B's stored
     // board did not move at all.
     const byMember = new Map(
-      scopedBody.leagues[0]!.seasonStandings.map((row) => [row.leagueMemberId, row]),
+      pickemBoard(scopedBody.leagues[0]!).seasonStandings.map((row) => [row.leagueMemberId, row]),
     );
     expect(byMember.get(a.memberARow.id)).toMatchObject({ points: 1, rank: 1 });
     expect(byMember.get(a.memberBRow.id)).toMatchObject({ points: 1, rank: 1 });
@@ -260,11 +289,190 @@ describe("POST /api/sim/settle", () => {
       unsettled: 0,
       failed: 0,
     });
-    expect(result.weeks).toEqual([]);
-    expect(result.seasonStandings).toHaveLength(2);
-    for (const row of result.seasonStandings) {
+    const board = pickemBoard(result);
+    expect(board.weeks).toEqual([]);
+    expect(board.seasonStandings).toHaveLength(2);
+    for (const row of board.seasonStandings) {
       expect(row.points).toBe(0);
       expect(row.rank).toBe(1);
     }
+  });
+});
+
+/**
+ * SIM-10: the read-back serves each mode the tables it actually writes. Before
+ * it did, every case below came back as an empty `pickem_standings` board, which
+ * an operator cannot tell apart from a settle that graded nothing.
+ */
+describe("POST /api/sim/settle — Survivor", () => {
+  it("reports the ledger: who is alive, who went out, and in which week", async () => {
+    const { app, cookie } = await adminCaller();
+    const season = await seedSurvivorSeason(db, auth, {
+      weekCount: 2,
+      memberCount: 3,
+      usernamePrefix: "ledger",
+    });
+    const [week1, week2] = season.weeks as [
+      (typeof season.weeks)[number],
+      (typeof season.weeks)[number],
+    ];
+    const [alive, outLate, outEarly] = season.memberIds as [string, string, string];
+
+    for (const week of [week1, week2]) {
+      await db
+        .update(games)
+        .set({ status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 })
+        .where(eq(games.id, week.gameId));
+    }
+
+    // Week 1 puts `outEarly` out; week 2 reduces the league to `alive`, which is
+    // where ADR-0027 stops the replay.
+    for (const [memberId, teamId] of [
+      [alive, week1.homeTeamId],
+      [outLate, week1.homeTeamId],
+      [outEarly, week1.awayTeamId],
+    ] as const) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: season.leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId: week1.weekId,
+        gameId: week1.gameId,
+        teamId,
+      });
+    }
+    for (const [memberId, teamId] of [
+      [alive, week2.homeTeamId],
+      [outLate, week2.awayTeamId],
+    ] as const) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: season.leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId: week2.weekId,
+        gameId: week2.gameId,
+        teamId,
+      });
+    }
+
+    const res = await postJson(app, "/api/sim/settle", { leagueId: season.league.id }, cookie);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SimSettleResponse;
+    const board = survivorBoard(body.leagues[0]!);
+
+    // Addressed by member rather than by index: the fixture gives every member
+    // the same display name, so the order among the eliminated two is a tie the
+    // response is free to break either way.
+    const byMember = new Map(board.members.map((member) => [member.leagueMemberId, member]));
+    expect(byMember.get(alive)).toMatchObject({
+      status: SURVIVOR_MEMBER_STATUS.ALIVE,
+      eliminatedWeekId: null,
+      livesRemaining: 1,
+      revivedCount: 0,
+    });
+    expect(byMember.get(outLate)).toMatchObject({
+      status: SURVIVOR_MEMBER_STATUS.ELIMINATED,
+      eliminatedWeekId: week2.weekId,
+      livesRemaining: 0,
+    });
+    expect(byMember.get(outEarly)).toMatchObject({
+      status: SURVIVOR_MEMBER_STATUS.ELIMINATED,
+      eliminatedWeekId: week1.weekId,
+      livesRemaining: 0,
+    });
+    // The one ordering guarantee worth pinning: whoever is left comes first.
+    expect(board.members[0]!.leagueMemberId).toBe(alive);
+
+    expect(board.weeks.map((week) => week.weekId)).toEqual([week1.weekId, week2.weekId]);
+    expect(board.weeks[0]).toMatchObject({ results: 3, eliminatedMemberIds: [outEarly] });
+    expect(board.weeks[1]).toMatchObject({ results: 2, eliminatedMemberIds: [outLate] });
+  });
+
+  it("lists a week that eliminated a member without grading any results (ADR-0028)", async () => {
+    const { app, cookie } = await adminCaller();
+    const season = await seedSurvivorSeason(db, auth, {
+      weekCount: 1,
+      memberCount: 3,
+      usernamePrefix: "provisional",
+    });
+    const week = season.weeks[0]!;
+    const [safe, busted, waiting] = season.memberIds as [string, string, string];
+
+    // One game decided, one still to play: the week cannot be graded as a unit,
+    // so it writes no result rows — but `safe` is confirmed through, which puts
+    // `busted` out for good.
+    await db
+      .update(games)
+      .set({ status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 })
+      .where(eq(games.id, week.gameId));
+    const openGame = await seedSurvivorGame(db, {
+      weekId: week.weekId,
+      kickoffAt: new Date(WEEK1_KICKOFF.getTime() + SURVIVOR_WEEK_MS),
+    });
+
+    for (const [memberId, gameId, teamId] of [
+      [safe, week.gameId, week.homeTeamId],
+      [busted, week.gameId, week.awayTeamId],
+      [waiting, openGame.gameId, openGame.homeTeamId],
+    ] as const) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: season.leagueSeasonId,
+        leagueMemberId: memberId,
+        weekId: week.weekId,
+        gameId,
+        teamId,
+      });
+    }
+
+    const res = await postJson(app, "/api/sim/settle", { leagueId: season.league.id }, cookie);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SimSettleResponse;
+    const result = body.leagues[0]!;
+    const board = survivorBoard(result);
+
+    expect(result.summary.results).toBe(0);
+    // The week is the operator's whole question here, so it must be listed even
+    // though nothing graded — keying the list on result rows alone would drop it.
+    expect(board.weeks).toHaveLength(1);
+    expect(board.weeks[0]).toMatchObject({
+      weekId: week.weekId,
+      results: 0,
+      eliminatedMemberIds: [busted],
+    });
+    expect(
+      board.members
+        .filter((member) => member.status === SURVIVOR_MEMBER_STATUS.ALIVE)
+        .map((m) => m.leagueMemberId)
+        .sort(),
+    ).toEqual([safe, waiting].sort());
+  });
+
+  it("a season with nothing settled yet reports every member alive, not an empty board", async () => {
+    const { app, cookie } = await adminCaller();
+    const season = await seedSurvivorSeason(db, auth, {
+      weekCount: 1,
+      memberCount: 2,
+      usernamePrefix: "untouched",
+    });
+
+    const res = await postJson(app, "/api/sim/settle", { leagueId: season.league.id }, cookie);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SimSettleResponse;
+    const board = survivorBoard(body.leagues[0]!);
+
+    // Nothing mints a `survivor_state` row at join time (ADR-0025), so these
+    // members exist only in `league_members` — an inner join would report the
+    // empty board SIM-10 exists to remove.
+    expect(board.members).toHaveLength(2);
+    for (const member of board.members) {
+      expect(member).toMatchObject({
+        status: SURVIVOR_MEMBER_STATUS.ALIVE,
+        eliminatedWeekId: null,
+        livesRemaining: 1,
+        revivedCount: 0,
+      });
+    }
+    expect(board.weeks).toEqual([]);
   });
 });

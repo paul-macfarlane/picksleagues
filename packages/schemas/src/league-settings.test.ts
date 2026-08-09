@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
-  EliminationSettingsSchema,
+  NFL_REGULAR_SEASON_RANGE,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
+  SurvivorSettingsInputSchema,
+  SurvivorSettingsSchema,
+  isWeekInSeasonRange,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
@@ -11,8 +14,10 @@ import {
   pickemSettingsInvalidatePicks,
   PickemSettingsInputSchema,
   PickemSettingsSchema,
+  survivorSettingsInvalidatePicks,
   type PickemSeasonRangePreset,
   type PickemSettings,
+  type SurvivorSettings,
 } from "./league-settings";
 import { LEAGUE_MODE } from "./league-mode";
 import { PICK_TYPE } from "./pick-type";
@@ -22,6 +27,10 @@ import { WEEK_TYPE } from "./week-type";
 // rules §Quality).
 const regular = (number: number) => ({ type: "regular" as const, number });
 const postseason = (number: number) => ({ type: "postseason" as const, number });
+const regularRange = (start: number, end: number) => ({
+  startWeek: regular(start),
+  endWeek: regular(end),
+});
 
 describe("nflSeasonOrdinal", () => {
   it.each([
@@ -31,6 +40,58 @@ describe("nflSeasonOrdinal", () => {
     { label: "Super Bowl is last", week: postseason(4), expected: 22 },
   ])("$label", ({ week, expected }) => {
     expect(nflSeasonOrdinal(week)).toBe(expected);
+  });
+});
+
+describe("isWeekInSeasonRange", () => {
+  const week = (weekType: "regular" | "postseason", weekNumber: number) => ({
+    weekType,
+    weekNumber,
+  });
+
+  it.each([
+    {
+      label: "first week of the range",
+      w: week("regular", 1),
+      range: regularRange(1, 18),
+      in: true,
+    },
+    {
+      label: "last week of the range",
+      w: week("regular", 18),
+      range: regularRange(1, 18),
+      in: true,
+    },
+    { label: "before the range", w: week("regular", 3), range: regularRange(5, 18), in: false },
+    { label: "after the range", w: week("regular", 6), range: regularRange(1, 5), in: false },
+    // The whole reason this isn't a `weekNumber` compare: a postseason week 1
+    // is *after* regular week 18, and a naive numeric test reads it as before.
+    {
+      label: "Wild Card is outside a regular-season range",
+      w: week("postseason", 1),
+      range: regularRange(1, 18),
+      in: false,
+    },
+    {
+      label: "Wild Card is inside a postseason range",
+      w: week("postseason", 1),
+      range: { startWeek: postseason(1), endWeek: postseason(4) },
+      in: true,
+    },
+    {
+      label: "regular week 18 is outside a postseason range",
+      w: week("regular", 18),
+      range: { startWeek: postseason(1), endWeek: postseason(4) },
+      in: false,
+    },
+    {
+      label: "a full-season range spans the boundary",
+      w: week("postseason", 4),
+      range: { startWeek: regular(1), endWeek: postseason(4) },
+      in: true,
+    },
+  ])("$label", ({ w, range, in: expected }) => {
+    expect(isWeekInSeasonRange(w, range)).toBe(expected);
   });
 });
 
@@ -213,6 +274,35 @@ describe("pickemSettingsInvalidatePicks", () => {
   });
 });
 
+describe("survivorSettingsInvalidatePicks", () => {
+  const base: SurvivorSettings = {
+    startWeek: regular(1),
+    endWeek: regular(18),
+    pushTieResolution: "advance",
+  };
+
+  it("invalidates when startWeek moves later in season order", () => {
+    expect(survivorSettingsInvalidatePicks(base, { ...base, startWeek: regular(2) })).toBe(true);
+  });
+
+  it.each([
+    { label: "nothing changes", next: base },
+    // Settlement reads this at grading time, so no stored pick becomes
+    // ungradeable — this is the case the whole predicate exists to spare.
+    {
+      label: "pushTieResolution changes",
+      next: { ...base, pushTieResolution: "eliminate" as const },
+    },
+    {
+      label: "startWeek moves earlier (widens the range)",
+      previous: { ...base, startWeek: regular(2) },
+      next: base,
+    },
+  ])("does not invalidate when $label", ({ next, previous = base }) => {
+    expect(survivorSettingsInvalidatePicks(previous, next)).toBe(false);
+  });
+});
+
 describe("PICKEM_NOMINAL_RANGE", () => {
   it("pins each preset's nominal range", () => {
     expect(PICKEM_NOMINAL_RANGE).toEqual({
@@ -312,15 +402,14 @@ describe("changing the season-range preset", () => {
   });
 });
 
-describe("EliminationSettingsSchema", () => {
+describe("SurvivorSettingsSchema", () => {
   const base = {
     startWeek: regular(1),
     endWeek: regular(18),
-    pickType: "straight_up",
   };
 
   it("applies default: advance on push", () => {
-    expect(EliminationSettingsSchema.parse(base).pushTieResolution).toBe("advance");
+    expect(SurvivorSettingsSchema.parse(base).pushTieResolution).toBe("advance");
   });
 
   it.each([
@@ -328,7 +417,7 @@ describe("EliminationSettingsSchema", () => {
     { label: "single week", input: { ...base, startWeek: regular(7), endWeek: regular(7) } },
     { label: "eliminate on push", input: { ...base, pushTieResolution: "eliminate" } },
   ])("accepts $label", ({ input }) => {
-    expect(EliminationSettingsSchema.safeParse(input).success).toBe(true);
+    expect(SurvivorSettingsSchema.safeParse(input).success).toBe(true);
   });
 
   it.each([
@@ -341,7 +430,49 @@ describe("EliminationSettingsSchema", () => {
     { label: "week 0", input: { ...base, startWeek: regular(0) } },
     { label: "week 19", input: { ...base, endWeek: regular(19) } },
   ])("rejects $label", ({ input }) => {
-    expect(EliminationSettingsSchema.safeParse(input).success).toBe(false);
+    expect(SurvivorSettingsSchema.safeParse(input).success).toBe(false);
+  });
+
+  // The stored shape is unchanged by ADR-0024 — only the wire shape lost the
+  // range — so everything downstream keeps reading the refs it always did.
+  it("round-trips the resolved refs the server stores, including a mid-season start", () => {
+    const stored = {
+      startWeek: regular(5),
+      endWeek: regular(18),
+      pushTieResolution: "advance" as const,
+    };
+    expect(SurvivorSettingsSchema.parse(stored)).toEqual(stored);
+  });
+
+  it("accepts the regular-season nominal range both modes resolve from", () => {
+    expect(SurvivorSettingsSchema.safeParse(NFL_REGULAR_SEASON_RANGE).success).toBe(true);
+  });
+});
+
+describe("SurvivorSettingsInputSchema", () => {
+  it("carries only the settings a commissioner still chooses", () => {
+    expect(SurvivorSettingsInputSchema.parse({})).toEqual({ pushTieResolution: "advance" });
+  });
+
+  // Everything else a client might send is decided somewhere other than the
+  // wire: the range server-side against the clock (ADR-0024), and the pick type
+  // by the mode itself (ADR-0026 — Survivor is straight-up only). Stripping
+  // rather than refusing is what keeps an out-of-date client from failing a
+  // league creation over a setting it can't influence either way.
+  it.each([
+    { label: "a start week", input: { startWeek: regular(5) } },
+    { label: "an end week", input: { endWeek: regular(10) } },
+    {
+      label: "the whole pre-ADR-0024 range",
+      input: { startWeek: regular(1), endWeek: regular(18) },
+    },
+    {
+      label: "a season-range preset it has no vocabulary for",
+      input: { seasonRangePreset: "regular_season" },
+    },
+    { label: "a pick type", input: { pickType: "straight_up" } },
+  ])("strips $label from the wire", ({ input }) => {
+    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({ pushTieResolution: "advance" });
   });
 });
 
@@ -413,28 +544,29 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
   it("dispatches every league mode to its settings schema", () => {
     expect(Object.keys(LEAGUE_SETTINGS_SCHEMAS).sort()).toEqual(Object.values(LEAGUE_MODE).sort());
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM]).toBe(PickemSettingsSchema);
-    expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.ELIMINATION]).toBe(EliminationSettingsSchema);
+    expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR]).toBe(SurvivorSettingsSchema);
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(MarchMadnessSettingsSchema);
   });
 
-  // Only Pick'em's two entries differ (ADR-0020 §Scope) — an Elimination or
-  // March Madness entry drifting apart would mean a wire shape nothing
-  // resolves into the stored one.
-  it("dispatches every league mode to its input schema, diverging only for Pick'em", () => {
+  // Both NFL modes' entries differ from the stored map (ADR-0020, ADR-0024):
+  // each has its season range resolved rather than chosen. March Madness has
+  // no range, and an entry of its drifting apart would mean a wire shape
+  // nothing resolves into the stored one.
+  it("dispatches every league mode to its input schema, diverging for both NFL modes", () => {
     expect(Object.keys(LEAGUE_SETTINGS_INPUT_SCHEMAS).sort()).toEqual(
       Object.values(LEAGUE_MODE).sort(),
     );
     expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.PICKEM]).toBe(PickemSettingsInputSchema);
-    expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.ELIMINATION]).toBe(EliminationSettingsSchema);
+    expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.SURVIVOR]).toBe(SurvivorSettingsInputSchema);
     expect(LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(
       MarchMadnessSettingsSchema,
     );
   });
 
   it("pins the wire values other packages build on", () => {
-    expect(Object.values(LEAGUE_MODE).sort()).toEqual(["elimination", "march_madness", "pickem"]);
+    expect(Object.values(LEAGUE_MODE).sort()).toEqual(["march_madness", "pickem", "survivor"]);
     expect(Object.values(PICK_TYPE).sort()).toEqual(["against_the_spread", "straight_up"]);
-    expect(Object.values(ELIMINATION_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
+    expect(Object.values(SURVIVOR_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
     expect(Object.values(WEEK_TYPE).sort()).toEqual(["postseason", "regular"]);
     expect(Object.values(PICKEM_SEASON_RANGE_PRESET).sort()).toEqual([
       "full_season",

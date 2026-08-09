@@ -13,12 +13,32 @@ import type { Clock } from "@picksleagues/core";
 import {
   APP_ROLE,
   DELETED_USER_DISPLAY_NAME,
-  LEAGUE_STATUS,
   MEMBER_ROLE,
   type AppRole,
   type DisplayName,
+  type ImageUrl,
   type Username,
 } from "@picksleagues/schemas";
+
+/**
+ * The avatar to show for a user: the member's own URL when they've set one,
+ * otherwise the OAuth provider's (ADR-0022) — the same
+ * `override_* ?? provider_*` precedence the sports tables use.
+ *
+ * Every surface that serializes a user's avatar must call this. Both columns
+ * are `string | null`, so a serializer that reaches for the wrong one type-checks
+ * cleanly and ships the wrong picture — there is no compiler to catch it, which
+ * is why the resolution has exactly one home.
+ *
+ * Structurally typed rather than taking a `users` row: the standings query
+ * selects a narrow projection and must be able to pass it.
+ */
+export function resolveUserImage(user: {
+  image: string | null;
+  imageOverride: string | null;
+}): string | null {
+  return user.imageOverride ?? user.image;
+}
 
 export type UpdateProfileResult =
   { ok: true; user: typeof users.$inferSelect } | { ok: false; reason: "username_taken" };
@@ -34,12 +54,17 @@ const USERNAME_UNIQUE_CONSTRAINT = "users_username_unique";
  * touches the username column. The `citext` unique constraint on
  * `users.username` is the race-proof uniqueness check (engineering rules
  * §Data & database) — no pre-check SELECT.
+ *
+ * `imageOverride` is tri-state (ADR-0022) and the `!== undefined` test is what
+ * carries it: an absent key never touches the column, while an explicit `null`
+ * writes SQL NULL and reverts the member to their provider avatar. The
+ * provider's own `users.image` is never written here.
  */
 export async function updateProfile(
   db: Db,
   clock: Clock,
   userId: string,
-  fields: { username?: Username; displayName?: DisplayName },
+  fields: { username?: Username; displayName?: DisplayName; imageOverride?: ImageUrl | null },
 ): Promise<UpdateProfileResult> {
   try {
     const rows = await db
@@ -47,6 +72,7 @@ export async function updateProfile(
       .set({
         ...(fields.username !== undefined ? { username: fields.username } : {}),
         ...(fields.displayName !== undefined ? { display_name: fields.displayName } : {}),
+        ...(fields.imageOverride !== undefined ? { imageOverride: fields.imageOverride } : {}),
         updatedAt: clock.now(),
       })
       .where(eq(users.id, userId))
@@ -98,8 +124,8 @@ export async function getAppRole(db: Db, userId: string): Promise<AppRole | null
  * email/OTP flows are ever added, revisit — its `identifier` can hold an email.
  *
  * Deletion is blocked (ADR-0004, same invariant as leaving a league, LG-6)
- * while the caller is the last commissioner of any non-empty active league —
- * they must promote a replacement first. Membership rows themselves survive
+ * while the caller is the last commissioner of any non-empty league, concluded
+ * ones included — they must promote a replacement first. Membership rows survive
  * deletion (the anonymized user remains a member everywhere), so this is the
  * only league-side check deletion needs.
  */
@@ -122,7 +148,7 @@ export async function deleteAccount(
       for update of l
     `);
 
-    if (await isLastCommissionerOfNonEmptyActiveLeague(tx, userId)) {
+    if (await isLastCommissionerOfNonEmptyLeague(tx, userId)) {
       return { ok: false as const, reason: "last_commissioner" as const };
     }
 
@@ -132,6 +158,11 @@ export async function deleteAccount(
         username: null,
         display_name: DELETED_USER_DISPLAY_NAME,
         image: null,
+        // The tombstone row keeps rendering on every league surface it has
+        // history on, so a member-set URL left here would keep fetching a live
+        // third party — and logging the viewer's IP to it — under "Deleted
+        // User", indefinitely.
+        imageOverride: null,
         email: `deleted-${userId}@deleted.invalid`,
         emailVerified: false,
         // The row survives deletion (FK history), so it must not survive
@@ -149,13 +180,20 @@ export async function deleteAccount(
 export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_commissioner" };
 
 /**
- * True when any active league would be left commissioner-less but not
- * member-less by this user's departure — the ADR-0004 invariant, evaluated
- * inside the deletion transaction. "Active" is the league's CURRENT instance
- * being ACTIVE (ADR-0009): join the current season and filter status, so a
- * league with a concluded past instance never counts.
+ * True when any league would be left commissioner-less but not member-less by
+ * this user's departure — the ADR-0004 invariant, evaluated inside the deletion
+ * transaction.
+ *
+ * **A concluded league counts** (owner, LG-12). The guard used to filter the
+ * current instance to `ACTIVE`, which was vacuous while nothing wrote
+ * `concluded`; ADR-0030 gave that column a writer, and the filter would have
+ * quietly let the sole commissioner of a finished league delete their account.
+ * A finished league is not a disposable one — renewing it into the next season
+ * is a commissioner-only action (`LEAGUE_ACTION.RENEW_SEASON`), and no code path
+ * grants the role — so the league would sit inert on every remaining member's
+ * dashboard with nobody able to act on it ever again.
  */
-async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string): Promise<boolean> {
+async function isLastCommissionerOfNonEmptyLeague(db: Db, userId: string): Promise<boolean> {
   const commissionerCount = db
     .select({ value: count() })
     .from(leagueMembers)
@@ -180,9 +218,7 @@ async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string):
       ),
     )
     .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
-    .where(
-      and(eq(current.status, LEAGUE_STATUS.ACTIVE), eq(commissionerCount, 1), gt(memberCount, 1)),
-    )
+    .where(and(eq(commissionerCount, 1), gt(memberCount, 1)))
     .limit(1);
   return rows.length > 0;
 }

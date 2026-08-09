@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { games, leagueMembers, leagueSeasons, pickemPicks } from "@picksleagues/db";
+import { games, leagueMembers, leagueSeasons, pickemPicks, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_STATUS,
@@ -20,7 +20,8 @@ import {
   type PickemWeekPicksResponse,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { settleLeagueSeasonWeeks } from "../src/services/pickem/settlement";
+import { rebuildLeagueSeason } from "../src/services/settlement";
+import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
@@ -295,6 +296,44 @@ describe("GET /api/weeks/:weekId/games", () => {
     expect(byId.get(withoutSpread)?.spread).toBeNull();
   });
 
+  // PKM-9: the credit surfaces read this off the game row, frozen alongside
+  // the spread itself.
+  it("reflects the seeded game's spread source, and suppresses it once override_spread is set (arch D15)", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    const { weekIds, gameIds } = await seedSeason(db, {
+      year: 2026,
+      weeks: [
+        {
+          weekNumber: 1,
+          kickoffs: [
+            { kickoffAt: WEEK1_KICKOFF, spread: -3.5, spreadSource: "DraftKings" },
+            { kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000) },
+          ],
+        },
+      ],
+    });
+    const weekId = weekIds.get("regular:1")!;
+    const [sourced, unsourced] = gameIds.get("regular:1")! as [string, string];
+
+    const before = await getSlate(cookie, weekId);
+    expect(before.status).toBe(200);
+    const beforeBody = (await before.json()) as WeekSlateResponse;
+    const beforeById = new Map(beforeBody.games.map((g) => [g.id, g]));
+    expect(beforeById.get(sourced)?.spreadSource).toBe("DraftKings");
+    expect(beforeById.get(unsourced)?.spreadSource).toBeNull();
+
+    // A commissioner correction is not the book's line — the credit must
+    // disappear from this one game even though the ingestion-written source
+    // column is untouched.
+    await db.update(games).set({ overrideSpread: 1.5 }).where(eq(games.id, sourced));
+
+    const after = await getSlate(cookie, weekId);
+    const afterBody = (await after.json()) as WeekSlateResponse;
+    const afterById = new Map(afterBody.games.map((g) => [g.id, g]));
+    expect(afterById.get(sourced)?.spreadSource).toBeNull();
+    expect(afterById.get(sourced)?.spread).toBe(1.5);
+  });
+
   describe("cancelled games are not pickable", () => {
     /**
      * g1 cancelled by the provider, g2 cancelled by an admin override, g3
@@ -366,16 +405,130 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(await unknownLeague.json()).toMatchObject({ error: "league_not_found" });
   });
 
-  it("400s wrong_league_mode for an elimination league", async () => {
+  // Same resolved-avatar rule as the league member list (ADR-0022): this
+  // serializer builds its own member literal, so it can drift independently.
+  it("shows a league-mate a member's avatar override in place of their provider image", async () => {
+    const { league, weekIds, memberA, memberB } = await seedPickemLeague();
+    await db
+      .update(users)
+      .set({
+        image: "https://provider.example.invalid/from-oauth.png",
+        imageOverride: "https://cdn.example.invalid/member-set.png",
+      })
+      .where(eq(users.id, memberB.user.id));
+
+    const res = await getPicks(memberA.cookie, league.id, weekIds.get("regular:1")!);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PickemWeekPicksResponse;
+    expect(body.members.find((member) => member.userId === memberB.user.id)?.image).toBe(
+      "https://cdn.example.invalid/member-set.png",
+    );
+  });
+
+  // PKM-9: no column on `pickem_picks` for this — the pick DTO reads the
+  // source off the game row the slate resolves, so it stays correct on a
+  // submitted week whose game is long final.
+  it("serializes a pick's spread source from its game, null once the game's override_spread is set", async () => {
+    const { league, weekIds, gameIds, leagueSeasonId, memberA } = await seedPickemLeague({
+      weeks: [
+        {
+          weekNumber: 1,
+          kickoffs: [
+            { kickoffAt: WEEK1_KICKOFF, spread: -3.5, spreadSource: "DraftKings" },
+            {
+              kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 60 * 60 * 1000),
+              spread: 2.5,
+              spreadSource: "DraftKings",
+            },
+          ],
+        },
+      ],
+      settings: { ...DEFAULT_PICKEM_SETTINGS, pickType: PICK_TYPE.AGAINST_THE_SPREAD },
+    });
+    const weekId = weekIds.get("regular:1")!;
+    const [sourced, overridden] = gameIds.get("regular:1")! as [string, string];
+    const membersByUser = await membersOf(db, league.id);
+
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: membersByUser.get(memberA.user.id)!,
+      weekId,
+      gameId: sourced,
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: -3.5,
+    });
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: membersByUser.get(memberA.user.id)!,
+      weekId,
+      gameId: overridden,
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: 2.5,
+    });
+    // A commissioner correction on the second game — its credit must
+    // disappear even though the pick's own accepted spread is untouched.
+    await db.update(games).set({ overrideSpread: 9.5 }).where(eq(games.id, overridden));
+
+    const res = await getPicks(memberA.cookie, league.id, weekId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PickemWeekPicksResponse;
+    const viewerPicks =
+      body.members.find((member) => member.userId === memberA.user.id)?.picks ?? [];
+    const byGameId = new Map(viewerPicks.map((pick) => [pick.gameId, pick]));
+    expect(byGameId.get(sourced)?.spreadSource).toBe("DraftKings");
+    expect(byGameId.get(overridden)?.spreadSource).toBeNull();
+    // The pick's own accepted number is untouched by the game's later correction.
+    expect(byGameId.get(overridden)?.spread).toBe(2.5);
+  });
+
+  // PKM-9: the slate is mode-agnostic, so a straight-up league's games still
+  // carry a source. The pick DTO must not pass it on — a straight-up pick has
+  // no accepted number, and a book credited beside a null spread names a price
+  // nobody was graded against.
+  it("serializes no spread source on a straight-up pick, whose game still has one", async () => {
+    const { league, weekIds, gameIds, leagueSeasonId, memberA } = await seedPickemLeague({
+      weeks: [
+        {
+          weekNumber: 1,
+          kickoffs: [{ kickoffAt: WEEK1_KICKOFF, spread: -3.5, spreadSource: "DraftKings" }],
+        },
+      ],
+      settings: { ...DEFAULT_PICKEM_SETTINGS, pickType: PICK_TYPE.STRAIGHT_UP },
+    });
+    const weekId = weekIds.get("regular:1")!;
+    const [gameId] = gameIds.get("regular:1")! as [string];
+    const membersByUser = await membersOf(db, league.id);
+
+    await insertPick(db, {
+      leagueSeasonId,
+      leagueMemberId: membersByUser.get(memberA.user.id)!,
+      weekId,
+      gameId,
+      side: PICKEM_PICK_SIDE.HOME,
+      spreadAtPick: null,
+    });
+
+    const res = await getPicks(memberA.cookie, league.id, weekId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PickemWeekPicksResponse;
+    const pick = body.members
+      .find((member) => member.userId === memberA.user.id)
+      ?.picks.find((candidate) => candidate.gameId === gameId);
+    expect(pick?.spread).toBeNull();
+    expect(pick?.spreadSource).toBeNull();
+  });
+
+  it("400s wrong_league_mode for a survivor league", async () => {
     const { seasonId, weekIds, memberA } = await seedPickemLeague();
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -542,7 +695,7 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 });
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 });
-    await settleLeagueSeasonWeeks(
+    await settlePickemLeagueSeasonWeeks(
       db,
       new FixedClock(new Date("2026-09-20T00:00:00.000Z")),
       leagueSeasonId,
@@ -916,11 +1069,18 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(await res.json()).toMatchObject({ error: "game_not_in_week" });
   });
 
-  it("409s league_concluded when the season's status is concluded", async () => {
-    const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
-      status: LEAGUE_STATUS.CONCLUDED,
+  it("409s league_concluded once settlement has ended the season", async () => {
+    // Settled rather than seeded: this refusal was unreachable until LG-12 gave
+    // `league_seasons.status` a writer (ADR-0030), so pinning it against a
+    // hand-set status would leave the reachability itself unproved.
+    const { league, leagueSeasonId, weekIds, gameIds, memberA } = await seedPickemLeague({
+      settings: { ...DEFAULT_PICKEM_SETTINGS, endWeek: { type: WEEK_TYPE.REGULAR, number: 1 } },
     });
     const weekId = weekIds.get("regular:1")!;
+    for (const gameId of gameIds.get("regular:1")!) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, new FixedClock(WEEK1_KICKOFF), leagueSeasonId);
 
     const res = await putPicks(memberA.cookie, league.id, weekId, {
       picks: gameIds.get("regular:1")!.map((gameId) => ({
@@ -1319,16 +1479,16 @@ describe("GET /api/leagues/:leagueId/pickem/pick-summary", () => {
     expect(await unknownLeague.json()).toMatchObject({ error: "league_not_found" });
   });
 
-  it("400s wrong_league_mode for an elimination league", async () => {
+  it("400s wrong_league_mode for a survivor league", async () => {
     const { seasonId, memberA } = await seedPickemLeague();
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

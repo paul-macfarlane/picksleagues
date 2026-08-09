@@ -1,7 +1,8 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { authClient } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/redirect";
+import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { GoogleIcon, DiscordIcon } from "@/components/icons";
@@ -32,6 +33,7 @@ function SignIn() {
     <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
+          <BrandMark className="mx-auto size-12" />
           <h1 className="text-2xl font-semibold text-foreground">Picks Leagues</h1>
           <CardDescription>Sports pick&apos;em with friends.</CardDescription>
         </CardHeader>
@@ -79,6 +81,17 @@ function SignIn() {
           </Button>
         </CardContent>
       </Card>
+      <p className="text-xs text-muted-foreground">
+        By continuing you agree to the{" "}
+        <Link to="/terms" className="underline hover:text-foreground">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link to="/privacy" className="underline hover:text-foreground">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </main>
   );
 }

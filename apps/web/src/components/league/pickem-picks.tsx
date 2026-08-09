@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   PICK_TYPE,
   requiredPickemPickCount,
@@ -11,7 +12,7 @@ import {
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { isClosedToPicks } from "@/lib/game";
+import { isClosedToPicks, spreadSourceCredit } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { SheetGameRow, SubmittedPickRow } from "@/components/league/pickem-game-row";
 
@@ -91,7 +93,9 @@ export function PickemPicks({
   return (
     <QueryState
       isPending={slate.isPending || picks.isPending}
-      pendingMessage="Loading this week…"
+      pendingFallback={
+        <RowsSkeleton label="Loading this week" rows={4} rowClassName="h-28 w-full" />
+      }
       isError={slate.isError || picks.isError}
       onRetry={() => {
         void slate.refetch();
@@ -144,6 +148,10 @@ function SubmittedWeek({
     const pick = pickByGameId.get(game.id);
     return pick ? [{ game, pick }] : [];
   });
+  const credit = spreadSourceCredit(
+    picked.map(({ game }) => game),
+    pickType,
+  );
 
   return (
     <Card>
@@ -152,6 +160,11 @@ function SubmittedWeek({
         <CardDescription>
           {`${picked.length} ${picked.length === 1 ? "pick" : "picks"} in. This week is submitted — picks can't be changed.`}
         </CardDescription>
+        {credit && (
+          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+            {credit}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ul className="flex flex-col gap-3">
@@ -219,6 +232,7 @@ function PickSheet({
   // yet, not that the member did anything. The action bar stays off rather than
   // offering a Submit that could never enable.
   const awaitingLines = openGames.length > 0 && required === 0;
+  const credit = spreadSourceCredit(openGames, pickType);
 
   function toggle(gameId: string, side: PickemPickSide) {
     setStoredSelections((prev) => {
@@ -266,6 +280,23 @@ function PickSheet({
                 ? "No spreads are posted for this week yet — picks open as soon as the lines are up."
                 : `Pick ${required} ${required === 1 ? "game" : "games"}, then submit. Your picks are final once submitted, and each locks at its own kickoff.`}
           </CardDescription>
+          {credit && (
+            <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+              {credit}
+            </p>
+          )}
+          {/* New tab on purpose: the sheet's draft lives only in local state, and a
+              same-tab navigation would unmount it and silently discard the picks. */}
+          <p className="text-xs">
+            <Link
+              to="/rules/pickem"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground underline hover:text-foreground"
+            >
+              Full Pick&apos;em rules
+            </Link>
+          </p>
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Field } from "@base-ui/react/field";
 import { toast } from "sonner";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   MARCH_MADNESS_SCORING_MODEL,
@@ -11,7 +11,7 @@ import {
   PICKEM_NOMINAL_RANGE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
-  type EliminationPushTieResolution,
+  type SurvivorPushTieResolution,
   type LeagueResponse,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
@@ -22,17 +22,13 @@ import {
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
 import {
-  DEFAULT_ELIMINATION_END_WEEK,
-  DEFAULT_ELIMINATION_START_WEEK,
   DEFAULT_PICKEM_SEASON_RANGE,
-  EliminationSettingsFields,
+  SurvivorSettingsFields,
   MarchMadnessSettingsFields,
   PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
-  decodeWeek,
-  encodeWeek,
 } from "@/components/league-settings-fields";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
 import {
@@ -53,7 +49,7 @@ import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
 import { useLeaguePickemSeasonRangePresets, usePickemPickSummary } from "@/api/pickem";
 import {
-  eliminationSettingsOf,
+  survivorSettingsOf,
   marchMadnessSettingsOf,
   pickemSettingsOf,
 } from "@/lib/league-settings";
@@ -119,7 +115,7 @@ function SettingsForm({
   const [maxMembers, setMaxMembers] = useState(league.maxMembers);
 
   const isPickem = league.mode === LEAGUE_MODE.PICKEM;
-  const isElimination = league.mode === LEAGUE_MODE.ELIMINATION;
+  const isSurvivor = league.mode === LEAGUE_MODE.SURVIVOR;
   const isMarchMadness = league.mode === LEAGUE_MODE.MARCH_MADNESS;
 
   // Parsed once, and used for all three jobs below — seeding the controls,
@@ -136,15 +132,18 @@ function SettingsForm({
   // fieldset reads as dirty so the commissioner can save a correction, and
   // `wouldInvalidatePicks` assumes the worst.
   const pickemSettings = pickemSettingsOf(league);
-  const eliminationSettings = eliminationSettingsOf(league);
+  const survivorSettings = survivorSettingsOf(league);
   const marchMadnessSettings = marchMadnessSettingsOf(league);
 
-  // Fetched only for a Pick'em editor — an ordinary member has no use for it
-  // (403 otherwise), and the two other modes have no pick-invalidation rule
-  // yet (ELM-2 will add its own). Feeds the pre-save warning/confirm below.
-  // Post-start, the visibility/max-members/mode fieldset is locked, so the
-  // invalidation warning it feeds can no longer fire — no point fetching the
-  // count.
+  // Fetched only for the editing commissioner of a Pick'em league — an ordinary
+  // member has no use for the count (403 otherwise), and neither other mode has
+  // a settings change this form can make that strands picks: March Madness
+  // stores none, and Survivor's only invalidating change is a server-side
+  // re-resolution of its start week, which no field here expresses (ADR-0026
+  // removed the Pick Type that was the other one). Post-start the whole settings
+  // fieldset is locked, so the warning this feeds can no longer fire — no point
+  // fetching the count. The other two modes leave `wouldInvalidatePicks` false,
+  // and nothing below reads this unless it's true.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
 
   // The editor's answer: which presets the league's own bound season can
@@ -175,19 +174,8 @@ function SettingsForm({
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
-  const [eliminationStartWeek, setEliminationStartWeek] = useState(
-    eliminationSettings
-      ? encodeWeek(eliminationSettings.startWeek)
-      : DEFAULT_ELIMINATION_START_WEEK,
-  );
-  const [eliminationEndWeek, setEliminationEndWeek] = useState(
-    eliminationSettings ? encodeWeek(eliminationSettings.endWeek) : DEFAULT_ELIMINATION_END_WEEK,
-  );
-  const [eliminationPickType, setEliminationPickType] = useState<PickType>(
-    eliminationSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
-  );
-  const [eliminationPushTie, setEliminationPushTie] = useState<EliminationPushTieResolution>(
-    eliminationSettings?.pushTieResolution ?? ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
+    survivorSettings?.pushTieResolution ?? SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
@@ -215,8 +203,10 @@ function SettingsForm({
   // Whether the assembled draft would invalidate already-submitted picks
   // (spec §Commissioner Powers), via the same predicate the server's
   // settings write clears picks with — computed here so the warning/confirm
-  // below can never disagree with what a save would actually destroy.
-  // Elimination has no picks yet (ELM-2), so it's Pick'em-only.
+  // below can never disagree with what a save would actually destroy. Only
+  // Pick'em can reach it from this form (ADR-0015 decision 3): March Madness
+  // stores no picks, and Survivor's one invalidating change is decided by the
+  // server's clock rather than by anything here.
   //
   // Advisory only, not authoritative: this compares the draft against the
   // *cached* `league.settings` the editor was opened with, while the
@@ -266,19 +256,22 @@ function SettingsForm({
     wouldInvalidatePicks = pickemSettings
       ? pickemSettingsInvalidatePicks(pickemSettings, draft)
       : true;
-  } else if (isElimination) {
-    assembledSettings = {
-      startWeek: decodeWeek(eliminationStartWeek),
-      endWeek: decodeWeek(eliminationEndWeek),
-      pickType: eliminationPickType,
-      pushTieResolution: eliminationPushTie,
-    };
-    settingsDirty = eliminationSettings
-      ? eliminationStartWeek !== encodeWeek(eliminationSettings.startWeek) ||
-        eliminationEndWeek !== encodeWeek(eliminationSettings.endWeek) ||
-        eliminationPickType !== eliminationSettings.pickType ||
-        eliminationPushTie !== eliminationSettings.pushTieResolution
+  } else if (isSurvivor) {
+    // No range on the wire (ADR-0024) — and none in the dirty check either: a
+    // save re-resolves the stored refs server-side against the clock, so the
+    // range is never something this form has an opinion about.
+    assembledSettings = { pushTieResolution: survivorPushTie };
+    settingsDirty = survivorSettings
+      ? survivorPushTie !== survivorSettings.pushTieResolution
       : true;
+    // `wouldInvalidatePicks` stays false, and that is a statement about the
+    // form rather than about the mode. Survivor's one invalidating change is an
+    // advanced start week (`survivorSettingsInvalidatePicks`), and no field here
+    // moves it: the server re-resolves the range against *its* clock, so
+    // whether a save strands a pick is not something this browser can know
+    // before asking. The server still clears (or 409s) correctly — this warning
+    // was only ever advisory, and with Pick Type gone (ADR-0026) there is no
+    // longer a Survivor change it can honestly predict.
   } else {
     assembledSettings =
       mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -337,14 +330,14 @@ function SettingsForm({
   //   risk skipping the confirm because the count hasn't arrived yet — the
   //   summary query starts as soon as this editor is commissioner-visible,
   //   so this window is normally sub-second.
-  const pickSummaryPending = isPickem && wouldInvalidatePicks && pickSummary.isPending;
+  const pickSummaryPending = wouldInvalidatePicks && pickSummary.isPending;
   // - errored: the count is UNKNOWN, not zero. Treating an unreachable
   //   summary as "no picks at risk" is the defect this replaced — it let a
   //   commissioner save a pick-destroying change with no warning and no
   //   confirm. So an error is always treated as "picks might exist", and
   //   Save must stay enabled (a genuinely harmless change must still be
   //   saveable even if this side query is down).
-  const pickSummaryUnknown = isPickem && wouldInvalidatePicks && pickSummary.isError;
+  const pickSummaryUnknown = wouldInvalidatePicks && pickSummary.isError;
   // - loaded: a real, nonzero count — never a fired-when-nothing's-at-stake
   //   dialog (a warning that fires with nothing to lose trains people to
   //   click through it).
@@ -451,16 +444,11 @@ function SettingsForm({
           />
         )}
 
-        {isElimination && (
-          <EliminationSettingsFields
-            startWeek={eliminationStartWeek}
-            onStartWeekChange={setEliminationStartWeek}
-            endWeek={eliminationEndWeek}
-            onEndWeekChange={setEliminationEndWeek}
-            pickType={eliminationPickType}
-            onPickTypeChange={setEliminationPickType}
-            pushTie={eliminationPushTie}
-            onPushTieChange={setEliminationPushTie}
+        {isSurvivor && (
+          <SurvivorSettingsFields
+            seasonRange={survivorSettings ?? undefined}
+            pushTie={survivorPushTie}
+            onPushTieChange={setSurvivorPushTie}
           />
         )}
 

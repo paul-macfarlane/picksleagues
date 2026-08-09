@@ -2,6 +2,7 @@ import { SPORT } from "@picksleagues/schemas";
 import { useAdminTeams } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 
@@ -26,6 +27,9 @@ export function TeamsBrowser() {
           isError={teams.isError}
           onRetry={() => teams.refetch()}
           errorMessage="Couldn't load teams."
+          pendingFallback={
+            <RowsSkeleton label="Loading teams" rows={6} rowClassName="h-14 w-full" />
+          }
           isEmpty={teams.data?.teams.length === 0}
           emptyMessage="No teams synced yet."
         >

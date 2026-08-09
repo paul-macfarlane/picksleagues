@@ -1,10 +1,10 @@
-import { useEffect } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { LEAGUE_MODE, MEMBER_ROLE } from "@picksleagues/schemas";
 import { LeagueHeader } from "@/components/league/league-header";
 import { useLeague } from "@/api/leagues";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { PageSkeleton } from "@/components/loading";
+import { QueryState } from "@/components/query-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabNav, tabLinkProps } from "@/components/tab-nav";
 
@@ -16,97 +16,91 @@ function LeagueLayout() {
   const { leagueId } = Route.useParams();
   const league = useLeague(leagueId);
 
-  useEffect(() => {
-    if (league.isError) {
-      toast.error("Couldn't load this league — please try again.");
-    }
-  }, [league.isError]);
-
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      {league.isPending && (
-        <div className="flex flex-col items-center gap-2 py-8">
-          <p className="text-sm text-muted-foreground">Loading league…</p>
-        </div>
-      )}
+      {/* A layout gate stands in for the whole page, so its placeholder is the
+          page's chrome — header card, tab bar, section — not a section-sized
+          box (LNCH-8). Not-found is a designed card with a way home, not
+          QueryState's one-line emptyMessage, so it lives in children. */}
+      <QueryState
+        isPending={league.isPending}
+        pendingFallback={<PageSkeleton label="Loading league" headerClassName="h-40 w-full" />}
+        isError={league.isError}
+        onRetry={() => void league.refetch()}
+        errorMessage="Couldn't load this league."
+      >
+        {!league.data && (
+          <div className="flex flex-col items-center gap-4 py-8">
+            <Card className="w-full max-w-sm">
+              <CardHeader className="items-center text-center">
+                <CardTitle>League not found</CardTitle>
+                <CardDescription>
+                  This league doesn&apos;t exist, or you&apos;re not a member.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link
+                  to="/"
+                  className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
+                >
+                  Back to dashboard
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-      {league.isError && (
-        <div className="flex flex-col items-center gap-3 py-8">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load this league.</p>
-          <Button variant="outline" onClick={() => league.refetch()}>
-            Retry
-          </Button>
-        </div>
-      )}
+        {league.data && (
+          <>
+            <LeagueHeader
+              league={league.data}
+              isCommissioner={league.data.myRole === MEMBER_ROLE.COMMISSIONER}
+            />
 
-      {!league.isPending && !league.isError && !league.data && (
-        <div className="flex flex-col items-center gap-4 py-8">
-          <Card className="w-full max-w-sm">
-            <CardHeader className="items-center text-center">
-              <CardTitle>League not found</CardTitle>
-              <CardDescription>
-                This league doesn&apos;t exist, or you&apos;re not a member.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <TabNav label="League sections">
               <Link
-                to="/"
-                className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
+                to="/leagues/$leagueId"
+                params={{ leagueId }}
+                // `includeSearch: false` because the Overview tab owns a `?week=`
+                // search param (the standings period). Router compares search
+                // alongside the path by default, and `exact` makes that
+                // comparison a full equality — so selecting any non-default
+                // period left the tab reading as inactive on the very route it
+                // was on. The tab marks the section, and the section is the path.
+                activeOptions={{ exact: true, includeSearch: false }}
+                {...tabLinkProps}
               >
-                Back to dashboard
+                Overview
               </Link>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {league.data && (
-        <>
-          <LeagueHeader
-            league={league.data}
-            isCommissioner={league.data.myRole === MEMBER_ROLE.COMMISSIONER}
-          />
-
-          <TabNav label="League sections">
-            <Link
-              to="/leagues/$leagueId"
-              params={{ leagueId }}
-              // `includeSearch: false` because the Overview tab owns a `?week=`
-              // search param (the standings period). Router compares search
-              // alongside the path by default, and `exact` makes that
-              // comparison a full equality — so selecting any non-default
-              // period left the tab reading as inactive on the very route it
-              // was on. The tab marks the section, and the section is the path.
-              activeOptions={{ exact: true, includeSearch: false }}
-              {...tabLinkProps}
-            >
-              Overview
-            </Link>
-            {/* Two pick surfaces, named for whose picks they show: entering
+              {/* Two pick surfaces, named for whose picks they show: entering
                 your own and reading the league's are different tasks on
                 different cadences, and the second was previously buried behind
                 Overview's standings-scope dropdown. */}
-            {league.data.mode === LEAGUE_MODE.PICKEM && (
-              <>
+              {(league.data.mode === LEAGUE_MODE.PICKEM ||
+                league.data.mode === LEAGUE_MODE.SURVIVOR) && (
                 <Link to="/leagues/$leagueId/my-picks" params={{ leagueId }} {...tabLinkProps}>
                   My Picks
                 </Link>
+              )}
+              {/* Still Pick'em-only: Survivor's all-members board is its own
+                surface and doesn't exist yet. */}
+              {league.data.mode === LEAGUE_MODE.PICKEM && (
                 <Link to="/leagues/$leagueId/league-picks" params={{ leagueId }} {...tabLinkProps}>
                   League Picks
                 </Link>
-              </>
-            )}
-            <Link to="/leagues/$leagueId/members" params={{ leagueId }} {...tabLinkProps}>
-              Members
-            </Link>
-            <Link to="/leagues/$leagueId/settings" params={{ leagueId }} {...tabLinkProps}>
-              Settings
-            </Link>
-          </TabNav>
+              )}
+              <Link to="/leagues/$leagueId/members" params={{ leagueId }} {...tabLinkProps}>
+                Members
+              </Link>
+              <Link to="/leagues/$leagueId/settings" params={{ leagueId }} {...tabLinkProps}>
+                Settings
+              </Link>
+            </TabNav>
 
-          <Outlet />
-        </>
-      )}
+            <Outlet />
+          </>
+        )}
+      </QueryState>
     </main>
   );
 }

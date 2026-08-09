@@ -37,8 +37,8 @@ function postInvite(
   });
 }
 
-function listInvites(cookie: string | undefined, leagueId: string) {
-  return app.request(`/api/leagues/${leagueId}/invites`, {
+function listInvites(cookie: string | undefined, leagueId: string, on: App = app) {
+  return on.request(`/api/leagues/${leagueId}/invites`, {
     method: "GET",
     headers: withCookie(cookie),
   });
@@ -528,16 +528,45 @@ describe("custom maxMembers cap (feedback item 10)", () => {
   });
 });
 
-describe("post-start invite management (spec §Commissioner Powers: anytime)", () => {
-  it("creates and revokes invites after the league has started", async () => {
+describe("post-start invite management (spec §Commissioner Powers, ADR-0029)", () => {
+  it("refuses a new invite once the league has started but still lists and revokes", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();
+    // Minted while the window was open, so a live link survives the start —
+    // which is the whole reason revocation has to outlive creation.
+    const code = await createCode(commissioner.cookie, league.id);
 
     const res = await postInvite(commissioner.cookie, league.id, {}, appAfterKickoff);
-    expect(res.status).toBe(201);
-    const invite = (await res.json()) as Invite;
-    expect(
-      (await revokeInvite(commissioner.cookie, league.id, invite.code, appAfterKickoff)).status,
-    ).toBe(204);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "league_started" });
+
+    const list = await listInvites(commissioner.cookie, league.id, appAfterKickoff);
+    expect(list.status).toBe(200);
+    expect(((await list.json()) as { invites: Invite[] }).invites.map((i) => i.code)).toEqual([
+      code,
+    ]);
+
+    expect((await revokeInvite(commissioner.cookie, league.id, code, appAfterKickoff)).status).toBe(
+      204,
+    );
+  });
+
+  it("closes creation at exactly kickoff (kickoff == now)", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner();
+    expect((await postInvite(commissioner.cookie, league.id, {}, appAtKickoff)).status).toBe(409);
+  });
+
+  it("refuses a plain member on the role axis, not the window", async () => {
+    const { league } = await seedLeagueWithCommissioner();
+    const member = await createAuthenticatedUser(auth, { username: "post_start_member" });
+    await db.insert(leagueMembers).values({
+      leagueId: league.id,
+      userId: member.user.id,
+      role: MEMBER_ROLE.MEMBER,
+      createdAt: PRE_START_NOW,
+      updatedAt: PRE_START_NOW,
+    });
+
+    expect((await postInvite(member.cookie, league.id, {}, appAfterKickoff)).status).toBe(403);
   });
 });
 

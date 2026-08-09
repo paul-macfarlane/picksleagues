@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues MVP Product Spec v0.3* (what we're building — standalone and authoritative for product behavior)
-**Scope:** MVP = NFL Pick'em (standard scoring), NFL Elimination (1 life), March Madness Pool. Post-MVP modes and deferred rule features are accounted for structurally but not built.
+**Scope:** MVP = NFL Pick'em (standard scoring), NFL Survivor (1 life), March Madness Pool. Post-MVP modes and deferred rule features are accounted for structurally but not built.
 
 ## Design Constraints (agreed)
 
@@ -66,11 +66,11 @@ Simulator API surface (non-prod only), as built in SIM-1…SIM-6: `GET /sim/stat
 
 Three layers, weighted by where bugs actually live (per Paulitakes experience: e2e catches what unit tests miss):
 
-**1. Unit — `packages/scoring` (exhaustive).** Table-driven tests, one case per rule and edge case in the MVP spec: Pick'em's fixed half-point push, short-week behavior, cancellation-as-push, per-pick margins, shared ranks when members tie on points, Elimination's advance-or-eliminate push/tie resolution, all-eliminated revival, team-consumption on pushes, bracket auto-advance neutrality, the bracket score-prediction tiebreaker, co-winner ties. Pure functions make these trivial to write and fast to run. The spec is the test plan; a spec rule without a test case is a review failure.
+**1. Unit — `packages/scoring` (exhaustive).** Table-driven tests, one case per rule and edge case in the MVP spec: Pick'em's fixed half-point push, short-week behavior, cancellation-as-push, per-pick margins, shared ranks when members tie on points, Survivor's advance-or-eliminate tie resolution, all-eliminated revival, team-consumption on ties, bracket auto-advance neutrality, the bracket score-prediction tiebreaker, co-winner ties. Pure functions make these trivial to write and fast to run. The spec is the test plan; a spec rule without a test case is a review failure.
 
 **2. Integration — API against a real Postgres.** Hono app exercised in-process (no HTTP server needed) against Docker Postgres (locally: the same compose file as dev; in CI: a Postgres service container). Covers what unit tests can't: transaction-level lock validation (409 on post-kickoff mutation), spread staleness rejection, pick visibility filtering, join cutoff and commissioner-cap enforcement, settlement idempotency (run twice, assert identical state), and override precedence (see Manual Sports Data Overrides).
 
-**3. E2E — Playwright against the full local stack.** Runs the real SPA + API + DB with `SimulatedProvider` and the simulated clock — no network mocking anywhere. Core journeys as simulator-scripted scenarios: create league → invite → join → pick → advance clock past kickoff → assert lock and visibility → settle → assert standings; an elimination season including a revival week; a full bracket lifecycle including a vacated-team auto-advance. Deterministic by construction because time and data are both controlled. This is the merge gate.
+**3. E2E — Playwright against the full local stack.** Runs the real SPA + API + DB with `SimulatedProvider` and the simulated clock — no network mocking anywhere. Core journeys as simulator-scripted scenarios: create league → invite → join → pick → advance clock past kickoff → assert lock and visibility → settle → assert standings; a Survivor season including a revival week; a full bracket lifecycle including a vacated-team auto-advance. Deterministic by construction because time and data are both controlled. This is the merge gate.
 
 **The E2E stack is a parallel stack, not the dev stack.** Its own database (`picksleagues_e2e`, created and migrated by the Playwright global setup) and its own ports (SPA 5273, API 3100), configured in one place: `e2e/setup/e2e-env.ts`. Not merely tidiness — the simulator journeys reset with `scope: "environment"`, which deletes every league, game, and season in reach, so a shared database meant `pnpm test:e2e` destroyed whatever was being hand-tested. Separate ports mean a run neither evicts a running `pnpm dev` nor silently borrows it (and its database) via `reuseExistingServer`. Everything else — secrets, `APP_ENV`, `SIM_ENABLED` — still comes from the root `.env`; only the database URL, the ports, and `BETTER_AUTH_URL` are overridden, and Node's `--env-file` yields to the inherited environment, which is what lets the ordinary dev scripts serve both stacks unchanged.
 
@@ -148,7 +148,7 @@ Supabase's bundled auth would conflict with Better Auth, and its realtime featur
 
 A single table looks DRY but the three MVP modes have genuinely different shapes: weekly multi-pick with confidence ranks, one-team-per-week with a consumed-team ledger, and a 63-slot bracket. Polymorphic storage forfeits the DB constraints that encode the rules (unique confidence rank per member-week, unique team per member-season, exactly 63 slots per bracket) and breeds nullable-column swamp. Per-mode tables keep constraints honest.
 
-**Amended by ADR-0016:** results and standings are per-mode too. This decision originally drew the line at picks — "shared behavior lives in `games`, `pick_results`, and `standings`" — but those two tables turned out to be Pick'em-shaped: the spec's Elimination board is a survivor board with no points and no rank, and March Madness ranks one row *per bracket*, which the standings unique constraint forbids. Keeping them shared would have relocated the same nullable-column swamp one table downstream. What is genuinely shared is `games`, the league/membership tables, and the *pure ranking core* in `packages/scoring` — not table columns. New modes add pick, result, and standings tables; mode-specific surfaces are named for their mode (`pickem_*`, `/leagues/{id}/pickem/…`).
+**Amended by ADR-0016:** results and standings are per-mode too. This decision originally drew the line at picks — "shared behavior lives in `games`, `pick_results`, and `standings`" — but those two tables turned out to be Pick'em-shaped: the spec's Survivor board carries no points and no rank, and March Madness ranks one row *per bracket*, which the standings unique constraint forbids. Keeping them shared would have relocated the same nullable-column swamp one table downstream. What is genuinely shared is `games`, the league/membership tables, and the *pure ranking core* in `packages/scoring` — not table columns. New modes add pick, result, and standings tables; mode-specific surfaces are named for their mode (`pickem_*`, `/leagues/{id}/pickem/…`).
 
 ### D10. Settlement: polled incremental + nightly reconciliation over alternatives
 
@@ -213,7 +213,7 @@ ESPN's undocumented endpoints cover everything the MVP needs, free:
 
 **Risk & mitigation:** unofficial means it can change without notice. Mitigations: (1) all external data is ingested into our own tables — the app never reads ESPN at request time, so an outage degrades ingestion, not the product; (2) a thin `providers/espn.ts` adapter isolates their API shapes behind our own domain types, so swapping providers touches one module; (3) ingestion failures alert via the cron scheduler — jobs return 500 and cron-job.org emails on failed requests (ADR-0007). The Odds API remains the identified odds fallback, implemented post-MVP only if needed.
 
-**Spread strategy:** a game carries its **current spread on its own row**, resolved as `override_spread ?? spread` like every other overridable game field (D15) — only the latest spread is kept, so the odds sync is an **idempotent update** of unstarted games rather than an append (ADR-0018). A pick stores the concrete spread it was made against (denormalized onto the pick row as `spread_at_pick`), which is the audit that matters: what this member accepted. The ATS handshake survives the move to one-submission-per-week, because the line still moves between page load and submit — the client displays the game's current spread, and the write endpoint validates the spread values a submission states against it, rejecting a stale submission with 409 so the client re-prompts.
+**Spread strategy:** a game carries its **current spread on its own row**, resolved as `override_spread ?? spread` like every other overridable game field (D15) — only the latest spread is kept, so the odds sync is an **idempotent update** of unstarted games rather than an append (ADR-0018). Spreads are a **Pick'em** concern only — Survivor is straight up, stores no spread, and runs no acceptance handshake (ADR-0026). A Pick'em pick stores the concrete spread it was made against (denormalized onto the pick row as `spread_at_pick`), which is the audit that matters: what this member accepted. The ATS handshake survives the move to one-submission-per-week, because the line still moves between page load and submit — the client displays the game's current spread, and the write endpoint validates the spread values a submission states against it, rejecting a stale submission with 409 so the client re-prompts.
 
 ## Background Jobs
 
@@ -254,16 +254,25 @@ games                       # provider id, week FK, home/away team FKs, kickoff_
                             #   override_* parallels for all of it, overridden_by/at
 
 pickem_picks                # league_member FK, game FK, side, spread_at_pick
-elimination_picks           # league_member FK, week FK, game FK, team, spread_at_pick
-elimination_state           # lives_remaining (default 1), eliminated_at, revived flags
+survivor_picks              # league_member FK, week FK, game FK, team (straight up, no
+                            #   spread — ADR-0026),
+                            #   released (settlement-only; true when the game resolves cancelled).
+                            #   Team consumption is a partial unique index
+                            #   (league_season, member, team) WHERE NOT released (ADR-0025)
+survivor_state              # league_season FK + member FK (unique pair), lives_remaining
+                            #   (default 1), eliminated_week FK?, revived_count, updated_at;
+                            #   settlement-maintained, no row = alive with one life (ADR-0025)
 brackets                    # league_member FK, label, champ_score_prediction
 bracket_picks               # bracket FK, slot id (1–63), picked team
 
 pickem_pick_results         # pickem_pick FK, outcome, points
+survivor_pick_results       # survivor_pick FK, league_season FK, member FK, week FK, outcome,
+                            #   settled_at; no points column — survive/eliminate does not score
+                            #   (ADR-0016, ADR-0025)
 pickem_standings            # materialized: league_season FK, member FK, week?, points, rank
                             #   (picks/results/standings key off league_seasons, ADR-0009)
-                            #   Per-mode, not shared (ADR-0016): Elimination's board is
-                            #   alive/eliminated off elimination_state, and March Madness
+                            #   Per-mode, not shared (ADR-0016): Survivor's board is
+                            #   alive/eliminated off survivor_state, and March Madness
                             #   ranks one row per bracket. Each mode adds its own pair.
 
 app_state                   # singleton row: simulated clock offset + active scenario (non-prod), flags
@@ -277,7 +286,7 @@ admin_audit                 # override/rebuild actions: admin, action, target, p
 Spec-driven notes:
 - **Username:** unique case-insensitive (Postgres `citext` or lower-index), 3–20 chars `a-z0-9_`, validated in the schemas package so the same rule serves API and UI.
 - **Commissioner cap:** "max 10 active leagues as commissioner" is enforced at league-create and commissioner-promote endpoints with a counted query inside the transaction — no denormalized counter needed at this scale. Commissionership lives only in `league_members.role` — leagues may have several commissioners and must keep ≥1; demote/kick/leave/deletion guard the invariant (ADR-0004).
-- **Deferred-feature columns:** `elimination_state.lives_remaining` exists with default 1 even though MVP fixes lives at 1, and `pickem_picks` omits confidence/money-pick columns entirely (added by migration when those features ship). Rule of thumb: keep a column only when it's free (a default), not speculatively.
+- **Deferred-feature columns:** `survivor_state.lives_remaining` exists with default 1 even though MVP fixes lives at 1, and `pickem_picks` omits confidence/money-pick columns entirely (added by migration when those features ship). Rule of thumb: keep a column only when it's free (a default), not speculatively.
 - **Rules guide:** static content in the SPA (MD/MDX per mode), no backend surface.
 
 **League settings as validated JSONB:** each mode has a Zod schema in `packages/schemas`; the API validates on write and Drizzle types the column via `$type<>`. Adding post-MVP modes means a new schema + scoring module + pick table — no migrations to shared tables.
@@ -289,7 +298,7 @@ Spec-driven notes:
 - Commissioner generates a link containing an opaque code (`/join/:code`); codes live in `league_invites` with optional expiry and max-use caps
 - Visiting the link while logged out routes through auth then back to the join flow
 - Public leagues are discoverable and joinable without a code; private leagues require one
-- Join cutoff (first week started / Round of 64 tipped) enforced at the join endpoint, derived from game timestamps — same query-time pattern as pick locking
+- Join cutoff (first week started / Round of 64 tipped) derived from game timestamps — same query-time pattern as pick locking. Enforced at the join endpoint, and at invite *creation* (ADR-0029), so a commissioner can't mint a link the cutoff would refuse every use of; revoking stays available past the cutoff
 
 ## MVP Rule Scope (finalized — mirrors spec v0.3)
 
@@ -304,7 +313,8 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 | Week moves | **Not modelled** (ADR-0019) | `moved` leaves the game-status set; a real move is an admin `cancelled` override |
 | Buy-back, lives > 1, extension weeks | Deferred | `lives_remaining` default-1 column is the only trace |
 | MM upset / perfect-round bonuses | Deferred | Absent from `MarchMadnessSettings` schema |
-| Push/tie resolution config | Elimination only (ADR-0018) | Pick'em's push is the constant 0.5 inside its scoring function; Elimination keeps its advance-or-eliminate enum in its settings schema |
+| Push/tie resolution config | Survivor only (ADR-0018) | Pick'em's push is the constant 0.5 inside its scoring function; Survivor keeps its advance-or-eliminate enum in its settings schema, now deciding a straight-up tie alone (ADR-0026) |
+| Survivor Pick Type / ATS | **Removed** (ADR-0026) | No `pickType` in `SurvivorSettings`, no `spread_at_pick` on `survivor_picks`, no spread on its write path or in its refusal set |
 | Custom Pick'em week ranges | **Removed** (ADR-0020) | The create/update input carries a season-range preset only; the resolved `startWeek`/`endWeek` refs are still stored and still what everything downstream computes on, so a later "Custom" option writes them directly rather than forking the stored shape |
 
 ## Locking Model
@@ -314,7 +324,7 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 - Write side: every pick mutation validates `kickoff_at > clock.now()` inside the transaction; violations return 409
 - Pick visibility: pick rows are only serialized to non-owners once the associated game has kicked off — enforced in the query layer, never client-side
 - Join cutoffs (first week started / Round of 64 tipped) and the commissioner-power windows (pre-start vs post-start) derive from the same clock + game timestamps
-- Elimination auto-elimination for missed picks and pick'em zero-scoring for unpicked slots resolve naturally at settlement time — no deadline jobs
+- Survivor auto-elimination for missed picks and pick'em zero-scoring for unpicked slots resolve naturally at settlement time — no deadline jobs
 
 ## Settlement & Scoring
 
@@ -322,13 +332,17 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 
 ```ts
 settlePickemWeek(picks, results, settings) → PickOutcome[]
-settleEliminationWeek(state, picks, results, settings) → EliminationOutcome[]
+settleSurvivorWeek(aliveMemberIds, picks, results, settings) → SurvivorWeekSettlement
 scoreBracket(bracket, tournamentResults, settings) → BracketScore
 ```
 
-Each handles its mode's edge-case matrix from the product spec: Pick'em's fixed half-point push, Elimination's advance-or-eliminate push/tie resolution, confidence compression on short weeks, cancellation-as-push, elimination revival when everyone busts in the same week, bracket auto-advance neutrality. Table-driven unit tests, one per spec rule.
+Each handles its mode's edge-case matrix from the product spec: Pick'em's fixed half-point push, Survivor's advance-or-eliminate tie resolution, confidence compression on short weeks, cancellation-as-push, revival when everyone busts in the same week, bracket auto-advance neutrality. Table-driven unit tests, one per spec rule.
 
-The settlement job orchestrates: load inputs → call pure functions → persist `pickem_pick_results` → rebuild `pickem_standings` for affected leagues in one transaction. Nothing is stored for tiebreaking: Pick'em leaderboards are a sort on points alone, and members who tie share the rank.
+The settlement job dispatches on the league's mode into that mode's own orchestration module, each writing only its own tables (ADR-0016) in one transaction per league season: load inputs — resolving `override_* ?? provider_*` — → call the pure functions → persist.
+
+Pick'em grades each pick against its own game, so a week settles in isolation: persist `pickem_pick_results` → rebuild `pickem_standings` for the affected weeks. Survivor cannot, because missed-pick elimination and the everyone-out revival are week totals over the alive-set the previous week produced. It therefore replays a league season's weeks **in prefix order**, settling a week only once every game in it is terminal and every in-range prior week has settled, and writes `survivor_pick_results`, `survivor_state`, and the `survivor_picks.released` team ledger (ADR-0025). A correction to an already-settled week replays every week after it on the same trigger rather than waiting for the nightly sweep.
+
+Nothing is stored for tiebreaking: Pick'em leaderboards are a sort on points alone, and members who tie share the rank.
 
 ## API Surface (MVP sketch)
 
@@ -354,7 +368,8 @@ GET    /leagues/:id/pickem/standings     ?week= for weekly view
 GET    /leagues/:id/pickem/pick-summary  pick/member counts a settings change would discard
 PUT    /leagues/:id/pickem/weeks/:weekId/picks   the week's one submission (validates spreads, ADR-0018)
 GET    /leagues/:id/pickem/weeks/:weekId/picks   own always; others' filtered by kickoff
-PUT    /leagues/:id/elimination/weeks/:weekId/pick
+PUT    /leagues/:id/survivor/weeks/:weekId/pick
+GET    /leagues/:id/survivor/weeks/:weekId/picks own always; others' filtered by kickoff
 POST   /leagues/:id/bracket/entries      submit bracket (all 63 + tiebreaker)
 GET/PATCH /me                            username claim/change, display name
 DELETE /me                               account deletion: anonymize in place (guarded by ADR-0004 once leagues exist)
@@ -373,7 +388,7 @@ GET    /openapi.json                     generated spec
 
 Architecture v0.3 is reconciled against MVP Spec v0.3. Every spec requirement maps to a design element: environments and simulator (Environments, Simulator & Time, D12–D13), automated testing (Automated Testing, D14), operational data corrections (Manual Sports Data Overrides, D15), rule scope (MVP Rule Scope table), identity and caps (Domain Model notes), rules guide (static SPA content), and freshness expectations (Background Jobs). No open questions remain in either document.
 
-**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), and **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on; Elimination keeps its explicit pair until its own build-out). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
+**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule), **ADR-0025** (Survivor persistence: team consumption is a partial unique index over a settlement-maintained `released` flag so a cancellation returns the team, `survivor_state` is a settlement-maintained ledger carrying `eliminated_week_id` and `revived_count`, and Survivor settles per completed week in prefix order), and **ADR-0026** (Survivor is straight-up only — its Pick Type setting, `survivor_picks.spread_at_pick`, and its spread-acceptance handshake are all removed, since a changeable pick graded at the spread it was made against rewards re-picking; Pick'em is untouched). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
 
 ## Mobile Path (later, zero rework)
 

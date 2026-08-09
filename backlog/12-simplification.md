@@ -38,7 +38,7 @@ Ref: spec §Game Mode 1; arch §Spread strategy, §Locking Model, D10–D11, D15
 - [x] **SIMP-2** — ADR: week moves are out of scope; `moved` ceases to be a distinct game status and a provider week move is handled by an admin `cancelled` override. Name the failure mode being accepted. _(deps: none)_
 - [x] **SIMP-3** — Update `docs/mvp-spec.md` §Game Mode 1 (Core Rules, Locking, ATS acceptance, Scoring, Tiebreakers, Cancellations, Edge Cases), §Core User Flows, §Screens, §Settled pick margin, §Data Freshness; and `docs/architecture.md` §Spread strategy + domain model. Both docs stay reconciled and the version note stays honest. _(deps: SIMP-1, SIMP-2)_
 - [x] **SIMP-4** — `packages/scoring`: push is a constant 0.5; `PickemPickOutcome` loses `differential`; `rankStandings` ranks on points alone with shared ranks; the week-move caller obligation goes. `pickMargin` stays — it grades picks and feeds the per-pick margin phrase, which survives on its own merits. Spec matrix is the test plan. _(deps: SIMP-3)_
-- [x] **SIMP-5** — `packages/schemas`: drop `PICKEM_PUSH_TIE_RESOLUTION` (Elimination's own set is unrelated and stays), `PickemRepickRequest`, `PickemMovedGame`/`NullablePickemMovedGame` + `PickemPick.movedGame`, `PickemStandingsRow.differential`; drop `GAME_STATUS.MOVED`; add the wire codes the new write path needs. Regenerate spec + client and commit together. _(deps: SIMP-4)_
+- [x] **SIMP-5** — `packages/schemas`: drop `PICKEM_PUSH_TIE_RESOLUTION` (Survivor's own set is unrelated and stays), `PickemRepickRequest`, `PickemMovedGame`/`NullablePickemMovedGame` + `PickemPick.movedGame`, `PickemStandingsRow.differential`; drop `GAME_STATUS.MOVED`; add the wire codes the new write path needs. Regenerate spec + client and commit together. _(deps: SIMP-4)_
 - [x] **SIMP-6** — Migration: drop `pickem_pick_results.differential` and `pickem_standings.differential`. _(deps: SIMP-5)_
 - [x] **SIMP-7** — Collapse `odds_snapshots` into `games.provider_spread`, so spread resolves through `override_spread ?? provider_spread` like every other game field (arch D15) and `latestSpreadsForGames` disappears. `sync-odds` becomes an idempotent update. The audit that mattered — what a member accepted — is already denormalized on the pick. _(deps: SIMP-5)_
 - [x] **SIMP-8** — Pick write path: one submission per member per week, sized to exactly the week's `picksAllowed`, refused once the member holds any pick for that week. Delete `repickPickemPick`, the retention-boundary logic, and every refusal only editing could produce. `spread_stale` stays — the line still moves between page load and submit. _(deps: SIMP-5)_
@@ -58,12 +58,3 @@ Ref: spec §Game Mode 1; arch §Spread strategy, §Locking Model, D10–D11, D15
 - [x] **SIMP-19** — League creation resolves the preset against the bound season and the clock, storing the range. The settings editor keeps editing it pre-start only. _(deps: SIMP-18)_
 - [x] **SIMP-20** — Create + settings forms: one select replaces the two `(week type, week number)` dropdown pairs in `league-settings-fields.tsx`, and the encode/decode week plumbing in `leagues/new.tsx` + `settings-section.tsx` goes with it. Both files are the plain-`useState` carve-out (engineering rules §Forms) and stay there. _(deps: SIMP-19)_
 - [x] **SIMP-21** — Spec + architecture: rewrite §Game Mode 1 League Settings and §Game Mode 2 League Settings for the preset, and re-check §Membership's join cutoff against it — a league created mid-week now has a short invite window before membership freezes, which is the existing rule meeting a new creation path, and the docs should say which answer is intended. _(deps: SIMP-17)_
-
----
-
-## Technical plan
-
-The `[EXECUTION PLAN]` for this epic lives at **`docs/plans/simp.md`**
-(`/atlas-plan`, 2026-08-03; the three decisions in its §Decisions were ruled by
-the owner 2026-08-04). Plans are kept out of epic files so the ticket list stays
-a thin contract — see `docs/agents/issue-tracker.md` §Planning artifact storage.

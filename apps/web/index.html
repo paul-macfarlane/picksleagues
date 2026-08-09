@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Picks Leagues</title>
+    <meta name="description" content="Sports pick'em leagues with friends." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" type="image/png" sizes="96x96" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Pre-hydration defaults mirroring the --background tokens (index.css);
+         the anti-FOUC script below and ThemeColorSync keep them honest when
+         the app's stored theme overrides the OS preference. -->
+    <meta name="theme-color" content="#fdfbfa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e0b0a" media="(prefers-color-scheme: dark)" />
+    <meta property="og:title" content="Picks Leagues" />
+    <meta property="og:description" content="Sports pick'em leagues with friends." />
+    <meta property="og:type" content="website" />
+    <!-- og:url/og:image are absolute by spec, so they name the canonical prod
+         origin even on staging — link unfurls should sell the real app. -->
+    <meta property="og:url" content="https://www.picksleagues.com/" />
+    <meta property="og:image" content="https://www.picksleagues.com/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // Anti-FOUC: apply the resolved theme before React mounts. The storage key
       // here is intentionally coupled to next-themes' ThemeProvider storageKey
@@ -15,6 +32,12 @@
           ((!stored || stored === "system") &&
             window.matchMedia("(prefers-color-scheme: dark)").matches);
         if (isDark) document.documentElement.classList.add("dark");
+        // The media-keyed metas above track the OS; when the stored theme
+        // disagrees, pin both to the resolved theme so the browser chrome
+        // matches the page from the first paint.
+        document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+          meta.setAttribute("content", isDark ? "#0e0b0a" : "#fdfbfa");
+        });
       } catch (e) {}
     </script>
   </head>

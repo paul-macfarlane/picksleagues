@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Pick'em ships today end-to-end (epics 00–05, 11). What stands between that and a launchable product is epic 12's rule simplification, epic 13's quality pass, and the visual/legal slice of `09-launch`. Elimination follows.
+Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. What stands between that and a launchable product is gating the one mode that doesn't exist yet (`LNCH-12`) and the rest of `09-launch`.
 
 ## Task format
 
@@ -16,9 +16,15 @@ Status markers:
 
 - `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-Keep the ID stable once created — commands, ADRs, and commits reference it. Add new tasks by appending the next number in that epic; don't renumber.
+These four are the entire state vocabulary — don't invent others. `[~]` covers every working phase (planning, implementation, review, PR open); the backlog deliberately does not distinguish them, so moving between phases is no transition at all. `[!]` is a flag, not a lifecycle stage — it can sit on a task in any phase and always carries a note naming the blocker. A task is **available** when it is `[ ]` and every ID in its `deps:` is `[x]`.
 
-Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/architecture.md` section that defines it. Don't restate doc mechanics in the task line — the docs are the source of truth for _how_, and inline copies drift.
+Keep the ID stable once created — commands, ADRs, and commits reference it. Add new tasks by appending the next number in that epic; don't renumber. This tracker is the only one: GitHub Issues is unused and stays that way — never `gh issue create` here.
+
+Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/architecture.md` section that defines it. Don't restate doc mechanics in the task line — the docs are the source of truth for _how_, and inline copies drift. A thin task line is therefore normal, not a readiness gap: the referenced doc section is the contract.
+
+**Triage tags** ride as trailing tags on the task line, after the deps — e.g. `_(deps: none)_ _(needs-info)_`. The vocabulary: `needs-triage` (owner must evaluate), `needs-info` (waiting on reporter), `ready-for-agent` (fully specified, agent-runnable), `ready-for-human` (requires human implementation), `wontfix`. A tag never replaces the state marker — they are separate axes.
+
+**Technical plans never live in epic files.** Planning happens in the working conversation; what outlives it goes to an ADR or the PR body. A 400-line plan inlined among ticket lines destroys the thin contract this file format exists to keep — the first one written that way took `12-simplification.md` from 63 lines to 460.
 
 ## Epics
 
@@ -30,28 +36,31 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `03-leagues.md`        | `LG`   | Leagues, settings, invites, membership, discovery           |
 | `04-simulator-admin.md` | `SIM`/`ADM` | Admin page + simulator: data browsers, sim clock/replay UI, overrides, audit (merged per ADR-0011) |
 | `05-pickem.md`         | `PKM`  | Pick'em mode + shared settlement core (results, standings)  |
-| `06-elimination.md`    | `ELM`  | Elimination mode, survivor board                            |
+| `06-survivor.md`       | `ELM`  | Survivor mode, survivor board                               |
 | `07-march-madness.md`  | `MM`   | Bracket ingestion, builder, scoring, pool leaderboard       |
 | `09-launch.md`         | `LNCH` | Rules guide, prod cron, mobile QA, launch                   |
 | `10-trust-safety.md`   | `TS`   | Post-MVP: public-league abuse resistance, member notifications |
 | `11-schema-foundations.md` | `SF` | Season/team schema scalability ahead of the picks epics    |
 | `12-simplification.md` | `SIMP` | Collapse the Pick'em rule surface: immutable weekly submissions, fixed push, no tiebreaker, no week moves |
 | `13-quality.md`        | `QLTY` | Non-functional: justify or cut each engineering rule, de-brittle the test suites |
+| `14-owner-feedback.md` | `FB`   | Items the owner raised from real use: fixture bug, perf audit, QoL, scope questions |
 
 ## Build order
 
 File numbers are historical, not priority — they record the order epics were
-written. The order work is actually taken (owner, 2026-08-03):
+written. The order work is actually taken (owner, 2026-08-09):
 
-1. **`12-simplification`** — the Pick'em rules the app ships on. Everything downstream is cheaper once the rule surface is smaller, and the deletions remove a large share of what epic 13 would otherwise have to fix.
-2. **`13-quality`** — justify or cut the standards, then de-brittle the tests. Deliberately after 12 (which deletes much of the brittle surface) and before the facelift (which those tests would otherwise veto).
-3. **`09-launch`, visual + legal slice** — LNCH-7 branding, LNCH-9 design pass, LNCH-10 ToS/privacy, LNCH-11 splash. This is what makes it look like a product rather than a project.
-4. **`06-elimination`** — the second game mode, on a rule surface and a UI that have both settled.
-5. **`09-launch`, remainder** — cron schedules, mobile QA, production cutover.
-6. **`07-march-madness`**, then **`10-trust-safety`** — not needed until Feb/March 2027 and post-MVP respectively.
+1. **`05-pickem`, remainder** — `PKM-10`, the dashboard pick-status glance the launch mode still answers with a placeholder. **Done** (PR #54).
+2. **`06-survivor`, remainder** — `ELM-11`, eliminating a member the moment their loss is certain. **Done** (delivered 2026-08-08, ADR-0028; the checkbox lagged the merge, which is how this list re-listed it).
+3. **`LNCH-12`** — gate March Madness so nobody can create a league in a mode that doesn't exist. Ahead of the rest of launch because it is the one item where shipping without it strands real members in a dead league.
+4. **`09-launch`, remainder** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover. Within it the visual + legal slice (LNCH-7, 9, 10, 11) comes first: it is what makes the app read as a product rather than a project.
+5. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and two items (`FB-2`, `FB-7`) are questions whose answers get better once there is real usage to point at.
+6. **`10-trust-safety`** — post-MVP abuse resistance and member notifications.
+7. **`07-march-madness`** — the third mode, not needed until Feb 2027. Completing it includes lifting `LNCH-12`'s gate.
 
-`ID-4` and `ADM-3` are the two open stragglers in otherwise-complete epics; take
-them when they block something rather than for tidiness.
+Prior rounds, for reference: epics 12 (rule simplification) and 13 (quality) ran
+first and are complete, which is why the launch and mode work listed above is
+cheaper than it was written to be.
 
 ## Working the backlog
 

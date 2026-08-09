@@ -1,6 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, max } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
+  adminAudit,
   games,
   leagueMembers,
   leagueSeasons,
@@ -8,12 +9,17 @@ import {
   pickemPickResults,
   pickemPicks,
   pickemStandings,
+  weeks,
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ADMIN_AUDIT_ACTION,
+  ADMIN_AUDIT_TARGET_TABLE,
+  GAME_STATUS,
+  isUnplayedStatus,
+  isWeekInSeasonRange,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
-  LEAGUE_STATUS,
   type PickemSettings,
 } from "@picksleagues/schemas";
 import {
@@ -26,58 +32,33 @@ import {
   type ScoredOutcome,
 } from "@picksleagues/scoring";
 import { resolveGameOverrides } from "../games";
+import { applyLeagueSeasonConclusion } from "../leagues/conclusion";
 import { lockLeagueSeasonRow } from "../leagues/locks";
-import { logError, logInfo } from "../../lib/logger";
+import { logInfo } from "../../lib/logger";
+import { addSummary, EMPTY_SUMMARY, type SettlementSummary } from "../settlement";
 
 /**
- * Settlement orchestration (arch D10, §Settlement & Scoring): load inputs →
- * pure functions → persist `pickem_pick_results` and rebuild `pickem_standings`,
- * all in one transaction.
+ * Pick'em settlement orchestration (arch D10, §Settlement & Scoring): load
+ * inputs → pure functions → persist `pickem_pick_results` and rebuild
+ * `pickem_standings`, all in one transaction. Reached through the mode dispatch
+ * in `services/settlement.ts`, never called directly by a job or route.
  *
  * Everything here is a **pure derivation** and is written delete-then-insert
  * rather than diffed, which is what makes it idempotent: settling the same week
  * twice, or rebuilding a whole season, lands on byte-identical state. The
  * incremental path (a game going final) is only an optimization over the
  * nightly sweep — never a source of state a rebuild couldn't reproduce.
+ *
+ * A Pick'em week settles in isolation, against its own games and nothing else.
+ * That is what lets the entry points below take an arbitrary set of weeks, and
+ * it is exactly what Survivor cannot do (ADR-0025).
  */
-
-/**
- * Counters for the job envelope's `details`. A type alias rather than an
- * interface on purpose — only aliases get the implicit index signature that
- * makes them assignable to the runner's `Record<string, string|number|boolean>`.
- */
-export type SettlementSummary = {
-  leagueSeasons: number;
-  weeks: number;
-  results: number;
-  /** Picks whose game hasn't reached a terminal state, or that can't be graded. */
-  unsettled: number;
-  /** League seasons whose settlement threw — see the `settle-sweep.season-failed` logs. */
-  failed: number;
-};
-
-const EMPTY_SUMMARY: SettlementSummary = {
-  leagueSeasons: 0,
-  weeks: 0,
-  results: 0,
-  unsettled: 0,
-  failed: 0,
-};
-
-function addSummary(total: SettlementSummary, next: SettlementSummary): SettlementSummary {
-  return {
-    leagueSeasons: total.leagueSeasons + next.leagueSeasons,
-    weeks: total.weeks + next.weeks,
-    results: total.results + next.results,
-    unsettled: total.unsettled + next.unsettled,
-    failed: total.failed + next.failed,
-  };
-}
 
 /** A league season eligible for settlement, with its settings already parsed. */
 interface SettleableSeason {
   leagueSeasonId: string;
   leagueId: string;
+  seasonId: string;
   settings: PickemSettings;
 }
 
@@ -89,23 +70,88 @@ async function loadSettleableSeason(
     .select({
       leagueSeasonId: leagueSeasons.id,
       leagueId: leagueSeasons.leagueId,
+      seasonId: leagueSeasons.seasonId,
       settings: leagueSeasons.settings,
       mode: leagues.mode,
     })
     .from(leagueSeasons)
     .innerJoin(leagues, eq(leagues.id, leagueSeasons.leagueId))
     .where(eq(leagueSeasons.id, leagueSeasonId));
-  // Other modes settle through their own module into their own tables (ELM-4,
-  // MM-6 — ADR-0016); this one grades Pick'em picks only.
+  // Other modes settle through their own module into their own tables
+  // (ADR-0016); this one grades Pick'em picks only. Re-checked here rather than
+  // trusted from the dispatcher, so a direct caller can't grade the wrong mode.
   if (!row || row.mode !== LEAGUE_MODE.PICKEM) return null;
 
   return {
     leagueSeasonId: row.leagueSeasonId,
     leagueId: row.leagueId,
+    seasonId: row.seasonId,
     // Parsed, never trusted — defaults must materialize before they reach
     // scoring (engineering rules §Data).
     settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(row.settings),
   };
+}
+
+/**
+ * Whether the league's whole range has played out — Pick'em's arm of the
+ * conclusion rule (ADR-0030).
+ *
+ * **Independent of picks, deliberately.** The spec gives Pick'em no §End of
+ * League of its own; its season is its start week through its end week (spec
+ * §Standings), and a league nobody ever submitted a pick in still has to end.
+ * Keying on results would leave such a league running forever.
+ *
+ * A `final` game with no score is a provider fault an admin override fixes, and
+ * it holds the season open until one does — the same bar the grader applies to
+ * the pick on it, so conclusion can't outrun the results it describes.
+ *
+ * **The range is the in-range `weeks` rows that exist**, not the ordinal span
+ * the settings name — a week the range covers but that was never ingested is not
+ * waited for. Both settlement replays already read the range that way, and season
+ * setup creates a season's weeks wholesale, so the two coincide; a season built
+ * piecemeal would conclude on a partial universe.
+ */
+async function rangePlayedOut(tx: Db, season: SettleableSeason): Promise<boolean> {
+  const weekRows = await tx
+    .select({ id: weeks.id, weekType: weeks.weekType, weekNumber: weeks.weekNumber })
+    .from(weeks)
+    .where(eq(weeks.seasonId, season.seasonId));
+  const inRangeWeekIds = weekRows
+    .filter((row) => isWeekInSeasonRange(row, season.settings))
+    .map((row) => row.id);
+
+  // No in-range week at all is a league whose schedule hasn't been ingested, not
+  // a season that finished instantly — the same reading the settlement replays
+  // give an empty week.
+  if (inRangeWeekIds.length === 0) return false;
+
+  // Scoped to the weeks the league plays rather than the whole season: this runs
+  // on the 5-minute incremental path, inside the transaction holding the
+  // league-season lock, and a Postseason-preset league has no business loading
+  // eighteen weeks of regular-season games to answer it.
+  const gameRows = await tx.select().from(games).where(inArray(games.weekId, inRangeWeekIds));
+
+  const gamesByWeek = new Map<string, Array<typeof games.$inferSelect>>(
+    inRangeWeekIds.map((weekId) => [weekId, []]),
+  );
+  for (const row of gameRows) gamesByWeek.get(row.weekId)?.push(row);
+
+  return [...gamesByWeek.values()].every((weekGames) => {
+    // A week with no games is a week the schedule never filled, not a week that
+    // finished with nothing to play.
+    if (weekGames.length === 0) return false;
+    return weekGames.every((row) => {
+      const effective = resolveGameOverrides(row);
+      // Cancelled counts as done — it will never be played and the spec already
+      // resolves the pick on it as a push (spec §Cancellations & Postponements).
+      if (isUnplayedStatus(effective.status)) return true;
+      return (
+        effective.status === GAME_STATUS.FINAL &&
+        effective.homeScore !== null &&
+        effective.awayScore !== null
+      );
+    });
+  });
 }
 
 /**
@@ -305,17 +351,67 @@ async function weeksWithPicks(db: Db, leagueSeasonId: string): Promise<string[]>
 }
 
 /**
+ * Records an admin's rebuild against the league season whose derived state it
+ * is about to replace (engineering rules §Data: "every override/rebuild writes
+ * `admin_audit`").
+ *
+ * The prior value is a summary, not the rows: those are a whole season of a
+ * derivation arch D10 already defines as reproducible from (picks, results,
+ * settings), while what the trail must answer — what stood here, and when it
+ * last settled — is exactly what counts plus last-write instants answer, at
+ * constant size.
+ */
+async function recordRebuildAudit(
+  tx: Db,
+  clock: Clock,
+  leagueSeasonId: string,
+  adminUserId: string,
+): Promise<void> {
+  const [results] = await tx
+    .select({ rows: count(), lastSettledAt: max(pickemPickResults.settledAt) })
+    .from(pickemPickResults)
+    .where(eq(pickemPickResults.leagueSeasonId, leagueSeasonId));
+  const [standings] = await tx
+    .select({ rows: count(), lastUpdatedAt: max(pickemStandings.updatedAt) })
+    .from(pickemStandings)
+    .where(eq(pickemStandings.leagueSeasonId, leagueSeasonId));
+
+  await tx.insert(adminAudit).values({
+    adminUserId,
+    action: ADMIN_AUDIT_ACTION.LEAGUE_REBUILD,
+    targetTable: ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS,
+    targetId: leagueSeasonId,
+    priorValue: {
+      resultCount: results?.rows ?? 0,
+      standingsRowCount: standings?.rows ?? 0,
+      lastSettledAt: results?.lastSettledAt?.toISOString() ?? null,
+      lastStandingsUpdatedAt: standings?.lastUpdatedAt?.toISOString() ?? null,
+    },
+    createdAt: clock.now(),
+  });
+}
+
+/**
  * Settles the named weeks of one league season and rebuilds its standings, in
  * one transaction. Standings are rebuilt once at the end rather than per week —
  * they are a whole-season derivation either way.
+ *
+ * `audit` names the admin who asked for this recompute, and is supplied only by
+ * the admin rebuild endpoint: the nightly sweep, ingestion, and the simulator
+ * settle on their own schedule rather than on an operator's instruction, and a
+ * row per active season per night would bury the admin actions `admin_audit`
+ * exists to surface.
  */
-export async function settleLeagueSeasonWeeks(
+export async function settlePickemLeagueSeasonWeeks(
   db: Db,
   clock: Clock,
   leagueSeasonId: string,
   weekIds: readonly string[],
+  audit?: { adminUserId: string },
 ): Promise<SettlementSummary> {
   const season = await loadSettleableSeason(db, leagueSeasonId);
+  // Nothing here is settleable, so nothing is wiped and there is no prior value
+  // to record honestly — an audited no-op would claim a recompute that never ran.
   if (!season) return EMPTY_SUMMARY;
 
   return db.transaction(async (tx) => {
@@ -323,6 +419,10 @@ export async function settleLeagueSeasonWeeks(
     // can all settle the same season at once, and delete-then-insert without
     // this collides on the unique constraints.
     await lockLeagueSeasonRow(tx, leagueSeasonId);
+
+    // Under the lock and before the first delete, so the recorded prior state is
+    // the one this transaction replaces and no concurrent settle can shift it.
+    if (audit) await recordRebuildAudit(tx, clock, leagueSeasonId, audit.adminUserId);
 
     let results = 0;
     let unsettled = 0;
@@ -332,29 +432,44 @@ export async function settleLeagueSeasonWeeks(
       unsettled += settled.unsettled;
     }
     await rebuildStandings(tx, clock, season);
+
+    // A whole-season question whichever weeks this call settled, so it runs on
+    // the incremental path too (ADR-0030): the game that closes the range is the
+    // one whose sync should retire the season, not whatever the sweep finds that
+    // night.
+    await applyLeagueSeasonConclusion(
+      tx,
+      clock,
+      season.leagueSeasonId,
+      await rangePlayedOut(tx, season),
+    );
+
     return { leagueSeasons: 1, weeks: weekIds.length, results, unsettled, failed: 0 };
   });
 }
 
-/** Full recompute of one league season from scratch — the on-demand rebuild. */
-export async function rebuildLeagueSeason(
+/**
+ * Full recompute of one Pick'em league season from scratch — the on-demand
+ * rebuild. Pass `audit` when a named admin asked for it, so the recompute and
+ * its `admin_audit` row commit or roll back together.
+ */
+export async function rebuildPickemLeagueSeason(
   db: Db,
   clock: Clock,
   leagueSeasonId: string,
+  audit?: { adminUserId: string },
 ): Promise<SettlementSummary> {
   const weekIds = await weeksWithPicks(db, leagueSeasonId);
-  return settleLeagueSeasonWeeks(db, clock, leagueSeasonId, weekIds);
+  return settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, weekIds, audit);
 }
 
 /**
- * Settles every league-week holding a pick on one of the named games. Both
- * ingestion jobs call it: `sync-scores` when a game goes final, `sync-schedule`
- * when one is cancelled — both change how existing picks resolve.
+ * Settles every Pick'em league-week holding a pick on one of the named games.
  *
  * Scoped to the affected weeks rather than whole seasons so the 5-minute path
  * stays cheap; the nightly sweep catches anything this missed (arch D10).
  */
-export async function settlePicksForGames(
+export async function settlePickemPicksForGames(
   db: Db,
   clock: Clock,
   gameIds: readonly string[],
@@ -378,52 +493,10 @@ export async function settlePicksForGames(
 
   let total = EMPTY_SUMMARY;
   for (const [leagueSeasonId, weekIds] of weeksBySeason) {
-    total = addSummary(total, await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, weekIds));
-  }
-  return total;
-}
-
-/**
- * Nightly reconciliation (arch §Background Jobs, D10): recompute every active
- * league season from stored results, catching late stat corrections, admin
- * overrides, and any tick the incremental path missed.
- *
- * Per-season transactions rather than one global one — a single league's bad
- * data must not roll back everyone else's reconciliation, and nothing here
- * depends on cross-league atomicity.
- */
-export async function settleSweep(db: Db, clock: Clock): Promise<SettlementSummary> {
-  const active = await db
-    .select({ id: leagueSeasons.id })
-    .from(leagueSeasons)
-    .where(eq(leagueSeasons.status, LEAGUE_STATUS.ACTIVE));
-
-  let total = EMPTY_SUMMARY;
-  const failures: string[] = [];
-
-  for (const season of active) {
-    try {
-      total = addSummary(total, await rebuildLeagueSeason(db, clock, season.id));
-    } catch (error) {
-      // One league's bad data must not cost every other league its nightly
-      // reconciliation. Without this catch the first throw ends the sweep and
-      // every season after it — in unspecified order — goes unreconciled, every
-      // night, until someone finds the bad row. The league id is the thing an
-      // operator needs and the thrown message never carries it.
-      failures.push(season.id);
-      total = addSummary(total, { ...EMPTY_SUMMARY, failed: 1 });
-      logError("settle-sweep.season-failed", { leagueSeasonId: season.id, error });
-    }
-  }
-
-  // Non-2xx only after every season has been attempted: the job must still
-  // alert (ADR-0007 — cron-job.org emails on a failed request), but alerting
-  // by aborting would be the bug this catch exists to prevent.
-  if (failures.length > 0) {
-    throw new Error(
-      `settle-sweep: ${failures.length} of ${active.length} league seasons failed to settle (${failures.join(", ")})`,
+    total = addSummary(
+      total,
+      await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, weekIds),
     );
   }
-
   return total;
 }

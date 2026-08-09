@@ -13,7 +13,7 @@ import {
 // preview, and the dashboard's league list.
 const LEAGUE_MODE_LABELS: Record<LeagueMode, string> = {
   [LEAGUE_MODE.PICKEM]: "NFL Pick'em",
-  [LEAGUE_MODE.ELIMINATION]: "NFL Elimination",
+  [LEAGUE_MODE.SURVIVOR]: "NFL Survivor",
   [LEAGUE_MODE.MARCH_MADNESS]: "March Madness Pool",
 };
 
@@ -30,6 +30,22 @@ const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
 
 export function memberRoleLabel(role: MemberRole): string {
   return MEMBER_ROLE_LABELS[role];
+}
+
+// One home for the mode→rules-page mapping (LNCH-1), consumed by the league
+// header and both modes' pick surfaces.
+const LEAGUE_MODE_RULES_PATHS: Record<LeagueMode, string | null> = {
+  [LEAGUE_MODE.PICKEM]: "/rules/pickem",
+  [LEAGUE_MODE.SURVIVOR]: "/rules/survivor",
+  [LEAGUE_MODE.MARCH_MADNESS]: null,
+};
+
+/**
+ * Null means the mode has no rules guide yet (March Madness until epic 07) —
+ * callers must render no link rather than a path that 404s.
+ */
+export function leagueModeRulesPath(mode: LeagueMode): string | null {
+  return LEAGUE_MODE_RULES_PATHS[mode];
 }
 
 /**

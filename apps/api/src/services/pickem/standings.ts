@@ -10,6 +10,7 @@ import {
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
 import { getMembership } from "../leagues/authz";
 import { getWeek } from "../slate";
+import { resolveUserImage } from "../users";
 import { PICKEM_REFUSAL, type PickemReadRefusal } from "./picks";
 
 /**
@@ -69,6 +70,7 @@ export async function getPickemStandings(
       username: users.username,
       displayName: users.display_name,
       image: users.image,
+      imageOverride: users.imageOverride,
       points: pickemStandings.points,
       wins: pickemStandings.wins,
       losses: pickemStandings.losses,
@@ -117,7 +119,7 @@ export async function getPickemStandings(
       userId: row?.userId ?? "",
       username: row?.username ?? null,
       displayName: row?.displayName ?? "",
-      image: row?.image ?? null,
+      image: row ? resolveUserImage(row) : null,
       isViewer: row?.userId === userId,
       points: entry.points,
       wins: entry.wins,

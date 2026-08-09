@@ -2,7 +2,8 @@ import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, leagueSeasons } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import { LEAGUE_ACTION, LEAGUE_STATUS, type LeagueResponse } from "@picksleagues/schemas";
-import { lockLeagueRow } from "./locks";
+import { applyLeagueSeasonConclusion } from "./conclusion";
+import { lockLeagueRow, lockLeagueSeasonRow } from "./locks";
 import { authorizeLeagueAction } from "./authz";
 import {
   getLeagueWithCurrentSeason,
@@ -76,6 +77,20 @@ export async function renewLeagueSeason(
       }
       throw error;
     }
+
+    // The instance just superseded is over, whatever its own weeks say
+    // (ADR-0030). No mode answer is passed because none is needed: the row
+    // inserted above makes the superseded arm true on its own. This is what
+    // retires a season the mode rule can never conclude — one whose schedule was
+    // never fully ingested — from the nightly sweep the moment the league moves
+    // on, rather than leaving it recomputed forever.
+    //
+    // Behind the same row lock every settler takes, so a rebuild of the prior
+    // instance in flight right now cannot read its own snapshot of the status
+    // and overwrite this one: without it that rebuild would see no newer season
+    // (its snapshot predates the INSERT above) and write `active` back.
+    await lockLeagueSeasonRow(tx, season.id);
+    await applyLeagueSeasonConclusion(tx, clock, season.id, false);
 
     return null;
   });

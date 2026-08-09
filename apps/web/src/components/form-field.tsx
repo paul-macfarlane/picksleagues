@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ export function FormTextField({
   field,
   label,
   id,
+  hint,
   ...inputProps
 }: {
   field: AnyFieldApi;
@@ -23,6 +24,13 @@ export function FormTextField({
   // row in a list (sim-fixture-row.tsx), where `field.name` alone would
   // collide across rows.
   id?: string;
+  // Standing guidance about the field, rendered muted beneath the input and
+  // wired into `aria-describedby`. It lives here rather than beside a call site
+  // because a hint the input doesn't point at is one a screen reader never
+  // reads — the same plumbing reason the error <p> is here. Guidance about
+  // *one field* belongs on that field, not in the surrounding card's prose,
+  // where it reads as page copy and is missed by anyone tabbing to the input.
+  hint?: ReactNode;
 } & Omit<
   ComponentProps<typeof Input>,
   "id" | "value" | "onChange" | "aria-invalid" | "aria-describedby"
@@ -30,6 +38,11 @@ export function FormTextField({
   const error = field.state.meta.errors[0] as unknown;
   const fieldId = id ?? field.name;
   const errorId = `${fieldId}-error`;
+  const hintId = `${fieldId}-hint`;
+  // Both when both are present: the hint stays true while an error is showing,
+  // so dropping it would silently narrow what a screen reader hears exactly
+  // when the member most needs the guidance.
+  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -39,9 +52,14 @@ export function FormTextField({
         value={field.state.value}
         onChange={(event) => field.handleChange(event.target.value)}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={describedBy || undefined}
         {...inputProps}
       />
+      {hint && (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
       {error !== undefined && (
         <p id={errorId} className="text-sm text-destructive">
           {fieldErrorMessage(error)}

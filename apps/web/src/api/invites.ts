@@ -34,7 +34,9 @@ export function useCreateInvite(leagueId: string) {
         body,
       });
       if (error) {
-        toastOnExpectedError(error, response, (status) => status === 400);
+        // 409 `league_started` is reachable even with the form disabled: the
+        // window can close between the page's last league read and the submit.
+        toastOnExpectedError(error, response, (status) => status === 400 || status === 409);
         return null;
       }
       return data;

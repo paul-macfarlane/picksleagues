@@ -104,7 +104,17 @@ const CompetitionSchema = z.looseObject({
     clock: z.number().optional(),
   }),
   competitors: z.array(CompetitorSchema),
-  odds: z.array(z.looseObject({ spread: z.number().optional() })).optional(),
+  // `provider.name` (PKM-9) is the book the spread came from — DraftKings as of
+  // 2026-08-07, but ESPN has rotated books before, so this is captured as free
+  // text rather than trusted to stay any one value.
+  odds: z
+    .array(
+      z.looseObject({
+        spread: z.number().optional(),
+        provider: z.looseObject({ name: z.string() }).optional(),
+      }),
+    )
+    .optional(),
 });
 
 const EventSchema = z.looseObject({
@@ -235,6 +245,23 @@ function parseScoreStrict(raw: string, context: string): number {
   return parsed;
 }
 
+/**
+ * ESPN publishes an unseeded playoff round months ahead as real events whose
+ * competitors are a shared placeholder: `team.id` `-1`/`-2`, abbreviation
+ * `TBD`. Both signals are checked because either alone identifies today's
+ * encoding while neither can match a real team — ESPN's team ids are positive
+ * and no real abbreviation is `TBD` — so the redundancy costs nothing and
+ * survives ESPN changing one of them. A non-numeric id is not a placeholder:
+ * `Number` yields NaN, which is not finite.
+ */
+function isPlaceholderCompetitor(competitor: z.infer<typeof CompetitorSchema>): boolean {
+  const providerId = Number(competitor.team.id);
+  return (
+    (Number.isFinite(providerId) && providerId < 0) ||
+    competitor.team.abbreviation.toUpperCase() === "TBD"
+  );
+}
+
 function mapCompetitionToGame(
   weekType: WeekType,
   weekNumber: number,
@@ -257,6 +284,10 @@ function mapCompetitionToGame(
   // scoreboard, 16/16 games consistent, 2026-07-21).
   const rawSpread = competition.odds?.[0]?.spread;
   const spread = typeof rawSpread === "number" && Number.isFinite(rawSpread) ? rawSpread : null;
+  // Same odds entry as the spread itself, so the two can never attribute a
+  // number to the wrong book (PKM-9).
+  const rawSource = competition.odds?.[0]?.provider?.name;
+  const spreadSource = typeof rawSource === "string" && rawSource.length > 0 ? rawSource : null;
 
   return {
     providerGameId: competition.id,
@@ -283,6 +314,7 @@ function mapCompetitionToGame(
     period: liveState.period,
     clockSeconds: liveState.clockSeconds,
     spread,
+    spreadSource,
   };
 }
 
@@ -407,14 +439,22 @@ export class EspnProvider implements GameDataProvider {
     const url = `${this.#siteApiBaseUrl}/football/nfl/scoreboard?seasontype=${seasonType}&week=${espnWeekNumber}&dates=${seasonYear}`;
     const scoreboard = ScoreboardSchema.parse(await this.#fetchJson(url));
 
-    return scoreboard.events.map((event) => {
+    return scoreboard.events.flatMap((event) => {
       // `min(1)` on the schema guarantees this, but TS's noUncheckedIndexedAccess
       // can't see through that — guard explicitly rather than asserting.
       const [competition] = event.competitions;
       if (!competition) {
         throw new Error(`EspnProvider: event ${event.id} has no competitions`);
       }
-      return mapCompetitionToGame(weekType, weekNumber, competition);
+      // ADR-0021: an event whose competitors are undetermined is not yet a game
+      // in our domain. Excluded here rather than marked downstream because a
+      // Pick'em pick stores a side, not a team — seeding would silently convert
+      // a submitted pick into a pick on a team the member never chose, and
+      // ADR-0018's submit-once rule leaves them no remedy.
+      if (competition.competitors.some(isPlaceholderCompetitor)) {
+        return [];
+      }
+      return [mapCompetitionToGame(weekType, weekNumber, competition)];
     });
   }
 

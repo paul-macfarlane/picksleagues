@@ -52,15 +52,17 @@ export const sportSeasons = pgTable(
  * the pre-provider-id bootstrap key those rows are matched on (NFL
  * abbreviations are stable), and that bootstrap uniqueness is scoped to rows
  * WITHOUT a provider id (partial index below). Once a row is provider-linked,
- * provider identity is the only key: ESPN ships placeholder "TBD" teams for
- * undetermined playoff matchups as distinct provider ids sharing the same
- * abbreviation, so a full (sport, abbreviation) unique across all rows would
- * reject legitimate provider data. `providerTeamId` is declared unique per
- * sport; Postgres treats NULLs as distinct, so that nullable unique index
- * never blocks multiple not-yet-synced rows. `location`/`logo*Url` are filled
- * in by the same schedule sync from ESPN's separate teams-listing endpoint
- * (a provider team not yet in that listing — e.g. a TBD playoff placeholder —
- * simply keeps these null until it resolves to a real team).
+ * provider identity is the only key, and scoping the abbreviation unique to
+ * bootstrap rows is what stops it rejecting provider data that legitimately
+ * repeats an abbreviation. ESPN's placeholder "TBD" playoff teams were the case
+ * that found this; they no longer reach the database at all (ADR-0021 excludes
+ * unseeded rounds at the adapter), and the partial scope stays because it is
+ * what makes the bootstrap key coherent in general. `providerTeamId` is
+ * declared unique per sport; Postgres treats NULLs as distinct, so that
+ * nullable unique index never blocks multiple not-yet-synced rows.
+ * `location`/`logo*Url` are filled in by the same schedule sync from ESPN's
+ * separate teams-listing endpoint (a provider team not yet in that listing
+ * simply keeps these null until a later run finds it there).
  */
 export const teams = pgTable(
   "teams",
@@ -70,7 +72,7 @@ export const teams = pgTable(
     providerTeamId: text("provider_team_id"),
     abbreviation: text("abbreviation").notNull(),
     name: text("name").notNull(),
-    // City/market (ESPN's `location`) — nullable: bootstrap/TBD rows have no
+    // City/market (ESPN's `location`) — nullable: bootstrap rows have no
     // provider metadata until the teams-listing enrichment step links them.
     location: text("location"),
     logoLightUrl: text("logo_light_url"),
@@ -140,6 +142,14 @@ export const games = pgTable(
     // number is kept — the odds sync overwrites it (ADR-0018); the audit that
     // matters is `pickem_picks.spread_at_pick`, what the member accepted.
     spread: doublePrecision("spread"),
+    // The book `spread` came from (PKM-9), written in the same `set()` as
+    // `spread` in sync-odds so the two can never drift apart — free text, never
+    // a const set, because ESPN has rotated the attributed book before. A
+    // provider field like `spread` itself (never an `override_*`, arch D15):
+    // ingestion writes it, and a read resolves it to null wherever
+    // `override_spread` is set, since a commissioner's correction is not the
+    // book's line.
+    spreadSource: text("spread_source"),
     // Live in-game state (DATA-8): the 1-based period (5+ in overtime) and the
     // seconds remaining in it, normalized by the provider adapter — never its
     // display string. Both null unless the game is in progress, so they go back

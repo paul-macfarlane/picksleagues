@@ -36,7 +36,7 @@ export interface paths {
         delete: operations["deleteMe"];
         options?: never;
         head?: never;
-        /** Claim/change the caller's username and/or edit their display name */
+        /** Claim/change the caller's username, display name, and/or avatar URL */
         patch: operations["updateMe"];
         trace?: never;
     };
@@ -189,7 +189,7 @@ export interface paths {
         /** List a league's invites with derived status (commissioner) */
         get: operations["listInvites"];
         put?: never;
-        /** Generate an invite link code (commissioner, anytime) */
+        /** Generate an invite link code (commissioner, pre-start only) */
         post: operations["createInvite"];
         delete?: never;
         options?: never;
@@ -404,6 +404,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/picks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every member's pick for a week, filtered by kickoff visibility */
+        get: operations["getSurvivorWeekPicks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}/survivor/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The survivor board — every member's status, history, and burned teams */
+        get: operations["getSurvivorStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Make or change the caller's pick for a week — allowed until that game kicks off */
+        put: operations["submitSurvivorPick"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/jobs/nfl/{job}": {
         parameters: {
             query?: never;
@@ -498,6 +549,40 @@ export interface paths {
         };
         /** Browse a week's games with provider, override, and resolved values */
         get: operations["listAdminGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/games/anomalies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List games left unlocked while their outcome is already knowable */
+        get: operations["listAdminGameAnomalies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse the admin action log — overrides and rebuilds, newest first */
+        get: operations["listAdminAudit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -673,12 +758,16 @@ export interface components {
             displayName: string;
             email: string;
             image: string | null;
+            imageOverride: components["schemas"]["NullableImageUrl"];
+            providerImage: string | null;
             isAdmin: boolean;
             simEnabled: boolean;
             /** Format: date-time */
             now: string;
         };
         NullableUsername: string | null;
+        /** Format: uri */
+        NullableImageUrl: string | null;
         ErrorResponse: {
             error: string;
             message: string;
@@ -686,6 +775,7 @@ export interface components {
         UpdateMeRequest: {
             username?: components["schemas"]["Username"];
             displayName?: components["schemas"]["DisplayName"];
+            imageOverride?: components["schemas"]["NullableImageUrl"];
         };
         Username: string;
         DisplayName: string;
@@ -718,12 +808,12 @@ export interface components {
         };
         LeagueName: string;
         /** @enum {string} */
-        LeagueMode: "pickem" | "elimination" | "march_madness";
+        LeagueMode: "pickem" | "survivor" | "march_madness";
         /** @enum {string} */
         LeagueVisibility: "public" | "private";
         /** @enum {string} */
         LeagueStatus: "active" | "concluded";
-        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["EliminationSettings"] | {
+        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | {
             /** @default 5 */
             maxBracketsPerMember: number;
             /** @enum {string} */
@@ -756,7 +846,7 @@ export interface components {
         };
         /** @enum {string} */
         PickType: "straight_up" | "against_the_spread";
-        EliminationSettings: {
+        SurvivorSettings: {
             startWeek: {
                 /** @enum {string} */
                 type: "regular";
@@ -767,14 +857,13 @@ export interface components {
                 type: "regular";
                 number: number;
             };
-            pickType: components["schemas"]["PickType"];
-            pushTieResolution?: components["schemas"]["EliminationPushTieResolution"];
+            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         /**
          * @default advance
          * @enum {string}
          */
-        EliminationPushTieResolution: "advance" | "eliminate";
+        SurvivorPushTieResolution: "advance" | "eliminate";
         /** @enum {string} */
         MemberRole: "commissioner" | "member";
         LeagueMember: {
@@ -796,11 +885,11 @@ export interface components {
             settings: components["schemas"]["PickemSettingsInput"];
         } | {
             /** @enum {string} */
-            mode: "elimination";
+            mode: "survivor";
             name: components["schemas"]["LeagueName"];
             visibility: components["schemas"]["LeagueVisibility"];
             maxMembers?: components["schemas"]["MaxMembers"];
-            settings: components["schemas"]["EliminationSettings"];
+            settings: components["schemas"]["SurvivorSettingsInput"];
         } | {
             /** @enum {string} */
             mode: "march_madness";
@@ -816,6 +905,9 @@ export interface components {
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
+        };
+        SurvivorSettingsInput: {
+            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
         MarchMadnessSettings: {
             /** @default 5 */
@@ -844,7 +936,13 @@ export interface components {
             /** Format: date-time */
             startsAt: string | null;
             renewable: boolean;
+            survivorPickStatus: components["schemas"]["NullableSurvivorPickStatus"];
+            pickemPickStatus: components["schemas"]["NullablePickemPickStatus"];
         };
+        /** @enum {string|null} */
+        NullableSurvivorPickStatus: "eliminated" | "won" | "pick_in" | "pick_needed" | "locked" | null;
+        /** @enum {string|null} */
+        NullablePickemPickStatus: "season_complete" | "picks_in" | "picks_needed" | "locked" | null;
         UpdateLeagueRequest: {
             name?: components["schemas"]["LeagueName"];
             visibility?: components["schemas"]["LeagueVisibility"];
@@ -931,6 +1029,7 @@ export interface components {
             homeScore: number | null;
             awayScore: number | null;
             spread: number | null;
+            spreadSource: string | null;
             period: number | null;
             clockSeconds: number | null;
             /** Format: date-time */
@@ -1010,6 +1109,7 @@ export interface components {
             gameId: string;
             side: components["schemas"]["PickemPickSide"];
             spread: number | null;
+            spreadSource: string | null;
             outcome: components["schemas"]["NullablePickOutcome"];
             /** Format: date-time */
             updatedAt: string;
@@ -1027,6 +1127,67 @@ export interface components {
             side: components["schemas"]["PickemPickSide"];
             /** @default null */
             spread: number | null;
+        };
+        SurvivorWeekPicksResponse: {
+            members: components["schemas"]["SurvivorMemberPick"][];
+            consumedTeamIds: string[];
+        };
+        SurvivorMemberPick: {
+            leagueMemberId: string;
+            userId: string;
+            username: string | null;
+            displayName: string;
+            image: string | null;
+            isViewer: boolean;
+            hasPicked: boolean;
+            pick: components["schemas"]["NullableSurvivorPick"];
+            eliminated: boolean;
+        };
+        NullableSurvivorPick: {
+            id: string;
+            weekId: string;
+            gameId: string;
+            teamId: string;
+            outcome: components["schemas"]["NullablePickOutcome"];
+        } | null;
+        SurvivorStandingsResponse: {
+            weeks: components["schemas"]["SurvivorStandingsWeek"][];
+            members: components["schemas"]["SurvivorStandingsMember"][];
+            teams: components["schemas"]["SlateTeam"][];
+            concluded: boolean;
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        SurvivorStandingsWeek: {
+            weekId: string;
+            label: string;
+        };
+        SurvivorStandingsMember: {
+            leagueMemberId: string;
+            userId: string;
+            username: string | null;
+            displayName: string;
+            image: string | null;
+            isViewer: boolean;
+            status: components["schemas"]["SurvivorMemberStatus"];
+            eliminatedWeekId: string | null;
+            revivedCount: number;
+            isWinner: boolean;
+            picks: components["schemas"]["SurvivorStandingsPick"][];
+            consumedTeamIds: string[];
+        };
+        /** @enum {string} */
+        SurvivorMemberStatus: "alive" | "eliminated";
+        SurvivorStandingsPick: {
+            weekId: string;
+            teamId: string | null;
+            outcome: components["schemas"]["NullablePickOutcome"];
+        };
+        SubmitSurvivorPickRequest: {
+            /** Format: uuid */
+            gameId: string;
+            /** Format: uuid */
+            teamId: string;
         };
         /** @enum {string} */
         NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
@@ -1112,6 +1273,32 @@ export interface components {
         };
         /** @enum {string|null} */
         NullableGameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | null;
+        AdminAuditResponse: {
+            entries: components["schemas"]["AdminAuditEntry"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        AdminAuditEntry: {
+            id: string;
+            admin: {
+                displayName: string;
+                username: string | null;
+            };
+            action: components["schemas"]["AdminAuditAction"];
+            targetTable: components["schemas"]["AdminAuditTargetTable"];
+            targetId: string;
+            targetLabel: string | null;
+            priorValue: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @enum {string} */
+        AdminAuditAction: "game_override" | "league_rebuild";
+        /** @enum {string} */
+        AdminAuditTargetTable: "games" | "league_seasons";
         GameOverrideResponse: {
             game: components["schemas"]["AdminGame"];
             resettled: boolean;
@@ -1266,14 +1453,28 @@ export interface components {
             leagueSeasonId: string;
             seasonYear: number;
             summary: components["schemas"]["SimSettlementSummary"];
-            seasonStandings: components["schemas"]["SimSettlePickemStandingsRow"][];
-            weeks: components["schemas"]["SimSettleWeekResult"][];
+            board: components["schemas"]["SimSettleBoard"];
         };
         SimSettlementSummary: {
             leagueSeasons: number;
             weeks: number;
             results: number;
             unsettled: number;
+            failed: number;
+        };
+        SimSettleBoard: {
+            /** @enum {string} */
+            mode: "pickem";
+            seasonStandings: components["schemas"]["SimSettlePickemStandingsRow"][];
+            weeks: components["schemas"]["SimSettlePickemWeekResult"][];
+        } | {
+            /** @enum {string} */
+            mode: "survivor";
+            members: components["schemas"]["SimSettleSurvivorMemberRow"][];
+            weeks: components["schemas"]["SimSettleSurvivorWeekResult"][];
+        } | {
+            /** @enum {string} */
+            mode: "march_madness";
         };
         SimSettlePickemStandingsRow: {
             leagueMemberId: string;
@@ -1282,13 +1483,30 @@ export interface components {
             points: number;
             rank: number;
         };
-        SimSettleWeekResult: {
+        SimSettlePickemWeekResult: {
             weekId: string;
             label: string;
             weekType: components["schemas"]["WeekType"];
             weekNumber: number;
             results: number;
             standings: components["schemas"]["SimSettlePickemStandingsRow"][];
+        };
+        SimSettleSurvivorMemberRow: {
+            leagueMemberId: string;
+            username: string | null;
+            displayName: string;
+            status: components["schemas"]["SurvivorMemberStatus"];
+            eliminatedWeekId: string | null;
+            livesRemaining: number;
+            revivedCount: number;
+        };
+        SimSettleSurvivorWeekResult: {
+            weekId: string;
+            label: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            results: number;
+            eliminatedMemberIds: string[];
         };
         SimSettleRequest: {
             /** Format: uuid */
@@ -1735,7 +1953,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start) */
+            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2185,6 +2403,15 @@ export interface operations {
             };
             /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The league has started — new invite links can no longer be created */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2677,7 +2904,7 @@ export interface operations {
                     "application/json": components["schemas"]["LeagueWeeksResponse"];
                 };
             };
-            /** @description Not a Pick'em league (wrong_league_mode) */
+            /** @description The league's mode has no start/end week range to clip to (wrong_league_mode) — both NFL modes do, March Madness does not */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3078,6 +3305,195 @@ export interface operations {
             };
         };
     };
+    getSurvivorWeekPicks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                weekId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per member. The caller sees their own pick always; another member's appears only once that game has kicked off, with `hasPicked` reporting that one exists. `consumedTeamIds` is the caller's own burned teams, excluding this week's */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurvivorWeekPicksResponse"];
+                };
+            };
+            /** @description Not a Survivor league (wrong_league_mode), or the week is outside this league's season or resolved range, or is not a regular-season week (week_out_of_range) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getSurvivorStandings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per member: alive or eliminated, the week they went out, how many times the revival rule brought them back, and their weekly picks — each pick's team present only once its game has kicked off, and each member's consumed teams derived from the picks the caller can see. `concluded` marks the season over, at which point every member still alive is a (co-)winner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurvivorStandingsResponse"];
+                };
+            };
+            /** @description Not a Survivor league (wrong_league_mode) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submitSurvivorPick: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                weekId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SubmitSurvivorPickRequest"];
+            };
+        };
+        responses: {
+            /** @description Pick saved; the week is returned as the read endpoint would serve it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurvivorWeekPicksResponse"];
+                };
+            };
+            /** @description Not a Survivor league (wrong_league_mode), the week is outside this league's resolved regular-season range (week_out_of_range), or the game isn't in this week's slate (game_not_in_week) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), or the season has concluded (league_concluded) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     runAdminNflJob: {
         parameters: {
             query?: {
@@ -3388,6 +3804,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminGamesResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminGameAnomalies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Games whose resolved kickoff is still ahead of the server clock while their resolved status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is an override on exactly these rows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGamesResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminAudit: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of audit rows newest-first, with the whole table's `total` and the `limit`/`offset` actually served — an offset past the end is an empty page, not an error */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAuditResponse"];
                 };
             };
             /** @description A request param failed its format rule */

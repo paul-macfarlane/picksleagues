@@ -56,7 +56,9 @@ const getLeagueWeeks = createRoute({
       description: "Weeks in season order, plus the week a member lands on by default",
       content: { "application/json": { schema: LeagueWeeksResponseSchema } },
     },
-    400: errorResponse("Not a Pick'em league (wrong_league_mode)"),
+    400: errorResponse(
+      "The league's mode has no start/end week range to clip to (wrong_league_mode) — both NFL modes do, March Madness does not",
+    ),
     401: UNAUTHENTICATED_401,
     404: LEAGUE_NOT_FOUND_404,
     500: MISCONFIGURED_500,

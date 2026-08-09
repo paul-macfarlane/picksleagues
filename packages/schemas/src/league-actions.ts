@@ -16,6 +16,7 @@ export const LEAGUE_ACTION = {
   KICK_MEMBER: "kick_member",
   PROMOTE_MEMBER: "promote_member",
   DEMOTE_COMMISSIONER: "demote_commissioner",
+  CREATE_INVITE: "create_invite",
   MANAGE_INVITES: "manage_invites",
   LEAVE_LEAGUE: "leave_league",
   RENEW_SEASON: "renew_season",
@@ -40,6 +41,10 @@ const LEAGUE_ACTION_RULES: Record<
   [LEAGUE_ACTION.KICK_MEMBER]: { commissionerOnly: true, preStartOnly: true },
   [LEAGUE_ACTION.PROMOTE_MEMBER]: { commissionerOnly: true, preStartOnly: false },
   [LEAGUE_ACTION.DEMOTE_COMMISSIONER]: { commissionerOnly: true, preStartOnly: false },
+  // Minting and managing invites are two windows, not one (ADR-0029): a link
+  // created after the start could never be used, since joins close at the same
+  // boundary — but revoking must stay open for as long as a leaked link exists.
+  [LEAGUE_ACTION.CREATE_INVITE]: { commissionerOnly: true, preStartOnly: true },
   [LEAGUE_ACTION.MANAGE_INVITES]: { commissionerOnly: true, preStartOnly: false },
   // Any member may leave, but only pre-start (spec §Membership, ADR-0004).
   [LEAGUE_ACTION.LEAVE_LEAGUE]: { commissionerOnly: false, preStartOnly: true },

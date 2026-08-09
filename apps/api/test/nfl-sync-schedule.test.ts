@@ -38,7 +38,7 @@ import {
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
-import { settlePicksForGames } from "../src/services/pickem/settlement";
+import { settlePicksForGames } from "../src/services/settlement";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
@@ -676,6 +676,54 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(await db.select().from(games)).toEqual([]);
   });
 
+  it("a round the provider serves empty, then serves seeded, creates its games on the later sync", async () => {
+    // The whole downstream half of ADR-0021: excluding an unseeded round at the
+    // adapter needs no new state, because the seeding transition is just the
+    // ordinary upsert seeing a providerGameId it has not seen before. The week
+    // itself exists throughout — it comes from the season structure, not games.
+    provider.structure = {
+      seasonYear: SEASON_YEAR,
+      weeks: [
+        providerWeek(
+          2,
+          "2027-01-16T00:00:00.000Z",
+          "2027-01-20T00:00:00.000Z",
+          WEEK_TYPE.POSTSEASON,
+          "Divisional Round",
+        ),
+      ],
+    };
+    provider.gamesByWeek = new Map([[weekKey(WEEK_TYPE.POSTSEASON, 2), []]]);
+
+    const unseeded = await runOk();
+    expect(unseeded).toMatchObject({ gamesCreated: 0, teamsCreated: 0 });
+    expect(await db.select().from(games)).toEqual([]);
+    const divisionalWeeks = await db.select().from(weeks);
+    expect(divisionalWeeks).toHaveLength(1);
+
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.POSTSEASON, 2), [
+      providerGame({
+        providerGameId: "div1",
+        weekType: WEEK_TYPE.POSTSEASON,
+        weekNumber: 2,
+        homeTeamAbbr: "KC",
+        homeTeamName: "Kansas City Chiefs",
+        homeTeamProviderId: "kc-id",
+        awayTeamAbbr: "BUF",
+        awayTeamName: "Buffalo Bills",
+        awayTeamProviderId: "buf-id",
+      }),
+    ]);
+
+    const seeded = await runOk();
+    expect(seeded).toMatchObject({ gamesCreated: 1 });
+
+    const [game] = await db.select().from(games).where(eq(games.providerGameId, "div1"));
+    expect(game?.weekId).toBe(divisionalWeeks[0]?.id);
+    expect(game?.homeTeamId).not.toBeNull();
+    expect(game?.awayTeamId).not.toBeNull();
+  });
+
   it("upserts one teams row per distinct provider team even when it's shared across games", async () => {
     provider.structure = {
       seasonYear: SEASON_YEAR,
@@ -716,7 +764,7 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(kcTeams[0]).toMatchObject({ sport: SPORT.NFL, abbreviation: "KC" });
   });
 
-  it("inserts two distinct provider teams that share an abbreviation (ESPN's placeholder 'TBD' playoff matchups)", async () => {
+  it("inserts distinct provider teams that share an abbreviation — the abbreviation unique is bootstrap-scoped", async () => {
     provider.structure = {
       seasonYear: SEASON_YEAR,
       weeks: [
@@ -729,9 +777,13 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
         ),
       ],
     };
-    // Two undetermined playoff matchups: distinct provider ids, identical
-    // "TBD" abbreviation — the abbreviation unique is bootstrap-only (rows
-    // with no providerTeamId), so both must insert as separate rows here.
+    // Four distinct provider ids under one shared abbreviation. The
+    // abbreviation unique is bootstrap-only (rows with no providerTeamId), so
+    // all four must insert as separate rows. ESPN's placeholder "TBD" playoff
+    // teams were the shape that found this and are used here as the fixture,
+    // but the ESPN adapter no longer emits them (ADR-0021) — the tolerance is
+    // kept because it is a property of the constraint, which serves any
+    // provider, not of one provider's quirk.
     provider.gamesByWeek = new Map([
       [
         weekKey(WEEK_TYPE.POSTSEASON, 1),
@@ -955,7 +1007,7 @@ describe("teams-listing enrichment (location + logos)", () => {
     expect(awayTeam).toMatchObject({ location: null, logoLightUrl: null, logoDarkUrl: null });
   });
 
-  it("a TBD playoff placeholder never in the teams listing keeps null metadata", async () => {
+  it("a team in the games batch but absent from the teams listing keeps null metadata", async () => {
     provider.structure = {
       seasonYear: SEASON_YEAR,
       weeks: [
@@ -986,7 +1038,8 @@ describe("teams-listing enrichment (location + logos)", () => {
         ],
       ],
     ]);
-    // Real listing carries only resolved teams — TBD placeholders never appear.
+    // The listing simply doesn't carry these teams, so enrichment has nothing
+    // to match and must leave the rows alone rather than half-writing them.
     provider.teams = [providerTeam({ providerTeamId: "kc-id", abbreviation: "KC", name: "KC" })];
 
     const details = await runOk();

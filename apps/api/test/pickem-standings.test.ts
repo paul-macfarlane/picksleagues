@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers } from "@picksleagues/db";
+import { leagueMembers, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   MEMBER_ROLE,
@@ -13,7 +14,7 @@ import {
   type PickemStandingsResponse,
   type PickemSettings,
 } from "@picksleagues/schemas";
-import { settleLeagueSeasonWeeks } from "../src/services/pickem/settlement";
+import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   insertLeague,
@@ -41,7 +42,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
   /**
    * A league + season/members, seeded directly. Standings are written
    * exclusively by settlement (arch D10), so these tests insert picks
-   * straight into `pickem_picks` and drive `settleLeagueSeasonWeeks` rather
+   * straight into `pickem_picks` and drive `settlePickemLeagueSeasonWeeks` rather
    * than going through the pick-submission API — mirrors settlement.test.ts.
    */
   async function seedStandingsLeague(
@@ -112,19 +113,19 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
   it("400s wrong_league_mode for a league that isn't Pick'em", async () => {
     // Matches every sibling under /pickem/ (league-weeks.test.ts's identical
     // case) — without this check the path would serve a zero-filled board
-    // for an Elimination league instead of refusing.
+    // for a Survivor league instead of refusing.
     const { seasonId } = await seedSeason(db, {
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
     });
     const member = await createAuthenticatedUser(auth);
     const league = await insertLeague(db, {
       seasonId,
-      mode: LEAGUE_MODE.ELIMINATION,
+      mode: LEAGUE_MODE.SURVIVOR,
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -168,7 +169,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
       side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 });
-    await settleLeagueSeasonWeeks(
+    await settlePickemLeagueSeasonWeeks(
       db,
       new FixedClock(new Date("2026-09-20T00:00:00.000Z")),
       leagueSeasonId,
@@ -241,7 +242,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 15, awayScore: 20 }); // charlie: incorrect, 0pts
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);
@@ -251,6 +252,35 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     expect(body.rows[0]).toMatchObject({ points: 1, rank: 1, isViewer: true });
     expect(body.rows[1]).toMatchObject({ points: 1, rank: 1, isViewer: false });
     expect(body.rows[2]).toMatchObject({ points: 0, rank: 3, isViewer: false }); // skips rank 2
+  });
+
+  /**
+   * The genuinely distinct avatar path: standings select a narrow projection
+   * rather than the whole user row, so this is the one call site where
+   * resolution depends on the query having asked for the override column at all
+   * (ADR-0022).
+   */
+  it("shows a league-mate a member's avatar override in place of their provider image", async () => {
+    // `users` is shadowed by the seed's own binding in the tests around this
+    // one; aliased here so the table import stays reachable.
+    const { league, users: seeded } = await seedStandingsLeague();
+    const viewer = seeded[0]!;
+    const other = seeded[1]!;
+    await db
+      .update(users)
+      .set({
+        image: "https://provider.example.invalid/from-oauth.png",
+        imageOverride: "https://cdn.example.invalid/member-set.png",
+      })
+      .where(eq(users.id, other.user.id));
+
+    const res = await getStandings(viewer.cookie, league.id);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PickemStandingsResponse;
+    expect(body.rows.find((row) => row.userId === other.user.id)?.image).toBe(
+      "https://cdn.example.invalid/member-set.png",
+    );
   });
 
   it("serves each member's settled W/L/P, and 0-0-0 for one with nothing settled", async () => {
@@ -285,7 +315,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g3!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 20 }); // push
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const body = (await (
       await getStandings(users[0]!.cookie, league.id)
@@ -337,7 +367,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g2!, { status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 24 }); // incorrect, -4
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [week1Id, week2Id]);
 
     const weeklyRes = await getStandings(users[0]!.cookie, league.id, `?week=${week1Id}`);
     expect(weeklyRes.status).toBe(200);
@@ -373,7 +403,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const res = await getStandings(nonPicker.cookie, league.id);
     expect(res.status).toBe(200);
@@ -399,7 +429,7 @@ describe("GET /api/leagues/:leagueId/pickem/standings", () => {
     await setGame(db, g1!, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settleLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
+    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const res = await getStandings(users[0]!.cookie, league.id);
     expect(res.status).toBe(200);

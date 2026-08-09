@@ -122,6 +122,43 @@ test.describe("identity", () => {
       // next edit.
       await expect(saveButton).toBeDisabled();
 
+      // Avatar override round trip, before the conflicting-username step below:
+      // that step deliberately leaves #username in a failed state and the form
+      // does not remount after a 409, so any later Save would re-trigger the
+      // same refusal and never reach these assertions.
+      //
+      // A `.invalid` host (RFC 2606) so the browser's avatar request can never
+      // leave the machine — what's under test is that the value persists, and
+      // the rendered <img alt=""> has no accessible name to bind to anyway.
+      const avatarUrl = "https://avatars.example.invalid/me.png";
+      await page.locator("#imageOverride").fill(avatarUrl);
+      await expect(saveButton).toBeEnabled();
+      // Synchronizing on the PATCH rather than this file's successToast idiom:
+      // the toast from the save above is still on screen, and the button is
+      // already disabled while the mutation is pending, so neither one
+      // distinguishes this save's completion from the previous one's. Waiting
+      // on the response is what makes the reload below deterministic.
+      const saved = page.waitForResponse(
+        (response) => response.request().method() === "PATCH" && response.url().includes("/api/me"),
+      );
+      await saveButton.click();
+      await saved;
+
+      await page.reload();
+      await expect(page.locator("#imageOverride")).toHaveValue(avatarUrl);
+
+      // Emptying the field is the clear — it reverts to the provider's avatar.
+      await page.locator("#imageOverride").fill("");
+      await expect(saveButton).toBeEnabled();
+      const cleared = page.waitForResponse(
+        (response) => response.request().method() === "PATCH" && response.url().includes("/api/me"),
+      );
+      await saveButton.click();
+      await cleared;
+
+      await page.reload();
+      await expect(page.locator("#imageOverride")).toHaveValue("");
+
       await page.locator("#username").fill(conflictingUsername);
       await expect(saveButton).toBeEnabled();
       await saveButton.click();
@@ -153,10 +190,13 @@ test.describe("identity", () => {
 
       await expect(page).toHaveURL("/sign-in");
 
-      // Revisit while signed out: `_authed`'s beforeLoad threads the current
-      // location through as `?redirect=` (ID-1 deep-link preservation), so
-      // match the path rather than an exact "/sign-in" with no query.
+      // Revisit while signed out: a bare "/" is the front door and lands on
+      // the public splash (LNCH-11); a deep link still routes through sign-in
+      // with the destination threaded as `?redirect=` (ID-1 deep-link
+      // preservation), so match the path rather than an exact URL.
       await page.goto("/");
+      await expect(page).toHaveURL(/\/welcome/);
+      await page.goto("/profile");
       await expect(page).toHaveURL(/\/sign-in/);
     } finally {
       // Delete-account anonymizes rather than removing the row (mvp-spec

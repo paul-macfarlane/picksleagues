@@ -145,10 +145,9 @@ async function upsertTeams(
  * separate teams-listing endpoint (location, logos) — the per-game
  * scoreboard shape `upsertTeams` reads from doesn't carry these fields. Never
  * creates rows: matched strictly by `(sport, providerTeamId)` against rows
- * `upsertTeams` (or a prior run) already created, so a provider team not yet
- * synced via any game (e.g. still a TBD playoff placeholder) is simply
- * skipped — it keeps null metadata until it resolves to a real team and
- * appears in a future run. Only writes rows whose metadata actually changed
+ * `upsertTeams` (or a prior run) already created, so a team the listing has not
+ * caught up with is simply skipped — it keeps null metadata until a future run
+ * finds it there. Only writes rows whose metadata actually changed
  * (idempotent — no `updatedAt` churn on a no-op re-run, matching the rename
  * path above).
  */

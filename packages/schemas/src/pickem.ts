@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { MAX_PICKS_PER_WEEK } from "./league-settings";
 import { PICK_TYPE, type PickType } from "./pick-type";
-import { PickOutcomeSchema } from "./pick-outcome";
+import { NullablePickOutcomeSchema } from "./pick-outcome";
 import { PickemPickSideSchema } from "./pickem-pick-side";
 
 /**
@@ -144,11 +144,6 @@ export const SubmitPickemPicksRequestSchema = z
 
 export type SubmitPickemPicksRequest = z.infer<typeof SubmitPickemPicksRequestSchema>;
 
-// Registered under its own component name rather than wrapped inline: reusing
-// the registered `PickOutcome` node here would fold `null` into that shared
-// component and widen every other reference to it.
-const NullablePickOutcomeSchema = PickOutcomeSchema.nullable().openapi("NullablePickOutcome");
-
 export const PickemPickSchema = z
   .object({
     id: z.string(),
@@ -156,6 +151,16 @@ export const PickemPickSchema = z
     side: PickemPickSideSchema,
     // The spread of record this pick was locked in against (null in SU leagues).
     spread: z.number().nullable(),
+    /**
+     * The book that spread came from (PKM-9), read from the game row's frozen
+     * `spread_source` rather than a copy on the pick itself — freezing the
+     * source alongside the last-priced number is what keeps the credit correct
+     * on a submitted week whose game is long final. Null whenever `spread` above
+     * is — there is no number to attribute, which is every pick in a straight-up
+     * league — and under the same condition as `SlateGame.spreadSource`: a game
+     * whose `override_spread` is set.
+     */
+    spreadSource: z.string().nullable(),
     /**
      * How this pick graded, or null while it has none — a pick whose game
      * hasn't reached a terminal state has no result row at all (arch D10:
@@ -189,22 +194,6 @@ export const PickemMemberPicksSchema = z
 
 export type PickemMemberPicks = z.infer<typeof PickemMemberPicksSchema>;
 
-/**
- * How much a settings edit would destroy — the settings editor's pre-save
- * warning input (spec §Commissioner Powers). `memberCount` is the number of
- * distinct members holding at least one pick, not the league's roster size,
- * so "N members lose picks" reads accurately even when some members haven't
- * picked yet.
- */
-export const PickemPickSummarySchema = z
-  .object({
-    pickCount: z.number().int(),
-    memberCount: z.number().int(),
-  })
-  .openapi("PickemPickSummary");
-
-export type PickemPickSummary = z.infer<typeof PickemPickSummarySchema>;
-
 export const PickemWeekPicksResponseSchema = z
   .object({
     weekId: z.string(),
@@ -219,3 +208,64 @@ export const PickemWeekPicksResponseSchema = z
   .openapi("PickemWeekPicksResponse");
 
 export type PickemWeekPicksResponse = z.infer<typeof PickemWeekPicksResponseSchema>;
+
+/**
+ * How much a Pick'em settings edit would destroy — the settings editor's
+ * pre-save warning input (spec §Commissioner Powers). `memberCount` is the
+ * number of distinct members holding at least one pick, not the league's roster
+ * size, so "N members lose picks" reads accurately even when some members
+ * haven't picked yet.
+ *
+ * Named for its mode because Pick'em is the only mode that asks the question.
+ * It briefly carried a mode-agnostic name while Survivor had a settings change
+ * that stranded picks; ADR-0026 removed Survivor's Pick Type, and with it the
+ * only such change a Survivor commissioner could make in the form, so that
+ * mode's summary endpoint went away with it.
+ */
+export const PickemPickSummarySchema = z
+  .object({
+    pickCount: z.number().int(),
+    memberCount: z.number().int(),
+  })
+  .openapi("PickemPickSummary");
+
+export type PickemPickSummary = z.infer<typeof PickemPickSummarySchema>;
+
+/**
+ * The viewer's own Pick'em week at a glance (spec §Screens — Dashboard). Its
+ * own state set rather than a widened shared one, because a Pick'em week is a
+ * different object from a Survivor week: N picks committed as **one atomic,
+ * immutable submission** (ADR-0018), not one pick a member may change until
+ * kickoff. Holding any pick for the week is therefore the whole of "submitted";
+ * there is no partial state to name.
+ *
+ * The order the states are asked in, and why:
+ * - `SEASON_COMPLETE` comes first, from the league season's stored ending
+ *   (ADR-0030). The current-week resolution falls back to the last week played,
+ *   so without this a finished league would report that week's state forever —
+ *   "Picks in" about a season nobody can act on.
+ * - `LOCKED` means no picks stand and no game in the week is still open to one.
+ *   Not the first kickoff: a member arriving mid-week submits a smaller set of
+ *   what is left (`requiredPickemPickCount`), so the week closes against them
+ *   only when nothing pickable remains.
+ */
+export const PICKEM_PICK_STATUS = {
+  SEASON_COMPLETE: "season_complete",
+  PICKS_IN: "picks_in",
+  PICKS_NEEDED: "picks_needed",
+  LOCKED: "locked",
+} as const;
+
+export type PickemPickStatus = (typeof PICKEM_PICK_STATUS)[keyof typeof PICKEM_PICK_STATUS];
+
+const PickemPickStatusSchema = z.enum(PICKEM_PICK_STATUS).openapi("PickemPickStatus");
+
+/**
+ * Registered under its own component name rather than wrapped inline, for the
+ * reason `NullableSurvivorPickStatus` is: a `.nullable()` on the registered
+ * node above would fold `null` into that shared component and widen every
+ * future `$ref` to it.
+ */
+export const NullablePickemPickStatusSchema = PickemPickStatusSchema.nullable().openapi(
+  "NullablePickemPickStatus",
+);

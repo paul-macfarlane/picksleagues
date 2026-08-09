@@ -1,14 +1,14 @@
 import {
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  NFL_REGULAR_SEASON_RANGE,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_VISIBILITY,
   MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
   PICKEM_SEASON_RANGE_PRESET,
-  WEEK_TYPE,
-  type EliminationPushTieResolution,
+  type SurvivorPushTieResolution,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
-  type NflWeekRef,
+  type NflSeasonRange,
   type PickType,
   type PickemSeasonRangePreset,
 } from "@picksleagues/schemas";
@@ -43,12 +43,12 @@ export const PICK_TYPE_OPTIONS: { value: PickType; label: string }[] = [
   { value: PICK_TYPE.AGAINST_THE_SPREAD, label: "Against the Spread" },
 ];
 
-export const ELIMINATION_PUSH_TIE_OPTIONS: {
-  value: EliminationPushTieResolution;
+export const SURVIVOR_PUSH_TIE_OPTIONS: {
+  value: SurvivorPushTieResolution;
   label: string;
 }[] = [
-  { value: ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE, label: "Advance (team consumed)" },
-  { value: ELIMINATION_PUSH_TIE_RESOLUTION.ELIMINATE, label: "Eliminate" },
+  { value: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE, label: "Advance (team consumed)" },
+  { value: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE, label: "Eliminate" },
 ];
 
 export const MM_SCORING_MODEL_OPTIONS: { value: MarchMadnessScoringModel; label: string }[] = [
@@ -86,37 +86,9 @@ export const PICKEM_SEASON_RANGE_OPTIONS: {
 export const DEFAULT_PICKEM_SEASON_RANGE = PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON;
 
 /**
- * NFL postseason rounds restart at 1 (spec §Pick'em League Settings), so week
- * selects encode both the regular/postseason weeks table's identity —
- * `type:number` — into one option value; decodeWeek reverses it. Elimination is
- * the only mode that still addresses weeks directly (ADR-0020 §Scope defers
- * presets there to epic 06).
- */
-export function encodeWeek(ref: NflWeekRef): string {
-  return `${ref.type}:${ref.number}`;
-}
-
-export function decodeWeek(value: string): NflWeekRef {
-  const [type, numberText] = value.split(":");
-  return { type, number: Number(numberText) } as NflWeekRef;
-}
-
-export const REGULAR_WEEK_OPTIONS = Array.from({ length: 18 }, (_, index) => {
-  const ref: NflWeekRef = { type: WEEK_TYPE.REGULAR, number: index + 1 };
-  return { value: encodeWeek(ref), label: `Week ${index + 1}` };
-});
-
-/**
- * Elimination is regular-season only (spec §Elimination Core Rules), so its
- * week selects never offer a postseason round.
- */
-export const DEFAULT_ELIMINATION_START_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 1 });
-export const DEFAULT_ELIMINATION_END_WEEK = encodeWeek({ type: WEEK_TYPE.REGULAR, number: 18 });
-
-/**
  * Shared radio-group wiring: a legend, then one Radio + Label pair per
- * option (with optional helper text) — used for mode, visibility, pick
- * type, and Elimination's push/tie setting.
+ * option (with optional helper text) — used for mode, visibility, Pick'em's
+ * pick type, and Survivor's push/tie setting.
  */
 export function RadioField<Value extends string>({
   legend,
@@ -205,57 +177,52 @@ export function PickemSettingsFields({
   );
 }
 
-export function EliminationSettingsFields({
-  startWeek,
-  onStartWeekChange,
-  endWeek,
-  onEndWeekChange,
-  pickType,
-  onPickTypeChange,
+/**
+ * The range the league covers, stated rather than chosen (ADR-0024): Survivor
+ * is regular-season only, so its one legal range is implicit in the mode and a
+ * select would be a required click with a single possible answer. Still shown,
+ * because the covered weeks drive the join cutoff and the last week that
+ * scores — removing the control is not the same as hiding the answer.
+ *
+ * `seasonRange` is the league's *stored* resolved refs; the create form has
+ * none yet and says what creation will resolve instead.
+ */
+function SurvivorSeasonRange({ seasonRange }: { seasonRange?: NflSeasonRange }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <h3 className="text-sm font-medium text-foreground">Season range</h3>
+      <p className="text-sm text-muted-foreground">
+        {seasonRange
+          ? `Regular season, weeks ${seasonRange.startWeek.number}–${seasonRange.endWeek.number}.`
+          : `Regular season, through week ${NFL_REGULAR_SEASON_RANGE.endWeek.number} — starting at the first week that hasn't kicked off yet.`}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * No Pick Type control, and no plan for one: Survivor is straight-up only
+ * (ADR-0026).
+ */
+export function SurvivorSettingsFields({
+  seasonRange,
   pushTie,
   onPushTieChange,
 }: {
-  startWeek: string;
-  onStartWeekChange: (value: string) => void;
-  endWeek: string;
-  onEndWeekChange: (value: string) => void;
-  pickType: PickType;
-  onPickTypeChange: (value: PickType) => void;
-  pushTie: EliminationPushTieResolution;
-  onPushTieChange: (value: EliminationPushTieResolution) => void;
+  seasonRange?: NflSeasonRange;
+  pushTie: SurvivorPushTieResolution;
+  onPushTieChange: (value: SurvivorPushTieResolution) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold text-foreground">Elimination settings</h2>
-      <div className="grid grid-cols-2 gap-3">
-        <LabeledSelect
-          id="elimination-start-week"
-          label="Start week"
-          value={startWeek}
-          onValueChange={onStartWeekChange}
-          options={REGULAR_WEEK_OPTIONS}
-        />
-        <LabeledSelect
-          id="elimination-end-week"
-          label="End week"
-          value={endWeek}
-          onValueChange={onEndWeekChange}
-          options={REGULAR_WEEK_OPTIONS}
-        />
-      </div>
-      <RadioField
-        legend="Pick type"
-        name="elimination-pick-type"
-        value={pickType}
-        onValueChange={onPickTypeChange}
-        options={PICK_TYPE_OPTIONS}
-      />
+      <h2 className="text-sm font-semibold text-foreground">Survivor settings</h2>
+      <SurvivorSeasonRange seasonRange={seasonRange} />
       <RadioField
         legend="Push / tie result"
-        name="elimination-push-tie"
+        name="survivor-push-tie"
         value={pushTie}
         onValueChange={onPushTieChange}
-        options={ELIMINATION_PUSH_TIE_OPTIONS}
+        options={SURVIVOR_PUSH_TIE_OPTIONS}
       />
     </div>
   );

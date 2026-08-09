@@ -116,18 +116,27 @@ you end up reading a confusing mix of two seasons.
 
 ## Scenario library
 
-Six canned NFL edge cases (`apps/api/src/services/sim/scenarios/`), each
+Seven canned NFL scenarios (`apps/api/src/services/sim/scenarios/`), each
 covering a specific spec rule:
 
 `push-ats` · `tie-game` · `cancelled-game` · `postponed-game` ·
-`all-eliminated` · `mixed-week`
+`all-eliminated` · `mixed-week` · `survivor-season`
+
+The first six are single-week edge cases. `survivor-season` is the exception:
+four consecutive weeks (15–18) so a Survivor league can be played to its end —
+its range resolves to those four weeks rather than the whole regular season,
+which is what lets the board reach a conclusion and name co-winners.
 
 Library scenarios are re-materialized from their code definition on every load
 and anchored to the current real instant, so their kickoffs always land in the
 near future. Stored replays keep their historical timestamps untouched.
 
-`docs/runbooks/pickem-regression.md` drives most of these as a manual Pick'em
-regression pass — what to click and what to assert, per scenario.
+Two manual regression runbooks drive them — what to click and what to assert.
+`docs/runbooks/pickem-regression.md` takes most of the single-week edge cases as
+independent Pick'em passes; `docs/runbooks/survivor-regression.md` takes
+`survivor-season` as one continuous four-week run, because the Survivor rules
+worth clicking through (the team ledger, elimination, revival, the ending) are
+facts about a season rather than a week.
 
 ## Replay a real season
 
@@ -186,6 +195,12 @@ about (engineering rules §Quality).
 - **Settling does not need a sync first, but it does need one *before*.**
   Settlement reads our own `games` rows, so a fixture edit only reaches it after
   a score sync. Edit → sync scores → settle.
+- **A concluded season disappears from the no-`leagueId` settle.** Settlement
+  retires a season by writing `concluded` (ADR-0030) and the sweep-shaped scope
+  only takes `active` ones — so once a Survivor league reaches its sole survivor,
+  or a Pick'em league plays its range out, `POST /sim/settle {}` stops reporting
+  it and returns one fewer league with no explanation. Nothing is wrong; name its
+  `leagueId` to settle and inspect it, which is status-blind.
 
 ## Driving it without the UI
 
@@ -203,9 +218,29 @@ POST  /api/sim/reset                     {scope: league|environment}
 POST  /api/sim/settle                    {leagueId?} — omit for every active league
 ```
 
-`/sim/settle` returns the settled state rather than a bare counter: per league,
-its season standings and each settled week's standings and result count, ordered
-so two runs diff cleanly by eye.
+`/sim/settle` returns the settled state rather than a bare counter, and **each
+league's `board` is shaped by its mode** — the read-back reads the tables that
+mode actually settles, so it can never report one mode's board for another's
+season:
+
+| `board.mode` | What it carries |
+| --- | --- |
+| `pickem` | `seasonStandings`, and each settled week's `standings` + result count |
+| `survivor` | `members` — who is alive, who went out and in which week, lives and revivals — and each week's result count + `eliminatedMemberIds` |
+| `march_madness` | Nothing but the mode: no settlement module until MM-6 |
+
+Everything is ordered so two runs diff cleanly by eye: leagues by name, Pick'em
+standings by rank, Survivor members alive-first. A Survivor week is listed when
+it graded results **or** when it eliminated someone — not the same set, since a
+week that can't be graded as a unit can still put out every member whose own
+pick already lost (ADR-0028).
+
+**A finished league drops out of the no-`leagueId` scope.** Settlement writes
+`league_seasons.status = concluded` once a season's range has played out, or once
+Survivor is down to one member (ADR-0030), and the omit-`leagueId` form mirrors
+`settle-sweep` by taking active seasons only. Naming the league explicitly always
+settles it, concluded or not — so if a replay looks like it stopped grading, pass
+`leagueId` rather than assuming settlement broke.
 
 To mint an admin session for a local script, see `.claude/skills/verify` and
 `e2e/setup/session.ts` (`mintSession({ appRole: "admin" })`).

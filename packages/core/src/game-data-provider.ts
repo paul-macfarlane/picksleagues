@@ -60,6 +60,11 @@ export type ProviderGame = {
   // Home-relative spread (negative = home favored); null when the provider
   // has no line yet.
   spread: number | null;
+  // The book the spread came from (PKM-9) — free text from the provider, not a
+  // const set: ESPN has rotated books before and a fixed set would go stale the
+  // next time it does. Null whenever `spread` is null, and also when the
+  // provider reports odds with no attributed book.
+  spreadSource: string | null;
 };
 
 export type ProviderTeam = {
@@ -90,6 +95,13 @@ export type ProviderTeam = {
 export interface GameDataProvider {
   // Regular season and postseason in one structure, Pro Bowl already excluded.
   fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure>;
+  /**
+   * Every returned game names determined competitors. An event whose teams the
+   * provider has not settled yet — an unseeded playoff round, which ESPN
+   * publishes months ahead against placeholder competitors — is not yet a game
+   * in our domain and must not be returned (ADR-0021). It arrives normally, on
+   * the same `providerGameId`, once the provider seeds the matchup.
+   */
   fetchNflWeekGames(
     seasonYear: number,
     weekType: WeekType,

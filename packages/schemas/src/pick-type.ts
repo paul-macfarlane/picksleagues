@@ -3,7 +3,7 @@ import { z } from "@hono/zod-openapi";
 /**
  * Straight Up vs Against the Spread — a league-level setting for both NFL
  * modes that applies to every pick all season (spec §League Settings for
- * Pick'em and Elimination). Consumed by the scoring functions.
+ * Pick'em and Survivor). Consumed by the scoring functions.
  */
 export const PICK_TYPE = {
   STRAIGHT_UP: "straight_up",

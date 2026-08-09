@@ -41,6 +41,15 @@
               "null"
             ]
           },
+          "imageOverride": {
+            "$ref": "#/components/schemas/NullableImageUrl"
+          },
+          "providerImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "isAdmin": {
             "type": "boolean"
           },
@@ -58,6 +67,8 @@
           "displayName",
           "email",
           "image",
+          "imageOverride",
+          "providerImage",
           "isAdmin",
           "simEnabled",
           "now"
@@ -69,6 +80,14 @@
           "null"
         ],
         "pattern": "^[a-z0-9_]{3,20}$"
+      },
+      "NullableImageUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2048,
+        "format": "uri"
       },
       "ErrorResponse": {
         "type": "object",
@@ -93,6 +112,9 @@
           },
           "displayName": {
             "$ref": "#/components/schemas/DisplayName"
+          },
+          "imageOverride": {
+            "$ref": "#/components/schemas/NullableImageUrl"
           }
         }
       },
@@ -226,7 +248,7 @@
         "type": "string",
         "enum": [
           "pickem",
-          "elimination",
+          "survivor",
           "march_madness"
         ]
       },
@@ -250,7 +272,7 @@
             "$ref": "#/components/schemas/PickemSettings"
           },
           {
-            "$ref": "#/components/schemas/EliminationSettings"
+            "$ref": "#/components/schemas/SurvivorSettings"
           },
           {
             "type": "object",
@@ -390,7 +412,7 @@
           "against_the_spread"
         ]
       },
-      "EliminationSettings": {
+      "SurvivorSettings": {
         "type": "object",
         "properties": {
           "startWeek": {
@@ -433,20 +455,16 @@
               "number"
             ]
           },
-          "pickType": {
-            "$ref": "#/components/schemas/PickType"
-          },
           "pushTieResolution": {
-            "$ref": "#/components/schemas/EliminationPushTieResolution"
+            "$ref": "#/components/schemas/SurvivorPushTieResolution"
           }
         },
         "required": [
           "startWeek",
-          "endWeek",
-          "pickType"
+          "endWeek"
         ]
       },
-      "EliminationPushTieResolution": {
+      "SurvivorPushTieResolution": {
         "type": "string",
         "enum": [
           "advance",
@@ -540,7 +558,7 @@
               "mode": {
                 "type": "string",
                 "enum": [
-                  "elimination"
+                  "survivor"
                 ]
               },
               "name": {
@@ -553,7 +571,7 @@
                 "$ref": "#/components/schemas/MaxMembers"
               },
               "settings": {
-                "$ref": "#/components/schemas/EliminationSettings"
+                "$ref": "#/components/schemas/SurvivorSettingsInput"
               }
             },
             "required": [
@@ -620,6 +638,14 @@
           "seasonRangePreset",
           "pickType"
         ]
+      },
+      "SurvivorSettingsInput": {
+        "type": "object",
+        "properties": {
+          "pushTieResolution": {
+            "$ref": "#/components/schemas/SurvivorPushTieResolution"
+          }
+        }
       },
       "MarchMadnessSettings": {
         "oneOf": [
@@ -723,6 +749,12 @@
           },
           "renewable": {
             "type": "boolean"
+          },
+          "survivorPickStatus": {
+            "$ref": "#/components/schemas/NullableSurvivorPickStatus"
+          },
+          "pickemPickStatus": {
+            "$ref": "#/components/schemas/NullablePickemPickStatus"
           }
         },
         "required": [
@@ -735,7 +767,36 @@
           "maxMembers",
           "myRole",
           "startsAt",
-          "renewable"
+          "renewable",
+          "survivorPickStatus",
+          "pickemPickStatus"
+        ]
+      },
+      "NullableSurvivorPickStatus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "eliminated",
+          "won",
+          "pick_in",
+          "pick_needed",
+          "locked",
+          null
+        ]
+      },
+      "NullablePickemPickStatus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "season_complete",
+          "picks_in",
+          "picks_needed",
+          "locked",
+          null
         ]
       },
       "UpdateLeagueRequest": {
@@ -1075,6 +1136,12 @@
               "null"
             ]
           },
+          "spreadSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "period": {
             "type": [
               "integer",
@@ -1107,6 +1174,7 @@
           "homeScore",
           "awayScore",
           "spread",
+          "spreadSource",
           "period",
           "clockSeconds",
           "stateAsOf",
@@ -1432,6 +1500,12 @@
               "null"
             ]
           },
+          "spreadSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "outcome": {
             "$ref": "#/components/schemas/NullablePickOutcome"
           },
@@ -1445,6 +1519,7 @@
           "gameId",
           "side",
           "spread",
+          "spreadSource",
           "outcome",
           "updatedAt"
         ]
@@ -1504,6 +1579,277 @@
         "required": [
           "gameId",
           "side"
+        ]
+      },
+      "SurvivorWeekPicksResponse": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorMemberPick"
+            }
+          },
+          "consumedTeamIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "members",
+          "consumedTeamIds"
+        ]
+      },
+      "SurvivorMemberPick": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isViewer": {
+            "type": "boolean"
+          },
+          "hasPicked": {
+            "type": "boolean"
+          },
+          "pick": {
+            "$ref": "#/components/schemas/NullableSurvivorPick"
+          },
+          "eliminated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "isViewer",
+          "hasPicked",
+          "pick",
+          "eliminated"
+        ]
+      },
+      "NullableSurvivorPick": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weekId": {
+            "type": "string"
+          },
+          "gameId": {
+            "type": "string"
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/NullablePickOutcome"
+          }
+        },
+        "required": [
+          "id",
+          "weekId",
+          "gameId",
+          "teamId",
+          "outcome"
+        ]
+      },
+      "SurvivorStandingsResponse": {
+        "type": "object",
+        "properties": {
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorStandingsWeek"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorStandingsMember"
+            }
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlateTeam"
+            }
+          },
+          "concluded": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "weeks",
+          "members",
+          "teams",
+          "concluded",
+          "updatedAt"
+        ]
+      },
+      "SurvivorStandingsWeek": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekId",
+          "label"
+        ]
+      },
+      "SurvivorStandingsMember": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isViewer": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SurvivorMemberStatus"
+          },
+          "eliminatedWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revivedCount": {
+            "type": "integer"
+          },
+          "isWinner": {
+            "type": "boolean"
+          },
+          "picks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurvivorStandingsPick"
+            }
+          },
+          "consumedTeamIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "userId",
+          "username",
+          "displayName",
+          "image",
+          "isViewer",
+          "status",
+          "eliminatedWeekId",
+          "revivedCount",
+          "isWinner",
+          "picks",
+          "consumedTeamIds"
+        ]
+      },
+      "SurvivorMemberStatus": {
+        "type": "string",
+        "enum": [
+          "alive",
+          "eliminated"
+        ]
+      },
+      "SurvivorStandingsPick": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/NullablePickOutcome"
+          }
+        },
+        "required": [
+          "weekId",
+          "teamId",
+          "outcome"
+        ]
+      },
+      "SubmitSurvivorPickRequest": {
+        "type": "object",
+        "properties": {
+          "gameId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "teamId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "gameId",
+          "teamId"
         ]
       },
       "NflSyncJob": {
@@ -1894,6 +2240,105 @@
           "postponed",
           "cancelled",
           null
+        ]
+      },
+      "AdminAuditResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAuditEntry"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries",
+          "total",
+          "limit",
+          "offset"
+        ]
+      },
+      "AdminAuditEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "admin": {
+            "type": "object",
+            "properties": {
+              "displayName": {
+                "type": "string"
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "displayName",
+              "username"
+            ]
+          },
+          "action": {
+            "$ref": "#/components/schemas/AdminAuditAction"
+          },
+          "targetTable": {
+            "$ref": "#/components/schemas/AdminAuditTargetTable"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priorValue": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "admin",
+          "action",
+          "targetTable",
+          "targetId",
+          "targetLabel",
+          "priorValue",
+          "createdAt"
+        ]
+      },
+      "AdminAuditAction": {
+        "type": "string",
+        "enum": [
+          "game_override",
+          "league_rebuild"
+        ]
+      },
+      "AdminAuditTargetTable": {
+        "type": "string",
+        "enum": [
+          "games",
+          "league_seasons"
         ]
       },
       "GameOverrideResponse": {
@@ -2515,17 +2960,8 @@
           "summary": {
             "$ref": "#/components/schemas/SimSettlementSummary"
           },
-          "seasonStandings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SimSettlePickemStandingsRow"
-            }
-          },
-          "weeks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SimSettleWeekResult"
-            }
+          "board": {
+            "$ref": "#/components/schemas/SimSettleBoard"
           }
         },
         "required": [
@@ -2534,8 +2970,7 @@
           "leagueSeasonId",
           "seasonYear",
           "summary",
-          "seasonStandings",
-          "weeks"
+          "board"
         ]
       },
       "SimSettlementSummary": {
@@ -2552,13 +2987,91 @@
           },
           "unsettled": {
             "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
           }
         },
         "required": [
           "leagueSeasons",
           "weeks",
           "results",
-          "unsettled"
+          "unsettled",
+          "failed"
+        ]
+      },
+      "SimSettleBoard": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "pickem"
+                ]
+              },
+              "seasonStandings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettlePickemStandingsRow"
+                }
+              },
+              "weeks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettlePickemWeekResult"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "seasonStandings",
+              "weeks"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "survivor"
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettleSurvivorMemberRow"
+                }
+              },
+              "weeks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SimSettleSurvivorWeekResult"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "members",
+              "weeks"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "march_madness"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          }
         ]
       },
       "SimSettlePickemStandingsRow": {
@@ -2591,7 +3104,7 @@
           "rank"
         ]
       },
-      "SimSettleWeekResult": {
+      "SimSettlePickemWeekResult": {
         "type": "object",
         "properties": {
           "weekId": {
@@ -2623,6 +3136,81 @@
           "weekNumber",
           "results",
           "standings"
+        ]
+      },
+      "SimSettleSurvivorMemberRow": {
+        "type": "object",
+        "properties": {
+          "leagueMemberId": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SurvivorMemberStatus"
+          },
+          "eliminatedWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "livesRemaining": {
+            "type": "integer"
+          },
+          "revivedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leagueMemberId",
+          "username",
+          "displayName",
+          "status",
+          "eliminatedWeekId",
+          "livesRemaining",
+          "revivedCount"
+        ]
+      },
+      "SimSettleSurvivorWeekResult": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "results": {
+            "type": "integer"
+          },
+          "eliminatedMemberIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "weekId",
+          "label",
+          "weekType",
+          "weekNumber",
+          "results",
+          "eliminatedMemberIds"
         ]
       },
       "SimSettleRequest": {
@@ -2695,7 +3283,7 @@
       },
       "patch": {
         "operationId": "updateMe",
-        "summary": "Claim/change the caller's username and/or edit their display name",
+        "summary": "Claim/change the caller's username, display name, and/or avatar URL",
         "requestBody": {
           "content": {
             "application/json": {
@@ -3115,7 +3703,7 @@
             }
           },
           "409": {
-            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
+            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3549,7 +4137,7 @@
     "/api/leagues/{leagueId}/invites": {
       "post": {
         "operationId": "createInvite",
-        "summary": "Generate an invite link code (commissioner, anytime)",
+        "summary": "Generate an invite link code (commissioner, pre-start only)",
         "parameters": [
           {
             "schema": {
@@ -3613,6 +4201,16 @@
           },
           "404": {
             "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The league has started — new invite links can no longer be created",
             "content": {
               "application/json": {
                 "schema": {
@@ -4274,7 +4872,7 @@
             }
           },
           "400": {
-            "description": "Not a Pick'em league (wrong_league_mode)",
+            "description": "The league's mode has no start/end week range to clip to (wrong_league_mode) — both NFL modes do, March Madness does not",
             "content": {
               "application/json": {
                 "schema": {
@@ -4763,6 +5361,250 @@
         }
       }
     },
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/picks": {
+      "get": {
+        "operationId": "getSurvivorWeekPicks",
+        "summary": "Every member's pick for a week, filtered by kickoff visibility",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per member. The caller sees their own pick always; another member's appears only once that game has kicked off, with `hasPicked` reporting that one exists. `consumedTeamIds` is the caller's own burned teams, excluding this week's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurvivorWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Survivor league (wrong_league_mode), or the week is outside this league's season or resolved range, or is not a regular-season week (week_out_of_range)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/survivor/standings": {
+      "get": {
+        "operationId": "getSurvivorStandings",
+        "summary": "The survivor board — every member's status, history, and burned teams",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per member: alive or eliminated, the week they went out, how many times the revival rule brought them back, and their weekly picks — each pick's team present only once its game has kicked off, and each member's consumed teams derived from the picks the caller can see. `concluded` marks the season over, at which point every member still alive is a (co-)winner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurvivorStandingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Survivor league (wrong_league_mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/survivor/weeks/{weekId}/pick": {
+      "put": {
+        "operationId": "submitSurvivorPick",
+        "summary": "Make or change the caller's pick for a week — allowed until that game kicks off",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitSurvivorPickRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pick saved; the week is returned as the read endpoint would serve it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurvivorWeekPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Survivor league (wrong_league_mode), the week is outside this league's resolved regular-season range (week_out_of_range), or the game isn't in this week's slate (game_not_in_week)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The picked game — or the pick this would replace — has already kicked off (pick_locked), the game was cancelled (game_not_pickable), the team isn't playing in it (team_not_in_game), the caller has already used that team this season (team_consumed), settlement has eliminated the caller (member_eliminated), or the season has concluded (league_concluded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/jobs/nfl/{job}": {
       "post": {
         "operationId": "runAdminNflJob",
@@ -5144,6 +5986,148 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/games/anomalies": {
+      "get": {
+        "operationId": "listAdminGameAnomalies",
+        "summary": "List games left unlocked while their outcome is already knowable",
+        "responses": {
+          "200": {
+            "description": "Games whose resolved kickoff is still ahead of the server clock while their resolved status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is an override on exactly these rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGamesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audit": {
+      "get": {
+        "operationId": "listAdminAudit",
+        "summary": "Browse the admin action log — overrides and rebuilds, newest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of audit rows newest-first, with the whole table's `total` and the `limit`/`offset` actually served — an offset past the end is an empty page, not an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuditResponse"
                 }
               }
             }

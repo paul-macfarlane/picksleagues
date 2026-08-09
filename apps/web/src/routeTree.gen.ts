@@ -11,14 +11,20 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as AuthedSimRouteRouteImport } from './routes/_authed/sim/route'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
+import { Route as RulesPickemRouteImport } from './routes/rules/pickem'
+import { Route as RulesSurvivorRouteImport } from './routes/rules/survivor'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
+import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
 import { Route as AuthedAdminSeasonsRouteImport } from './routes/_authed/admin/seasons'
 import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
@@ -43,9 +49,24 @@ const ClaimUsernameRoute = ClaimUsernameRouteImport.update({
   path: '/claim-username',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
@@ -78,9 +99,24 @@ const JoinCodeRoute = JoinCodeRouteImport.update({
   path: '/join/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RulesPickemRoute = RulesPickemRouteImport.update({
+  id: '/rules/pickem',
+  path: '/rules/pickem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesSurvivorRoute = RulesSurvivorRouteImport.update({
+  id: '/rules/survivor',
+  path: '/rules/survivor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedAdminIndexRoute = AuthedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
+const AuthedAdminAuditRoute = AuthedAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
 const AuthedAdminGamesRoute = AuthedAdminGamesRouteImport.update({
@@ -163,13 +199,19 @@ const AuthedLeaguesLeagueIdSettingsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/sim': typeof AuthedSimRouteRouteWithChildren
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/rules/pickem': typeof RulesPickemRoute
+  '/rules/survivor': typeof RulesSurvivorRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
+  '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
@@ -187,11 +229,17 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/rules/pickem': typeof RulesPickemRoute
+  '/rules/survivor': typeof RulesSurvivorRoute
   '/': typeof AuthedIndexRoute
+  '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
@@ -211,14 +259,20 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/claim-username': typeof ClaimUsernameRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
   '/_authed/sim': typeof AuthedSimRouteRouteWithChildren
   '/_authed/discovery': typeof AuthedDiscoveryRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
+  '/rules/pickem': typeof RulesPickemRoute
+  '/rules/survivor': typeof RulesSurvivorRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
+  '/_authed/admin/audit': typeof AuthedAdminAuditRoute
   '/_authed/admin/games': typeof AuthedAdminGamesRoute
   '/_authed/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
@@ -239,13 +293,19 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/claim-username'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
+    | '/welcome'
     | '/admin'
     | '/sim'
     | '/discovery'
     | '/profile'
     | '/join/$code'
+    | '/rules/pickem'
+    | '/rules/survivor'
     | '/leagues/$leagueId'
+    | '/admin/audit'
     | '/admin/games'
     | '/admin/seasons'
     | '/admin/teams'
@@ -263,11 +323,17 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim-username'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
+    | '/welcome'
     | '/discovery'
     | '/profile'
     | '/join/$code'
+    | '/rules/pickem'
+    | '/rules/survivor'
     | '/'
+    | '/admin/audit'
     | '/admin/games'
     | '/admin/seasons'
     | '/admin/teams'
@@ -286,14 +352,20 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/claim-username'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
+    | '/welcome'
     | '/_authed/admin'
     | '/_authed/sim'
     | '/_authed/discovery'
     | '/_authed/profile'
     | '/join/$code'
+    | '/rules/pickem'
+    | '/rules/survivor'
     | '/_authed/'
     | '/_authed/leagues/$leagueId'
+    | '/_authed/admin/audit'
     | '/_authed/admin/games'
     | '/_authed/admin/seasons'
     | '/_authed/admin/teams'
@@ -313,8 +385,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   ClaimUsernameRoute: typeof ClaimUsernameRoute
+  PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
+  TermsRoute: typeof TermsRoute
+  WelcomeRoute: typeof WelcomeRoute
   JoinCodeRoute: typeof JoinCodeRoute
+  RulesPickemRoute: typeof RulesPickemRoute
+  RulesSurvivorRoute: typeof RulesSurvivorRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -333,11 +410,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClaimUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in': {
       id: '/sign-in'
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/': {
@@ -382,11 +480,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rules/pickem': {
+      id: '/rules/pickem'
+      path: '/rules/pickem'
+      fullPath: '/rules/pickem'
+      preLoaderRoute: typeof RulesPickemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/survivor': {
+      id: '/rules/survivor'
+      path: '/rules/survivor'
+      fullPath: '/rules/survivor'
+      preLoaderRoute: typeof RulesSurvivorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authed/admin/': {
       id: '/_authed/admin/'
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthedAdminIndexRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
+    '/_authed/admin/audit': {
+      id: '/_authed/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AuthedAdminAuditRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
     '/_authed/admin/games': {
@@ -491,6 +610,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedAdminRouteRouteChildren {
+  AuthedAdminAuditRoute: typeof AuthedAdminAuditRoute
   AuthedAdminGamesRoute: typeof AuthedAdminGamesRoute
   AuthedAdminSeasonsRoute: typeof AuthedAdminSeasonsRoute
   AuthedAdminTeamsRoute: typeof AuthedAdminTeamsRoute
@@ -498,6 +618,7 @@ interface AuthedAdminRouteRouteChildren {
 }
 
 const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
+  AuthedAdminAuditRoute: AuthedAdminAuditRoute,
   AuthedAdminGamesRoute: AuthedAdminGamesRoute,
   AuthedAdminSeasonsRoute: AuthedAdminSeasonsRoute,
   AuthedAdminTeamsRoute: AuthedAdminTeamsRoute,
@@ -574,8 +695,13 @@ const AuthedRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   ClaimUsernameRoute: ClaimUsernameRoute,
+  PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,
+  TermsRoute: TermsRoute,
+  WelcomeRoute: WelcomeRoute,
   JoinCodeRoute: JoinCodeRoute,
+  RulesPickemRoute: RulesPickemRoute,
+  RulesSurvivorRoute: RulesSurvivorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

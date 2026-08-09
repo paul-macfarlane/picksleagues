@@ -126,7 +126,12 @@ async function priceUnstartedGames(
   // such a game pickable; this must agree, or the app offers a pick it will
   // always reject.
   const unstartedGames = await db
-    .select({ id: games.id, providerGameId: games.providerGameId, spread: games.spread })
+    .select({
+      id: games.id,
+      providerGameId: games.providerGameId,
+      spread: games.spread,
+      spreadSource: games.spreadSource,
+    })
     .from(games)
     .where(
       and(
@@ -148,34 +153,41 @@ async function priceUnstartedGames(
     week.weekType,
     week.weekNumber,
   );
-  const spreadByProviderId = new Map(
-    providerGames.map((game) => [game.providerGameId, game.spread]),
+  const providerGameByProviderId = new Map(
+    providerGames.map((game) => [game.providerGameId, game]),
   );
 
   let gamesWithoutOdds = 0;
   let spreadsUpdated = 0;
   for (const game of unstartedGames) {
-    const spread = spreadByProviderId.get(game.providerGameId);
+    const providerGame = providerGameByProviderId.get(game.providerGameId);
+    const spread = providerGame?.spread;
     // Missing from the provider response (undefined) or no line yet (null /
     // non-finite) both count as "no odds". A game we can't price is left
     // exactly as it was rather than nulled: the provider dropping a line for one
     // response is a blip, and clearing the number would refuse every ATS pick on
     // that game until the next run put it back.
-    if (typeof spread !== "number" || !Number.isFinite(spread)) {
+    if (!providerGame || typeof spread !== "number" || !Number.isFinite(spread)) {
       gamesWithoutOdds += 1;
       continue;
     }
-    // Skip the write when the line hasn't moved — this is what makes a re-run a
-    // true no-op rather than one that merely lands the same number. `updated_at`
-    // is served as the row's as-of instant (DATA-8), so rewriting an unchanged
-    // row would restamp it with nothing to show for it.
-    if (game.spread === spread) continue;
+    // The book behind the number (PKM-9), written alongside it in the same
+    // `set()` below so the two can never attribute a stored spread to the
+    // wrong book.
+    const spreadSource = providerGame.spreadSource;
+    // Skip the write when neither has moved — this is what makes a re-run a
+    // true no-op rather than one that merely lands the same numbers.
+    // `updated_at` is served as the row's as-of instant (DATA-8), so rewriting
+    // an unchanged row would restamp it with nothing to show for it. The source
+    // is checked alongside the number: a book rotation with the line unmoved is
+    // still a change this job must persist.
+    if (game.spread === spread && game.spreadSource === spreadSource) continue;
 
     await db
-      // Provider field only — every `override_*` column is deliberately absent
+      // Provider fields only — every `override_*` column is deliberately absent
       // (arch D15), so a correction survives every re-sync.
       .update(games)
-      .set({ spread, updatedAt: now })
+      .set({ spread, spreadSource, updatedAt: now })
       .where(eq(games.id, game.id));
     spreadsUpdated += 1;
   }

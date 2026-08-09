@@ -77,9 +77,9 @@ describe("GET /api/sim/fixtures/games", () => {
       "mixed-week-1",
     ]);
 
-    // Every library scenario now declares one regular-season week, so the
-    // filters are pinned by what they include and what they exclude rather than
-    // by splitting a scenario across two weeks.
+    // `mixed-week` declares a single regular-season week, so the filters are
+    // pinned by what they include and what they exclude rather than by
+    // splitting a scenario across two weeks.
     expect((await listGames("&weekNumber=1")).map((g) => g.providerGameId)).toHaveLength(4);
     expect(await listGames("&weekNumber=2")).toEqual([]);
     expect(await listGames("&weekType=postseason")).toEqual([]);

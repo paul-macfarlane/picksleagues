@@ -21,6 +21,7 @@ import {
   PICK_TYPE,
   PICKEM_SEASON_RANGE_PRESET,
   SPORT,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type LeagueMode,
   type LeagueSettings,
@@ -30,6 +31,7 @@ import {
   type PickemSettings,
   type PickemPickSide,
   type Sport,
+  type SurvivorSettings,
   type WeekType,
 } from "@picksleagues/schemas";
 import { WEEK1_KICKOFF } from "./league-app";
@@ -51,6 +53,8 @@ export interface SeededWeek {
      * straight-up fixtures, where no spread exists.
      */
     spread?: number;
+    /** The book behind `spread` (PKM-9). Omit for fixtures that don't care. */
+    spreadSource?: string;
   }>;
 }
 
@@ -146,6 +150,7 @@ export async function seedSeason(
           kickoffAt: game.kickoffAt,
           overrideKickoffAt: game.overrideKickoffAt ?? null,
           spread: game.spread ?? null,
+          spreadSource: game.spreadSource ?? null,
           status: GAME_STATUS.SCHEDULED,
           createdAt: SEED_AT,
           updatedAt: SEED_AT,
@@ -157,7 +162,14 @@ export async function seedSeason(
     gameIds.set(key, weekGameIds);
   }
 
-  return { seasonId: season.id, weekIds, gameIds };
+  // The two teams every seeded game is played between. Survivor fixtures need
+  // them by id — its ledger is keyed on the team, not the game.
+  return {
+    seasonId: season.id,
+    weekIds,
+    gameIds,
+    teamIds: { home: homeTeam.id, away: awayTeam.id },
+  };
 }
 
 export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
@@ -166,6 +178,17 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
   picksPerWeek: 5,
+};
+
+/**
+ * The shape `createLeague` resolves a Survivor request into (ADR-0024) — the
+ * regular season, since that is the only range the mode allows. Fixtures that
+ * care about a *stale* stored range override `startWeek`.
+ */
+export const DEFAULT_SURVIVOR_SETTINGS: SurvivorSettings = {
+  startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
+  endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
+  pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
 };
 
 /** Four unstarted games, spread an hour apart — a slate long enough to exceed a modest Picks Per Week cap. */

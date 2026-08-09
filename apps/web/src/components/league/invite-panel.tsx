@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { RowsSkeleton } from "@/components/loading";
+import { QueryState } from "@/components/query-state";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -9,22 +11,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const CREATE_LOCKED_REASON_ID = "invite-create-locked-reason";
+
 export function InvitePanel({
   leagueId,
   isCommissioner,
+  started,
 }: {
   leagueId: string;
   isCommissioner: boolean;
+  started: boolean;
 }) {
   // Only a commissioner can list invites (403 otherwise) — this panel is
   // only ever mounted for commissioners, but the guard stays explicit.
   const invites = useLeagueInvites(leagueId, isCommissioner);
-
-  useEffect(() => {
-    if (invites.isError) {
-      toast.error("Couldn't load invites — please try again.");
-    }
-  }, [invites.isError]);
 
   const createInvite = useCreateInvite(leagueId);
   const revokeInvite = useRevokeInvite(leagueId);
@@ -36,13 +36,19 @@ export function InvitePanel({
         <CardDescription>Share a link so others can join.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {invites.isPending && <p className="text-sm text-muted-foreground">Loading invites…</p>}
-        {invites.data && invites.data.invites.length === 0 && (
-          <p className="text-sm text-muted-foreground">No invites yet.</p>
-        )}
-        {invites.data && invites.data.invites.length > 0 && (
+        <QueryState
+          isPending={invites.isPending}
+          pendingFallback={
+            <RowsSkeleton label="Loading invites" rows={2} rowClassName="h-14 w-full" />
+          }
+          isError={invites.isError}
+          onRetry={() => void invites.refetch()}
+          errorMessage="Couldn't load invites."
+          isEmpty={invites.data?.invites.length === 0}
+          emptyMessage="No invites yet."
+        >
           <ul className="flex flex-col gap-3">
-            {invites.data.invites.map((invite) => (
+            {invites.data?.invites.map((invite) => (
               <InviteRow
                 key={invite.code}
                 invite={invite}
@@ -51,10 +57,14 @@ export function InvitePanel({
               />
             ))}
           </ul>
-        )}
+        </QueryState>
+        {/* The panel itself survives the start — revoking a leaked link stays
+            available for as long as the link does (ADR-0029). Only minting a
+            new one closes, and it says so rather than vanishing. */}
         <NewInviteForm
           onCreate={(body) => createInvite.mutate(body)}
           isPending={createInvite.isPending}
+          locked={started}
         />
       </CardContent>
     </Card>
@@ -117,12 +127,15 @@ function InviteRow({
 function NewInviteForm({
   onCreate,
   isPending,
+  locked,
 }: {
   onCreate: (body: CreateInviteRequest) => void;
   isPending: boolean;
+  locked: boolean;
 }) {
   const [expiresAt, setExpiresAt] = useState("");
   const [maxUses, setMaxUses] = useState("");
+  const describedBy = locked ? CREATE_LOCKED_REASON_ID : undefined;
 
   return (
     <form
@@ -140,12 +153,22 @@ function NewInviteForm({
       }}
     >
       <h3 className="text-sm font-semibold text-foreground">New invite</h3>
+      {/* One note serves every control below, each pointing at it via
+          aria-describedby — the server's 409 stays the enforcement. */}
+      {locked && (
+        <p id={CREATE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+          New invite links can&apos;t be created once the league starts. Existing links can still be
+          revoked.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <LabeledDateTimeField
           id="invite-expires-at"
           label="Expires (optional)"
           value={expiresAt}
           onChange={setExpiresAt}
+          disabled={locked}
+          aria-describedby={describedBy}
         />
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="invite-max-uses">Max uses (optional)</Label>
@@ -158,10 +181,18 @@ function NewInviteForm({
             step={1}
             value={maxUses}
             onChange={(event) => setMaxUses(event.target.value)}
+            disabled={locked}
+            aria-describedby={describedBy}
           />
         </div>
       </div>
-      <Button type="submit" size="sm" className="self-start" disabled={isPending}>
+      <Button
+        type="submit"
+        size="sm"
+        className="self-start"
+        disabled={locked || isPending}
+        aria-describedby={describedBy}
+      >
         Create invite link
       </Button>
     </form>

@@ -31,6 +31,7 @@ export function providerGame(
     period: null,
     clockSeconds: null,
     spread: null,
+    spreadSource: null,
     ...overrides,
   };
 }

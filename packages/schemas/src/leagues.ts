@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { LEAGUE_MODE, LeagueModeSchema } from "./league-mode";
 import {
-  EliminationSettingsSchema,
+  SurvivorSettingsInputSchema,
   LeagueSettingsSchema,
   MarchMadnessSettingsSchema,
   PickemSettingsInputSchema,
@@ -9,6 +9,8 @@ import {
 import { LeagueStatusSchema } from "./league-status";
 import { LeagueVisibilitySchema } from "./league-visibility";
 import { MemberRoleSchema } from "./member-role";
+import { NullablePickemPickStatusSchema } from "./pickem";
+import { NullableSurvivorPickStatusSchema } from "./survivor";
 
 /**
  * mvp-spec §Leagues names no length rule for league names; 1-50 trimmed is
@@ -46,9 +48,10 @@ export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).ope
 /**
  * Settings are validated against the mode's schema at the boundary — the
  * discriminated union makes an invalid mode/settings pairing unrepresentable
- * rather than a service-layer check. Pick'em takes its *input* schema: the
- * request names a season-range preset and the server resolves the week refs it
- * stores (ADR-0020), so a client can't supply them here at all.
+ * rather than a service-layer check. Both NFL modes take their *input* schema:
+ * neither request carries week refs, because the server resolves the range it
+ * stores — Pick'em from a season-range preset (ADR-0020), Survivor from the
+ * one range its mode allows (ADR-0024).
  */
 export const CreateLeagueRequestSchema = z
   .discriminatedUnion("mode", [
@@ -60,11 +63,11 @@ export const CreateLeagueRequestSchema = z
       settings: PickemSettingsInputSchema,
     }),
     z.object({
-      mode: z.literal(LEAGUE_MODE.ELIMINATION),
+      mode: z.literal(LEAGUE_MODE.SURVIVOR),
       name: LeagueNameSchema,
       visibility: LeagueVisibilitySchema,
       maxMembers: MaxMembersSchema.default(DEFAULT_MAX_MEMBERS),
-      settings: EliminationSettingsSchema,
+      settings: SurvivorSettingsInputSchema,
     }),
     z.object({
       mode: z.literal(LEAGUE_MODE.MARCH_MADNESS),
@@ -173,6 +176,20 @@ export const LeagueSummarySchema = z
     // See LeagueResponse.renewable — drives the dashboard "New season available"
     // badge without an extra per-league fetch.
     renewable: z.boolean(),
+    /**
+     * The viewer's own week at a glance (spec §Screens — Dashboard), one field
+     * per mode and null on every league of another mode. Named for their modes
+     * because each is shaped by its own: one changeable pick per week is
+     * Survivor's rule, N picks in a single irreversible submission is Pick'em's
+     * (ADR-0018), and an unqualified `pickStatus` would have to widen to hold
+     * both plus whatever March Madness needs.
+     *
+     * Both are viewer-scoped, which is safe only because this schema is reached
+     * solely through `MyLeaguesResponse` — public discovery serializes its own
+     * shape. Anything added here inherits that scoping.
+     */
+    survivorPickStatus: NullableSurvivorPickStatusSchema,
+    pickemPickStatus: NullablePickemPickStatusSchema,
   })
   .openapi("LeagueSummary");
 

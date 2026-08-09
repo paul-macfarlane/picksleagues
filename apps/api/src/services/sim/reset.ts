@@ -14,6 +14,8 @@ import {
   setSimState,
   simScenarios,
   sportSeasons,
+  survivorPicks,
+  survivorState,
   weeks,
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
@@ -60,8 +62,8 @@ async function deleteAndCount(tx: Db, table: PgTable, where?: SQL): Promise<numb
  *
  * Forward compatibility: every new league-owned table needs listing here for
  * reset to stay complete — `pickem_picks` (PKM-2), `pickem_pick_results` and
- * `pickem_standings` (PKM-4), each ahead of `league_members`/`leagues` since they
- * reference both.
+ * `pickem_standings` (PKM-4), `survivor_picks` and `survivor_state` (ELM-2),
+ * each ahead of `league_members`/`leagues` since they reference both.
  *
  * Settlement output is deleted explicitly rather than left to cascade from
  * members/picks. It would in fact cascade, but the counters this returns are
@@ -96,6 +98,16 @@ async function deleteLeagueOwnedData(
       tx,
       pickemPicks,
       memberScope ? inArray(pickemPicks.leagueMemberId, memberScope) : undefined,
+    ),
+    survivor_state: await deleteAndCount(
+      tx,
+      survivorState,
+      memberScope ? inArray(survivorState.leagueMemberId, memberScope) : undefined,
+    ),
+    survivor_picks: await deleteAndCount(
+      tx,
+      survivorPicks,
+      memberScope ? inArray(survivorPicks.leagueMemberId, memberScope) : undefined,
     ),
     league_invites: await deleteAndCount(
       tx,

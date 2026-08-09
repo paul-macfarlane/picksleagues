@@ -19,7 +19,7 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0007](0007-game-data-ingestion-model.md)     | Game-data ingestion model            | Accepted |
 | [0008](0008-league-season-binding.md)         | Leagues bind to a sport season; start derived from games | Accepted (amended by 0009) |
 | [0009](0009-multi-season-leagues.md)          | Leagues span seasons via `league_seasons` instances | Accepted |
-| [0010](0010-normalized-teams.md)              | Teams are normalized reference data  | Accepted |
+| [0010](0010-normalized-teams.md)              | Teams are normalized reference data  | Accepted (amended by 0021) |
 | [0011](0011-simulator-admin-ops-merge.md)     | Simulator & admin ops merge; UI-driven sim, admin-session auth | Accepted |
 | [0012](0012-simulated-provider-clock-projection.md) | Simulated data flows through real ingestion; fixtures project through the clock | Accepted |
 | [0013](0013-admin-role-in-database.md)        | Admin capability lives in `users.app_role` | Accepted |
@@ -29,4 +29,14 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
 | [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |
 | [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
-| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted |
+| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted (amended by 0021) |
+| [0021](0021-unseeded-playoff-games-excluded-at-ingestion.md) | Unseeded playoff games are excluded at ingestion | Accepted |
+| [0022](0022-member-set-avatar-url.md)         | Member-set avatar is an `https:` URL in an `image_override` column | Accepted |
+| [0023](0023-survivor-is-the-mode-name.md)     | Game Mode 2 is named Survivor, not Elimination | Accepted |
+| [0024](0024-survivor-settings-carry-a-resolved-range.md) | Survivor settings carry a resolved season range, not a chosen one | Accepted |
+| [0025](0025-survivor-team-ledger-and-prefix-ordered-settlement.md) | Survivor team consumption is a partial unique index over a settlement-owned `released` flag; settlement is prefix-ordered | Accepted |
+| [0026](0026-survivor-is-straight-up-only.md) | Survivor is straight-up only; the Pick Type setting is removed | Accepted |
+| [0027](0027-survivor-season-ends-at-a-sole-survivor.md) | A Survivor season ends the moment one member is left standing | Accepted |
+| [0028](0028-survivor-provisional-elimination.md) | A Survivor member goes out as soon as their loss is certain | Accepted |
+| [0029](0029-invite-creation-is-pre-start-only.md) | Invite creation closes at league start; revocation stays open | Accepted |
+| [0030](0030-league-season-conclusion-is-settlement-output.md) | A league season's conclusion is settlement's output, recomputed both ways | Accepted |

@@ -4,18 +4,24 @@ import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_ACTION,
+  LEAGUE_MODE,
+  LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
+  OFFERED_LEAGUE_MODES,
   leagueActionIsPreStartOnly,
   type CreateLeagueRequest,
   type LeagueAction,
+  type LeagueMode,
   type LeagueResponse,
   type LeagueSummary,
   type LeagueVisibility,
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
-import { resetPicksInvalidatedBySettings } from "../pickem/settings-reset";
+import { resolvePickemPickStatuses } from "../pickem/pick-status";
+import { resolveSurvivorPickStatuses } from "../survivor/pick-status";
+import { resetPicksInvalidatedBySettings } from "./settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
 import { resolveLeagueSettings } from "./season-range";
 import { lockLeagueRow, lockUserRow } from "./locks";
@@ -37,7 +43,10 @@ import {
 
 export type CreateLeagueResult =
   | { ok: true; league: LeagueResponse }
-  | { ok: false; reason: "no_active_season" | "cap_exceeded" | "start_week_passed" };
+  | {
+      ok: false;
+      reason: "mode_unavailable" | "no_active_season" | "cap_exceeded" | "start_week_passed";
+    };
 
 class CapExceededError extends Error {}
 
@@ -47,6 +56,12 @@ export async function createLeague(
   userId: string,
   input: CreateLeagueRequest,
 ): Promise<CreateLeagueResult> {
+  // Server-side gate, not just a hidden form option (LNCH-12): the contract
+  // still accepts the value and the SPA is not the only thing that may speak it.
+  if (!(OFFERED_LEAGUE_MODES as readonly LeagueMode[]).includes(input.mode)) {
+    return { ok: false, reason: "mode_unavailable" };
+  }
+
   // Latest ingested season for the mode's sport — leagues bind to a season at
   // creation so cutoffs/windows know which games to derive from.
   const season = await latestSeasonForSport(db, sportForMode(input.mode));
@@ -371,16 +386,22 @@ export async function getLeague(
   return readAndSerializeLeague(db, leagueId, userId);
 }
 
-export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSummary[]> {
+export async function listMyLeagues(
+  db: Db,
+  clock: Clock,
+  userId: string,
+): Promise<LeagueSummary[]> {
   const current = currentLeagueSeason(db);
   const rows = await db
     .select({
       league: leagues,
+      leagueSeasonId: current.instanceId,
       settings: current.settings,
       status: current.status,
       seasonId: current.seasonId,
       seasonYear: current.seasonYear,
       myRole: leagueMembers.role,
+      membershipId: leagueMembers.id,
     })
     .from(leagueMembers)
     .innerJoin(leagues, eq(leagueMembers.leagueId, leagues.id))
@@ -404,6 +425,50 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
   // The per-sport latest ingested year, fetched once (not per league) — the
   // `renewable` signal compares each league's current-instance year against it.
   const latestBySport = await latestSeasonYearBySport(db);
+
+  // Both modes' glances ride this payload rather than a per-card fetch: this is
+  // the list the dashboard already renders from, and a request per card is the
+  // N+1 a member in many leagues pays on every load. Resolved for all of them at
+  // once for the same reason, and the two modes concurrently because neither
+  // reads what the other writes. Settings are parsed rather than trusted so
+  // schema defaults materialize on rows written before a field existed.
+  const [survivorStatuses, pickemStatuses] = await Promise.all([
+    resolveSurvivorPickStatuses(
+      db,
+      clock,
+      rows.flatMap((row) =>
+        row.league.mode === LEAGUE_MODE.SURVIVOR
+          ? [
+              {
+                leagueSeasonId: row.leagueSeasonId,
+                leagueId: row.league.id,
+                seasonId: row.seasonId,
+                membershipId: row.membershipId,
+                settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
+                status: row.status,
+              },
+            ]
+          : [],
+      ),
+    ),
+    resolvePickemPickStatuses(
+      db,
+      clock,
+      rows.flatMap((row) =>
+        row.league.mode === LEAGUE_MODE.PICKEM
+          ? [
+              {
+                leagueSeasonId: row.leagueSeasonId,
+                seasonId: row.seasonId,
+                membershipId: row.membershipId,
+                settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(row.settings),
+                status: row.status,
+              },
+            ]
+          : [],
+      ),
+    ),
+  ]);
 
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
@@ -429,6 +494,8 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
           latestBySport.get(sportForMode(row.league.mode)) ?? null,
           row.seasonYear,
         ),
+        survivorPickStatus: survivorStatuses.get(row.leagueSeasonId) ?? null,
+        pickemPickStatus: pickemStatuses.get(row.leagueSeasonId) ?? null,
       };
     }),
   );

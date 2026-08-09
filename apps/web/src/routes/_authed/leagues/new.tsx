@@ -5,14 +5,15 @@ import { toast } from "sonner";
 import {
   CreateLeagueRequestSchema,
   DEFAULT_MAX_MEMBERS,
-  ELIMINATION_PUSH_TIE_RESOLUTION,
+  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
   LeagueNameSchema,
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
+  OFFERED_LEAGUE_MODES,
   PICK_TYPE,
-  type EliminationPushTieResolution,
+  type SurvivorPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
@@ -23,16 +24,13 @@ import { useCreateLeague } from "@/api/leagues";
 import { usePickemSeasonRangePresets } from "@/api/pickem";
 import { leagueModeLabel } from "@/lib/league";
 import {
-  DEFAULT_ELIMINATION_END_WEEK,
-  DEFAULT_ELIMINATION_START_WEEK,
   DEFAULT_PICKEM_SEASON_RANGE,
-  EliminationSettingsFields,
+  SurvivorSettingsFields,
   MarchMadnessSettingsFields,
   PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
-  decodeWeek,
 } from "@/components/league-settings-fields";
 import { FormTextField } from "@/components/form-field";
 import { NumberField, numberFieldInvalid } from "@/components/number-field";
@@ -43,11 +41,12 @@ export const Route = createFileRoute("/_authed/leagues/new")({
   component: NewLeague,
 });
 
-const MODE_OPTIONS: { value: LeagueMode; label: string }[] = [
-  { value: LEAGUE_MODE.PICKEM, label: leagueModeLabel(LEAGUE_MODE.PICKEM) },
-  { value: LEAGUE_MODE.ELIMINATION, label: leagueModeLabel(LEAGUE_MODE.ELIMINATION) },
-  { value: LEAGUE_MODE.MARCH_MADNESS, label: leagueModeLabel(LEAGUE_MODE.MARCH_MADNESS) },
-];
+// Derived from OFFERED_LEAGUE_MODES so hiding a gated mode (LNCH-12: March
+// Madness until epic 07) and the server refusing it share one definition.
+const MODE_OPTIONS: { value: LeagueMode; label: string }[] = OFFERED_LEAGUE_MODES.map((mode) => ({
+  value: mode,
+  label: leagueModeLabel(mode),
+}));
 
 function NewLeague() {
   // Stated deviation from the TanStack-Form rule: everything below is
@@ -64,11 +63,8 @@ function NewLeague() {
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [eliminationStartWeek, setEliminationStartWeek] = useState(DEFAULT_ELIMINATION_START_WEEK);
-  const [eliminationEndWeek, setEliminationEndWeek] = useState(DEFAULT_ELIMINATION_END_WEEK);
-  const [eliminationPickType, setEliminationPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
-  const [eliminationPushTie, setEliminationPushTie] = useState<EliminationPushTieResolution>(
-    ELIMINATION_PUSH_TIE_RESOLUTION.ADVANCE,
+  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
+    SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
   );
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(5);
@@ -121,13 +117,12 @@ function NewLeague() {
           pickType: pickemPickType,
           picksPerWeek: pickemPicksPerWeek,
         };
-      } else if (mode === LEAGUE_MODE.ELIMINATION) {
-        settings = {
-          startWeek: decodeWeek(eliminationStartWeek),
-          endWeek: decodeWeek(eliminationEndWeek),
-          pickType: eliminationPickType,
-          pushTieResolution: eliminationPushTie,
-        };
+      } else if (mode === LEAGUE_MODE.SURVIVOR) {
+        // The push/tie rule is the whole of a Survivor settings request: no
+        // range on the wire (ADR-0024, the mode is regular-season only, so the
+        // server resolves the refs it stores against the clock) and no pick type
+        // (ADR-0026, the mode is straight-up only).
+        settings = { pushTieResolution: survivorPushTie };
       } else {
         settings =
           mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -161,7 +156,7 @@ function NewLeague() {
   });
 
   // Submit gates on every NumberField currently rendered — which fields those
-  // are depends on `mode` (Elimination renders none beyond maxMembers).
+  // are depends on `mode` (Survivor renders none beyond maxMembers).
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
     (mode === LEAGUE_MODE.PICKEM && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
@@ -241,16 +236,10 @@ function NewLeague() {
                 />
               ))}
 
-            {mode === LEAGUE_MODE.ELIMINATION && (
-              <EliminationSettingsFields
-                startWeek={eliminationStartWeek}
-                onStartWeekChange={setEliminationStartWeek}
-                endWeek={eliminationEndWeek}
-                onEndWeekChange={setEliminationEndWeek}
-                pickType={eliminationPickType}
-                onPickTypeChange={setEliminationPickType}
-                pushTie={eliminationPushTie}
-                onPushTieChange={setEliminationPushTie}
+            {mode === LEAGUE_MODE.SURVIVOR && (
+              <SurvivorSettingsFields
+                pushTie={survivorPushTie}
+                onPushTieChange={setSurvivorPushTie}
               />
             )}
 

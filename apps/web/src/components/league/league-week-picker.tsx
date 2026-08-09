@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useLeagueWeeks } from "@/api/weeks";
 import { LabeledSelect } from "@/components/labeled-select";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 
 /**
@@ -9,7 +10,7 @@ import { QueryState } from "@/components/query-state";
  *
  * Shared by the two pick surfaces (`/picks`, `/league-picks`), which are the
  * same page frame around different content. Generic rather than `pickem*`
- * because Elimination's weekly slate is the second mode that will use it
+ * because Survivor's weekly slate is the second mode that will use it
  * unchanged (engineering rule on mode-specific naming).
  *
  * Two things live here rather than at each call site, because they are what the
@@ -46,7 +47,9 @@ export function LeagueWeekPicker({
     <div className="flex flex-col gap-4">
       <QueryState
         isPending={weeks.isPending}
-        pendingMessage="Loading weeks…"
+        pendingFallback={
+          <RowsSkeleton label="Loading weeks" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+        }
         isError={weeks.isError}
         onRetry={() => weeks.refetch()}
         errorMessage="Couldn't load this league's weeks."

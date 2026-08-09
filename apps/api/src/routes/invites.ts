@@ -36,7 +36,7 @@ const postInvite = createRoute({
   method: "post",
   path: "/leagues/{leagueId}/invites",
   operationId: "createInvite",
-  summary: "Generate an invite link code (commissioner, anytime)",
+  summary: "Generate an invite link code (commissioner, pre-start only)",
   request: {
     params: LeagueIdParamsSchema,
     body: { content: { "application/json": { schema: CreateInviteRequestSchema } } },
@@ -50,6 +50,7 @@ const postInvite = createRoute({
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
+    409: errorResponse("The league has started — new invite links can no longer be created"),
     500: MISCONFIGURED_500,
   },
 });
@@ -175,6 +176,14 @@ export function inviteRoutes(deps: AppDeps) {
               message: "Invite expiry must be in the future.",
             }),
             400,
+          );
+        case "league_started":
+          return c.json(
+            ErrorResponseSchema.parse({
+              error: ERROR_CODE.LEAGUE_STARTED,
+              message: "New invite links can't be created once the league has started.",
+            }),
+            409,
           );
       }
     }

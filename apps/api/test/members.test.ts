@@ -422,14 +422,19 @@ describe("DELETE /api/me — last-commissioner guard (LG-6 closes the ID-3 TODO)
     expect((await deleteMe(solo.cookie)).status).toBe(204);
   });
 
-  it("deletes the last commissioner of a CONCLUDED league (guard is active-only)", async () => {
+  it("409s the last commissioner of a CONCLUDED league — a finished league is not a disposable one", async () => {
     const { commish, league } = await seedLeague();
     // Status is per-instance now (ADR-0009) — conclude the current instance.
     await db
       .update(leagueSeasons)
       .set({ status: LEAGUE_STATUS.CONCLUDED })
       .where(eq(leagueSeasons.leagueId, league.id));
-    expect((await deleteMe(commish.cookie)).status).toBe(204);
+
+    // The guard was active-only while nothing wrote `concluded`; ADR-0030 gave
+    // that column a writer, and letting this through would strand the league —
+    // renewal into the next season is commissioner-only and no code path grants
+    // the role, so the remaining members could never act on it again.
+    expect((await deleteMe(commish.cookie)).status).toBe(409);
   });
 
   it("404s member routes with a malformed member id", async () => {
@@ -492,7 +497,10 @@ describe("PATCH settings cannot move the start into the past", () => {
       year: 2026,
       weeks: [
         { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
-        { weekNumber: 2, kickoffs: [] },
+        // Week 2 has no games *and* its own window has closed — both halves
+        // matter since ADR-0021, because a games-less week whose window is
+        // still open is a week resolution can legitimately advance to.
+        { weekNumber: 2, endsAt: new Date(WEEK1_KICKOFF.getTime() - 1), kickoffs: [] },
       ],
     });
     const commish = await createAuthenticatedUser(auth, { username: "commish" });
@@ -510,10 +518,11 @@ describe("PATCH settings cannot move the start into the past", () => {
       members: [{ userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
 
-    // Re-resolving this preset now finds no week left with an upcoming kickoff
-    // (week 1 has begun, week 2 has no games), so it falls back to the nominal
-    // start — week 1, which has already started. The edit is refused rather
-    // than being allowed to start the league by saving its settings.
+    // Re-resolving this preset now finds nothing in range still ahead — week 1
+    // has begun, and week 2 has no games and no open window — so it falls back
+    // to the nominal start, week 1, which has already started. The edit is
+    // refused rather than being allowed to start the league by saving its
+    // settings.
     const res = await patchLeague(
       commish.cookie,
       league.id,

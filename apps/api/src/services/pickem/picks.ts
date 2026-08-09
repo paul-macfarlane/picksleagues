@@ -12,8 +12,8 @@ import {
   requiredPickemPickCount,
   type PickemMemberPicks,
   type PickemPickSubmission,
-  type PickemPickSummary,
   type PickemSeasonRangePresetsResponse,
+  type PickemPickSummary,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
@@ -24,6 +24,7 @@ import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
+import { resolveUserImage } from "../users";
 import { startablePickemSeasonRangePresets } from "../leagues/season-range";
 import {
   getWeek,
@@ -220,6 +221,10 @@ export async function getPickemWeekPicks(
 
   const slate = await loadResolvedWeekGames(db, clock, weekId);
   const picksAllowed = picksAllowedFor(settings.picksPerWeek, slate);
+  // No column on `pickem_picks` for this (PKM-9) — the source is read off the
+  // game row the slate already resolved, frozen alongside the last-priced
+  // spread.
+  const spreadSourceByGameId = new Map(slate.map((game) => [game.id, game.spreadSource]));
 
   // Shared with the league page's roster so the two surfaces can't disagree
   // about member order, which is user-visible in both.
@@ -262,13 +267,18 @@ export async function getPickemWeekPicks(
       userId: user.id,
       username: user.username,
       displayName: user.display_name,
-      image: user.image,
+      image: resolveUserImage(user),
       isViewer,
       picks: visible.map((pick) => ({
         id: pick.id,
         gameId: pick.gameId,
         side: pick.side,
         spread: pick.spreadAtPick,
+        // Gated on the pick's own spread, not just the game's source: a
+        // straight-up pick has no number to attribute, and crediting a book
+        // beside a null spread would name a price nobody was graded against.
+        spreadSource:
+          pick.spreadAtPick === null ? null : (spreadSourceByGameId.get(pick.gameId) ?? null),
         // No extra visibility surface: a result exists only for a game that has
         // reached a terminal status, which is strictly later than the kickoff
         // the filter above already gates another member's picks on.
