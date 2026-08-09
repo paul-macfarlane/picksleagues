@@ -11,6 +11,7 @@ import {
   LeagueNameSchema,
   MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
+  OFFERED_LEAGUE_MODES,
   PICK_TYPE,
   type SurvivorPushTieResolution,
   type LeagueMode,
@@ -40,11 +41,12 @@ export const Route = createFileRoute("/_authed/leagues/new")({
   component: NewLeague,
 });
 
-const MODE_OPTIONS: { value: LeagueMode; label: string }[] = [
-  { value: LEAGUE_MODE.PICKEM, label: leagueModeLabel(LEAGUE_MODE.PICKEM) },
-  { value: LEAGUE_MODE.SURVIVOR, label: leagueModeLabel(LEAGUE_MODE.SURVIVOR) },
-  { value: LEAGUE_MODE.MARCH_MADNESS, label: leagueModeLabel(LEAGUE_MODE.MARCH_MADNESS) },
-];
+// Derived from OFFERED_LEAGUE_MODES so hiding a gated mode (LNCH-12: March
+// Madness until epic 07) and the server refusing it share one definition.
+const MODE_OPTIONS: { value: LeagueMode; label: string }[] = OFFERED_LEAGUE_MODES.map((mode) => ({
+  value: mode,
+  label: leagueModeLabel(mode),
+}));
 
 function NewLeague() {
   // Stated deviation from the TanStack-Form rule: everything below is

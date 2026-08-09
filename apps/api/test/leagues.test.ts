@@ -281,21 +281,9 @@ describe("POST /api/leagues", () => {
     });
   });
 
-  it("409s march-madness creation while no NCAAMB season is ingested", async () => {
-    await seedDefaultSeason();
-    const { cookie } = await createAuthenticatedUser(auth);
-
-    const res = await postLeague(cookie, {
-      mode: "march_madness",
-      name: "Bracket Bash",
-      visibility: "public",
-      settings: { scoringModel: "standard_doubling" },
-    });
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: "no_active_season" });
-  });
-
-  it("creates a march-madness league once an NCAAMB season exists", async () => {
+  it("409s march-madness creation even with an NCAAMB season ingested — the mode is gated until epic 07 (LNCH-12)", async () => {
+    // Season availability is deliberately not the gate: seeding NCAAMB proves
+    // the refusal is mode_unavailable, not a disguised no_active_season.
     await seedSeason(db, { sport: SPORT.NCAAMB, year: 2027, weeks: [] });
     const { cookie } = await createAuthenticatedUser(auth);
 
@@ -305,13 +293,8 @@ describe("POST /api/leagues", () => {
       visibility: "public",
       settings: { scoringModel: "standard_doubling" },
     });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as LeagueResponse;
-    expect(body).toMatchObject({ mode: "march_madness", seasonYear: 2027, startsAt: null });
-    expect(body.settings).toMatchObject({
-      scoringModel: "standard_doubling",
-      maxBracketsPerMember: 5,
-    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "mode_unavailable" });
   });
 
   it("creates a pick'em league while only a provisional upcoming season exists (ADR-0009: provisional is pre-start, not unusable)", async () => {

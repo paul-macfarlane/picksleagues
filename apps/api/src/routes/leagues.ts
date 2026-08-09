@@ -47,7 +47,7 @@ const postLeagues = createRoute({
     400: errorResponse("Invalid name, mode, visibility, maxMembers, or mode settings"),
     401: UNAUTHENTICATED_401,
     409: errorResponse(
-      "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
+      "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
     ),
     500: MISCONFIGURED_500,
   },
@@ -188,6 +188,7 @@ export function leagueRoutes(deps: AppDeps) {
     if (!result.ok) {
       const messages = {
         cap_exceeded: "You already run 10 active leagues — conclude or delete one first.",
+        mode_unavailable: "That game mode isn't available yet.",
         no_active_season: "That game mode has no season available yet.",
         // Deliberately names no control: Pick'em chooses its range by preset
         // (ADR-0020) and Survivor still picks weeks, so "choose a later
