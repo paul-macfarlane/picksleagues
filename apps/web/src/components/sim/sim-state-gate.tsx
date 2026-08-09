@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { SimStateResponse } from "@picksleagues/schemas";
 import { useSimState } from "@/api/sim";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 
 /**
@@ -19,6 +20,9 @@ export function SimStateGate({ children }: { children: (state: SimStateResponse)
       isError={state.isError}
       onRetry={() => state.refetch()}
       errorMessage="Couldn't load the simulator."
+      pendingFallback={
+        <RowsSkeleton label="Loading the simulator" rows={3} rowClassName="h-24 w-full" />
+      }
     >
       {/* QueryState's children are evaluated by the parent regardless of its
           own pending/error guards, so `data` still needs its own guard here. */}

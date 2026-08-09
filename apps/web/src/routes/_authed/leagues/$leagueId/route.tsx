@@ -1,10 +1,9 @@
-import { useEffect } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { LEAGUE_MODE, MEMBER_ROLE } from "@picksleagues/schemas";
 import { LeagueHeader } from "@/components/league/league-header";
 import { useLeague } from "@/api/leagues";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PageSkeleton } from "@/components/loading";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabNav, tabLinkProps } from "@/components/tab-nav";
 
@@ -16,19 +15,13 @@ function LeagueLayout() {
   const { leagueId } = Route.useParams();
   const league = useLeague(leagueId);
 
-  useEffect(() => {
-    if (league.isError) {
-      toast.error("Couldn't load this league — please try again.");
-    }
-  }, [league.isError]);
-
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      {league.isPending && (
-        <div className="flex flex-col items-center gap-2 py-8">
-          <p className="text-sm text-muted-foreground">Loading league…</p>
-        </div>
-      )}
+      {/* A layout gate stands in for the whole page, so its placeholder is the
+          page's chrome — header card, tab bar, section — not a section-sized
+          box (LNCH-8). Error is inline + Retry with no toast: a failed view
+          belongs in the space the content would have occupied. */}
+      {league.isPending && <PageSkeleton label="Loading league" headerClassName="h-40 w-full" />}
 
       {league.isError && (
         <div className="flex flex-col items-center gap-3 py-8">

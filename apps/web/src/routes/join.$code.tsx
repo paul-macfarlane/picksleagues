@@ -1,6 +1,4 @@
-import { useEffect } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { JOIN_BLOCKED_REASON, JOIN_BLOCKED_REASON_MESSAGES } from "@picksleagues/schemas";
 import { useJoinPreview } from "@/api/invites";
 import { useJoinByCode } from "@/api/members";
@@ -9,6 +7,8 @@ import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingRegion } from "@/components/loading";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Top-level (not under _authed): mirrors claim-username.tsx — the invite
@@ -34,12 +34,6 @@ function JoinByCode() {
 
   const preview = useJoinPreview(code);
 
-  useEffect(() => {
-    if (preview.isError) {
-      toast.error("Couldn't load this invite — please try again.");
-    }
-  }, [preview.isError]);
-
   // A blocked join can mean the preview is stale (e.g. someone else just took
   // the last spot) — refetch so the card reflects reality.
   const join = useJoinByCode(code, async () => {
@@ -49,10 +43,15 @@ function JoinByCode() {
   if (preview.isPending) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-2 p-6">
-        <p className="text-sm text-muted-foreground">Loading invite…</p>
+        <LoadingRegion label="Loading invite" className="w-full max-w-sm">
+          <Skeleton className="h-56 w-full" />
+        </LoadingRegion>
       </main>
     );
   }
+
+  // Inline message + Retry, no toast: a failed view belongs in the space the
+  // content would have occupied (engineering rules §Quality).
 
   if (preview.isError) {
     return (

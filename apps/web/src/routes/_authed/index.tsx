@@ -1,6 +1,4 @@
-import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { ChevronRightIcon } from "lucide-react";
 import {
   MEMBER_ROLE,
@@ -15,29 +13,40 @@ import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardGridSkeleton } from "@/components/loading";
 import { StatusPill, type StatusPillTone } from "@/components/status-pill";
 
 export const Route = createFileRoute("/_authed/")({
   component: Dashboard,
 });
 
+function DashboardHeader() {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <h1 className="text-2xl font-semibold text-foreground">Your leagues</h1>
+      <Link to="/leagues/new" className={buttonVariants({ size: "lg" })}>
+        Create league
+      </Link>
+    </div>
+  );
+}
+
 function Dashboard() {
   const myLeagues = useMyLeagues();
 
-  useEffect(() => {
-    if (myLeagues.isError) {
-      toast.error("Couldn't load your leagues — please try again.");
-    }
-  }, [myLeagues.isError]);
-
   if (myLeagues.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
-        <p className="text-sm text-muted-foreground">Loading your leagues…</p>
+      <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+        <DashboardHeader />
+        <CardGridSkeleton label="Loading your leagues" />
       </main>
     );
   }
 
+  // Inline message + Retry, no toast: a failed view belongs in the space the
+  // content would have occupied, and pairing it with a toast leaves an
+  // actionable message beside a duplicate that expires (engineering rules
+  // §Quality).
   if (myLeagues.isError || !myLeagues.data) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">
@@ -86,12 +95,7 @@ function Dashboard() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-foreground">Your leagues</h1>
-        <Link to="/leagues/new" className={buttonVariants({ size: "lg" })}>
-          Create league
-        </Link>
-      </div>
+      <DashboardHeader />
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {leagues.map((league) => (
           <li key={league.id}>

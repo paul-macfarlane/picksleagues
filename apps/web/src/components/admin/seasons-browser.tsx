@@ -4,6 +4,7 @@ import { useAdminSeasons } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { weekTypeLabel } from "@/lib/game";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 
 export function SeasonsBrowser() {
@@ -24,6 +25,9 @@ export function SeasonsBrowser() {
           isError={seasons.isError}
           onRetry={() => seasons.refetch()}
           errorMessage="Couldn't load seasons."
+          pendingFallback={
+            <RowsSkeleton label="Loading seasons" rows={4} rowClassName="h-14 w-full" />
+          }
           isEmpty={seasons.data?.seasons.length === 0}
           emptyMessage="No seasons synced yet."
         >

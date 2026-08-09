@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -12,6 +11,8 @@ import {
 } from "@picksleagues/schemas";
 import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
+import { LoadingRegion } from "@/components/loading";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAvatarPreview } from "@/lib/avatar-preview";
 import { FormTextField } from "@/components/form-field";
 import {
@@ -43,20 +44,19 @@ function Profile() {
 
   const me = useMe();
 
-  useEffect(() => {
-    if (me.isError) {
-      toast.error("Couldn't load your profile — please try again.");
-    }
-  }, [me.isError]);
-
   if (me.isPending) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-4 sm:p-6">
-        <p className="text-sm text-muted-foreground">Loading profile…</p>
+      <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
+        <LoadingRegion label="Loading profile" className="flex w-full flex-col items-center gap-4">
+          <Skeleton className="h-8 w-40 self-start" />
+          <Skeleton className="h-96 w-full max-w-sm" />
+        </LoadingRegion>
       </main>
     );
   }
 
+  // Inline message + Retry, no toast: a failed view belongs in the space the
+  // content would have occupied (engineering rules §Quality).
   if (me.isError || !me.data) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 sm:p-6">

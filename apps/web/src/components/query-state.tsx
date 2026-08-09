@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
  */
 export function QueryState({
   isPending,
-  pendingMessage = "Loading…",
   pendingFallback,
   isError,
   onRetry,
@@ -21,16 +20,15 @@ export function QueryState({
   children,
 }: {
   isPending: boolean;
-  pendingMessage?: string;
   /**
-   * Skeletons shaped like the content on its way, rendered instead of the
-   * pending line — so the layout doesn't jump when data lands (engineering
-   * rules §Quality). Pass one; the message form is what the views predating
-   * that rule still fall back to. Whatever is passed must announce itself
-   * (`role="status"` and a label): a grey box says nothing to a screen reader
-   * where the sentence did.
+   * Skeletons shaped like the content on its way, so the layout doesn't jump
+   * when data lands (engineering rules §Quality). Required — LNCH-8 retired
+   * the "Loading…" text form, and a required prop is what keeps the next view
+   * from reintroducing it. Wrap it in `LoadingRegion` (or otherwise give it
+   * `role="status"` and a label): a grey box says nothing to a screen reader
+   * where a sentence did.
    */
-  pendingFallback?: ReactNode;
+  pendingFallback: ReactNode;
   isError: boolean;
   onRetry: () => void;
   errorMessage: string;
@@ -39,8 +37,7 @@ export function QueryState({
   children: ReactNode;
 }) {
   if (isPending) {
-    if (pendingFallback) return <>{pendingFallback}</>;
-    return <p className="py-8 text-center text-sm text-muted-foreground">{pendingMessage}</p>;
+    return <>{pendingFallback}</>;
   }
 
   if (isError) {

@@ -20,6 +20,7 @@ import {
 import { useAppNow } from "@/lib/app-clock";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
@@ -141,7 +142,9 @@ export function PickemWeekDetail({
       <CardContent>
         <QueryState
           isPending={slate.isPending || picks.isPending}
-          pendingMessage="Loading this week's picks…"
+          pendingFallback={
+            <RowsSkeleton label="Loading this week's picks" rows={3} rowClassName="h-24 w-full" />
+          }
           isError={slate.isError || picks.isError}
           onRetry={() => {
             void slate.refetch();

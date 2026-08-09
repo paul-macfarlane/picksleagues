@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { UserIdentity } from "@/components/user-identity";
 
@@ -160,7 +161,7 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
   return (
     <QueryState
       isPending={standings.isPending}
-      pendingMessage="Loading standings…"
+      pendingFallback={<RowsSkeleton label="Loading standings" rows={5} />}
       isError={standings.isError}
       onRetry={() => standings.refetch()}
       errorMessage="Couldn't load standings."

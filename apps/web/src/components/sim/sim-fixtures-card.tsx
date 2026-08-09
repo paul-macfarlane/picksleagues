@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { WEEK_TYPE, type SimStateResponse, type WeekType } from "@picksleagues/schemas";
 import { useSimFixtureGames } from "@/api/sim";
+import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { weekTypeLabel } from "@/lib/game";
 import { SimFixtureRow } from "@/components/sim/sim-fixture-row";
@@ -109,6 +110,9 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
             isError={fixtures.isError}
             onRetry={() => fixtures.refetch()}
             errorMessage="Couldn't load fixtures."
+            pendingFallback={
+              <RowsSkeleton label="Loading fixtures" rows={5} rowClassName="h-14 w-full" />
+            }
             isEmpty={!selectedScenarioId || fixtures.data?.games.length === 0}
             emptyMessage={
               selectedScenarioId

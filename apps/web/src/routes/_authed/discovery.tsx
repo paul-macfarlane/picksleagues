@@ -7,8 +7,10 @@ import { leagueModeLabel } from "@/lib/league";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardGridSkeleton } from "@/components/loading";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryState } from "@/components/query-state";
 
 export const Route = createFileRoute("/_authed/discovery")({
   component: Discovery,
@@ -47,39 +49,27 @@ function Discovery() {
         </Button>
       </form>
 
-      {discovery.isPending && <p className="text-sm text-muted-foreground">Loading leagues…</p>}
-
-      {discovery.isError && (
-        <div className="flex flex-col items-center gap-3 py-8">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load public leagues.</p>
-          <Button variant="outline" onClick={() => discovery.refetch()}>
-            Retry
-          </Button>
-        </div>
-      )}
-
-      {discovery.data && discovery.data.leagues.length === 0 && (
-        <Card>
-          <CardHeader className="items-center text-center">
-            <CardTitle>No public leagues found</CardTitle>
-            <CardDescription>
-              {submittedQuery
-                ? "Try a different search."
-                : "There are no public leagues to join right now."}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
-      {discovery.data && discovery.data.leagues.length > 0 && (
+      <QueryState
+        isPending={discovery.isPending}
+        pendingFallback={<CardGridSkeleton label="Loading public leagues" />}
+        isError={discovery.isError}
+        onRetry={() => void discovery.refetch()}
+        errorMessage="Couldn't load public leagues."
+        isEmpty={discovery.data?.leagues.length === 0}
+        emptyMessage={
+          submittedQuery
+            ? "No public leagues found — try a different search."
+            : "There are no public leagues to join right now."
+        }
+      >
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {discovery.data.leagues.map((league) => (
+          {discovery.data?.leagues.map((league) => (
             <li key={league.id}>
               <DiscoveryLeagueCard league={league} />
             </li>
           ))}
         </ul>
-      )}
+      </QueryState>
     </main>
   );
 }
