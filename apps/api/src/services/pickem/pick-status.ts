@@ -33,10 +33,12 @@ export interface PickemPickStatusInput {
 }
 
 /**
- * Keyed by `leagueSeasonId`. A league whose season holds no in-range week is
- * absent rather than mapped to a state, unless its season has already ended:
- * with no week there is nothing to owe, and inventing one would announce a miss
- * the schedule never made possible.
+ * Keyed by `leagueSeasonId`. A league is absent — no glance rather than a state
+ * — when its season holds no week it plays, or when the week it is on holds no
+ * ingested games. Both are the same answer to the same question: there is
+ * nothing to owe picks for yet, and any state would be a claim about a week
+ * that doesn't exist to be closed or open. A season that has already ended
+ * reports regardless, since that is a fact about the season, not the week.
  */
 export async function resolvePickemPickStatuses(
   db: Db,
@@ -100,6 +102,16 @@ export async function resolvePickemPickStatuses(
     const frame = frames.get(league.leagueSeasonId);
     if (!frame) continue;
 
+    // A week holding no ingested games gets no glance at all, which is the one
+    // answer that can't be wrong: unseeded playoff rounds ingest zero games
+    // while their weeks exist (ADR-0021), so this is a postseason week's normal
+    // state — for hours between rounds in a full-season league, and from
+    // creation until January in a Postseason-preset one. "Week closed" would be
+    // a confident false claim for that whole wait, and "Picks needed" would
+    // prompt into a screen with nothing to pick. Saying nothing leaves the card
+    // on its placeholder and still cannot contradict the pick screen.
+    if (!frame.hasGames) continue;
+
     if (submitted.has(`${league.leagueSeasonId}:${league.membershipId}:${frame.weekId}`)) {
       statuses.set(league.leagueSeasonId, PICKEM_PICK_STATUS.PICKS_IN);
       continue;
@@ -107,10 +119,7 @@ export async function resolvePickemPickStatuses(
 
     // Exactly the pick screen's own test — it heads a week with no pickable
     // game "This week is closed" — so the card and the screen behind it cannot
-    // disagree. That makes a week whose games haven't been ingested closed here,
-    // deliberately unlike Survivor, where an ungraded week must not announce a
-    // miss (ADR-0025): Pick'em has no miss penalty, and a "Picks needed" prompt
-    // leading to a screen with nothing to pick is the worse answer.
+    // disagree.
     //
     // `open` is not "a full set can be submitted right now": a member arriving
     // mid-week submits a smaller set of what is left (`requiredPickemPickCount`),

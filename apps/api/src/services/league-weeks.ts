@@ -146,8 +146,10 @@ export interface LeagueWeekFrame {
 }
 
 /**
- * Which week each league is on, and whether it is still open — the shared input
- * to both modes' dashboard glances (`survivor/pick-status`, `pickem/pick-status`).
+ * Which week each league is on, and the two facts about it a glance is built
+ * from — the shared input to both modes' dashboard glances
+ * (`survivor/pick-status`, `pickem/pick-status`), which read those facts
+ * differently and must not disagree about the facts themselves.
  *
  * Batched across leagues rather than resolved per card: the glance sits on the
  * dashboard's critical path and a member can be in many leagues, so its query

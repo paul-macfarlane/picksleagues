@@ -525,12 +525,12 @@ describe("GET /api/leagues", () => {
       memberCount: 2,
       myRole: "commissioner",
       startsAt: WEEK1_KICKOFF.toISOString(),
-      // Each glance answers for its own mode, so this Pick'em league carries the
-      // Pick'em one and no Survivor one. `locked` because this fixture's current
-      // week is its week 2, which holds no games — the states themselves are
-      // pinned in the §pickemPickStatus block below.
+      // Each glance answers for its own mode, so this Pick'em league carries no
+      // Survivor one. The Pick'em state is deliberately not asserted here: this
+      // fixture's current week is a degenerate zero-length week 2, so any value
+      // would be an artifact of the fixture rather than the claim this test's
+      // name makes. The states are pinned in the §pickemPickStatus block.
       survivorPickStatus: null,
-      pickemPickStatus: "locked",
     });
   });
 
@@ -832,18 +832,55 @@ describe("GET /api/leagues", () => {
       expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "locked" });
     });
 
-    it("closes a week whose schedule has not been ingested, exactly as its pick screen does", async () => {
-      // A postseason week exists before its games are assigned, and the pick
-      // screen heads that week "This week is closed" — so a "Picks needed"
-      // prompt here would lead to a screen with nothing to pick. Deliberately
-      // the opposite of Survivor's answer below, where an ungraded week must not
-      // announce a miss (ADR-0025); Pick'em has no miss penalty.
+    it("reports nothing for a week whose schedule has not been ingested", async () => {
+      // Neither state is true of a week with no games: "Picks needed" prompts
+      // into a screen with nothing to pick, and "Week closed" is a confident
+      // false claim about a week that was never scheduled. Deliberately unlike
+      // Survivor, which still asks (ADR-0025 — an ungraded week must not
+      // announce a miss); Pick'em has no miss penalty to protect a member from.
       const { seasonId } = await seedGlanceSeason([]);
       const { user, cookie } = await createAuthenticatedUser(auth);
       await insertPickemLeagueFor(seasonId, user.id, "Pickem");
 
       const body = await readMyLeagues(cookie);
-      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "locked" });
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: null });
+    });
+
+    it("reports nothing for a Postseason league whose rounds are not seeded yet", async () => {
+      // The production shape of the case above, and the reason it can't be
+      // `locked`: an unseeded playoff round ingests zero games while its week
+      // exists (ADR-0021), so a Postseason-preset league created in the regular
+      // season sits on a gameless wild-card week from creation until January. A
+      // state here would be a claim held for months, not hours.
+      const { seasonId } = await seedSeason(db, {
+        weeks: [
+          {
+            weekNumber: 1,
+            startsAt: GLANCE_WEEK_STARTS,
+            endsAt: GLANCE_WEEK_ENDS,
+            kickoffs: [{ kickoffAt: WEEK1_KICKOFF }],
+          },
+          {
+            weekType: WEEK_TYPE.POSTSEASON,
+            weekNumber: 1,
+            startsAt: new Date("2027-01-09T00:00:00.000Z"),
+            endsAt: new Date("2027-01-16T00:00:00.000Z"),
+            kickoffs: [],
+          },
+        ],
+      });
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
+        settings: {
+          ...DEFAULT_PICKEM_SETTINGS,
+          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
+          startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
+          endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+        },
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: null });
     });
 
     it("still asks for picks in an ATS week whose lines have not landed yet", async () => {
@@ -861,10 +898,10 @@ describe("GET /api/leagues", () => {
       expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "picks_needed" });
     });
 
-    it("reports nothing for a league whose season holds no week it plays", async () => {
-      // A playoffs-only league over a season ingested only through the regular
-      // season: there is no week to owe picks for, and inventing one would
-      // announce a state the schedule never made possible.
+    it("reports nothing for a league whose season holds no week it plays at all", async () => {
+      // One step further than the two above: not a gameless week, but no week
+      // in range for the frame to resolve — a playoffs-only league over a season
+      // ingested only through the regular season.
       const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
       const { user, cookie } = await createAuthenticatedUser(auth);
       await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
