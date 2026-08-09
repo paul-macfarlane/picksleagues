@@ -20,6 +20,9 @@ coverage/
 # local review feedback (never committed — see /feedback)
 /feedback.md
 
+# todos
+/todos.md
+
 # os
 .DS_Store
 .vercel
