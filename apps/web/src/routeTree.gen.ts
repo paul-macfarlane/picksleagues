@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as ClaimUsernameRouteImport } from './routes/claim-username'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
@@ -44,9 +46,19 @@ const ClaimUsernameRoute = ClaimUsernameRouteImport.update({
   path: '/claim-username',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
@@ -169,7 +181,9 @@ const AuthedLeaguesLeagueIdSettingsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/claim-username': typeof ClaimUsernameRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/sim': typeof AuthedSimRouteRouteWithChildren
   '/discovery': typeof AuthedDiscoveryRoute
@@ -194,7 +208,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/claim-username': typeof ClaimUsernameRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/discovery': typeof AuthedDiscoveryRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
@@ -219,7 +235,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/claim-username': typeof ClaimUsernameRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
   '/_authed/sim': typeof AuthedSimRouteRouteWithChildren
   '/_authed/discovery': typeof AuthedDiscoveryRoute
@@ -248,7 +266,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/claim-username'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
     | '/admin'
     | '/sim'
     | '/discovery'
@@ -273,7 +293,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim-username'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
     | '/discovery'
     | '/profile'
     | '/join/$code'
@@ -297,7 +319,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/claim-username'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
     | '/_authed/admin'
     | '/_authed/sim'
     | '/_authed/discovery'
@@ -325,7 +349,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   ClaimUsernameRoute: typeof ClaimUsernameRoute
+  PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
+  TermsRoute: typeof TermsRoute
   JoinCodeRoute: typeof JoinCodeRoute
 }
 
@@ -345,11 +371,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClaimUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in': {
       id: '/sign-in'
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/': {
@@ -595,7 +635,9 @@ const AuthedRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   ClaimUsernameRoute: ClaimUsernameRoute,
+  PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,
+  TermsRoute: TermsRoute,
   JoinCodeRoute: JoinCodeRoute,
 }
 export const routeTree = rootRouteImport
