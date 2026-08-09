@@ -5,14 +5,17 @@ import {
   LEAGUE_MODE,
   LEAGUE_STATUS,
   MEMBER_ROLE,
+  PICKEM_PICK_SIDE,
   SPORT,
   type LeagueResponse,
+  type LeagueStatus,
 } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   DEFAULT_PICKEM_SETTINGS,
   DEFAULT_SURVIVOR_SETTINGS,
   insertLeague,
+  insertPick,
   membersOf,
   seasonIdFor,
   seedSeason,
@@ -518,8 +521,10 @@ describe("GET /api/leagues", () => {
       memberCount: 2,
       myRole: "commissioner",
       startsAt: WEEK1_KICKOFF.toISOString(),
-      // The glance is Survivor-shaped, so a Pick'em league carries none.
+      // Each glance answers for its own mode, so this Pick'em league carries the
+      // Pick'em one and no Survivor one.
       survivorPickStatus: null,
+      pickemPickStatus: "picks_needed",
     });
   });
 
@@ -530,28 +535,34 @@ describe("GET /api/leagues", () => {
     expect(await res.json()).toEqual({ leagues: [] });
   });
 
+  // Bounds chosen so the current week resolves the same way under both harness
+  // clocks: pre-start it is the next week to begin, post-kickoff the one in
+  // progress. A second unstarted game sits three hours behind the first, which
+  // is what separates "the week has started" from "the week has closed".
+  const GLANCE_WEEK_STARTS = new Date("2026-09-10T00:00:00.000Z");
+  const GLANCE_WEEK_ENDS = new Date("2026-09-17T00:00:00.000Z");
+  const LATE_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 3 * 60 * 60 * 1000);
+
+  async function seedGlanceSeason(kickoffs: Date[]) {
+    return seedSeason(db, {
+      weeks: [
+        {
+          weekNumber: 1,
+          startsAt: GLANCE_WEEK_STARTS,
+          endsAt: GLANCE_WEEK_ENDS,
+          kickoffs: kickoffs.map((kickoffAt) => ({ kickoffAt })),
+        },
+      ],
+    });
+  }
+
+  async function readMyLeagues(cookie: string, on: typeof app = app) {
+    const res = await getMyLeagues(cookie, on);
+    expect(res.status).toBe(200);
+    return (await res.json()) as { leagues: Array<Record<string, unknown>> };
+  }
+
   describe("survivorPickStatus", () => {
-    // Bounds chosen so the current week resolves the same way under both harness
-    // clocks: pre-start it is the next week to begin, post-kickoff the one in
-    // progress. A second unstarted game sits three hours behind the first, which
-    // is what separates "the week has started" from "the week has closed".
-    const GLANCE_WEEK_STARTS = new Date("2026-09-10T00:00:00.000Z");
-    const GLANCE_WEEK_ENDS = new Date("2026-09-17T00:00:00.000Z");
-    const LATE_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 3 * 60 * 60 * 1000);
-
-    async function seedGlanceSeason(kickoffs: Date[]) {
-      return seedSeason(db, {
-        weeks: [
-          {
-            weekNumber: 1,
-            startsAt: GLANCE_WEEK_STARTS,
-            endsAt: GLANCE_WEEK_ENDS,
-            kickoffs: kickoffs.map((kickoffAt) => ({ kickoffAt })),
-          },
-        ],
-      });
-    }
-
     async function insertSurvivorLeagueFor(seasonId: string, userId: string, name: string) {
       const league = await insertLeague(db, {
         seasonId,
@@ -568,19 +579,17 @@ describe("GET /api/leagues", () => {
       };
     }
 
-    async function readMyLeagues(cookie: string, on: typeof app = app) {
-      const res = await getMyLeagues(cookie, on);
-      expect(res.status).toBe(200);
-      return (await res.json()) as { leagues: Array<Record<string, unknown>> };
-    }
-
     it("asks for a pick while the week still holds an unstarted game", async () => {
       const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
       const { user, cookie } = await createAuthenticatedUser(auth);
       await insertSurvivorLeagueFor(seasonId, user.id, "Survivor");
 
       const body = await readMyLeagues(cookie);
-      expect(body.leagues[0]).toMatchObject({ survivorPickStatus: "pick_needed" });
+      expect(body.leagues[0]).toMatchObject({
+        survivorPickStatus: "pick_needed",
+        // The glances are per mode, so a Survivor league carries no Pick'em one.
+        pickemPickStatus: null,
+      });
     });
 
     it("still asks for a pick after the first kickoff, while a later game is open", async () => {
@@ -712,6 +721,144 @@ describe("GET /api/leagues", () => {
         new Map([
           ["Picked", "pick_in"],
           ["Unpicked", "pick_needed"],
+        ]),
+      );
+    });
+  });
+
+  describe("pickemPickStatus", () => {
+    async function insertPickemLeagueFor(
+      seasonId: string,
+      userId: string,
+      name: string,
+      status: LeagueStatus = LEAGUE_STATUS.ACTIVE,
+    ) {
+      const league = await insertLeague(db, {
+        seasonId,
+        name,
+        status,
+        members: [{ userId, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+      const members = await membersOf(db, league.id);
+      return {
+        league,
+        leagueSeasonId: await seasonIdFor(db, league.id),
+        membershipId: members.get(userId)!,
+      };
+    }
+
+    it("asks for picks while the week still holds an unstarted game", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem");
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({
+        pickemPickStatus: "picks_needed",
+        survivorPickStatus: null,
+      });
+    });
+
+    it("still asks for picks after the first kickoff, while a later game is open", async () => {
+      // A member arriving mid-week submits a smaller set of what is left
+      // (ADR-0018), so the week owes them picks until nothing pickable remains.
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF, LATE_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem");
+
+      const body = await readMyLeagues(cookie, appAfterKickoff);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "picks_needed" });
+    });
+
+    it("reports the picks are in once the member holds any for the current week", async () => {
+      // A week is one atomic submission (ADR-0018), so a single stored pick is
+      // the whole of "submitted" — there is no partial state to report.
+      const { seasonId, weekIds, gameIds } = await seedGlanceSeason([WEEK1_KICKOFF, LATE_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      const { leagueSeasonId, membershipId } = await insertPickemLeagueFor(
+        seasonId,
+        user.id,
+        "Pickem",
+      );
+      await insertPick(db, {
+        leagueSeasonId,
+        leagueMemberId: membershipId,
+        weekId: weekIds.get("regular:1")!,
+        gameId: gameIds.get("regular:1")![0]!,
+        side: PICKEM_PICK_SIDE.HOME,
+      });
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "picks_in" });
+    });
+
+    it("closes the week once every game in it has kicked off with no picks standing", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem");
+
+      const body = await readMyLeagues(cookie, appAfterKickoff);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "locked" });
+    });
+
+    it("reports a concluded season ahead of the week it would otherwise fall back to", async () => {
+      // The week is wide open, which is exactly what settlement's stored ending
+      // overrides (ADR-0030): the league is over, so nothing about that week is
+      // a prompt.
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertPickemLeagueFor(seasonId, user.id, "Pickem", LEAGUE_STATUS.CONCLUDED);
+
+      const body = await readMyLeagues(cookie);
+      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: "season_complete" });
+    });
+
+    it("resolves each league on its own, whatever mode it is, in one payload", async () => {
+      const { seasonId, weekIds, gameIds, teamIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      const picked = await insertPickemLeagueFor(seasonId, user.id, "Picked");
+      await insertPickemLeagueFor(seasonId, user.id, "Unpicked");
+      const survivor = await insertLeague(db, {
+        seasonId,
+        name: "Survivor",
+        mode: LEAGUE_MODE.SURVIVOR,
+        settings: DEFAULT_SURVIVOR_SETTINGS,
+        members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+      await insertPick(db, {
+        leagueSeasonId: picked.leagueSeasonId,
+        leagueMemberId: picked.membershipId,
+        weekId: weekIds.get("regular:1")!,
+        gameId: gameIds.get("regular:1")![0]!,
+        side: PICKEM_PICK_SIDE.HOME,
+      });
+      await insertSurvivorPick(db, {
+        leagueSeasonId: await seasonIdFor(db, survivor.id),
+        leagueMemberId: (await membersOf(db, survivor.id)).get(user.id)!,
+        weekId: weekIds.get("regular:1")!,
+        gameId: gameIds.get("regular:1")![0]!,
+        teamId: teamIds.home,
+      });
+
+      const body = await readMyLeagues(cookie);
+      // Keyed by name rather than compared positionally: the claim is that each
+      // league resolves its own status, and these are created in the same tick,
+      // so any order between them is a legal answer to a question this test
+      // isn't asking.
+      expect(
+        new Map(
+          body.leagues.map((league) => [
+            league.name,
+            [league.pickemPickStatus, league.survivorPickStatus],
+          ]),
+        ),
+      ).toEqual(
+        new Map([
+          ["Picked", ["picks_in", null]],
+          ["Unpicked", ["picks_needed", null]],
+          // Each mode's glance answers for its own leagues only, so the Survivor
+          // league's pick lands in the Survivor field and nowhere else.
+          ["Survivor", [null, "pick_in"]],
         ]),
       );
     });

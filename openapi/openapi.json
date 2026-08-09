@@ -752,6 +752,9 @@
           },
           "survivorPickStatus": {
             "$ref": "#/components/schemas/NullableSurvivorPickStatus"
+          },
+          "pickemPickStatus": {
+            "$ref": "#/components/schemas/NullablePickemPickStatus"
           }
         },
         "required": [
@@ -765,7 +768,8 @@
           "myRole",
           "startsAt",
           "renewable",
-          "survivorPickStatus"
+          "survivorPickStatus",
+          "pickemPickStatus"
         ]
       },
       "NullableSurvivorPickStatus": {
@@ -778,6 +782,19 @@
           "won",
           "pick_in",
           "pick_needed",
+          "locked",
+          null
+        ]
+      },
+      "NullablePickemPickStatus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "season_complete",
+          "picks_in",
+          "picks_needed",
           "locked",
           null
         ]

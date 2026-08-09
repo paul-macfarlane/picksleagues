@@ -17,6 +17,7 @@ import {
   type LeagueVisibility,
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { resolvePickemPickStatuses } from "../pickem/pick-status";
 import { resolveSurvivorPickStatuses } from "../survivor/pick-status";
 import { resetPicksInvalidatedBySettings } from "./settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
@@ -414,29 +415,49 @@ export async function listMyLeagues(
   // `renewable` signal compares each league's current-instance year against it.
   const latestBySport = await latestSeasonYearBySport(db);
 
-  // The Survivor glance rides this payload rather than a per-card fetch: this is
+  // Both modes' glances ride this payload rather than a per-card fetch: this is
   // the list the dashboard already renders from, and a request per card is the
   // N+1 a member in many leagues pays on every load. Resolved for all of them at
-  // once for the same reason. Settings are parsed rather than trusted so schema
-  // defaults materialize on rows written before a field existed.
-  const survivorStatuses = await resolveSurvivorPickStatuses(
-    db,
-    clock,
-    rows.flatMap((row) =>
-      row.league.mode === LEAGUE_MODE.SURVIVOR
-        ? [
-            {
-              leagueSeasonId: row.leagueSeasonId,
-              leagueId: row.league.id,
-              seasonId: row.seasonId,
-              membershipId: row.membershipId,
-              settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
-              status: row.status,
-            },
-          ]
-        : [],
+  // once for the same reason, and the two modes concurrently because neither
+  // reads what the other writes. Settings are parsed rather than trusted so
+  // schema defaults materialize on rows written before a field existed.
+  const [survivorStatuses, pickemStatuses] = await Promise.all([
+    resolveSurvivorPickStatuses(
+      db,
+      clock,
+      rows.flatMap((row) =>
+        row.league.mode === LEAGUE_MODE.SURVIVOR
+          ? [
+              {
+                leagueSeasonId: row.leagueSeasonId,
+                leagueId: row.league.id,
+                seasonId: row.seasonId,
+                membershipId: row.membershipId,
+                settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
+                status: row.status,
+              },
+            ]
+          : [],
+      ),
     ),
-  );
+    resolvePickemPickStatuses(
+      db,
+      clock,
+      rows.flatMap((row) =>
+        row.league.mode === LEAGUE_MODE.PICKEM
+          ? [
+              {
+                leagueSeasonId: row.leagueSeasonId,
+                seasonId: row.seasonId,
+                membershipId: row.membershipId,
+                settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(row.settings),
+                status: row.status,
+              },
+            ]
+          : [],
+      ),
+    ),
+  ]);
 
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
@@ -463,6 +484,7 @@ export async function listMyLeagues(
           row.seasonYear,
         ),
         survivorPickStatus: survivorStatuses.get(row.leagueSeasonId) ?? null,
+        pickemPickStatus: pickemStatuses.get(row.leagueSeasonId) ?? null,
       };
     }),
   );

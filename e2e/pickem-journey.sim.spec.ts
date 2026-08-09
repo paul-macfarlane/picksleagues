@@ -6,6 +6,7 @@ import {
   ERROR_CODE,
   GAME_STATUS,
   PICKEM_PICK_SIDE,
+  PICKEM_PICK_STATUS,
   PICK_OUTCOME,
   SIM_CLOCK_ADJUSTMENT_KIND,
   SIM_RESET_SCOPE,
@@ -378,6 +379,19 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await expect(submitted.getByRole("button", { name: "BUF", exact: true })).toBeDisabled();
     await expect(submitted.getByRole("button", { name: "MIA", exact: true })).toBeDisabled();
 
+    // The dashboard is where a member checks whether they still owe picks
+    // without opening the league (PKM-10), and the glance is resolved from the
+    // API's clock against the API's slate — so this before/after pair is the
+    // only place the whole chain (sim clock → slate → glance → card) is proved.
+    // Bound to the machine state, never the pill's copy. The joiner rather than
+    // the commissioner because this is their only league, so the card the
+    // assertion lands on isn't in question.
+    await pageB.goto("/");
+    await expect(pageB.getByTestId("pickem-pick-status")).toHaveAttribute(
+      "data-status",
+      PICKEM_PICK_STATUS.PICKS_NEEDED,
+    );
+
     // Joiner: the exact opposite side of all four.
     await pageB.goto(`/leagues/${leagueId}/my-picks`);
     await selectPick(pageB, "MIA", "BUF", "MIA");
@@ -385,6 +399,14 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await selectPick(pageB, "PHI", "DAL", "DAL");
     await selectPick(pageB, "SEA", "SF", "SF");
     await submitSheet(pageB);
+
+    // One irreversible submission (ADR-0018), so the same glance now reads as
+    // the week being done rather than as one pick among several still to make.
+    await pageB.goto("/");
+    await expect(pageB.getByTestId("pickem-pick-status")).toHaveAttribute(
+      "data-status",
+      PICKEM_PICK_STATUS.PICKS_IN,
+    );
   });
 
   test("before kickoff, another member's picks are hidden behind a count", async () => {

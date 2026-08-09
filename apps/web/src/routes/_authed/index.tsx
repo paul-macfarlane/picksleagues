@@ -4,8 +4,10 @@ import { toast } from "sonner";
 import { ChevronRightIcon } from "lucide-react";
 import {
   MEMBER_ROLE,
+  PICKEM_PICK_STATUS,
   SURVIVOR_PICK_STATUS,
   type LeagueSummary,
+  type PickemPickStatus,
   type SurvivorPickStatus,
 } from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
@@ -102,6 +104,7 @@ function Dashboard() {
 }
 
 function LeagueCard({ league }: { league: LeagueSummary }) {
+  const glance = pickStatusGlance(league);
   return (
     <Card className="relative h-full transition-colors hover:ring-ring/50">
       <CardHeader>
@@ -140,24 +143,46 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
             ))}
         </div>
         <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
-        {league.survivorPickStatus ? (
+        {glance ? (
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill
-              tone={SURVIVOR_GLANCE[league.survivorPickStatus].tone}
-              data-testid="survivor-pick-status"
-              data-status={league.survivorPickStatus}
-            >
-              {SURVIVOR_GLANCE[league.survivorPickStatus].label}
+            <StatusPill tone={glance.tone} data-testid={glance.testId} data-status={glance.status}>
+              {glance.label}
             </StatusPill>
           </div>
         ) : (
-          // Only Survivor has a glance so far (ELM-6); the other modes' pick
-          // tables land in later epics.
+          // Both NFL modes answer now (ELM-6, PKM-10); March Madness lands in a
+          // later epic, as does a league whose season holds no week to report on.
           <p className="text-xs text-muted-foreground/70">Pick status coming soon</p>
         )}
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Which glance a card shows, if any: one per mode, so the two state sets never
+ * have to be told apart by a shared label — both name a closed week, and only
+ * Survivor's can say a member is out of it for good. A league of a mode with no
+ * glance yet, or one whose season holds no week to report on, gets none.
+ */
+function pickStatusGlance(
+  league: LeagueSummary,
+): { tone: StatusPillTone; label: string; testId: string; status: string } | null {
+  if (league.survivorPickStatus) {
+    return {
+      ...SURVIVOR_GLANCE[league.survivorPickStatus],
+      testId: "survivor-pick-status",
+      status: league.survivorPickStatus,
+    };
+  }
+  if (league.pickemPickStatus) {
+    return {
+      ...PICKEM_GLANCE[league.pickemPickStatus],
+      testId: "pickem-pick-status",
+      status: league.pickemPickStatus,
+    };
+  }
+  return null;
 }
 
 /**
@@ -180,3 +205,20 @@ const SURVIVOR_GLANCE = {
   [SURVIVOR_PICK_STATUS.PICK_NEEDED]: { tone: "highlight", label: "Pick needed" },
   [SURVIVOR_PICK_STATUS.LOCKED]: { tone: "neutral", label: "Week closed" },
 } as const satisfies Record<SurvivorPickStatus, { tone: StatusPillTone; label: string }>;
+
+/**
+ * Plural throughout, because a Pick'em week is N picks in one submission
+ * (ADR-0018) — "Picks in" is the whole week landing, not a pick among several
+ * still to make, which is a distinction the card would otherwise leave a member
+ * to guess at.
+ *
+ * "Season complete" is stated rather than left to the last week's state: the
+ * league is over, and a card still reporting on a week nobody can act on reads
+ * as a prompt.
+ */
+const PICKEM_GLANCE = {
+  [PICKEM_PICK_STATUS.SEASON_COMPLETE]: { tone: "neutral", label: "Season complete" },
+  [PICKEM_PICK_STATUS.PICKS_IN]: { tone: "success", label: "Picks in" },
+  [PICKEM_PICK_STATUS.PICKS_NEEDED]: { tone: "highlight", label: "Picks needed" },
+  [PICKEM_PICK_STATUS.LOCKED]: { tone: "neutral", label: "Week closed" },
+} as const satisfies Record<PickemPickStatus, { tone: StatusPillTone; label: string }>;
