@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { LEAGUE_MODE, type LeagueMode } from "./league-mode";
 import { PickTypeSchema } from "./pick-type";
-import { WEEK_TYPE } from "./week-type";
+import { WEEK_TYPE, type WeekType } from "./week-type";
 
 /**
  * Per-mode league settings, stored as validated JSONB on `league_seasons`
@@ -75,6 +75,36 @@ export const PickemSeasonRangePresetSchema = z
  * mode allows (ADR-0024).
  */
 export type NflSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
+
+/**
+ * A stored `weeks` row addressed as a settings-level week ref, so the ordinal
+ * scale above can be applied to it. Column-shaped rather than row-shaped on
+ * purpose: the caller passes the two fields, and this package stays ignorant of
+ * the table they came from.
+ */
+export function toNflWeekRef(week: { weekType: WeekType; weekNumber: number }): NflWeekRef {
+  return week.weekType === WEEK_TYPE.REGULAR
+    ? { type: WEEK_TYPE.REGULAR, number: week.weekNumber }
+    : { type: WEEK_TYPE.POSTSEASON, number: week.weekNumber };
+}
+
+/**
+ * Whether a league playing `range` plays this week — the clip every surface that
+ * has to say "the weeks this league covers" applies: the member-facing week list,
+ * both modes' settlement replays, and the conclusion derivations that decide when
+ * a season's range has run out (ADR-0030).
+ *
+ * One home because the comparison spans the regular/postseason boundary, where
+ * the naive `weekNumber` compare a reimplementation reaches for is wrong: a
+ * league ending at Wild Card would otherwise read week 18 as *after* its end.
+ */
+export function isWeekInSeasonRange(
+  week: { weekType: WeekType; weekNumber: number },
+  range: NflSeasonRange,
+): boolean {
+  const ordinal = nflSeasonOrdinal(toNflWeekRef(week));
+  return ordinal >= nflSeasonOrdinal(range.startWeek) && ordinal <= nflSeasonOrdinal(range.endWeek);
+}
 
 /**
  * The regular season as a range, with one home because two modes name it:

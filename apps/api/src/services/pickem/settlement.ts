@@ -9,11 +9,15 @@ import {
   pickemPickResults,
   pickemPicks,
   pickemStandings,
+  weeks,
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
   ADMIN_AUDIT_TARGET_TABLE,
+  GAME_STATUS,
+  isUnplayedStatus,
+  isWeekInSeasonRange,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   type PickemSettings,
@@ -28,6 +32,7 @@ import {
   type ScoredOutcome,
 } from "@picksleagues/scoring";
 import { resolveGameOverrides } from "../games";
+import { applyLeagueSeasonConclusion } from "../leagues/conclusion";
 import { lockLeagueSeasonRow } from "../leagues/locks";
 import { logInfo } from "../../lib/logger";
 import { addSummary, EMPTY_SUMMARY, type SettlementSummary } from "../settlement";
@@ -53,6 +58,7 @@ import { addSummary, EMPTY_SUMMARY, type SettlementSummary } from "../settlement
 interface SettleableSeason {
   leagueSeasonId: string;
   leagueId: string;
+  seasonId: string;
   settings: PickemSettings;
 }
 
@@ -64,6 +70,7 @@ async function loadSettleableSeason(
     .select({
       leagueSeasonId: leagueSeasons.id,
       leagueId: leagueSeasons.leagueId,
+      seasonId: leagueSeasons.seasonId,
       settings: leagueSeasons.settings,
       mode: leagues.mode,
     })
@@ -78,10 +85,73 @@ async function loadSettleableSeason(
   return {
     leagueSeasonId: row.leagueSeasonId,
     leagueId: row.leagueId,
+    seasonId: row.seasonId,
     // Parsed, never trusted — defaults must materialize before they reach
     // scoring (engineering rules §Data).
     settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(row.settings),
   };
+}
+
+/**
+ * Whether the league's whole range has played out — Pick'em's arm of the
+ * conclusion rule (ADR-0030).
+ *
+ * **Independent of picks, deliberately.** The spec gives Pick'em no §End of
+ * League of its own; its season is its start week through its end week (spec
+ * §Standings), and a league nobody ever submitted a pick in still has to end.
+ * Keying on results would leave such a league running forever.
+ *
+ * A `final` game with no score is a provider fault an admin override fixes, and
+ * it holds the season open until one does — the same bar the grader applies to
+ * the pick on it, so conclusion can't outrun the results it describes.
+ *
+ * **The range is the in-range `weeks` rows that exist**, not the ordinal span
+ * the settings name — a week the range covers but that was never ingested is not
+ * waited for. Both settlement replays already read the range that way, and season
+ * setup creates a season's weeks wholesale, so the two coincide; a season built
+ * piecemeal would conclude on a partial universe.
+ */
+async function rangePlayedOut(tx: Db, season: SettleableSeason): Promise<boolean> {
+  const weekRows = await tx
+    .select({ id: weeks.id, weekType: weeks.weekType, weekNumber: weeks.weekNumber })
+    .from(weeks)
+    .where(eq(weeks.seasonId, season.seasonId));
+  const inRangeWeekIds = weekRows
+    .filter((row) => isWeekInSeasonRange(row, season.settings))
+    .map((row) => row.id);
+
+  // No in-range week at all is a league whose schedule hasn't been ingested, not
+  // a season that finished instantly — the same reading the settlement replays
+  // give an empty week.
+  if (inRangeWeekIds.length === 0) return false;
+
+  // Scoped to the weeks the league plays rather than the whole season: this runs
+  // on the 5-minute incremental path, inside the transaction holding the
+  // league-season lock, and a Postseason-preset league has no business loading
+  // eighteen weeks of regular-season games to answer it.
+  const gameRows = await tx.select().from(games).where(inArray(games.weekId, inRangeWeekIds));
+
+  const gamesByWeek = new Map<string, Array<typeof games.$inferSelect>>(
+    inRangeWeekIds.map((weekId) => [weekId, []]),
+  );
+  for (const row of gameRows) gamesByWeek.get(row.weekId)?.push(row);
+
+  return [...gamesByWeek.values()].every((weekGames) => {
+    // A week with no games is a week the schedule never filled, not a week that
+    // finished with nothing to play.
+    if (weekGames.length === 0) return false;
+    return weekGames.every((row) => {
+      const effective = resolveGameOverrides(row);
+      // Cancelled counts as done — it will never be played and the spec already
+      // resolves the pick on it as a push (spec §Cancellations & Postponements).
+      if (isUnplayedStatus(effective.status)) return true;
+      return (
+        effective.status === GAME_STATUS.FINAL &&
+        effective.homeScore !== null &&
+        effective.awayScore !== null
+      );
+    });
+  });
 }
 
 /**
@@ -362,6 +432,18 @@ export async function settlePickemLeagueSeasonWeeks(
       unsettled += settled.unsettled;
     }
     await rebuildStandings(tx, clock, season);
+
+    // A whole-season question whichever weeks this call settled, so it runs on
+    // the incremental path too (ADR-0030): the game that closes the range is the
+    // one whose sync should retire the season, not whatever the sweep finds that
+    // night.
+    await applyLeagueSeasonConclusion(
+      tx,
+      clock,
+      season.leagueSeasonId,
+      await rangePlayedOut(tx, season),
+    );
+
     return { leagueSeasons: 1, weeks: weekIds.length, results, unsettled, failed: 0 };
   });
 }

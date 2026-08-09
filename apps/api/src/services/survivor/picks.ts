@@ -10,7 +10,6 @@ import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
-  LEAGUE_STATUS,
   type LeagueStatus,
   type SubmitSurvivorPickRequest,
   type SurvivorMemberPick,
@@ -282,30 +281,22 @@ export async function submitSurvivorPick(
   if (!preflight.ok) return preflight;
   const { leagueSeasonId, seasonId, membershipId, settings, status } = preflight.value;
 
-  // Both readings of "this season is over", because they answer at different
-  // times: the stored status is what LG-12 will persist and nothing writes yet,
-  // while the derived state is true the moment settlement leaves one member
-  // standing or the range plays out (ADR-0027). Keeping the status check is what
-  // stops persistence needing this rewritten.
-  if (status === LEAGUE_STATUS.CONCLUDED) {
-    return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
-  }
-
+  // Both endings the spec names, in one read: settlement stores its own stop
+  // (ADR-0030), so the sole-survivor reduction and the range playing out arrive
+  // here as the same value.
+  //
   // Pre-flight rather than inside the write transaction, unlike the lock and
   // ledger invariants below: this is settled state, and it carries the same
   // deliberate lag the eliminated check does (ADR-0025) — a pick landing between
-  // the season being decided and this reading it grades to nothing, where a
-  // kickoff moving under an unvalidated write would let a locked pick through.
-  const season = await resolveSurvivorSeasonState(db, {
-    leagueSeasonId,
-    leagueId,
-    seasonId,
-    settings,
-  });
-  // Only for a member the season decided *for*. A decided season's winners are
-  // exactly its alive set, so everyone else here is eliminated — and the refusal
-  // about them personally is the one they need, the same one a league with three
-  // members and one survivor would have given them.
+  // the season being decided and settlement recording it grades to nothing, where
+  // a kickoff moving under an unvalidated write would let a locked pick through.
+  const season = await resolveSurvivorSeasonState(db, { leagueSeasonId, leagueId, status });
+  // **Only for a member the season decided *for*.** A decided season's winners
+  // are exactly its alive set, so everyone else here is eliminated and falls
+  // through to the personal refusal below — which is the one they need, and
+  // which ADR-0027 §4 says outranks this one: a member who went out in week 6 is
+  // told they are out, not that a season they lost is over. Refusing the whole
+  // league here would be the shorter code and the worse answer.
   if (season.decided && season.winnerMemberIds.has(membershipId)) {
     return { ok: false, reason: SURVIVOR_REFUSAL.LEAGUE_CONCLUDED };
   }

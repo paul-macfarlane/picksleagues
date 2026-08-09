@@ -20,6 +20,7 @@ import {
   type PickemWeekPicksResponse,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
+import { rebuildLeagueSeason } from "../src/services/settlement";
 import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
@@ -1068,11 +1069,18 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(await res.json()).toMatchObject({ error: "game_not_in_week" });
   });
 
-  it("409s league_concluded when the season's status is concluded", async () => {
-    const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
-      status: LEAGUE_STATUS.CONCLUDED,
+  it("409s league_concluded once settlement has ended the season", async () => {
+    // Settled rather than seeded: this refusal was unreachable until LG-12 gave
+    // `league_seasons.status` a writer (ADR-0030), so pinning it against a
+    // hand-set status would leave the reachability itself unproved.
+    const { league, leagueSeasonId, weekIds, gameIds, memberA } = await seedPickemLeague({
+      settings: { ...DEFAULT_PICKEM_SETTINGS, endWeek: { type: WEEK_TYPE.REGULAR, number: 1 } },
     });
     const weekId = weekIds.get("regular:1")!;
+    for (const gameId of gameIds.get("regular:1")!) {
+      await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    }
+    await rebuildLeagueSeason(db, new FixedClock(WEEK1_KICKOFF), leagueSeasonId);
 
     const res = await putPicks(memberA.cookie, league.id, weekId, {
       picks: gameIds.get("regular:1")!.map((gameId) => ({

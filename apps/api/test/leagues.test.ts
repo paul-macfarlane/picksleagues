@@ -662,11 +662,20 @@ describe("GET /api/leagues", () => {
         ],
       });
       const members = await membersOf(db, league.id);
+      const leagueSeasonId = await seasonIdFor(db, league.id);
       await insertSurvivorState(db, {
-        leagueSeasonId: await seasonIdFor(db, league.id),
+        leagueSeasonId,
         leagueMemberId: members.get(beaten.user.id)!,
         eliminatedWeekId: weekIds.get("regular:1")!,
       });
+      // Both halves of what settlement leaves behind when a season ends
+      // (ADR-0030): the ledger naming who went out, and the stored ending the
+      // glance reads. Seeded rather than settled because the subject here is the
+      // glance, not the replay that produced its inputs.
+      await db
+        .update(leagueSeasons)
+        .set({ status: LEAGUE_STATUS.CONCLUDED })
+        .where(eq(leagueSeasons.id, leagueSeasonId));
 
       // The week is wide open, which is exactly what the season being decided
       // overrides (ADR-0027) — and the member they beat still reads as out.

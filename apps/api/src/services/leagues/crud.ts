@@ -431,6 +431,7 @@ export async function listMyLeagues(
               seasonId: row.seasonId,
               membershipId: row.membershipId,
               settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
+              status: row.status,
             },
           ]
         : [],

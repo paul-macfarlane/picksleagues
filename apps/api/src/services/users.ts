@@ -13,7 +13,6 @@ import type { Clock } from "@picksleagues/core";
 import {
   APP_ROLE,
   DELETED_USER_DISPLAY_NAME,
-  LEAGUE_STATUS,
   MEMBER_ROLE,
   type AppRole,
   type DisplayName,
@@ -125,8 +124,8 @@ export async function getAppRole(db: Db, userId: string): Promise<AppRole | null
  * email/OTP flows are ever added, revisit — its `identifier` can hold an email.
  *
  * Deletion is blocked (ADR-0004, same invariant as leaving a league, LG-6)
- * while the caller is the last commissioner of any non-empty active league —
- * they must promote a replacement first. Membership rows themselves survive
+ * while the caller is the last commissioner of any non-empty league, concluded
+ * ones included — they must promote a replacement first. Membership rows survive
  * deletion (the anonymized user remains a member everywhere), so this is the
  * only league-side check deletion needs.
  */
@@ -149,7 +148,7 @@ export async function deleteAccount(
       for update of l
     `);
 
-    if (await isLastCommissionerOfNonEmptyActiveLeague(tx, userId)) {
+    if (await isLastCommissionerOfNonEmptyLeague(tx, userId)) {
       return { ok: false as const, reason: "last_commissioner" as const };
     }
 
@@ -181,13 +180,20 @@ export async function deleteAccount(
 export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_commissioner" };
 
 /**
- * True when any active league would be left commissioner-less but not
- * member-less by this user's departure — the ADR-0004 invariant, evaluated
- * inside the deletion transaction. "Active" is the league's CURRENT instance
- * being ACTIVE (ADR-0009): join the current season and filter status, so a
- * league with a concluded past instance never counts.
+ * True when any league would be left commissioner-less but not member-less by
+ * this user's departure — the ADR-0004 invariant, evaluated inside the deletion
+ * transaction.
+ *
+ * **A concluded league counts** (owner, LG-12). The guard used to filter the
+ * current instance to `ACTIVE`, which was vacuous while nothing wrote
+ * `concluded`; ADR-0030 gave that column a writer, and the filter would have
+ * quietly let the sole commissioner of a finished league delete their account.
+ * A finished league is not a disposable one — renewing it into the next season
+ * is a commissioner-only action (`LEAGUE_ACTION.RENEW_SEASON`), and no code path
+ * grants the role — so the league would sit inert on every remaining member's
+ * dashboard with nobody able to act on it ever again.
  */
-async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string): Promise<boolean> {
+async function isLastCommissionerOfNonEmptyLeague(db: Db, userId: string): Promise<boolean> {
   const commissionerCount = db
     .select({ value: count() })
     .from(leagueMembers)
@@ -212,9 +218,7 @@ async function isLastCommissionerOfNonEmptyActiveLeague(db: Db, userId: string):
       ),
     )
     .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
-    .where(
-      and(eq(current.status, LEAGUE_STATUS.ACTIVE), eq(commissionerCount, 1), gt(memberCount, 1)),
-    )
+    .where(and(eq(commissionerCount, 1), gt(memberCount, 1)))
     .limit(1);
   return rows.length > 0;
 }

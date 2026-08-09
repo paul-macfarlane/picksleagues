@@ -5,8 +5,7 @@ import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
-  WEEK_TYPE,
-  nflSeasonOrdinal,
+  isWeekInSeasonRange,
   type LeagueWeek,
   type LeagueWeeksResponse,
 } from "@picksleagues/schemas";
@@ -47,8 +46,6 @@ export async function listLeagueWeeks(
   }
 
   const settings = LEAGUE_SETTINGS_SCHEMAS[mode].parse(current.season.settings);
-  const startOrdinal = nflSeasonOrdinal(settings.startWeek);
-  const endOrdinal = nflSeasonOrdinal(settings.endWeek);
 
   const rows = await db
     .select({
@@ -67,16 +64,9 @@ export async function listLeagueWeeks(
     .orderBy(asc(weeks.startsAt));
 
   // Clipped in app code rather than SQL: the ordinal is a domain rule
-  // (postseason follows week 18) that `nflSeasonOrdinal` already owns, and a
-  // season's week list is a couple of dozen rows.
-  const inRange = rows.filter((row) => {
-    const ordinal = nflSeasonOrdinal(
-      row.weekType === WEEK_TYPE.REGULAR
-        ? { type: WEEK_TYPE.REGULAR, number: row.weekNumber }
-        : { type: WEEK_TYPE.POSTSEASON, number: row.weekNumber },
-    );
-    return ordinal >= startOrdinal && ordinal <= endOrdinal;
-  });
+  // (postseason follows week 18) that `isWeekInSeasonRange` owns, and no SQL
+  // predicate can push it down without restating it.
+  const inRange = rows.filter((row) => isWeekInSeasonRange(row, settings));
 
   const serialized: LeagueWeek[] = inRange.map((row) => ({
     id: row.id,
