@@ -7,6 +7,7 @@ import {
 import { useSurvivorStandings } from "@/api/survivor";
 import { formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 import { QueryState } from "@/components/query-state";
@@ -36,11 +37,11 @@ function statusLabel(member: SurvivorStandingsMember, winnerCount: number): stri
 
 function SurvivorBoardSkeleton() {
   return (
-    <div role="status" aria-label="Loading the survivor board" className="flex flex-col gap-3">
+    <LoadingRegion label="Loading the survivor board" className="flex flex-col gap-3">
       {Array.from({ length: 4 }, (_unused, index) => (
         <Skeleton key={index} className="h-24 w-full" />
       ))}
-    </div>
+    </LoadingRegion>
   );
 }
 

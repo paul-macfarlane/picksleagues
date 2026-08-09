@@ -40,6 +40,10 @@ function JoinByCode() {
     await preview.refetch();
   });
 
+  // Stated deviation from the QueryState rule: this page's three states are
+  // full-viewport centered cards (it renders outside the authed shell with no
+  // page column), and QueryState's section-shaped pending/error/empty would
+  // uncenter them — each state keeps its own <main> instead.
   if (preview.isPending) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-2 p-6">

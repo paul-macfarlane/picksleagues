@@ -12,6 +12,7 @@ import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
+import { LegalFooter } from "@/components/legal-footer";
 import { SimClockBanner } from "@/components/sim-clock-banner";
 import { UserIdentity } from "@/components/user-identity";
 import {
@@ -170,14 +171,7 @@ function AuthedLayout() {
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
         <Outlet />
       </div>
-      <footer className="mx-auto flex w-full max-w-5xl items-center gap-4 px-4 py-4 text-xs text-muted-foreground sm:px-6">
-        <Link to="/terms" className="hover:text-foreground">
-          Terms
-        </Link>
-        <Link to="/privacy" className="hover:text-foreground">
-          Privacy
-        </Link>
-      </footer>
+      <LegalFooter className="mx-auto w-full max-w-5xl px-4 sm:px-6" />
     </div>
   );
 }

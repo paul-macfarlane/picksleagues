@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
 import { BrandMark } from "@/components/brand";
+import { LegalFooter } from "@/components/legal-footer";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -116,14 +117,7 @@ function Welcome() {
           </ol>
         </section>
       </main>
-      <footer className="mx-auto flex w-full max-w-3xl items-center gap-4 px-4 py-4 text-xs text-muted-foreground sm:px-6">
-        <Link to="/terms" className="hover:text-foreground">
-          Terms
-        </Link>
-        <Link to="/privacy" className="hover:text-foreground">
-          Privacy
-        </Link>
-      </footer>
+      <LegalFooter className="mx-auto w-full max-w-3xl px-4 sm:px-6" />
     </div>
   );
 }

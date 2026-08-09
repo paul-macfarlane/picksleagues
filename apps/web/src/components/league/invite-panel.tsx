@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { RowsSkeleton } from "@/components/loading";
+import { useState } from "react";
 import { toast } from "sonner";
+import { RowsSkeleton } from "@/components/loading";
+import { QueryState } from "@/components/query-state";
 import { INVITE_STATUS, type CreateInviteRequest, type Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -25,12 +26,6 @@ export function InvitePanel({
   // only ever mounted for commissioners, but the guard stays explicit.
   const invites = useLeagueInvites(leagueId, isCommissioner);
 
-  useEffect(() => {
-    if (invites.isError) {
-      toast.error("Couldn't load invites — please try again.");
-    }
-  }, [invites.isError]);
-
   const createInvite = useCreateInvite(leagueId);
   const revokeInvite = useRevokeInvite(leagueId);
 
@@ -41,15 +36,19 @@ export function InvitePanel({
         <CardDescription>Share a link so others can join.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {invites.isPending && (
-          <RowsSkeleton label="Loading invites" rows={2} rowClassName="h-14 w-full" />
-        )}
-        {invites.data && invites.data.invites.length === 0 && (
-          <p className="text-sm text-muted-foreground">No invites yet.</p>
-        )}
-        {invites.data && invites.data.invites.length > 0 && (
+        <QueryState
+          isPending={invites.isPending}
+          pendingFallback={
+            <RowsSkeleton label="Loading invites" rows={2} rowClassName="h-14 w-full" />
+          }
+          isError={invites.isError}
+          onRetry={() => void invites.refetch()}
+          errorMessage="Couldn't load invites."
+          isEmpty={invites.data?.invites.length === 0}
+          emptyMessage="No invites yet."
+        >
           <ul className="flex flex-col gap-3">
-            {invites.data.invites.map((invite) => (
+            {invites.data?.invites.map((invite) => (
               <InviteRow
                 key={invite.code}
                 invite={invite}
@@ -58,7 +57,7 @@ export function InvitePanel({
               />
             ))}
           </ul>
-        )}
+        </QueryState>
         {/* The panel itself survives the start — revoking a leaked link stays
             available for as long as the link does (ADR-0029). Only minting a
             new one closes, and it says so rather than vanishing. */}

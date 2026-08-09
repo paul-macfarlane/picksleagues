@@ -283,9 +283,13 @@ function SurvivorPickSheet({
                 ? "This week is closed — no games are still open to pick."
                 : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."}
           </CardDescription>
+          {/* New tab on purpose: the sheet's draft lives only in local state, and a
+              same-tab navigation would unmount it and silently discard the picks. */}
           <p className="text-xs">
             <Link
               to="/rules/survivor"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground underline hover:text-foreground"
             >
               Full Survivor rules
