@@ -43,3 +43,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0031](0031-pickem-is-regular-season-only.md) | Pick'em is regular-season only; the season-range presets are removed | Accepted |
 | [0032](0032-invites-are-bare-revocable-codes.md) | Invite links are bare revocable codes; expiry and max-use caps removed | Accepted |
 | [0033](0033-survivor-tie-always-advances.md) | Survivor's Push/Tie Resolution fixed at its default; the setting removed | Accepted |
+| [0034](0034-march-madness-standard-doubling-only.md) | March Madness: standard doubling only; seed corrections handled by hand | Accepted |

@@ -1,7 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   LEAGUE_MODE,
-  MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICK_TYPE,
   WEEK_TYPE,
@@ -131,7 +130,6 @@ describe("GET /api/leagues/:leagueId/weeks", () => {
       seasonId,
       mode: LEAGUE_MODE.MARCH_MADNESS,
       settings: {
-        scoringModel: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
         maxBracketsPerMember: 5,
       },
       members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],

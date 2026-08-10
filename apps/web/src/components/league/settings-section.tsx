@@ -4,14 +4,12 @@ import { toast } from "sonner";
 import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
-  MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
   type LeagueResponse,
   type LeagueVisibility,
-  type MarchMadnessScoringModel,
   type PickType,
   type PickemSettings,
   type PickemSettingsInput,
@@ -152,14 +150,6 @@ function SettingsForm({
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
     marchMadnessSettings?.maxBracketsPerMember ?? 5,
   );
-  const [mmScoringModel, setMmScoringModel] = useState<MarchMadnessScoringModel>(
-    marchMadnessSettings?.scoringModel ?? MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
-  );
-  const [mmRoundValues, setMmRoundValues] = useState<number[]>(
-    marchMadnessSettings?.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-      ? marchMadnessSettings.roundValues
-      : [0, 0, 0, 0, 0, 0],
-  );
 
   const nameParsed = LeagueNameSchema.safeParse(name);
   const nameDirty = name.trim() !== league.name;
@@ -234,20 +224,9 @@ function SettingsForm({
     // before asking. The server still clears (or 409s) correctly — this warning
     // was only ever advisory.
   } else {
-    assembledSettings =
-      mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-        ? {
-            maxBracketsPerMember: mmMaxBrackets,
-            scoringModel: mmScoringModel,
-            roundValues: mmRoundValues,
-          }
-        : { maxBracketsPerMember: mmMaxBrackets, scoringModel: mmScoringModel };
+    assembledSettings = { maxBracketsPerMember: mmMaxBrackets };
     settingsDirty = marchMadnessSettings
-      ? mmMaxBrackets !== marchMadnessSettings.maxBracketsPerMember ||
-        mmScoringModel !== marchMadnessSettings.scoringModel ||
-        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          marchMadnessSettings.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          JSON.stringify(mmRoundValues) !== JSON.stringify(marchMadnessSettings.roundValues))
+      ? mmMaxBrackets !== marchMadnessSettings.maxBracketsPerMember
       : true;
   }
 
@@ -265,10 +244,7 @@ function SettingsForm({
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
     (isPickem && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
-    (isMarchMadness &&
-      (numberFieldInvalid(mmMaxBrackets, 1, 10) ||
-        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
+    (isMarchMadness && numberFieldInvalid(mmMaxBrackets, 1, 10));
 
   // Once started, only the name axis is still editable — a
   // dirty lockable field left over from the same minute the window closed
@@ -409,12 +385,6 @@ function SettingsForm({
           <MarchMadnessSettingsFields
             maxBrackets={mmMaxBrackets}
             onMaxBracketsChange={setMmMaxBrackets}
-            scoringModel={mmScoringModel}
-            onScoringModelChange={setMmScoringModel}
-            roundValues={mmRoundValues}
-            onRoundValueChange={(index, next) =>
-              setMmRoundValues((prev) => prev.map((value, i) => (i === index ? next : value)))
-            }
           />
         )}
       </Field.Root>

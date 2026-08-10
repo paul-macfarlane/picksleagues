@@ -284,7 +284,7 @@ describe("POST /api/leagues", () => {
       mode: "march_madness",
       name: "Bracket Bash",
       visibility: "public",
-      settings: { scoringModel: "standard_doubling" },
+      settings: { maxBracketsPerMember: 5 },
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "mode_unavailable" });

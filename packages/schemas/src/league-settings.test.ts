@@ -352,64 +352,37 @@ describe("SurvivorSettingsInputSchema", () => {
 
 describe("MarchMadnessSettingsSchema", () => {
   it("applies default: 5 brackets per member", () => {
-    const parsed = MarchMadnessSettingsSchema.parse({ scoringModel: "standard_doubling" });
+    const parsed = MarchMadnessSettingsSchema.parse({});
     expect(parsed.maxBracketsPerMember).toBe(5);
   });
 
   it.each([
+    { label: "1 bracket", input: { maxBracketsPerMember: 1 } },
+    { label: "10 brackets", input: { maxBracketsPerMember: 10 } },
     {
-      label: "standard doubling",
-      input: { scoringModel: "standard_doubling", maxBracketsPerMember: 1 },
-    },
-    {
-      label: "custom with six round values",
-      input: { scoringModel: "custom", roundValues: [1, 2, 4, 8, 16, 32] },
-    },
-    {
-      label: "custom allows zero-value rounds",
-      input: { scoringModel: "custom", roundValues: [0, 0, 0, 0, 0, 1] },
-    },
-    {
-      label: "10 brackets",
-      input: { scoringModel: "standard_doubling", maxBracketsPerMember: 10 },
+      // Scoring is standard doubling only (ADR-0034); Zod strips the retired
+      // keys, so a row stored under the old shape still parses.
+      label: "a stored row still carrying the retired scoring-model keys",
+      input: { maxBracketsPerMember: 5, scoringModel: "custom", roundValues: [1, 2, 4, 8, 16, 32] },
     },
   ])("accepts $label", ({ input }) => {
     expect(MarchMadnessSettingsSchema.safeParse(input).success).toBe(true);
   });
 
   it.each([
-    { label: "0 brackets", input: { scoringModel: "standard_doubling", maxBracketsPerMember: 0 } },
-    {
-      label: "11 brackets",
-      input: { scoringModel: "standard_doubling", maxBracketsPerMember: 11 },
-    },
-    { label: "custom without round values", input: { scoringModel: "custom" } },
-    {
-      label: "custom with five round values",
-      input: { scoringModel: "custom", roundValues: [1, 2, 4, 8, 16] },
-    },
-    {
-      label: "custom with seven round values",
-      input: { scoringModel: "custom", roundValues: [1, 2, 4, 8, 16, 32, 64] },
-    },
-    {
-      label: "negative round value",
-      input: { scoringModel: "custom", roundValues: [1, 2, 4, 8, 16, -1] },
-    },
-    {
-      label: "fractional round value",
-      input: { scoringModel: "custom", roundValues: [1, 2, 4, 8, 16, 0.5] },
-    },
-    { label: "unknown scoring model", input: { scoringModel: "tripling" } },
+    { label: "0 brackets", input: { maxBracketsPerMember: 0 } },
+    { label: "11 brackets", input: { maxBracketsPerMember: 11 } },
+    { label: "fractional brackets", input: { maxBracketsPerMember: 2.5 } },
   ])("rejects $label", ({ input }) => {
     expect(MarchMadnessSettingsSchema.safeParse(input).success).toBe(false);
   });
 
-  it("strips round values from a standard-doubling league so stale values can't persist", () => {
+  it("strips the retired scoring-model keys so stale values can't persist", () => {
     const parsed = MarchMadnessSettingsSchema.parse({
-      scoringModel: "standard_doubling",
+      scoringModel: "custom",
       roundValues: [1, 2, 4, 8, 16, 32],
     });
+    expect("scoringModel" in parsed).toBe(false);
     expect("roundValues" in parsed).toBe(false);
   });
 });

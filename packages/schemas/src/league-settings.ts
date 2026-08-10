@@ -251,40 +251,17 @@ export function survivorSettingsInvalidatePicks(
   return nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek);
 }
 
-export const MARCH_MADNESS_SCORING_MODEL = {
-  STANDARD_DOUBLING: "standard_doubling",
-  CUSTOM: "custom",
-} as const;
-
-export type MarchMadnessScoringModel =
-  (typeof MARCH_MADNESS_SCORING_MODEL)[keyof typeof MARCH_MADNESS_SCORING_MODEL];
-
-export const MarchMadnessScoringModelSchema = z
-  .enum(MARCH_MADNESS_SCORING_MODEL)
-  .openapi("MarchMadnessScoringModel");
-
-const marchMadnessBaseSettings = {
-  maxBracketsPerMember: z.number().int().min(1).max(10).default(5),
-};
-
 /**
- * Custom scoring sets each round's per-correct-pick value independently
- * (spec §MM League Settings): six values, R64 → Championship, any
- * non-negative integer. `roundValues` exists only under the custom model so
- * a standard-doubling league can't carry stale round values.
+ * Scoring is standard doubling only — the Custom per-round-values model was
+ * cut before the mode was built (ADR-0034), so the round values live as
+ * constants in the future scoring module, not here. Stray keys from the
+ * retired shape (`scoringModel`, `roundValues`) are stripped, matching how
+ * every other retired setting ages out.
  */
 export const MarchMadnessSettingsSchema = z
-  .discriminatedUnion("scoringModel", [
-    z.object({
-      ...marchMadnessBaseSettings,
-      scoringModel: z.literal(MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING),
-    }),
-    z.object({
-      ...marchMadnessBaseSettings,
-      scoringModel: z.literal(MARCH_MADNESS_SCORING_MODEL.CUSTOM),
-      roundValues: z.array(z.number().int().min(0)).length(6),
-    }),
-  ])
+  .object({
+    maxBracketsPerMember: z.number().int().min(1).max(10).default(5),
+  })
   .openapi("MarchMadnessSettings");
 
 export type MarchMadnessSettings = z.infer<typeof MarchMadnessSettingsSchema>;

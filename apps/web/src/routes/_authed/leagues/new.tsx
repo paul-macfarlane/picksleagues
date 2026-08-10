@@ -8,13 +8,11 @@ import {
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
   LeagueNameSchema,
-  MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   OFFERED_LEAGUE_MODES,
   PICK_TYPE,
   type LeagueMode,
   type LeagueVisibility,
-  type MarchMadnessScoringModel,
   type PickType,
 } from "@picksleagues/schemas";
 import { useCreateLeague } from "@/api/leagues";
@@ -55,10 +53,6 @@ function NewLeague() {
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
   const [mmMaxBrackets, setMmMaxBrackets] = useState(5);
-  const [mmScoringModel, setMmScoringModel] = useState<MarchMadnessScoringModel>(
-    MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
-  );
-  const [mmRoundValues, setMmRoundValues] = useState<number[]>([0, 0, 0, 0, 0, 0]);
 
   const createLeague = useCreateLeague();
 
@@ -85,14 +79,7 @@ function NewLeague() {
         // (ADR-0026), and the push/tie rule is fixed at its default (ADR-0033).
         settings = {};
       } else {
-        settings =
-          mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-            ? {
-                maxBracketsPerMember: mmMaxBrackets,
-                scoringModel: mmScoringModel,
-                roundValues: mmRoundValues,
-              }
-            : { maxBracketsPerMember: mmMaxBrackets, scoringModel: mmScoringModel };
+        settings = { maxBracketsPerMember: mmMaxBrackets };
       }
 
       // Re-validate the assembled body against the exact contract shape
@@ -121,10 +108,7 @@ function NewLeague() {
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
     (mode === LEAGUE_MODE.PICKEM && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
-    (mode === LEAGUE_MODE.MARCH_MADNESS &&
-      (numberFieldInvalid(mmMaxBrackets, 1, 10) ||
-        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
+    (mode === LEAGUE_MODE.MARCH_MADNESS && numberFieldInvalid(mmMaxBrackets, 1, 10));
 
   return (
     <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
@@ -190,12 +174,6 @@ function NewLeague() {
               <MarchMadnessSettingsFields
                 maxBrackets={mmMaxBrackets}
                 onMaxBracketsChange={setMmMaxBrackets}
-                scoringModel={mmScoringModel}
-                onScoringModelChange={setMmScoringModel}
-                roundValues={mmRoundValues}
-                onRoundValueChange={(index, next) =>
-                  setMmRoundValues((prev) => prev.map((value, i) => (i === index ? next : value)))
-                }
               />
             )}
 

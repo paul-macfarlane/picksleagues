@@ -779,18 +779,7 @@ export interface components {
         LeagueVisibility: "public" | "private";
         /** @enum {string} */
         LeagueStatus: "active" | "concluded";
-        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "standard_doubling";
-        } | {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "custom";
-            roundValues: number[];
-        };
+        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | components["schemas"]["MarchMadnessSettings"];
         PickemSettings: {
             startWeek: {
                 /** @enum {string} */
@@ -819,6 +808,10 @@ export interface components {
                 type: "regular";
                 number: number;
             };
+        };
+        MarchMadnessSettings: {
+            /** @default 5 */
+            maxBracketsPerMember: number;
         };
         /** @enum {string} */
         MemberRole: "commissioner" | "member";
@@ -862,18 +855,6 @@ export interface components {
             picksPerWeek: number;
         };
         SurvivorSettingsInput: Record<string, never>;
-        MarchMadnessSettings: {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "standard_doubling";
-        } | {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "custom";
-            roundValues: number[];
-        };
         MyLeaguesResponse: {
             leagues: components["schemas"]["LeagueSummary"][];
         };
