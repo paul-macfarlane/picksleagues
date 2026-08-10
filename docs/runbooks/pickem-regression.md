@@ -65,10 +65,10 @@ document.addEventListener("visibilitychange", () => console.log("hidden:", docum
 **Pick type is a per-pass choice.** ATS exercises the spread; straight-up exercises
 the tie. Where a pass depends on one, it says so.
 
-**The league's weeks come from a preset, not a week pair.** The create form offers
-one **Season range** select — Regular Season / Postseason / Full Season (ADR-0020)
-— and the range only moves when the preset does. Every library scenario declares
-regular-season week 1, so leave it on the default, Regular Season.
+**The league's weeks are resolved, not chosen.** Pick'em is regular-season only
+(ADR-0031): the create form and settings editor show the resolved range read-only,
+and there is nothing range-shaped to configure. Every library scenario declares
+regular-season week 1, which the resolved range always covers.
 
 ---
 
@@ -327,10 +327,8 @@ Assert:
 - [x] The counts match what is actually deleted.
 - [x] A change that strands nothing — the league's name — raises **no** warning and no
       dialog.
-- [x] Changing **Pick type** warns the same way. So does moving **Season range** to a
-      narrower preset (Full Season → Regular Season); widening it (Regular Season →
-      Full Season) does not, because every existing pick still sits in a week the
-      league plays.
+- [x] Changing **Pick type** warns the same way. (Season range is no longer a
+      setting — ADR-0031 — so no range edit can strand picks from this form.)
 - [x] After saving, the members' weeks are open again: the sheet is back, and a
       **fresh full set** can be submitted. Not "re-pick within the new cap" — there is
       no partial edit, only another whole submission.

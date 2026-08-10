@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), and ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), and ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -61,7 +61,7 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 ### Membership
 - League size: **2 minimum, 100 maximum**.
 - Join cutoff: no joins once the league's first week has started (NFL modes) or once the first Round of 64 game has tipped (March Madness). Enforced automatically; not configurable.
-  - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
+  - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020's rule, kept by ADR-0031), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
 - A league that never reaches 2 members by its start simply proceeds; standings with one member are valid but trivially uninteresting. No auto-cancellation.
 - Leaving: a member may leave a league **pre-start only** — once the league starts, membership is frozen and there is no mid-season leaving. The last commissioner of a league with other members must promote a replacement before leaving; a commissioner who is the only member deletes the league instead. (ADR-0004)
 
@@ -94,15 +94,13 @@ A browse page listing public leagues that have not passed their join cutoff, wit
 A season-long league where members compete to build the best record picking NFL games each week, on both a weekly and a cumulative season leaderboard.
 
 ### League Settings
-1. **Season Range** — one of three presets: **Regular Season** (regular season weeks 1–18), **Postseason** (Wild Card, Divisional, Conference Championship, Super Bowl), or **Full Season** (regular season week 1 through the Super Bowl)
-2. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
-3. **Picks Per Week** — 1–16 (default 5)
+1. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
+2. **Picks Per Week** — 1–16 (default 5)
 
-The chosen preset is resolved to a concrete start week and end week **when the league is created** — and again if a commissioner changes it while the league is still pre-start, since settings lock at league start (§Commissioner Powers). Once the league starts, the range it resolved to is fixed. A league created after the preset's first week has already begun starts instead at the next week whose first kickoff is still ahead — so a league is never born already-started. (ADR-0020)
+**Pick'em has no season-range setting.** The mode is regular-season only, so the regular season is the only range it can ever run, and a control offering one option is not a choice. The league's week range is instead resolved server-side when settings are written — regular-season week 1 through week 18, advanced past any week already under way so the league is never born already-started — and stored as the concrete week refs the join cutoff and settlement compute on. Once the league starts, the range it resolved to is fixed. Commissioners see the resolved range read-only. (ADR-0031, applying ADR-0020's mid-week resolution rule the same way ADR-0024 does for Survivor.)
 
 ### Core Rules
-- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose season range extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
-- **Playoff weeks have small slates** (Wild Card 6 games → Super Bowl 1); the fewer-games rule below applies naturally — in a week with fewer available games than Picks Per Week, everyone picks every available game.
+- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night. Preseason, the playoffs, and the Pro Bowl are never eligible — Pick'em is regular-season only (ADR-0031).
 - Members choose their own games; overlap with other members is not required.
 - **Fewer games than Picks Per Week:** if the week's slate has fewer available games than the configured count, all members pick every available game that week.
 - **One submission per week, and it is final.** A week's picks go in together, in one submission, behind a confirmation stating that it cannot be undone. Once it lands, no pick in that week can be changed, replaced, or removed — there is no second submission and no editing. A misclick is permanent for that week.
@@ -306,7 +304,7 @@ Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor e
 | Cancellation re-picks | Shipped, then removed (ADR-0018); a cancelled game's pick pushes and the push stands |
 | Pick'em pick entry | One submission per week, confirmed and immutable (ADR-0018) |
 | Pick'em push value and ties | Fixed at +0.5, no setting; tied members share the rank with no tiebreaker (ADR-0018) |
-| Pick'em season range | Three presets — Regular Season, Postseason, Full Season — resolved to concrete weeks at league creation; custom ranges dropped (ADR-0020) |
+| Pick'em season range | No range setting — regular-season only; the server resolves and stores the range (ADR-0031, which retired ADR-0020's three presets) |
 | Game Mode 2 name | Ships as **NFL Survivor**, the industry-standard term; called "Elimination" in the original v0.3 text (ADR-0023) |
 | Survivor season range | No range setting — the server resolves and stores a regular-season range (ADR-0024) |
 | Survivor pick type | Straight up only; the Pick Type setting removed, since changeable picks plus pick-time spreads reward refreshing (ADR-0026) |

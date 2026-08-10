@@ -6,8 +6,6 @@ import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   NFL_REGULAR_SEASON_RANGE,
-  PICKEM_NOMINAL_RANGE,
-  PICKEM_SEASON_RANGE_PRESET,
   PickemSettingsSchema,
   SurvivorSettingsSchema,
   WEEK_TYPE,
@@ -16,13 +14,9 @@ import {
   type LeagueSettings,
   type NflSeasonRange,
   type NflWeekRef,
-  type PickemSeasonRangePreset,
-  type PickemSeasonRangePresetsResponse,
   type WeekType,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql } from "../games";
-import { latestSeasonForSport, sportForMode } from "./current-season";
-import { isPreStart, nflWeekFirstKickoffAt } from "./start";
 
 function weekRefOf(type: WeekType, number: number): NflWeekRef {
   return type === WEEK_TYPE.REGULAR
@@ -50,17 +44,17 @@ function weekRefOf(type: WeekType, number: number): NflWeekRef {
  * uncreatable for the days between one round kicking off and the next being
  * seeded.
  *
- * The search is confined to the nominal range on purpose: a Regular Season
- * range created during the playoffs would otherwise resolve its start to Wild
+ * The search is confined to the nominal range on purpose: a regular-season
+ * range resolved during the playoffs would otherwise resolve its start to Wild
  * Card — past its own end — and fail the stored schema's ordering rule.
  * Confined, it finds nothing, falls back to the nominal start, and meets
  * `createLeague`'s existing `start_week_passed` refusal, which is the correct
  * answer for a range that is entirely in the past.
  *
- * Mode-neutral because the rule is: Pick'em passes the range its preset names
- * (ADR-0020), Survivor the fixed regular season its mode allows (ADR-0024).
- * Restating it per mode would let one of them drift into resolving a start
- * week the other considers already underway.
+ * Mode-neutral because the rule is: both NFL modes pass the fixed regular
+ * season their mode allows (ADR-0024, ADR-0031). Restating it per mode would
+ * let one of them drift into resolving a start week the other considers
+ * already underway.
  */
 export async function resolveNflSeasonRange(
   db: Db,
@@ -153,12 +147,7 @@ export async function resolveLeagueSettings(
     case LEAGUE_MODE.PICKEM: {
       const parsed = LEAGUE_SETTINGS_INPUT_SCHEMAS[LEAGUE_MODE.PICKEM].safeParse(input);
       if (!parsed.success) return invalidSettings(parsed.error.issues);
-      const range = await resolveNflSeasonRange(
-        db,
-        seasonId,
-        PICKEM_NOMINAL_RANGE[parsed.data.seasonRangePreset],
-        clock,
-      );
+      const range = await resolveNflSeasonRange(db, seasonId, NFL_REGULAR_SEASON_RANGE, clock);
       // Throws rather than refusing: a range this schema rejects means
       // resolution produced start-after-end, which is a bug here and not
       // something the commissioner did — it belongs in the logged 500, not a
@@ -179,50 +168,4 @@ export async function resolveLeagueSettings(
       return { ok: true, settings: parsed.data };
     }
   }
-}
-
-const ALL_PICKEM_SEASON_RANGE_PRESETS = Object.values(PICKEM_SEASON_RANGE_PRESET);
-
-/**
- * Which of the three ADR-0020 presets a season, at one instant, can still
- * start — the exact resolve → derive → compare `createLeague` and
- * `updateLeague` each run for the one preset a request names
- * (`resolveNflSeasonRange` → `nflWeekFirstKickoffAt` → `isPreStart`), run
- * here for all three so a preset this reports startable can never disagree
- * with the `start_week_passed` refusal a write against it would produce.
- * Names no HTTP status and needs no refusal union — an empty list is a valid
- * answer, not a failure.
- */
-export async function startablePickemSeasonRangePresets(
-  db: Db,
-  clock: Clock,
-  seasonId: string,
-): Promise<PickemSeasonRangePreset[]> {
-  const startable: PickemSeasonRangePreset[] = [];
-  for (const preset of ALL_PICKEM_SEASON_RANGE_PRESETS) {
-    const range = await resolveNflSeasonRange(db, seasonId, PICKEM_NOMINAL_RANGE[preset], clock);
-    const startsAt = await nflWeekFirstKickoffAt(db, seasonId, range.startWeek);
-    if (isPreStart(startsAt, clock)) startable.push(preset);
-  }
-  return startable;
-}
-
-/**
- * The create form's availability answer, against the latest ingested NFL
- * season — the same season `createLeague` binds a new Pick'em league to
- * (`sportForMode(LEAGUE_MODE.PICKEM)` is always NFL). No ingested season at
- * all reports an empty list with a null year rather than throwing: this
- * endpoint has no refusal union to reuse `createLeague`'s `no_active_season`
- * through, and "nothing is startable yet" is the honest answer regardless.
- */
-export async function pickemSeasonRangePresetsForCreate(
-  db: Db,
-  clock: Clock,
-): Promise<PickemSeasonRangePresetsResponse> {
-  const season = await latestSeasonForSport(db, sportForMode(LEAGUE_MODE.PICKEM));
-  if (!season) return { seasonYear: null, startablePresets: [] };
-  return {
-    seasonYear: season.year,
-    startablePresets: await startablePickemSeasonRangePresets(db, clock, season.id),
-  };
 }

@@ -12,7 +12,6 @@ import {
   MEMBER_ROLE,
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
-  PICKEM_SEASON_RANGE_PRESET,
   PICK_TYPE,
   WEEK_TYPE,
   type PickemSettings,
@@ -1305,11 +1304,11 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
 });
 
 describe("PATCH /api/leagues/:leagueId — settings changes reset picks (settings-reset.ts)", () => {
-  // Builds a *wire* settings payload: a season-range preset and no week refs
-  // (ADR-0020) — the range these edits move is the one the server resolves.
+  // Builds a *wire* settings payload: the pick rules and no week refs
+  // (ADR-0031) — the stored range is the server's to resolve, so no edit here
+  // can name one.
   function settingsWith(overrides: Partial<PickemSettingsInput> = {}): PickemSettingsInput {
     return {
-      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
       picksPerWeek: DEFAULT_PICKEM_SETTINGS.picksPerWeek,
       ...overrides,
@@ -1341,12 +1340,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // already spent their one submission and would be stuck under the new cap
     // forever. Clearing is the only way back into the week.
     { label: "picksPerWeek is raised", settings: settingsWith({ picksPerWeek: 8 }) },
-    {
-      // Regular Season → Postseason moves the resolved start past every week
-      // the submitted picks live in.
-      label: "the season range preset moves the start later",
-      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON }),
-    },
   ])("clears picks when $label — a change that could strand them", async ({ settings }) => {
     const { league, memberA } = await seedWithSubmittedWeek();
 
@@ -1357,10 +1350,10 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
 
   it.each([
     {
-      // Regular Season → Full Season keeps the same resolved start and pushes
-      // the end out: every existing pick still sits in a week the league plays.
-      label: "the season range preset moves the end later",
-      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON }),
+      // Re-resolving an unchanged range lands on the same weeks, and identical
+      // pick rules strand nothing — the save must not clear anyone's picks.
+      label: "the settings are re-saved unchanged",
+      settings: settingsWith(),
     },
   ])("keeps picks when $label — nothing is stranded", async ({ settings }) => {
     const { league, memberA } = await seedWithSubmittedWeek();
@@ -1382,7 +1375,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // JSONB directly (settings-reset.ts: `1 < undefined` is false, which is
     // exactly the bug this pins).
     const withoutPicksPerWeek = {
-      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       startWeek: DEFAULT_PICKEM_SETTINGS.startWeek,
       endWeek: DEFAULT_PICKEM_SETTINGS.endWeek,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,

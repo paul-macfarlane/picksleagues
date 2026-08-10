@@ -3,12 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
-import {
-  LEAGUE_STATUS,
-  MEMBER_ROLE,
-  PICKEM_SEASON_RANGE_PRESET,
-  type LeagueResponse,
-} from "@picksleagues/schemas";
+import { LEAGUE_STATUS, MEMBER_ROLE, type LeagueResponse } from "@picksleagues/schemas";
 import { updateMemberRole } from "../src/services/members";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, seedSeason } from "./setup/league-helpers";
@@ -121,7 +116,6 @@ describe("PATCH /api/leagues/:leagueId", () => {
     const res = await patchLeague(commish.cookie, league.id, {
       visibility: "public",
       settings: {
-        seasonRangePreset: "full_season",
         pickType: "against_the_spread",
         picksPerWeek: 3,
       },
@@ -509,7 +503,6 @@ describe("PATCH settings cannot move the start into the past", () => {
     const league = await insertLeague(db, {
       seasonId,
       settings: {
-        seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
         startWeek: { type: "regular", number: 2 },
         endWeek: { type: "regular", number: 18 },
         pickType: "straight_up",
@@ -518,7 +511,7 @@ describe("PATCH settings cannot move the start into the past", () => {
       members: [{ userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
 
-    // Re-resolving this preset now finds nothing in range still ahead — week 1
+    // Re-resolving the range now finds nothing in it still ahead — week 1
     // has begun, and week 2 has no games and no open window — so it falls back
     // to the nominal start, week 1, which has already started. The edit is
     // refused rather than being allowed to start the league by saving its
@@ -528,7 +521,6 @@ describe("PATCH settings cannot move the start into the past", () => {
       league.id,
       {
         settings: {
-          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
           pickType: "straight_up",
           picksPerWeek: 5,
         },

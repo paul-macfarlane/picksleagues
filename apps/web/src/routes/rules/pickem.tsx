@@ -21,9 +21,9 @@ function PickemRules() {
         <h2>League settings</h2>
         <ul>
           <li>
-            <strong>Season range</strong> — Regular Season (weeks 1–18), Postseason (Wild Card
-            through the Super Bowl), or Full Season (week 1 through the Super Bowl). The range is
-            fixed once the league starts.
+            <strong>Season range</strong> — the NFL regular season, weeks 1–18. A league created
+            mid-season starts at the first week that hasn&apos;t kicked off yet; the range is fixed
+            once the league starts.
           </li>
           <li>
             <strong>Pick type</strong> — Straight Up or Against the Spread, applied to every pick
@@ -48,8 +48,8 @@ function PickemRules() {
             changed, replaced, or removed. A misclick is permanent for that week.
           </li>
           <li>
-            If the week has fewer available games than your league&apos;s picks per week (playoff
-            weeks, for example), everyone picks every available game.
+            If the week has fewer available games than your league&apos;s picks per week, everyone
+            picks every available game.
           </li>
           <li>
             <strong>Each pick locks at its game&apos;s kickoff</strong> — that&apos;s when it
