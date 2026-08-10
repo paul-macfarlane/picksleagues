@@ -20,6 +20,7 @@ import { UserIdentity } from "@/components/user-identity";
 
 const KICK_LOCKED_REASON_ID = "kick-locked-reason";
 const DEMOTE_LOCKED_REASON_ID = "demote-locked-reason";
+const LEAVE_LOCKED_REASON_ID = "leave-league-reason";
 
 export function MembersSection({
   league,
@@ -41,9 +42,22 @@ export function MembersSection({
   // them through a confirmation whose outcome the server can't grant.
   const soleCommissioner = hasSoleCommissioner(league);
 
-  // Every member, regardless of role, can leave from here; a sole member
-  // leaving deletes the league (server-enforced).
+  // Every member, regardless of role, can leave from here.
   const leaveLeague = useLeaveLeague(leagueId);
+
+  // Leaving hits the same server boundaries as the row actions: frozen once
+  // the league starts, and refused whenever it would strand the league
+  // without a commissioner (ADR-0004) — a sole-member commissioner deletes
+  // the league (Settings → Danger zone) rather than emptying it. Same
+  // disable-with-reason treatment as Demote: a confirmation the server must
+  // refuse is worse than a stated lock.
+  const leaveLockedReason = started
+    ? "Membership is frozen once the league starts."
+    : isCommissioner && soleCommissioner
+      ? league.members.length === 1
+        ? "You're the league's only member — deleting it from Settings is how you leave."
+        : "Leaving needs another commissioner — promote a replacement first."
+      : null;
 
   return (
     <Card>
@@ -89,9 +103,9 @@ export function MembersSection({
         {/* Clearly separated from the roster above — visible to every
             member, not gated on isCommissioner. */}
         <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
-          {started && (
-            <p id="leave-league-reason" className="text-sm text-muted-foreground">
-              Membership is frozen once the league starts.
+          {leaveLockedReason !== null && (
+            <p id={LEAVE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+              {leaveLockedReason}
             </p>
           )}
           <AlertDialog>
@@ -100,8 +114,8 @@ export function MembersSection({
                 <Button
                   variant="outline"
                   className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  disabled={started || leaveLeague.isPending}
-                  aria-describedby={started ? "leave-league-reason" : undefined}
+                  disabled={leaveLockedReason !== null || leaveLeague.isPending}
+                  aria-describedby={leaveLockedReason !== null ? LEAVE_LOCKED_REASON_ID : undefined}
                 />
               }
             >
