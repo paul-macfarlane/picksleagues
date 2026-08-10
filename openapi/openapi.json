@@ -800,19 +800,6 @@
           "status": {
             "$ref": "#/components/schemas/InviteStatus"
           },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "maxUses": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
           "useCount": {
             "type": "integer"
           },
@@ -857,8 +844,6 @@
           "id",
           "code",
           "status",
-          "expiresAt",
-          "maxUses",
           "useCount",
           "revokedAt",
           "createdAt",
@@ -869,24 +854,8 @@
         "type": "string",
         "enum": [
           "active",
-          "revoked",
-          "expired",
-          "exhausted"
+          "revoked"
         ]
-      },
-      "CreateInviteRequest": {
-        "type": "object",
-        "properties": {
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "maxUses": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000
-          }
-        }
       },
       "InvitesResponse": {
         "type": "object",
@@ -964,8 +933,6 @@
         ],
         "enum": [
           "invite_revoked",
-          "invite_expired",
-          "invite_exhausted",
           "already_member",
           "league_concluded",
           "join_closed",
@@ -4102,15 +4069,6 @@
             "in": "path"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateInviteRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
             "description": "Invite created",
@@ -4118,16 +4076,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LeagueInvite"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid expiry (in the past) or max-use bound",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4427,7 +4375,7 @@
             }
           },
           "409": {
-            "description": "Join refused: invite revoked/expired/exhausted, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+            "description": "Join refused: invite revoked, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
             "content": {
               "application/json": {
                 "schema": {

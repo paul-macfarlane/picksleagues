@@ -132,11 +132,9 @@ export const leagueInvites = pgTable(
     code: text("code").notNull().unique(),
     // Set null: the invite outlives its creator's account deletion.
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
-    // Null = no expiry / no use cap (spec §Invites — both are optional).
-    expiresAt: timestamp("expires_at", { withTimezone: true }),
-    maxUses: integer("max_uses"),
-    // Incremented by a guarded UPDATE inside the join transaction so the
-    // max-use cap can't be raced past.
+    // Informational only since ADR-0032 (expiry and max-use caps were cut):
+    // still incremented inside the join transaction, but nothing enforces on
+    // it — it feeds the commissioner panel's "Uses" readout.
     useCount: integer("use_count").notNull().default(0),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

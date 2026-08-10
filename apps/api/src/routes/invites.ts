@@ -1,6 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
-  CreateInviteRequestSchema,
   ERROR_CODE,
   ErrorResponseSchema,
   InviteSchema,
@@ -37,16 +36,14 @@ const postInvite = createRoute({
   path: "/leagues/{leagueId}/invites",
   operationId: "createInvite",
   summary: "Generate an invite link code (commissioner, pre-start only)",
-  request: {
-    params: LeagueIdParamsSchema,
-    body: { content: { "application/json": { schema: CreateInviteRequestSchema } } },
-  },
+  // No body: an invite is a bare opaque code with no create-time options
+  // (ADR-0032 cut expiry and max-use caps).
+  request: { params: LeagueIdParamsSchema },
   responses: {
     201: {
       description: "Invite created",
       content: { "application/json": { schema: InviteSchema } },
     },
-    400: errorResponse("Invalid expiry (in the past) or max-use bound"),
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,
@@ -120,7 +117,7 @@ const postJoin = createRoute({
     401: UNAUTHENTICATED_401,
     404: errorResponse("Unknown invite code"),
     409: errorResponse(
-      "Join refused: invite revoked/expired/exhausted, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+      "Join refused: invite revoked, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
     ),
     500: MISCONFIGURED_500,
   },
@@ -145,12 +142,8 @@ export function inviteRoutes(deps: AppDeps) {
     const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
     const { leagueId } = c.req.valid("param");
-    const body = c.req.valid("json");
 
-    const result = await createInvite(db, clock, leagueId, sessionUser.id, {
-      expiresAt: body.expiresAt !== undefined ? new Date(body.expiresAt) : undefined,
-      maxUses: body.maxUses,
-    });
+    const result = await createInvite(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
       switch (result.reason) {
         case "league_not_found":
@@ -169,14 +162,6 @@ export function inviteRoutes(deps: AppDeps) {
             }),
             403,
           );
-        case "expiry_in_past":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.VALIDATION,
-              message: "Invite expiry must be in the future.",
-            }),
-            400,
-          );
         case "league_started":
           return c.json(
             ErrorResponseSchema.parse({
@@ -193,11 +178,10 @@ export function inviteRoutes(deps: AppDeps) {
 
   app.openapi(getInvites, async (c) => {
     const db = c.get("db");
-    const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
     const { leagueId } = c.req.valid("param");
 
-    const result = await listInvites(db, clock, leagueId, sessionUser.id);
+    const result = await listInvites(db, leagueId, sessionUser.id);
     if (!result.ok) {
       if (result.reason === "league_not_found") {
         return c.json(
