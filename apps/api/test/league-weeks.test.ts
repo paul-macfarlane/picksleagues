@@ -1,6 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
@@ -113,7 +112,6 @@ describe("GET /api/leagues/:leagueId/weeks", () => {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 2 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: member.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

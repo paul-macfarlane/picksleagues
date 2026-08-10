@@ -263,7 +263,6 @@ describe("Survivor's resolved range across a renewal", () => {
     // new season's first still-ahead week.
     const res = await patchLeagueSettings(cookie, league.id, {
       pickType: PICK_TYPE.STRAIGHT_UP,
-      pushTieResolution: "advance",
     });
     expect(res.status).toBe(200);
 

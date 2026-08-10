@@ -42,3 +42,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0030](0030-league-season-conclusion-is-settlement-output.md) | A league season's conclusion is settlement's output, recomputed both ways | Accepted |
 | [0031](0031-pickem-is-regular-season-only.md) | Pick'em is regular-season only; the season-range presets are removed | Accepted |
 | [0032](0032-invites-are-bare-revocable-codes.md) | Invite links are bare revocable codes; expiry and max-use caps removed | Accepted |
+| [0033](0033-survivor-tie-always-advances.md) | Survivor's Push/Tie Resolution fixed at its default; the setting removed | Accepted |

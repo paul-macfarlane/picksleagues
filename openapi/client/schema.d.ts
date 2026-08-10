@@ -819,13 +819,7 @@ export interface components {
                 type: "regular";
                 number: number;
             };
-            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
-        /**
-         * @default advance
-         * @enum {string}
-         */
-        SurvivorPushTieResolution: "advance" | "eliminate";
         /** @enum {string} */
         MemberRole: "commissioner" | "member";
         LeagueMember: {
@@ -867,9 +861,7 @@ export interface components {
             /** @default 5 */
             picksPerWeek: number;
         };
-        SurvivorSettingsInput: {
-            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
-        };
+        SurvivorSettingsInput: Record<string, never>;
         MarchMadnessSettings: {
             /** @default 5 */
             maxBracketsPerMember: number;

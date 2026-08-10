@@ -183,35 +183,17 @@ export function pickemSettingsInvalidatePicks(
 }
 
 /**
- * On a straight-up tie in Survivor (spec §Survivor League Settings): advance
- * with the team consumed (default), or eliminate. A tie is the only push the
- * setting can be asked about — Survivor is straight-up only (ADR-0026), so
- * there is no spread for a pick to land exactly on.
- */
-export const SURVIVOR_PUSH_TIE_RESOLUTION = {
-  ADVANCE: "advance",
-  ELIMINATE: "eliminate",
-} as const;
-
-export type SurvivorPushTieResolution =
-  (typeof SURVIVOR_PUSH_TIE_RESOLUTION)[keyof typeof SURVIVOR_PUSH_TIE_RESOLUTION];
-
-export const SurvivorPushTieResolutionSchema = z
-  .enum(SURVIVOR_PUSH_TIE_RESOLUTION)
-  .openapi("SurvivorPushTieResolution");
-
-/**
  * Survivor is regular-season only (spec §Survivor Core Rules) — the
  * week refs still carry `type` so both NFL modes' settings address weeks with
- * one shape, but only the regular member is admitted.
+ * one shape, but only the regular member is admitted. The resolved range is
+ * the whole of the stored settings: Pick Type went with ADR-0026, and the
+ * Push/Tie Resolution was fixed at its default — a tie advances with the team
+ * consumed — by ADR-0033, so no rule knob remains.
  */
 export const SurvivorSettingsSchema = z
   .object({
     startWeek: nflRegularWeekRef,
     endWeek: nflRegularWeekRef,
-    pushTieResolution: SurvivorPushTieResolutionSchema.default(
-      SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-    ),
   })
   .refine((s) => s.endWeek.number >= s.startWeek.number, {
     message: "End week must be at or after the start week.",
@@ -222,24 +204,20 @@ export const SurvivorSettingsSchema = z
 export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
 
 /**
- * Wire shape for a Survivor settings write (ADR-0024): the push/tie rule, and
- * nothing else — no season range (the mode is regular-season only, so the
- * server resolves the concrete refs it stores, exactly as Pick'em's input
- * works since ADR-0031), and since ADR-0026 no pick type either.
+ * Wire shape for a Survivor settings write: nothing at all. The season range
+ * is resolved server-side (ADR-0024), the pick type is fixed by the mode
+ * (ADR-0026), and the push/tie rule is fixed at advance-with-team-consumed
+ * (ADR-0033) — a Survivor league has no rule left for a commissioner to
+ * choose.
  *
  * As with Pick'em's input, the omission is the point and stray keys are simply
- * stripped: a client cannot dictate the range either way, so refusing the
- * request buys no safety the omission hasn't already bought — it only turns a
- * client that is merely out of date into a failed league creation. That is now
- * load-bearing for `pickType` too, which clients sent until ADR-0026.
+ * stripped: a client cannot dictate any of the above, so refusing the request
+ * buys no safety the omission hasn't already bought — it only turns a client
+ * that is merely out of date into a failed league creation. That is now
+ * load-bearing for `pushTieResolution` too, which clients sent until
+ * ADR-0033 (and `pickType` before it, until ADR-0026).
  */
-export const SurvivorSettingsInputSchema = z
-  .object({
-    pushTieResolution: SurvivorPushTieResolutionSchema.default(
-      SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-    ),
-  })
-  .openapi("SurvivorSettingsInput");
+export const SurvivorSettingsInputSchema = z.object({}).openapi("SurvivorSettingsInput");
 
 export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
 
@@ -259,13 +237,12 @@ export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
  * save whose wire body is byte-identical to the stored settings.
  *
  * Three Pick'em clauses have no counterpart here, and their absence is decided
- * rather than overlooked. Push/Tie Resolution is read by settlement at grading
- * time, so no stored pick becomes ungradeable when it changes. Survivor has no
- * Pick Type to switch: it is straight-up only (ADR-0026), so no stored pick can
- * be left needing a spread it never captured. And the end week is fixed at
- * regular week 18 (ADR-0024) with no path that lowers it, so a narrowing-end
- * clause would be inert — a clause that can never be true reads as protection
- * the code does not actually provide.
+ * rather than overlooked. Survivor has no rule settings left to change at all —
+ * Pick Type is fixed by the mode (ADR-0026) and Push/Tie Resolution at its
+ * default (ADR-0033) — so no stored pick can be stranded by a rule edit. And
+ * the end week is fixed at regular week 18 (ADR-0024) with no path that lowers
+ * it, so a narrowing-end clause would be inert — a clause that can never be
+ * true reads as protection the code does not actually provide.
  */
 export function survivorSettingsInvalidatePicks(
   previous: SurvivorSettings,

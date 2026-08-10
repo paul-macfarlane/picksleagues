@@ -406,6 +406,9 @@ describe("PATCH /api/leagues/:leagueId — the pre-start editor re-resolves", ()
  * wire to reach it by.
  */
 describe("POST /api/leagues — Survivor's range is resolved, never chosen", () => {
+  // Deliberately the retired push/tie key (ADR-0033): the wire strips it, so a
+  // stale client's body still creates a league — pinned by the stored settings
+  // carrying no rule keys below.
   const SURVIVOR_SETTINGS = { pushTieResolution: "advance" };
 
   it("stores the regular season while every week is still ahead", async () => {
@@ -416,11 +419,12 @@ describe("POST /api/leagues — Survivor's range is resolved, never chosen", () 
     expect(res.status).toBe(201);
     const { id } = (await res.json()) as LeagueResponse;
 
-    expect(await storedSurvivorSettings(id)).toMatchObject({
+    const stored = await storedSurvivorSettings(id);
+    expect(stored).toMatchObject({
       startWeek: regular(1),
       endWeek: regular(18),
-      pushTieResolution: "advance",
     });
+    expect("pushTieResolution" in stored).toBe(false);
   });
 
   it("advances the start to the next week whose first kickoff is still ahead", async () => {
@@ -503,12 +507,11 @@ describe("POST /api/leagues — Survivor's range is resolved, never chosen", () 
     expect(created.status).toBe(201);
     const { id } = (await created.json()) as LeagueResponse;
 
-    const res = await patchLeague(cookie, id, { pushTieResolution: "eliminate" });
+    const res = await patchLeague(cookie, id, {});
     expect(res.status).toBe(200);
     expect(await storedSurvivorSettings(id)).toMatchObject({
       startWeek: regular(1),
       endWeek: regular(18),
-      pushTieResolution: "eliminate",
     });
   });
 });

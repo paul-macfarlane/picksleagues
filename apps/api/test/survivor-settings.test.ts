@@ -1,12 +1,8 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueSeasons, survivorPicks } from "@picksleagues/db";
-import {
-  SURVIVOR_PUSH_TIE_RESOLUTION,
-  type SurvivorSettings,
-  type SurvivorSettingsInput,
-} from "@picksleagues/schemas";
-import { DEFAULT_SURVIVOR_SETTINGS, type SeededWeek } from "./setup/league-helpers";
+import { type SurvivorSettings } from "@picksleagues/schemas";
+import { type SeededWeek } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF, withCookie } from "./setup/league-app";
 import { insertSurvivorPick, seedSurvivorLeague } from "./setup/survivor-league";
 import { resetDb } from "./setup/reset-db";
@@ -18,11 +14,11 @@ import { resetDb } from "./setup/reset-db";
  * `pickem-picks.test.ts` and is deliberately not restated here — those tests
  * passing unchanged is what proves this delivery left it alone.
  *
- * The one edit that strands a Survivor pick is an advanced start week, and
- * since ADR-0026 removed Pick Type it is the only one: nothing on the wire
- * expresses it, because the server re-resolves the range against its own clock
- * on every pre-start settings write (ADR-0024). Which is why the fixtures below
- * are shaped around a *clock*, not around a field.
+ * The one edit that strands a Survivor pick is an advanced start week, and it
+ * is the only one — ADR-0026 removed Pick Type and ADR-0033 the push/tie rule,
+ * so nothing on the wire expresses any rule at all; the server re-resolves the
+ * range against its own clock on every pre-start settings write (ADR-0024).
+ * Which is why the fixtures below are shaped around a *clock*, not a field.
  */
 
 const { db, auth, app, appAfterKickoff, putSurvivorPick } = makeLeagueTestHarness();
@@ -64,13 +60,6 @@ function patchLeague(
     headers: { "content-type": "application/json", ...withCookie(cookie) },
     body: JSON.stringify(body),
   });
-}
-
-function settingsWith(overrides: Partial<SurvivorSettingsInput> = {}): SurvivorSettingsInput {
-  return {
-    pushTieResolution: DEFAULT_SURVIVOR_SETTINGS.pushTieResolution,
-    ...overrides,
-  };
 }
 
 /** Total Survivor pick rows on a league's current season instance. */
@@ -155,7 +144,7 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     const res = await patchLeague(
       memberA.cookie,
       seeded.league.id,
-      { settings: settingsWith({ pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE }) },
+      { settings: {} },
       appAfterKickoff,
     );
 
@@ -163,20 +152,16 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     expect(await pickCountFor(seeded.league.id)).toBe(0);
     const stored = await storedSettingsFor(seeded.league.id);
     expect(stored.startWeek).toEqual({ type: "regular", number: 3 });
-    expect(stored.pushTieResolution).toBe(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE);
   });
 
-  it("clears nothing when only Push/Tie Resolution changes — settlement reads it at grading time", async () => {
+  it("clears nothing when the settings are re-saved unchanged — re-resolution lands on the same weeks", async () => {
     const { league, memberA } = await seedLeagueWithPicks();
 
-    const res = await patchLeague(memberA.cookie, league.id, {
-      settings: settingsWith({ pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE }),
-    });
+    const res = await patchLeague(memberA.cookie, league.id, { settings: {} });
 
     expect(res.status).toBe(200);
     expect(await pickCountFor(league.id)).toBe(2);
     const stored = await storedSettingsFor(league.id);
-    expect(stored.pushTieResolution).toBe(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE);
     expect(stored.startWeek).toEqual({ type: "regular", number: 1 });
   });
 
@@ -204,7 +189,7 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     const res = await patchLeague(
       memberA.cookie,
       seeded.league.id,
-      { settings: settingsWith({ pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE }) },
+      { settings: {} },
       appAfterKickoff,
     );
 
@@ -215,6 +200,5 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     expect(await pickCountFor(seeded.league.id)).toBe(1);
     const stored = await storedSettingsFor(seeded.league.id);
     expect(stored.startWeek).toEqual({ type: "regular", number: 1 });
-    expect(stored.pushTieResolution).toBe(SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE);
   });
 });

@@ -2,10 +2,8 @@ import {
   GAME_STATUS,
   isUnplayedStatus,
   PICK_OUTCOME,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   type GameStatus,
   type PickOutcome,
-  type SurvivorPushTieResolution,
 } from "@picksleagues/schemas";
 
 /**
@@ -32,11 +30,13 @@ import {
  * rather than a mode of the first: every settled season rests on the complete
  * grade, and a rule about incomplete weeks does not belong inside it.
  *
- * Survivor is straight-up only (ADR-0026), so nothing here consults a spread
- * and `pushTieResolution` decides exactly one thing: a tied final score. There
- * is no shared grading helper with `pickem.ts` for the same reason — with ATS
- * gone the whole arithmetic is one subtraction, and extracting it would leave
- * two callers sharing less code than the indirection costs.
+ * Survivor is straight-up only (ADR-0026), so nothing here consults a spread,
+ * and a tied final score always advances with the team consumed — the
+ * Push/Tie Resolution setting was cut at its default (ADR-0033), so no
+ * settings reach this package at all. There is no shared grading helper with
+ * `pickem.ts` for the same reason — with ATS gone the whole arithmetic is one
+ * subtraction, and extracting it would leave two callers sharing less code
+ * than the indirection costs.
  */
 
 /** A member's single pick for the week, as stored on `survivor_picks`. */
@@ -60,11 +60,6 @@ export interface SurvivorGameResult {
   awayTeamId: string;
   homeScore: number | null;
   awayScore: number | null;
-}
-
-/** The slice of `SurvivorSettings` that scoring actually consumes. */
-export interface SurvivorScoringSettings {
-  pushTieResolution: SurvivorPushTieResolution;
 }
 
 /**
@@ -169,7 +164,6 @@ export function settleSurvivorWeek(
   aliveMemberIds: readonly string[],
   picks: readonly SurvivorPickInput[],
   results: readonly SurvivorGameResult[],
-  settings: SurvivorScoringSettings,
 ): SurvivorWeekSettlement {
   const resultsByGameId = indexResults(COMPLETE, picks, results);
   const aliveEntering = new Set(aliveMemberIds);
@@ -192,7 +186,7 @@ export function settleSurvivorWeek(
       continue;
     }
 
-    const graded = gradePick(COMPLETE, pick, resultsByGameId.get(pick.gameId)!, settings);
+    const graded = gradePick(COMPLETE, pick, resultsByGameId.get(pick.gameId)!);
     outcomes.push(graded.outcome);
     if (graded.eliminates) {
       eliminated.add(memberId);
@@ -243,7 +237,7 @@ export interface SurvivorProvisionalSettlement {
  *
  * **A member goes out early only while some member who entered the week alive
  * holds a graded pick that does not eliminate them** — a win, a cancellation, or
- * a tie the settings advance on. That *confirmed survivor* is the exact negation
+ * a tie (which always advances, ADR-0033). That *confirmed survivor* is the exact negation
  * of the everyone-out revival (spec §Game Mode 2 — Everyone eliminated in the
  * same week): with one member certain to come through, revival cannot fire this
  * week however the open games land, so a graded losing pick is a final answer
@@ -274,7 +268,6 @@ export function settleSurvivorWeekProvisionally(
   aliveMemberIds: readonly string[],
   picks: readonly SurvivorPickInput[],
   results: readonly SurvivorGameResult[],
-  settings: SurvivorScoringSettings,
 ): SurvivorProvisionalSettlement {
   const resultsByGameId = indexResults(PROVISIONAL, picks, results);
   const pickByMemberId = indexPicksByMember(PROVISIONAL, picks);
@@ -290,7 +283,7 @@ export function settleSurvivorWeekProvisionally(
     const result = resultsByGameId.get(pick.gameId)!;
     if (!isGradableAlone(result)) continue;
 
-    if (gradePick(PROVISIONAL, pick, result, settings).eliminates) {
+    if (gradePick(PROVISIONAL, pick, result).eliminates) {
       eliminatedMemberIds.push(memberId);
     } else {
       confirmedSurvivor = true;
@@ -398,13 +391,12 @@ function gradePick(
   caller: string,
   pick: SurvivorPickInput,
   result: SurvivorGameResult,
-  settings: SurvivorScoringSettings,
 ): GradedSurvivorPick {
   const graded = { pickId: pick.pickId, memberId: pick.memberId, gameId: pick.gameId };
 
   // A cancelled game is the one case that hands the team back, and the member
-  // always survives it — the tie setting is about a game that was played (spec
-  // §Game Mode 2 — Cancelled game).
+  // always survives it — a tie's consumed team below is about a game that was
+  // played (spec §Game Mode 2 — Cancelled game).
   if (isUnplayedStatus(result.status)) {
     return {
       outcome: { ...graded, outcome: PICK_OUTCOME.PUSH, teamConsumed: false },
@@ -426,11 +418,12 @@ function gradePick(
     };
   }
 
-  // A tie: the one push a commissioner gets to rule on (spec §Survivor League
-  // Settings). Either way the team is spent — the game was played.
+  // A tie: advance with the team consumed — the game was played, so the team
+  // is spent, and the member survives. Fixed rather than configurable
+  // (ADR-0033 cut the Push/Tie Resolution setting at this, its default).
   return {
     outcome: { ...graded, outcome: PICK_OUTCOME.PUSH, teamConsumed: true },
-    eliminates: settings.pushTieResolution === SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
+    eliminates: false,
   };
 }
 
