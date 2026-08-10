@@ -696,18 +696,8 @@
           "code": {
             "type": "string"
           },
-          "status": {
-            "$ref": "#/components/schemas/InviteStatus"
-          },
           "useCount": {
             "type": "integer"
-          },
-          "revokedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
           },
           "createdAt": {
             "type": "string",
@@ -742,18 +732,9 @@
         "required": [
           "id",
           "code",
-          "status",
           "useCount",
-          "revokedAt",
           "createdAt",
           "createdBy"
-        ]
-      },
-      "InviteStatus": {
-        "type": "string",
-        "enum": [
-          "active",
-          "revoked"
         ]
       },
       "InvitesResponse": {

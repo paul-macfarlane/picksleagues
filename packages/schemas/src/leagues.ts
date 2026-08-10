@@ -50,8 +50,8 @@ export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).ope
  * discriminated union makes an invalid mode/settings pairing unrepresentable
  * rather than a service-layer check. Both NFL modes take their *input* schema:
  * neither request carries week refs, because the server resolves the range it
- * stores — Pick'em from a season-range preset (ADR-0020), Survivor from the
- * one range its mode allows (ADR-0024).
+ * stores — each mode's one legal range is the regular season (ADR-0024,
+ * ADR-0031).
  */
 export const CreateLeagueRequestSchema = z
   .discriminatedUnion("mode", [

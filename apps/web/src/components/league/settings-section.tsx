@@ -309,9 +309,9 @@ function SettingsForm({
       if (visibilityDirty) body.visibility = visibility;
       if (maxMembersDirty) body.maxMembers = maxMembers;
       if (settingsDirty) {
-        // The *input* map, not the stored one: Pick'em's request shape is the
-        // preset without the week refs the server resolves (ADR-0020), and the
-        // two other modes map to the same schema in both.
+        // The *input* map, not the stored one: both NFL modes' request shapes
+        // omit the week refs the server resolves (ADR-0024/0031); March
+        // Madness maps to the same schema in both.
         const parsedSettings =
           LEAGUE_SETTINGS_INPUT_SCHEMAS[league.mode].safeParse(assembledSettings);
         if (!parsedSettings.success) {

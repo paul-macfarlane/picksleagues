@@ -70,9 +70,10 @@ export async function createLeague(
   }
 
   // Second line of defense behind the route's discriminated union; also
-  // applies schema defaults if the service is ever called directly. Pick'em's
-  // season-range preset resolves to concrete week refs here (ADR-0020) — the
-  // stored settings are the resolved fact, never the request.
+  // applies schema defaults if the service is ever called directly. Both NFL
+  // modes' regular-season ranges resolve to concrete week refs here
+  // (ADR-0024/0031, under ADR-0020's mid-week rule) — the stored settings are
+  // the resolved fact, never the request.
   const resolved = await resolveLeagueSettings(db, clock, input.mode, season.id, input.settings);
   if (!resolved.ok) {
     throw new Error(
