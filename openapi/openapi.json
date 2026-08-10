@@ -3656,7 +3656,7 @@
             }
           },
           "409": {
-            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
+            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the season's remaining weeks have already started (start_week_passed — a league must be born pre-start)",
             "content": {
               "application/json": {
                 "schema": {

@@ -86,9 +86,12 @@ applied here and in ADR-0024.
   built on the preset availability endpoint. Pick'em now learns a dead
   season at submit time via `start_week_passed` — the exact behavior
   Survivor has always had.
-- A stored settings row written under ADR-0020 still parses: the retired
-  `seasonRangePreset` key is stripped by the schema, and the refs it sits
-  beside are what everything downstream computes on. No data migration —
-  there are no active leagues (owner, 2026-08-09).
+- A stored *Regular Season* row written under ADR-0020 still parses: the
+  retired `seasonRangePreset` key is stripped by the schema, and the refs it
+  sits beside are what everything downstream computes on. A stored Postseason
+  or Full Season row would **not** parse — its refs are postseason, which the
+  regular-only schema rejects into the logged 500. That is acceptable only
+  because there are no active leagues in any environment (owner, 2026-08-09),
+  which is why this ships as a cut with no data migration.
 - **Revisit if** a real league asks to keep picking through the playoffs;
   that request reopens this ADR with the restore path above.

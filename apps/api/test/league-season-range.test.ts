@@ -86,7 +86,7 @@ function patchLeague(cookie: string, leagueId: string, settings: unknown, on: Ap
 /**
  * Reads the row back through the stored schema — which also pins that a write
  * path can never leave an unresolved shape in the JSONB, since the stored
- * schema requires the week refs the preset alone doesn't carry.
+ * schema requires the week refs the wire shape doesn't carry.
  */
 async function storedSettingsBlob(leagueId: string): Promise<unknown> {
   const [row] = await db.select().from(leagueSeasons).where(eq(leagueSeasons.leagueId, leagueId));
@@ -376,10 +376,10 @@ describe("PATCH /api/leagues/:leagueId — the pre-start editor re-resolves", ()
   it("keeps the resolved range through a settings edit that carries none", async () => {
     // The wire shape has nothing to say about the range, so a save must leave
     // the stored refs intact rather than dropping them — the edit re-resolves
-    // against the same clock and lands on the same weeks. (Re-resolution
-    // *moving* the range needs a season whose weeks changed underneath the
-    // league, which is renewal — renewal.test.ts pins that half, and the
-    // start-advance clause of `pickemSettingsInvalidatePicks` exists for it.)
+    // against the same clock and lands on the same weeks. (Re-resolution can
+    // also *advance* the start — a stored start week that emptied and passed —
+    // and pickem-picks.test.ts's settings-reset suite pins that a save which
+    // does so clears the instance's picks.)
     await seedFullSeason();
     const { cookie } = await createAuthenticatedUser(auth);
     const created = await postLeague(cookie, { pickType: "straight_up" });
@@ -401,9 +401,9 @@ describe("PATCH /api/leagues/:leagueId — the pre-start editor re-resolves", ()
 });
 
 /**
- * ADR-0024: Survivor's request carries no range and no preset, so these assert
- * the same mid-week rule Pick'em's Regular Season preset gets, reached without
- * anything on the wire to reach it by.
+ * ADR-0024: Survivor's request carries no range, so these assert the same
+ * mid-week rule Pick'em's resolution gets, reached without anything on the
+ * wire to reach it by.
  */
 describe("POST /api/leagues — Survivor's range is resolved, never chosen", () => {
   const SURVIVOR_SETTINGS = { pushTieResolution: "advance" };

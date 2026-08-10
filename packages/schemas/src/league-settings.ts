@@ -223,11 +223,9 @@ export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
 
 /**
  * Wire shape for a Survivor settings write (ADR-0024): the push/tie rule, and
- * nothing else — no season range, and since ADR-0026 no pick type either.
- * Unlike Pick'em's input there is no preset field — Survivor is regular-season
- * only (ADR-0007), so its one legal range is implicit in the mode and the
- * server resolves the concrete refs it stores against the bound season and the
- * clock.
+ * nothing else — no season range (the mode is regular-season only, so the
+ * server resolves the concrete refs it stores, exactly as Pick'em's input
+ * works since ADR-0031), and since ADR-0026 no pick type either.
  *
  * As with Pick'em's input, the omission is the point and stray keys are simply
  * stripped: a client cannot dictate the range either way, so refusing the
@@ -342,10 +340,10 @@ export type LeagueSettingsInput =
  * Wire-side dispatch, the counterpart to `LEAGUE_SETTINGS_SCHEMAS`: the schema
  * a settings *request* must satisfy. Both NFL modes' entries differ from the
  * stored map, because both have their season range resolved server-side rather
- * than chosen — Pick'em from a preset (ADR-0020), Survivor from the one range
- * its mode allows (ADR-0024). March Madness has no season range at all, so it
- * accepts exactly what it stores and its wire and stored schemas are the same
- * object rather than a duplicate that could drift.
+ * than chosen — each mode's one legal range is the regular season (ADR-0024,
+ * ADR-0031). March Madness has no season range at all, so it accepts exactly
+ * what it stores and its wire and stored schemas are the same object rather
+ * than a duplicate that could drift.
  */
 export const LEAGUE_SETTINGS_INPUT_SCHEMAS = {
   [LEAGUE_MODE.PICKEM]: PickemSettingsInputSchema,

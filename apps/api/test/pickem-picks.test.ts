@@ -1348,19 +1348,63 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     expect(await pickCountFor(league.id)).toBe(0);
   });
 
-  it.each([
-    {
-      // Re-resolving an unchanged range lands on the same weeks, and identical
-      // pick rules strand nothing — the save must not clear anyone's picks.
-      label: "the settings are re-saved unchanged",
-      settings: settingsWith(),
-    },
-  ])("keeps picks when $label — nothing is stranded", async ({ settings }) => {
+  it("keeps picks when the settings are re-saved unchanged — nothing is stranded", async () => {
+    // Re-resolving an unchanged range lands on the same weeks, and identical
+    // pick rules strand nothing — the save must not clear anyone's picks.
     const { league, memberA } = await seedWithSubmittedWeek();
 
-    const res = await patchLeague(memberA.cookie, league.id, { settings });
+    const res = await patchLeague(memberA.cookie, league.id, { settings: settingsWith() });
     expect(res.status).toBe(200);
     expect(await pickCountFor(league.id)).toBe(3);
+  });
+
+  it("clears picks when re-resolution advances the start under an unchanged request", async () => {
+    // The server-side start move the predicate's range clause exists for
+    // (ADR-0031): the stored start week holds no games and its window has
+    // passed by the edit's clock, so a byte-identical save re-resolves the
+    // start forward without the commissioner naming a week. The picks live in
+    // week 2, which stays in range — the clause is deliberately coarse (any
+    // advance clears the whole instance), and the picks are still unlocked,
+    // so the clear proceeds rather than refusing with picks_locked.
+    const WEEK2_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+      weeks: [
+        { weekNumber: 1, endsAt: WEEK1_KICKOFF, kickoffs: [] },
+        {
+          weekNumber: 2,
+          kickoffs: [
+            { kickoffAt: WEEK2_KICKOFF },
+            { kickoffAt: new Date(WEEK2_KICKOFF.getTime() + 60 * 60 * 1000) },
+            { kickoffAt: new Date(WEEK2_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
+          ],
+        },
+      ],
+    });
+    const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+      picks: gameIds.get("regular:2")!.map((gameId) => ({
+        gameId,
+        side: PICKEM_PICK_SIDE.HOME,
+        spread: null,
+      })),
+    });
+    expect(submitted.status).toBe(200);
+    expect(await pickCountFor(league.id)).toBe(3);
+
+    // Post-kickoff clock: week 1 (games-less, window closed) is no longer
+    // ahead, so resolution advances the stored start to week 2.
+    const res = await patchLeague(
+      memberA.cookie,
+      league.id,
+      { settings: settingsWith() },
+      appAfterKickoff,
+    );
+    expect(res.status).toBe(200);
+    const [instance] = await db
+      .select()
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.leagueId, league.id));
+    expect(instance?.settings).toMatchObject({ startWeek: { type: "regular", number: 2 } });
+    expect(await pickCountFor(league.id)).toBe(0);
   });
 
   it("clears picks when a stored settings row omits picksPerWeek entirely and the new value undercuts the schema default", async () => {
