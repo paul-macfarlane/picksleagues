@@ -39,7 +39,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `06-survivor.md`       | `ELM`  | Survivor mode, survivor board                               |
 | `07-march-madness.md`  | `MM`   | Bracket ingestion, builder, scoring, pool leaderboard       |
 | `09-launch.md`         | `LNCH` | Rules guide, prod cron, mobile QA, launch                   |
-| `10-trust-safety.md`   | `TS`   | Post-MVP: public-league abuse resistance, member notifications |
+| `10-trust-safety.md`   | `TS`   | Scrapped (SWP-2): stranger-scale abuse machinery a friends-scale app doesn't need |
 | `11-schema-foundations.md` | `SF` | Season/team schema scalability ahead of the picks epics    |
 | `12-simplification.md` | `SIMP` | Collapse the Pick'em rule surface: immutable weekly submissions, fixed push, no tiebreaker, no week moves |
 | `13-quality.md`        | `QLTY` | Non-functional: justify or cut each engineering rule, de-brittle the test suites |
@@ -57,8 +57,11 @@ written. The order work is actually taken (owner, 2026-08-09):
 4. **`09-launch`, remainder** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover. Within it the visual + legal slice (LNCH-7, 9, 10, 11) comes first: it is what makes the app read as a product rather than a project.
 5. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and one item (`FB-2`) is a question whose answer gets better once there is real usage to point at.
 6. **`15-scope-sweep`** — owner triage of the app-wide cut candidates (2026-08-09 sweep). Sits before the epics below because its rulings decide whether they get built at all: `SWP-2`/`SWP-3` gate trust-safety, `SWP-6` reshapes March Madness before it starts.
-7. **`10-trust-safety`** — post-MVP abuse resistance and member notifications, **if `SWP-2` keeps it**.
-8. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+7. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+
+`10-trust-safety` was step 7 until `SWP-2` scrapped it (owner, 2026-08-09) — its
+items are `wontfix` in place, and `SWP-3`'s public-discovery ruling is where the
+question could ever reopen.
 
 Prior rounds, for reference: epics 12 (rule simplification) and 13 (quality) ran
 first and are complete, which is why the launch and mode work listed above is
