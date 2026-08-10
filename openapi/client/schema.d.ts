@@ -886,10 +886,7 @@ export interface components {
         LeagueInvite: {
             id: string;
             code: string;
-            status: components["schemas"]["InviteStatus"];
             useCount: number;
-            /** Format: date-time */
-            revokedAt: string | null;
             /** Format: date-time */
             createdAt: string;
             createdBy: {
@@ -898,8 +895,6 @@ export interface components {
                 displayName: string;
             } | null;
         };
-        /** @enum {string} */
-        InviteStatus: "active" | "revoked";
         InvitesResponse: {
             invites: components["schemas"]["LeagueInvite"][];
         };

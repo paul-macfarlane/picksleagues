@@ -4,13 +4,11 @@ import type { Db } from "@picksleagues/db";
 import { leagueInvites, users } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
-  INVITE_STATUS,
   JOIN_BLOCKED_REASON,
   LEAGUE_ACTION,
   LEAGUE_STATUS,
   leagueActionIsPreStartOnly,
   type Invite,
-  type InviteStatus,
   type JoinBlockedReason,
   type JoinPreviewResponse,
   type LeagueResponse,
@@ -32,14 +30,14 @@ import {
 type InviteRow = typeof leagueInvites.$inferSelect;
 
 /**
- * Invite state is derived at read time, never stored (same pattern as lock
+ * Invite validity is derived at read time, never stored (same pattern as lock
  * state, arch D11). Revocation is the only lifecycle an invite has (ADR-0032
  * cut expiry and use caps), so the derivation is a single null check — kept
  * as the one named home for the question so a second surface can't answer it
  * from a different field.
  */
-export function inviteStatus(invite: InviteRow): InviteStatus {
-  return invite.revokedAt !== null ? INVITE_STATUS.REVOKED : INVITE_STATUS.ACTIVE;
+function inviteIsRevoked(invite: InviteRow): boolean {
+  return invite.revokedAt !== null;
 }
 
 // MANAGE_INVITES (listing and revoking) is an anytime power — the shared gate
@@ -174,7 +172,7 @@ export async function getJoinPreview(
   ]);
 
   let reason: JoinBlockedReason | null = null;
-  if (inviteStatus(invite) !== INVITE_STATUS.ACTIVE) {
+  if (inviteIsRevoked(invite)) {
     reason = JOIN_BLOCKED_REASON.INVITE_REVOKED;
   } else if (membership) {
     reason = JOIN_BLOCKED_REASON.ALREADY_MEMBER;
@@ -226,7 +224,7 @@ export async function joinByCode(
       const [invite] = await tx.select().from(leagueInvites).where(eq(leagueInvites.code, code));
       if (!invite) throw new InviteInvalidError();
 
-      if (inviteStatus(invite) !== INVITE_STATUS.ACTIVE) {
+      if (inviteIsRevoked(invite)) {
         throw new JoinRefusedError(JOIN_BLOCKED_REASON.INVITE_REVOKED);
       }
 
@@ -274,9 +272,7 @@ function serializeInviteRow(invite: InviteRow, creator: typeof users.$inferSelec
   return {
     id: invite.id,
     code: invite.code,
-    status: inviteStatus(invite),
     useCount: invite.useCount,
-    revokedAt: invite.revokedAt ? invite.revokedAt.toISOString() : null,
     createdAt: invite.createdAt.toISOString(),
     createdBy: creator
       ? { userId: creator.id, username: creator.username, displayName: creator.display_name }

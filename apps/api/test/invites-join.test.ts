@@ -139,11 +139,11 @@ describe("invite management", () => {
     const res = await postInvite(commissioner.cookie, league.id);
     expect(res.status).toBe(201);
     const invite = (await res.json()) as Invite;
-    expect(invite).toMatchObject({
-      status: "active",
-      useCount: 0,
-      revokedAt: null,
-    });
+    expect(invite).toMatchObject({ useCount: 0 });
+    // Wire carries no status or revocation timestamp (ADR-0032): every
+    // serialized invite is live by construction.
+    expect("status" in invite).toBe(false);
+    expect("revokedAt" in invite).toBe(false);
     expect(invite.code.length).toBeGreaterThanOrEqual(16);
     expect(invite.createdBy).toMatchObject({ userId: commissioner.user.id });
 

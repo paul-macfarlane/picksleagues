@@ -103,6 +103,23 @@ export const NFL_REGULAR_SEASON_RANGE = {
 } as const satisfies NflSeasonRange;
 
 /**
+ * The stored resolved-range field pair and its ordering rule, shared by both
+ * NFL modes' settings schemas — SWP-1 and SWP-5 converged the two on the same
+ * shape independently, and two copies of the one legal range rule could drift
+ * the same way NFL_REGULAR_SEASON_RANGE's comment warns for the week numbers.
+ */
+const nflResolvedRangeFields = {
+  startWeek: nflRegularWeekRef,
+  endWeek: nflRegularWeekRef,
+};
+const rangeOrderCheck = (s: { startWeek: { number: number }; endWeek: { number: number } }) =>
+  s.endWeek.number >= s.startWeek.number;
+const rangeOrderRule = {
+  message: "End week must be at or after the start week.",
+  path: ["endWeek"],
+};
+
+/**
  * Stored Pick'em settings: the concrete week refs the server resolved at the
  * moment the setting was written (ADR-0020's mid-week resolution rule, applied
  * to the fixed regular-season range by ADR-0031). The refs are stored because
@@ -111,15 +128,11 @@ export const NFL_REGULAR_SEASON_RANGE = {
  */
 export const PickemSettingsSchema = z
   .object({
-    startWeek: nflRegularWeekRef,
-    endWeek: nflRegularWeekRef,
+    ...nflResolvedRangeFields,
     pickType: PickTypeSchema,
     picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
   })
-  .refine((s) => s.endWeek.number >= s.startWeek.number, {
-    message: "End week must be at or after the start week.",
-    path: ["endWeek"],
-  })
+  .refine(rangeOrderCheck, rangeOrderRule)
   .openapi("PickemSettings");
 
 export type PickemSettings = z.infer<typeof PickemSettingsSchema>;
@@ -191,14 +204,8 @@ export function pickemSettingsInvalidatePicks(
  * consumed — by ADR-0033, so no rule knob remains.
  */
 export const SurvivorSettingsSchema = z
-  .object({
-    startWeek: nflRegularWeekRef,
-    endWeek: nflRegularWeekRef,
-  })
-  .refine((s) => s.endWeek.number >= s.startWeek.number, {
-    message: "End week must be at or after the start week.",
-    path: ["endWeek"],
-  })
+  .object(nflResolvedRangeFields)
+  .refine(rangeOrderCheck, rangeOrderRule)
   .openapi("SurvivorSettings");
 
 export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;

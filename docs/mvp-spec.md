@@ -296,7 +296,7 @@ Acceptance bar: every scoring rule and edge case in this spec is reproducible in
 
 ## Explicitly Out of Scope (MVP)
 
-Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges outside the three season-range presets · Survivor against-the-spread picks
+Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges (the regular season is the only range — ADR-0031) · Survivor against-the-spread picks
 
 ## Decisions Log
 

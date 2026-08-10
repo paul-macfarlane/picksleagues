@@ -6,24 +6,15 @@ import { LeagueVisibilitySchema } from "./league-visibility";
 /**
  * An invite is a bare opaque code (spec §Invites, ADR-0032): no expiry, no
  * use cap, no create-time options at all. Revocation is its only lifecycle,
- * so status is derived from `revokedAt` alone at serialization time.
+ * and it carries no wire status: both serialization paths — creation, and a
+ * list that filters revoked rows out — can only ever emit a live invite, so
+ * a status field would be a constant.
  */
-export const INVITE_STATUS = {
-  ACTIVE: "active",
-  REVOKED: "revoked",
-} as const;
-
-export type InviteStatus = (typeof INVITE_STATUS)[keyof typeof INVITE_STATUS];
-
-export const InviteStatusSchema = z.enum(INVITE_STATUS).openapi("InviteStatus");
-
 export const InviteSchema = z
   .object({
     id: z.string(),
     code: z.string(),
-    status: InviteStatusSchema,
     useCount: z.number().int(),
-    revokedAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
     // Null when the creating commissioner's account was deleted (FK set null).
     createdBy: z
