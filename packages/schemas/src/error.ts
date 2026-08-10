@@ -36,8 +36,6 @@ export const ERROR_CODE = {
   JOIN_CLOSED: "join_closed",
   LEAGUE_FULL: "league_full",
   INVITE_REVOKED: "invite_revoked",
-  INVITE_EXPIRED: "invite_expired",
-  INVITE_EXHAUSTED: "invite_exhausted",
   MAX_MEMBERS_BELOW_MEMBER_COUNT: "max_members_below_member_count",
   SCENARIO_NOT_FOUND: "scenario_not_found",
   FIXTURE_NOT_FOUND: "fixture_not_found",

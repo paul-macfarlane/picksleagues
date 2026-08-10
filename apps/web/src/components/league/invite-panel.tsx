@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
-import { INVITE_STATUS, type Invite } from "@picksleagues/schemas";
+import type { Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,10 @@ function InviteRow({
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium text-foreground capitalize">{invite.status}</span>
+        {/* Every listed invite is active — the list excludes revoked codes and
+            revocation is the only lifecycle left (ADR-0032), so there is no
+            status to distinguish. */}
+        <span className="font-medium text-foreground">Invite link</span>
         <span className="text-xs text-muted-foreground">
           Created {formatDate(invite.createdAt)}
         </span>
@@ -101,11 +104,9 @@ function InviteRow({
         >
           Copy link
         </Button>
-        {invite.status === INVITE_STATUS.ACTIVE && (
-          <Button variant="destructive" size="sm" disabled={isRevoking} onClick={onRevoke}>
-            Revoke
-          </Button>
-        )}
+        <Button variant="destructive" size="sm" disabled={isRevoking} onClick={onRevoke}>
+          Revoke
+        </Button>
       </div>
     </li>
   );
