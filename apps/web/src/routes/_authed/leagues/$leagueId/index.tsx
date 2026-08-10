@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { LEAGUE_ACTION, LEAGUE_MODE, type LeagueResponse } from "@picksleagues/schemas";
 import { useLeague, useRenewLeague } from "@/api/leagues";
 import { useAppNow } from "@/lib/app-clock";
@@ -9,23 +8,12 @@ import { SurvivorBoard } from "@/components/league/survivor-board";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-const searchSchema = z.object({
-  // The standings board's scope, and nothing else since the week/pick detail
-  // moved to its own tab. Absent selects the season-cumulative board — the
-  // spec's default view. Lives in the URL (same rationale as the pick tabs'
-  // `weekId`) so a linked week survives a refresh.
-  week: z.string().optional(),
-});
-
 export const Route = createFileRoute("/_authed/leagues/$leagueId/")({
-  validateSearch: searchSchema,
   component: LeagueOverview,
 });
 
 function LeagueOverview() {
   const { leagueId } = Route.useParams();
-  const { week } = Route.useSearch();
-  const navigate = Route.useNavigate();
   // Populated by the parent layout route — this reads the same cache entry
   // (leagueQueryKey) and renders instantly rather than refetching.
   const league = useLeague(leagueId);
@@ -42,15 +30,10 @@ function LeagueOverview() {
           <NextSeasonWaitingBanner league={league.data} />
         ))}
       {league.data.mode === LEAGUE_MODE.PICKEM ? (
-        <PickemStandingsSection
-          leagueId={leagueId}
-          weekId={week}
-          onSelectWeek={(next) => navigate({ search: next ? { week: next } : {}, replace: true })}
-        />
+        <PickemStandingsSection leagueId={leagueId} />
       ) : league.data.mode === LEAGUE_MODE.SURVIVOR ? (
-        // No week scope, and so no `week` search param: Survivor's board is the
-        // whole season at once, because there is nothing weekly to total
-        // (ADR-0016).
+        // Survivor's board is the whole season at once, because there is
+        // nothing weekly to total (ADR-0016).
         <SurvivorBoard leagueId={leagueId} />
       ) : (
         <Card>

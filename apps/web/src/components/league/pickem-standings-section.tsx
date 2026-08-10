@@ -1,77 +1,25 @@
-import { useLeagueWeeks } from "@/api/weeks";
-import { LabeledSelect } from "@/components/labeled-select";
 import { PickemStandingsTable } from "@/components/league/pickem-standings-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RowsSkeleton } from "@/components/loading";
-import { QueryState } from "@/components/query-state";
-
-// Not a real week id — the season-cumulative board's option in the toggle
-// (spec §Standings: two parallel leaderboards). Chosen over `undefined` so it
-// can be a normal option value in LabeledSelect.
-const SEASON_SCOPE = "season";
 
 /**
- * Pick'em's standings: a season/week toggle over one board (spec §Standings).
- *
- * This scope selector once also revealed the week/pick detail below it, which
- * made the whole league's picks a side effect of a standings control — and made
- * season standings + this week's picks an unreachable combination. That section
- * now has its own tab (`/league-picks`), so this selector does one thing.
+ * Pick'em's standings on League home: the season-cumulative board, and only it
+ * (ADR-0035 amended spec §Screens' weekly/season toggle away). Weekly boards
+ * still exist — League Picks has its own week selector and shows a week in more
+ * detail than this page could, so a second scope control here was a second way
+ * to ask the same question on the page least suited to answering it.
  */
-export function PickemStandingsSection({
-  leagueId,
-  weekId,
-  onSelectWeek,
-}: {
-  leagueId: string;
-  // undefined selects the season-cumulative board (the default view).
-  weekId: string | undefined;
-  onSelectWeek: (weekId: string | undefined) => void;
-}) {
-  const weeks = useLeagueWeeks(leagueId);
-
-  const allWeeks = weeks.data?.weeks ?? [];
-  const scopeOptions = [
-    { value: SEASON_SCOPE, label: "Season" },
-    ...allWeeks.map((week) => ({ value: week.id, label: week.label })),
-  ];
-
+export function PickemStandingsSection({ leagueId }: { leagueId: string }) {
   return (
-    <div className="flex flex-col gap-4">
-      {/* Addressed by testid rather than by a card whose title happens to read
-          "Standings". */}
-      <Card data-testid="standings-card">
-        <CardHeader>
-          <CardTitle>Standings</CardTitle>
-          <CardDescription>
-            {weekId ? "That week's points only." : "Cumulative points across the season."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <QueryState
-            isPending={weeks.isPending}
-            pendingFallback={
-              <RowsSkeleton label="Loading weeks" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
-            }
-            isError={weeks.isError}
-            onRetry={() => weeks.refetch()}
-            errorMessage="Couldn't load this league's weeks."
-          >
-            {weeks.data && (
-              <>
-                <LabeledSelect
-                  id="standings-scope-select"
-                  label="View"
-                  value={weekId ?? SEASON_SCOPE}
-                  onValueChange={(next) => onSelectWeek(next === SEASON_SCOPE ? undefined : next)}
-                  options={scopeOptions}
-                />
-                <PickemStandingsTable leagueId={leagueId} weekId={weekId} />
-              </>
-            )}
-          </QueryState>
-        </CardContent>
-      </Card>
-    </div>
+    // Addressed by testid rather than by a card whose title happens to read
+    // "Standings".
+    <Card data-testid="standings-card">
+      <CardHeader>
+        <CardTitle>Standings</CardTitle>
+        <CardDescription>Cumulative points across the season.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <PickemStandingsTable leagueId={leagueId} />
+      </CardContent>
+    </Card>
   );
 }

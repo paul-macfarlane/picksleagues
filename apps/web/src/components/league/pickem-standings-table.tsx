@@ -150,8 +150,8 @@ function SortableHeader({
   );
 }
 
-export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; weekId?: string }) {
-  const standings = usePickemStandings(leagueId, weekId);
+export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
+  const standings = usePickemStandings(leagueId);
   const [sort, setSort] = useState<StandingsSort>(DEFAULT_STANDINGS_SORT);
 
   const rows = sortStandingsRows(standings.data?.rows ?? [], sort);

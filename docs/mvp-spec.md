@@ -234,7 +234,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 
 - **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked); create + discover entry points
 - **Discovery** — public league browse + name search
-- **League home** — standings (primary view: weekly/season toggle for Pick'em, the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
+- **League home** — standings (primary view: season standings for Pick'em (ADR-0035 — weekly boards live on the League Picks screen), the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
 - **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
 
