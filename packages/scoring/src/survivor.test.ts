@@ -1,17 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  GAME_STATUS,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
-  type GameStatus,
-  type PickOutcome,
-  type SurvivorPushTieResolution,
-} from "@picksleagues/schemas";
+import { GAME_STATUS, type GameStatus, type PickOutcome } from "@picksleagues/schemas";
 import {
   settleSurvivorWeek,
   settleSurvivorWeekProvisionally,
   type SurvivorGameResult,
   type SurvivorPickInput,
-  type SurvivorScoringSettings,
   type SurvivorTransition,
 } from "./survivor";
 
@@ -75,12 +68,6 @@ const controlResult: SurvivorGameResult = {
   awayScore: 3,
 };
 
-function settings(
-  pushTieResolution: SurvivorPushTieResolution = SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-): SurvivorScoringSettings {
-  return { pushTieResolution };
-}
-
 describe("settleSurvivorWeek — grading one member's pick", () => {
   const cases: Array<{
     name: string;
@@ -88,7 +75,6 @@ describe("settleSurvivorWeek — grading one member's pick", () => {
     status?: GameStatus;
     homeScore?: number | null;
     awayScore?: number | null;
-    pushTieResolution?: SurvivorPushTieResolution;
     outcome: PickOutcome;
     teamConsumed: boolean;
     transition: SurvivorTransition;
@@ -139,42 +125,22 @@ describe("settleSurvivorWeek — grading one member's pick", () => {
       transition: "advanced",
     },
     {
-      name: "tie, advance-and-consume → push, advance, team consumed",
+      // Fixed rather than configurable (ADR-0033): a tie always advances, and
+      // the team is spent because the game was played.
+      name: "tie → push, advance, team consumed",
       teamId: HOME_TEAM,
       homeScore: 20,
       awayScore: 20,
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       outcome: "push",
       teamConsumed: true,
       transition: "advanced",
     },
     {
-      name: "tie, eliminate → push, eliminated, team consumed",
-      teamId: HOME_TEAM,
-      homeScore: 20,
-      awayScore: 20,
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
-      outcome: "push",
-      teamConsumed: true,
-      transition: "eliminated",
-    },
-    {
-      name: "cancelled game, advance setting → push, survives, team returned",
+      // The cancellation rule hands the team back (spec §Game Mode 2 —
+      // Cancelled game): unlike a tie, this game was never played.
+      name: "cancelled game → push, survives, team returned",
       teamId: HOME_TEAM,
       status: GAME_STATUS.CANCELLED,
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-      outcome: "push",
-      teamConsumed: false,
-      transition: "advanced",
-    },
-    {
-      // The cancellation rule is unconditional (spec §Game Mode 2 — Cancelled
-      // game): the tie setting rules on a game that was played, and this one
-      // never was.
-      name: "cancelled game, eliminate setting → still push, still survives, team returned",
-      teamId: HOME_TEAM,
-      status: GAME_STATUS.CANCELLED,
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
       outcome: "push",
       teamConsumed: false,
       transition: "advanced",
@@ -190,7 +156,6 @@ describe("settleSurvivorWeek — grading one member's pick", () => {
       status = GAME_STATUS.FINAL,
       homeScore = null,
       awayScore = null,
-      pushTieResolution = SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       outcome,
       teamConsumed,
       transition,
@@ -199,7 +164,6 @@ describe("settleSurvivorWeek — grading one member's pick", () => {
         [MEMBER, CONTROL_MEMBER],
         [pick({ teamId }), controlPick],
         [result({ status, homeScore, awayScore }), controlResult],
-        settings(pushTieResolution),
       );
 
       expect(settlement.unsettled).toEqual([]);
@@ -228,7 +192,6 @@ describe("settleSurvivorWeek — missed picks", () => {
       [MEMBER, CONTROL_MEMBER],
       [controlPick],
       [result(), controlResult],
-      settings(),
     );
 
     expect(settlement.transitions).toContainEqual({ memberId: MEMBER, transition: "eliminated" });
@@ -241,7 +204,6 @@ describe("settleSurvivorWeek — missed picks", () => {
       [MEMBER, CONTROL_MEMBER, "member-3"],
       [pick(), controlPick],
       [result(), controlResult],
-      settings(),
     );
 
     expect(settlement.transitions).toEqual([
@@ -252,12 +214,7 @@ describe("settleSurvivorWeek — missed picks", () => {
   });
 
   it("does not eliminate a member who was already out — a missed pick is only a rule for the alive", () => {
-    const settlement = settleSurvivorWeek(
-      [CONTROL_MEMBER],
-      [controlPick],
-      [controlResult],
-      settings(),
-    );
+    const settlement = settleSurvivorWeek([CONTROL_MEMBER], [controlPick], [controlResult]);
 
     expect(settlement.transitions).toEqual([{ memberId: CONTROL_MEMBER, transition: "advanced" }]);
     expect(settlement.aliveMemberIds).toEqual([CONTROL_MEMBER]);
@@ -276,7 +233,6 @@ describe("settleSurvivorWeek — no zombie grading", () => {
       [CONTROL_MEMBER],
       [pick(), controlPick],
       [result({ homeScore, awayScore }), controlResult],
-      settings(),
     );
 
     expect(settlement.outcomes.map((row) => row.memberId)).toEqual([CONTROL_MEMBER]);
@@ -295,15 +251,15 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
 
   /**
    * One emptying week per row, differing only in what busted the alive set —
-   * the spec's rule applies "regardless of elimination cause", so wrong picks,
-   * a missed pick, and a fatal tie all have to reach the same answer.
+   * the spec's rule applies "regardless of elimination cause", so wrong picks
+   * and a missed pick have to reach the same answer. (A fatal tie left the
+   * cause list with ADR-0033: ties always advance now.)
    */
   const emptyingWeeks: Array<{
     name: string;
     alive: string[];
     picks: SurvivorPickInput[];
     results: SurvivorGameResult[];
-    pushTieResolution?: SurvivorPushTieResolution;
   }> = [
     {
       name: "every member busted on a wrong pick",
@@ -317,36 +273,22 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
       picks: [loser("a", "pick-a")],
       results: [losingResult],
     },
-    {
-      name: "one busted and one drew a fatal tie",
-      alive: ["a", "b"],
-      picks: [
-        loser("a", "pick-a"),
-        { ...loser("b", "pick-b"), gameId: CONTROL_GAME, teamId: CONTROL_TEAM },
-      ],
-      results: [losingResult, { ...controlResult, homeScore: 10, awayScore: 10 }],
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
-    },
   ];
 
-  it.each(emptyingWeeks)(
-    "revives everyone when $name",
-    ({ alive, picks, results, pushTieResolution }) => {
-      const settlement = settleSurvivorWeek(alive, picks, results, settings(pushTieResolution));
+  it.each(emptyingWeeks)("revives everyone when $name", ({ alive, picks, results }) => {
+    const settlement = settleSurvivorWeek(alive, picks, results);
 
-      expect(settlement.transitions).toEqual(
-        alive.map((memberId) => ({ memberId, transition: "revived" })),
-      );
-      expect(settlement.aliveMemberIds).toEqual(alive);
-    },
-  );
+    expect(settlement.transitions).toEqual(
+      alive.map((memberId) => ({ memberId, transition: "revived" })),
+    );
+    expect(settlement.aliveMemberIds).toEqual(alive);
+  });
 
   it("restores the life only — teams the busting picks spent stay spent", () => {
     const settlement = settleSurvivorWeek(
       ["a", "b"],
       [loser("a", "pick-a"), loser("b", "pick-b")],
       [losingResult],
-      settings(),
     );
 
     expect(settlement.outcomes.every((row) => row.teamConsumed)).toBe(true);
@@ -357,7 +299,6 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
       ["a", CONTROL_MEMBER],
       [loser("a", "pick-a"), controlPick],
       [losingResult, controlResult],
-      settings(),
     );
 
     expect(settlement.transitions).toEqual([
@@ -368,7 +309,7 @@ describe("settleSurvivorWeek — everyone eliminated in the same week", () => {
   });
 
   it("does not fire on an empty alive set — nobody entered, so nobody came back", () => {
-    const settlement = settleSurvivorWeek([], [], [result()], settings());
+    const settlement = settleSurvivorWeek([], [], [result()]);
 
     expect(settlement).toEqual({
       outcomes: [],
@@ -391,7 +332,6 @@ describe("settleSurvivorWeek — the whole slate is cancelled", () => {
         { pickId: "pick-b", memberId: "b", gameId: GAME_ID, teamId: AWAY_TEAM },
       ],
       [cancelled],
-      settings(SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE),
     );
 
     expect(settlement.outcomes).toEqual([
@@ -431,7 +371,6 @@ describe("settleSurvivorWeek — an incomplete week grades to nothing", () => {
       [MEMBER, CONTROL_MEMBER],
       [pick(), controlPick],
       [result({ status, homeScore: null, awayScore: null }), controlResult],
-      settings(),
     );
 
     expect(settlement.unsettled).toEqual([{ gameId: GAME_ID, reason: "not_yet_played" }]);
@@ -447,7 +386,6 @@ describe("settleSurvivorWeek — an incomplete week grades to nothing", () => {
       [MEMBER, CONTROL_MEMBER],
       [controlPick],
       [result({ status: GAME_STATUS.SCHEDULED, homeScore: null, awayScore: null }), controlResult],
-      settings(),
     );
 
     expect(settlement.unsettled).toEqual([{ gameId: GAME_ID, reason: "not_yet_played" }]);
@@ -459,7 +397,6 @@ describe("settleSurvivorWeek — an incomplete week grades to nothing", () => {
       [MEMBER, CONTROL_MEMBER],
       [pick(), controlPick],
       [result({ homeScore: null, awayScore: null }), controlResult],
-      settings(),
     );
 
     expect(settlement.unsettled).toEqual([{ gameId: GAME_ID, reason: "final_without_scores" }]);
@@ -471,7 +408,6 @@ describe("settleSurvivorWeek — an incomplete week grades to nothing", () => {
       [CONTROL_MEMBER],
       [controlPick],
       [result({ homeScore: null, awayScore: null }), controlResult],
-      settings(),
     );
 
     expect(settlement.unsettled).toEqual([]);
@@ -483,7 +419,6 @@ describe("settleSurvivorWeek — an incomplete week grades to nothing", () => {
       [MEMBER],
       [pick()],
       [result({ status: GAME_STATUS.CANCELLED, homeScore: null, awayScore: null })],
-      settings(),
     );
 
     expect(settlement.unsettled).toEqual([]);
@@ -498,7 +433,6 @@ describe("settleSurvivorWeek — an incomplete week grades to nothing", () => {
         { pickId: "pick-b", memberId: "b", gameId: GAME_ID, teamId: AWAY_TEAM },
       ],
       [result({ homeScore: null, awayScore: null })],
-      settings(),
     );
 
     expect(settlement.unsettled).toEqual([{ gameId: GAME_ID, reason: "final_without_scores" }]);
@@ -516,7 +450,7 @@ describe("settleSurvivorWeek — a threaded season", () => {
   ) {
     let alive = startingAlive;
     const perWeek = weeks.map((week) => {
-      const settlement = settleSurvivorWeek(alive, week.picks, week.results, settings());
+      const settlement = settleSurvivorWeek(alive, week.picks, week.results);
       alive = settlement.aliveMemberIds;
       return settlement;
     });
@@ -589,24 +523,23 @@ describe("settleSurvivorWeek — purity", () => {
       [MEMBER, CONTROL_MEMBER],
       [pick(), controlPick],
       [result(), controlResult],
-      settings(),
     ] as const;
 
   it("returns the same settlement for the same inputs (arch D10 — settlement is a derivation)", () => {
-    const [alive, picks, results, config] = args();
+    const [alive, picks, results] = args();
 
-    expect(settleSurvivorWeek(alive, picks, results, config)).toEqual(
-      settleSurvivorWeek(alive, picks, results, config),
+    expect(settleSurvivorWeek(alive, picks, results)).toEqual(
+      settleSurvivorWeek(alive, picks, results),
     );
   });
 
   it("mutates none of its inputs", () => {
-    const [alive, picks, results, config] = args();
-    const before: unknown = JSON.parse(JSON.stringify({ alive, picks, results, config }));
+    const [alive, picks, results] = args();
+    const before: unknown = JSON.parse(JSON.stringify({ alive, picks, results }));
 
-    settleSurvivorWeek(alive, picks, results, config);
+    settleSurvivorWeek(alive, picks, results);
 
-    expect({ alive, picks, results, config }).toEqual(before);
+    expect({ alive, picks, results }).toEqual(before);
   });
 });
 
@@ -657,7 +590,6 @@ describe("settleSurvivorWeekProvisionally — a certain loss lands before the we
     alive: string[];
     picks: SurvivorPickInput[];
     results: SurvivorGameResult[];
-    pushTieResolution?: SurvivorPushTieResolution;
     eliminated: string[];
   }> = [
     {
@@ -693,20 +625,13 @@ describe("settleSurvivorWeekProvisionally — a certain loss lands before the we
       eliminated: ["b"],
     },
     {
-      name: "a tie the settings advance on confirms its picker safe",
+      // Ties always advance (ADR-0033), so a tied final is a confirmed
+      // survivor exactly as a win is.
+      name: "a tie confirms its picker safe",
       alive: ["a", "b"],
       picks: [controlPickBy("a"), gradedPick("b", AWAY_TEAM)],
       results: [result(), { ...controlResult, homeScore: 10, awayScore: 10 }, openResult],
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       eliminated: ["b"],
-    },
-    {
-      name: "a tie the settings eliminate on confirms nobody, so neither member goes early",
-      alive: ["a", "b"],
-      picks: [controlPickBy("a"), gradedPick("b", AWAY_TEAM)],
-      results: [result(), { ...controlResult, homeScore: 10, awayScore: 10 }, openResult],
-      pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE,
-      eliminated: [],
     },
     {
       name: "a winning pick by a member who is already out confirms nothing — they are not in the revival set",
@@ -745,32 +670,25 @@ describe("settleSurvivorWeekProvisionally — a certain loss lands before the we
     },
   ];
 
-  it.each(cases)("$name", ({ alive, picks, results, pushTieResolution, eliminated }) => {
-    expect(
-      settleSurvivorWeekProvisionally(alive, picks, results, settings(pushTieResolution)),
-    ).toEqual({ eliminatedMemberIds: eliminated });
+  it.each(cases)("$name", ({ alive, picks, results, eliminated }) => {
+    expect(settleSurvivorWeekProvisionally(alive, picks, results)).toEqual({
+      eliminatedMemberIds: eliminated,
+    });
   });
 
   it("puts out nobody the completed week does not also put out (ADR-0028 — a superset, never a contradiction)", () => {
     const alive = ["a", "b", "c"];
     const picks = [gradedPick("a", HOME_TEAM), gradedPick("b", AWAY_TEAM), openPick("c")];
 
-    const provisional = settleSurvivorWeekProvisionally(
-      alive,
-      picks,
-      [result(), openResult],
-      settings(),
-    );
+    const provisional = settleSurvivorWeekProvisionally(alive, picks, [result(), openResult]);
     expect(provisional.eliminatedMemberIds).toEqual(["b"]);
 
     // The open game lands, and it busts c as well — the completed week decides
     // strictly more than the provisional pass did, and reverses none of it.
-    const complete = settleSurvivorWeek(
-      alive,
-      picks,
-      [result(), { ...openResult, status: GAME_STATUS.FINAL, homeScore: 3, awayScore: 10 }],
-      settings(),
-    );
+    const complete = settleSurvivorWeek(alive, picks, [
+      result(),
+      { ...openResult, status: GAME_STATUS.FINAL, homeScore: 3, awayScore: 10 },
+    ]);
     const eliminatedByWeek = complete.transitions
       .filter((row) => row.transition === "eliminated")
       .map((row) => row.memberId);
@@ -785,32 +703,21 @@ describe("settleSurvivorWeekProvisionally — a certain loss lands before the we
     const alive = ["a", "b"];
     const picks = [gradedPick("a", HOME_TEAM), gradedPick("b", AWAY_TEAM)];
     const results = [result(), openResult];
-    const config = settings();
-    const before: unknown = JSON.parse(JSON.stringify({ alive, picks, results, config }));
+    const before: unknown = JSON.parse(JSON.stringify({ alive, picks, results }));
 
-    expect(settleSurvivorWeekProvisionally(alive, picks, results, config)).toEqual(
-      settleSurvivorWeekProvisionally(alive, picks, results, config),
+    expect(settleSurvivorWeekProvisionally(alive, picks, results)).toEqual(
+      settleSurvivorWeekProvisionally(alive, picks, results),
     );
-    expect({ alive, picks, results, config }).toEqual(before);
+    expect({ alive, picks, results }).toEqual(before);
   });
 
   it("surfaces the same loader and write-path bugs the complete grade does", () => {
     expect(() =>
-      settleSurvivorWeekProvisionally(
-        [MEMBER],
-        [pick({ gameId: "game-missing" })],
-        [result()],
-        settings(),
-      ),
+      settleSurvivorWeekProvisionally([MEMBER], [pick({ gameId: "game-missing" })], [result()]),
     ).toThrow(/absent from the supplied results/);
 
     expect(() =>
-      settleSurvivorWeekProvisionally(
-        [MEMBER],
-        [pick({ teamId: "team-elsewhere" })],
-        [result()],
-        settings(),
-      ),
+      settleSurvivorWeekProvisionally([MEMBER], [pick({ teamId: "team-elsewhere" })], [result()]),
     ).toThrow(/not playing in game/);
 
     expect(() =>
@@ -818,7 +725,6 @@ describe("settleSurvivorWeekProvisionally — a certain loss lands before the we
         [MEMBER],
         [pick(), pick({ pickId: "pick-2", gameId: CONTROL_GAME, teamId: CONTROL_TEAM })],
         [result(), controlResult],
-        settings(),
       ),
     ).toThrow(/more than one pick/);
   });
@@ -827,19 +733,19 @@ describe("settleSurvivorWeekProvisionally — a certain loss lands before the we
 describe("settleSurvivorWeek — loader and write-path bugs are surfaced, not graded around", () => {
   it("throws when a pick references a game absent from the results", () => {
     expect(() =>
-      settleSurvivorWeek([MEMBER], [pick({ gameId: "game-missing" })], [result()], settings()),
+      settleSurvivorWeek([MEMBER], [pick({ gameId: "game-missing" })], [result()]),
     ).toThrow(/absent from the supplied results/);
   });
 
   it("throws for an absent game even when the picker is already out", () => {
-    expect(() =>
-      settleSurvivorWeek([], [pick({ gameId: "game-missing" })], [result()], settings()),
-    ).toThrow(/absent from the supplied results/);
+    expect(() => settleSurvivorWeek([], [pick({ gameId: "game-missing" })], [result()])).toThrow(
+      /absent from the supplied results/,
+    );
   });
 
   it("throws when a pick rides a team that is not in its game", () => {
     expect(() =>
-      settleSurvivorWeek([MEMBER], [pick({ teamId: "team-elsewhere" })], [result()], settings()),
+      settleSurvivorWeek([MEMBER], [pick({ teamId: "team-elsewhere" })], [result()]),
     ).toThrow(/not playing in game/);
   });
 
@@ -849,7 +755,6 @@ describe("settleSurvivorWeek — loader and write-path bugs are surfaced, not gr
         [MEMBER],
         [pick(), pick({ pickId: "pick-2", gameId: CONTROL_GAME, teamId: CONTROL_TEAM })],
         [result(), controlResult],
-        settings(),
       ),
     ).toThrow(/more than one pick/);
   });
@@ -860,7 +765,6 @@ describe("settleSurvivorWeek — loader and write-path bugs are surfaced, not gr
         [],
         [pick(), pick({ pickId: "pick-2", gameId: CONTROL_GAME, teamId: CONTROL_TEAM })],
         [result(), controlResult],
-        settings(),
       ),
     ).toThrow(/more than one pick/);
   });

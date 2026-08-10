@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   CreateLeagueRequestSchema,
   DEFAULT_MAX_MEMBERS,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
   LeagueNameSchema,
@@ -13,7 +12,6 @@ import {
   MAX_LEAGUE_SIZE,
   OFFERED_LEAGUE_MODES,
   PICK_TYPE,
-  type SurvivorPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
@@ -56,10 +54,6 @@ function NewLeague() {
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
-    SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-  );
-
   const [mmMaxBrackets, setMmMaxBrackets] = useState(5);
   const [mmScoringModel, setMmScoringModel] = useState<MarchMadnessScoringModel>(
     MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
@@ -86,11 +80,10 @@ function NewLeague() {
           picksPerWeek: pickemPicksPerWeek,
         };
       } else if (mode === LEAGUE_MODE.SURVIVOR) {
-        // The push/tie rule is the whole of a Survivor settings request: no
-        // range on the wire (ADR-0024, the mode is regular-season only, so the
-        // server resolves the refs it stores against the clock) and no pick type
-        // (ADR-0026, the mode is straight-up only).
-        settings = { pushTieResolution: survivorPushTie };
+        // A Survivor settings request carries nothing at all: the range is
+        // resolved server-side (ADR-0024), the pick type is fixed by the mode
+        // (ADR-0026), and the push/tie rule is fixed at its default (ADR-0033).
+        settings = {};
       } else {
         settings =
           mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -191,12 +184,7 @@ function NewLeague() {
               />
             )}
 
-            {mode === LEAGUE_MODE.SURVIVOR && (
-              <SurvivorSettingsFields
-                pushTie={survivorPushTie}
-                onPushTieChange={setSurvivorPushTie}
-              />
-            )}
+            {mode === LEAGUE_MODE.SURVIVOR && <SurvivorSettingsFields />}
 
             {mode === LEAGUE_MODE.MARCH_MADNESS && (
               <MarchMadnessSettingsFields

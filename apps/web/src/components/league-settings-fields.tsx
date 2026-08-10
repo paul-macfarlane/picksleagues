@@ -1,10 +1,8 @@
 import {
   NFL_REGULAR_SEASON_RANGE,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_VISIBILITY,
   MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
-  type SurvivorPushTieResolution,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type NflSeasonRange,
@@ -40,14 +38,6 @@ export const PICK_TYPE_OPTIONS: { value: PickType; label: string }[] = [
   { value: PICK_TYPE.AGAINST_THE_SPREAD, label: "Against the Spread" },
 ];
 
-export const SURVIVOR_PUSH_TIE_OPTIONS: {
-  value: SurvivorPushTieResolution;
-  label: string;
-}[] = [
-  { value: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE, label: "Advance (team consumed)" },
-  { value: SURVIVOR_PUSH_TIE_RESOLUTION.ELIMINATE, label: "Eliminate" },
-];
-
 export const MM_SCORING_MODEL_OPTIONS: { value: MarchMadnessScoringModel; label: string }[] = [
   { value: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING, label: "Standard Doubling" },
   { value: MARCH_MADNESS_SCORING_MODEL.CUSTOM, label: "Custom" },
@@ -65,7 +55,7 @@ export const MM_ROUND_LABELS = [
 /**
  * Shared radio-group wiring: a legend, then one Radio + Label pair per
  * option (with optional helper text) — used for mode, visibility, Pick'em's
- * pick type, and Survivor's push/tie setting.
+ * pick type, and March Madness's scoring model.
  */
 export function RadioField<Value extends string>({
   legend,
@@ -166,29 +156,17 @@ export function PickemSettingsFields({
 }
 
 /**
- * No Pick Type control, and no plan for one: Survivor is straight-up only
- * (ADR-0026).
+ * Nothing here is a control: Survivor has no rule settings left — no Pick Type
+ * (ADR-0026), no Push/Tie Resolution (ADR-0033, fixed at advance with the
+ * team consumed), and a server-resolved season range (ADR-0024). The fieldset
+ * survives to state the range, because the covered weeks drive the join
+ * cutoff and the last week that scores.
  */
-export function SurvivorSettingsFields({
-  seasonRange,
-  pushTie,
-  onPushTieChange,
-}: {
-  seasonRange?: NflSeasonRange;
-  pushTie: SurvivorPushTieResolution;
-  onPushTieChange: (value: SurvivorPushTieResolution) => void;
-}) {
+export function SurvivorSettingsFields({ seasonRange }: { seasonRange?: NflSeasonRange }) {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Survivor settings</h2>
       <NflSeasonRangeReadout seasonRange={seasonRange} />
-      <RadioField
-        legend="Push / tie result"
-        name="survivor-push-tie"
-        value={pushTie}
-        onValueChange={onPushTieChange}
-        options={SURVIVOR_PUSH_TIE_OPTIONS}
-      />
     </div>
   );
 }

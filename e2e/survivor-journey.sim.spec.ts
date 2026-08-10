@@ -241,14 +241,11 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     // value (`mode-survivor`) land on Base UI's visually-hidden form input, not
     // on the control a member clicks, so addressing those clicks nothing.
     await page1.getByRole("radio", { name: "NFL Survivor" }).click();
-    // The mode's fieldset appearing is how this knows the radio took, and the
-    // push/tie rule is the only setting Survivor's form still offers — no season
-    // range (ADR-0024) and no pick type (ADR-0026), which is exactly what having
-    // just this one control on screen proves.
-    const pushTie = page1.getByRole("radio", { name: "Advance (team consumed)" });
-    await expect(pushTie).toBeVisible();
-    await pushTie.click();
-    await expect(pushTie).toBeChecked();
+    // The mode's fieldset appearing is how this knows the radio took. Survivor
+    // offers no settings at all — no season range (ADR-0024), no pick type
+    // (ADR-0026), no push/tie rule (ADR-0033) — so the read-only range line is
+    // what proves the fieldset swapped.
+    await expect(page1.getByRole("heading", { name: "Survivor settings" })).toBeVisible();
 
     await page1.locator("#name").fill(leagueName);
     await page1.getByRole("button", { name: "Create league" }).click();

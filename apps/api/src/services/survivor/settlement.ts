@@ -220,7 +220,7 @@ function replaySeason(
       teamId: pick.teamId,
     }));
 
-    const settlement = settleSurvivorWeek(alive, pickInputs, results, season.settings);
+    const settlement = settleSurvivorWeek(alive, pickInputs, results);
 
     if (settlement.unsettled.length > 0) {
       // **A week that cannot be graded as a unit may still be over for some of
@@ -234,12 +234,7 @@ function replaySeason(
       // The stop below still happens. The alive set this leaves is not final —
       // the week's ungraded picks have yet to say anything — so week N+1 must
       // not be graded against it (ADR-0025).
-      const provisional = settleSurvivorWeekProvisionally(
-        alive,
-        pickInputs,
-        results,
-        season.settings,
-      );
+      const provisional = settleSurvivorWeekProvisionally(alive, pickInputs, results);
       for (const memberId of provisional.eliminatedMemberIds) {
         replay.eliminatedWeekByMember.set(memberId, week.id);
       }

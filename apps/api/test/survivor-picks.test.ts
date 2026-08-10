@@ -7,7 +7,6 @@ import {
   GAME_STATUS,
   MEMBER_ROLE,
   PICK_OUTCOME,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type SurvivorSettings,
   type SurvivorWeekPicksResponse,
@@ -647,7 +646,6 @@ describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
     });
 

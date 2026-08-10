@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Field } from "@base-ui/react/field";
 import { toast } from "sonner";
 import {
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
   MARCH_MADNESS_SCORING_MODEL,
@@ -10,13 +9,13 @@ import {
   PICK_TYPE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
-  type SurvivorPushTieResolution,
   type LeagueResponse,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type PickType,
   type PickemSettings,
   type PickemSettingsInput,
+  type SurvivorSettingsInput,
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
 import {
@@ -150,10 +149,6 @@ function SettingsForm({
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
-  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
-    survivorSettings?.pushTieResolution ?? SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-  );
-
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
     marchMadnessSettings?.maxBracketsPerMember ?? 5,
   );
@@ -225,21 +220,19 @@ function SettingsForm({
     wouldInvalidatePicks =
       pickemSettings && draft ? pickemSettingsInvalidatePicks(pickemSettings, draft) : true;
   } else if (isSurvivor) {
-    // No range on the wire (ADR-0024) — and none in the dirty check either: a
-    // save re-resolves the stored refs server-side against the clock, so the
-    // range is never something this form has an opinion about.
-    assembledSettings = { pushTieResolution: survivorPushTie };
-    settingsDirty = survivorSettings
-      ? survivorPushTie !== survivorSettings.pushTieResolution
-      : true;
+    // A Survivor settings request is empty (ADR-0024/0026/0033) — nothing on
+    // this form can express a Survivor rule, so the fieldset is never dirty
+    // unless the stored blob failed to parse, in which case a save lets the
+    // commissioner write a valid one back.
+    assembledSettings = {} satisfies SurvivorSettingsInput;
+    settingsDirty = survivorSettings ? false : true;
     // `wouldInvalidatePicks` stays false, and that is a statement about the
     // form rather than about the mode. Survivor's one invalidating change is an
     // advanced start week (`survivorSettingsInvalidatePicks`), and no field here
     // moves it: the server re-resolves the range against *its* clock, so
     // whether a save strands a pick is not something this browser can know
     // before asking. The server still clears (or 409s) correctly — this warning
-    // was only ever advisory, and with Pick Type gone (ADR-0026) there is no
-    // longer a Survivor change it can honestly predict.
+    // was only ever advisory.
   } else {
     assembledSettings =
       mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
@@ -410,13 +403,7 @@ function SettingsForm({
           />
         )}
 
-        {isSurvivor && (
-          <SurvivorSettingsFields
-            seasonRange={survivorSettings ?? undefined}
-            pushTie={survivorPushTie}
-            onPushTieChange={setSurvivorPushTie}
-          />
-        )}
+        {isSurvivor && <SurvivorSettingsFields seasonRange={survivorSettings ?? undefined} />}
 
         {isMarchMadness && (
           <MarchMadnessSettingsFields

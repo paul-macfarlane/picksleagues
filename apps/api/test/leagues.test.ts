@@ -246,7 +246,6 @@ describe("POST /api/leagues", () => {
     expect(body.settings).toMatchObject({
       startWeek: { type: "regular", number: 1 },
       endWeek: { type: "regular", number: 18 },
-      pushTieResolution: "advance",
     });
   });
 

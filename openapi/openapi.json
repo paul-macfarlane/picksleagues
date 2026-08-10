@@ -432,23 +432,12 @@
               "type",
               "number"
             ]
-          },
-          "pushTieResolution": {
-            "$ref": "#/components/schemas/SurvivorPushTieResolution"
           }
         },
         "required": [
           "startWeek",
           "endWeek"
         ]
-      },
-      "SurvivorPushTieResolution": {
-        "type": "string",
-        "enum": [
-          "advance",
-          "eliminate"
-        ],
-        "default": "advance"
       },
       "MemberRole": {
         "type": "string",
@@ -615,11 +604,7 @@
       },
       "SurvivorSettingsInput": {
         "type": "object",
-        "properties": {
-          "pushTieResolution": {
-            "$ref": "#/components/schemas/SurvivorPushTieResolution"
-          }
-        }
+        "properties": {}
       },
       "MarchMadnessSettings": {
         "oneOf": [

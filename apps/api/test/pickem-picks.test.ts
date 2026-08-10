@@ -4,7 +4,6 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { games, leagueMembers, leagueSeasons, pickemPicks, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_STATUS,
@@ -527,7 +526,6 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -1524,7 +1522,6 @@ describe("GET /api/leagues/:leagueId/pickem/pick-summary", () => {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

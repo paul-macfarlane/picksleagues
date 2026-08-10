@@ -45,8 +45,8 @@ function SurvivorRules() {
             revived and play on — whatever the mix of wrong and missed picks.
           </li>
           <li>
-            <strong>Ties:</strong> by league setting, a tie either advances you with the team
-            consumed (the default), or eliminates you.
+            <strong>Ties:</strong> a tie advances you, with the team consumed — the game was played,
+            so the team is spent.
           </li>
           <li>
             <strong>Cancelled game:</strong> counts as a push — you survive, and the team is not

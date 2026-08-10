@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   NFL_REGULAR_SEASON_RANGE,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   SurvivorSettingsInputSchema,
   SurvivorSettingsSchema,
   isWeekInSeasonRange,
@@ -254,7 +253,6 @@ describe("survivorSettingsInvalidatePicks", () => {
   const base: SurvivorSettings = {
     startWeek: regular(1),
     endWeek: regular(18),
-    pushTieResolution: "advance",
   };
 
   it("invalidates when startWeek moves later in season order", () => {
@@ -263,12 +261,6 @@ describe("survivorSettingsInvalidatePicks", () => {
 
   it.each([
     { label: "nothing changes", next: base },
-    // Settlement reads this at grading time, so no stored pick becomes
-    // ungradeable — this is the case the whole predicate exists to spare.
-    {
-      label: "pushTieResolution changes",
-      next: { ...base, pushTieResolution: "eliminate" as const },
-    },
     {
       label: "startWeek moves earlier (widens the range)",
       previous: { ...base, startWeek: regular(2) },
@@ -285,14 +277,15 @@ describe("SurvivorSettingsSchema", () => {
     endWeek: regular(18),
   };
 
-  it("applies default: advance on push", () => {
-    expect(SurvivorSettingsSchema.parse(base).pushTieResolution).toBe("advance");
-  });
-
   it.each([
     { label: "full regular season", input: base },
     { label: "single week", input: { ...base, startWeek: regular(7), endWeek: regular(7) } },
-    { label: "eliminate on push", input: { ...base, pushTieResolution: "eliminate" } },
+    {
+      // A tie is fixed at advance-with-team-consumed (ADR-0033); Zod strips
+      // the retired key, so a row stored before the removal still parses.
+      label: "a stored row still carrying the retired pushTieResolution key",
+      input: { ...base, pushTieResolution: "eliminate" },
+    },
   ])("accepts $label", ({ input }) => {
     expect(SurvivorSettingsSchema.safeParse(input).success).toBe(true);
   });
@@ -310,13 +303,12 @@ describe("SurvivorSettingsSchema", () => {
     expect(SurvivorSettingsSchema.safeParse(input).success).toBe(false);
   });
 
-  // The stored shape is unchanged by ADR-0024 — only the wire shape lost the
-  // range — so everything downstream keeps reading the refs it always did.
+  // The stored refs are unchanged by ADR-0024/0033 — only rule knobs left the
+  // shape — so everything downstream keeps reading the refs it always did.
   it("round-trips the resolved refs the server stores, including a mid-season start", () => {
     const stored = {
       startWeek: regular(5),
       endWeek: regular(18),
-      pushTieResolution: "advance" as const,
     };
     expect(SurvivorSettingsSchema.parse(stored)).toEqual(stored);
   });
@@ -327,15 +319,16 @@ describe("SurvivorSettingsSchema", () => {
 });
 
 describe("SurvivorSettingsInputSchema", () => {
-  it("carries only the settings a commissioner still chooses", () => {
-    expect(SurvivorSettingsInputSchema.parse({})).toEqual({ pushTieResolution: "advance" });
+  it("carries nothing — a Survivor league has no rule left to choose", () => {
+    expect(SurvivorSettingsInputSchema.parse({})).toEqual({});
   });
 
-  // Everything else a client might send is decided somewhere other than the
-  // wire: the range server-side against the clock (ADR-0024), and the pick type
-  // by the mode itself (ADR-0026 — Survivor is straight-up only). Stripping
-  // rather than refusing is what keeps an out-of-date client from failing a
-  // league creation over a setting it can't influence either way.
+  // Everything a client might send is decided somewhere other than the wire:
+  // the range server-side against the clock (ADR-0024), the pick type by the
+  // mode itself (ADR-0026), and the push/tie rule fixed at its default
+  // (ADR-0033). Stripping rather than refusing is what keeps an out-of-date
+  // client from failing a league creation over a setting it can't influence
+  // either way.
   it.each([
     { label: "a start week", input: { startWeek: regular(5) } },
     { label: "an end week", input: { endWeek: regular(10) } },
@@ -348,8 +341,12 @@ describe("SurvivorSettingsInputSchema", () => {
       input: { seasonRangePreset: "regular_season" },
     },
     { label: "a pick type", input: { pickType: "straight_up" } },
+    {
+      label: "the pre-ADR-0033 push/tie rule",
+      input: { pushTieResolution: "eliminate" },
+    },
   ])("strips $label from the wire", ({ input }) => {
-    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({ pushTieResolution: "advance" });
+    expect(SurvivorSettingsInputSchema.parse(input)).toEqual({});
   });
 });
 
@@ -443,7 +440,6 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
   it("pins the wire values other packages build on", () => {
     expect(Object.values(LEAGUE_MODE).sort()).toEqual(["march_madness", "pickem", "survivor"]);
     expect(Object.values(PICK_TYPE).sort()).toEqual(["against_the_spread", "straight_up"]);
-    expect(Object.values(SURVIVOR_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
     expect(Object.values(WEEK_TYPE).sort()).toEqual(["postseason", "regular"]);
   });
 });

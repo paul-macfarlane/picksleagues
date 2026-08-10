@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), and ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle), and ADR-0033 (Survivor's Push/Tie Resolution setting is removed, fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -138,7 +138,8 @@ Two parallel leaderboards:
 A survivor pool. Each week, every member picks one team to win **straight up**. Correct → advance. Incorrect or no pick → eliminated. Last member standing wins.
 
 ### League Settings
-1. **Push/Tie Resolution** — on a tie: member advances and the team is consumed (default), or member is eliminated
+
+**Survivor has no league settings.** Every rule that was once a setting is fixed by the mode: on a tie the member **advances and the team is consumed** — the game was played, so the team is spent, and NFL ties are too rare (one or two a season) to earn a knob (ADR-0033, which retired the Push/Tie Resolution setting at that default). The remaining fixed rules are below.
 
 **Survivor has no Pick Type setting.** The mode is straight up only, so a pick carries no spread and there is nothing to accept at pick time. Picks stay changeable until kickoff (below), and against-the-spread grading is priced at pick time — the two together would let a member re-pick the same team purely to be re-graded against a friendlier line, which rewards refreshing rather than picking. Pick'em keeps its own Pick Type, because its week is a single immutable submission and has no second write to shop with. (ADR-0026.)
 
@@ -308,6 +309,7 @@ Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor e
 | Game Mode 2 name | Ships as **NFL Survivor**, the industry-standard term; called "Elimination" in the original v0.3 text (ADR-0023) |
 | Survivor season range | No range setting — the server resolves and stores a regular-season range (ADR-0024) |
 | Survivor pick type | Straight up only; the Pick Type setting removed, since changeable picks plus pick-time spreads reward refreshing (ADR-0026) |
+| Survivor push/tie | Fixed at advance-with-team-consumed; the Push/Tie Resolution setting removed — NFL ties are too rare to earn a knob (ADR-0033) |
 | Survivor lives | Fixed at 1; buy-back deferred |
 | Survivor end-of-league | Co-winners share rank; no extension weeks |
 | MM bonuses (upset, perfect round) | Deferred |
