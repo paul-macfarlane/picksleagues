@@ -49,15 +49,15 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 ## Build order
 
 File numbers are historical, not priority — they record the order epics were
-written. The order work is actually taken (owner, 2026-08-09):
+written. The order work is actually taken (owner, 2026-08-09; LNCH-12 folded
+into the launch epic rather than ahead of it, owner 2026-08-10):
 
 1. **`05-pickem`, remainder** — `PKM-10`, the dashboard pick-status glance the launch mode still answers with a placeholder. **Done** (PR #54).
 2. **`06-survivor`, remainder** — `ELM-11`, eliminating a member the moment their loss is certain. **Done** (delivered 2026-08-08, ADR-0028; the checkbox lagged the merge, which is how this list re-listed it).
-3. **`LNCH-12`** — gate March Madness so nobody can create a league in a mode that doesn't exist. Ahead of the rest of launch because it is the one item where shipping without it strands real members in a dead league.
-4. **`09-launch`, remainder** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover. Within it the visual + legal slice (LNCH-7, 9, 10, 11) comes first: it is what makes the app read as a product rather than a project.
-5. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and one item (`FB-2`) is a question whose answer gets better once there is real usage to point at.
-6. **`15-scope-sweep`** — owner triage of the app-wide cut candidates (2026-08-09 sweep). Sits before the epics below because its rulings decide whether they get built at all: `SWP-2`/`SWP-3` gate trust-safety, `SWP-6` reshapes March Madness before it starts.
-7. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+3. **`09-launch`** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover, and `LNCH-12` (gate March Madness so nobody can create a league in a mode that doesn't exist — still a hard pre-cutover requirement, since shipping without it strands real members in a dead league, but done with the rest of launch rather than ahead of it). Within the epic the visual + legal slice (LNCH-7, 9, 10, 11) comes first: it is what makes the app read as a product rather than a project.
+4. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and one item (`FB-2`) is a question whose answer gets better once there is real usage to point at.
+5. **`15-scope-sweep`** — owner triage of the app-wide cut candidates (2026-08-09 sweep). Sits before the epics below because its rulings decide whether they get built at all: `SWP-2`/`SWP-3` gate trust-safety, `SWP-6` reshapes March Madness before it starts.
+6. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `10-trust-safety` was step 7 until `SWP-2` scrapped it (owner, 2026-08-09) — its
 items are `wontfix` in place, and `SWP-3`'s public-discovery ruling is where the
