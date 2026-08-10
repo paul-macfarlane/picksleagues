@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. What stands between that and a launchable product is gating the one mode that doesn't exist yet (`LNCH-12`) and the rest of `09-launch`.
+Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included — and the owner-feedback epic (`14`) closed with PR #75, so what remains is the scope-sweep triage (`15`) and March Madness (`07`) when its season approaches.
 
 ## Task format
 
@@ -53,11 +53,10 @@ written. The order work is actually taken (owner, 2026-08-09):
 
 1. **`05-pickem`, remainder** — `PKM-10`, the dashboard pick-status glance the launch mode still answers with a placeholder. **Done** (PR #54).
 2. **`06-survivor`, remainder** — `ELM-11`, eliminating a member the moment their loss is certain. **Done** (delivered 2026-08-08, ADR-0028; the checkbox lagged the merge, which is how this list re-listed it).
-3. **`LNCH-12`** — gate March Madness so nobody can create a league in a mode that doesn't exist. Ahead of the rest of launch because it is the one item where shipping without it strands real members in a dead league.
-4. **`09-launch`, remainder** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover. Within it the visual + legal slice (LNCH-7, 9, 10, 11) comes first: it is what makes the app read as a product rather than a project.
-5. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and one item (`FB-2`) is a question whose answer gets better once there is real usage to point at.
-6. **`15-scope-sweep`** — owner triage of the app-wide cut candidates (2026-08-09 sweep). Sits before the epics below because its rulings decide whether they get built at all: `SWP-2`/`SWP-3` gate trust-safety, `SWP-6` reshapes March Madness before it starts.
-7. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+3. **`09-launch`** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover, and the `LNCH-12` March Madness gate. **Done** (owner confirmed 2026-08-10 — `LNCH-12` shipped with the rest of launch rather than ahead of it as this list once planned; its server-side gate in `createLeague` stands until epic 07 lifts it).
+4. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and one item (`FB-2`) is a question whose answer gets better once there is real usage to point at. **Done** (PR #75 — FB-1/2/5/6 resolved, FB-3/4/7 wontfixed).
+5. **`15-scope-sweep`** — owner triage of the app-wide cut candidates (2026-08-09 sweep). Sits before the epics below because its rulings decide whether they get built at all: `SWP-2`/`SWP-3` gate trust-safety, `SWP-6` reshapes March Madness before it starts.
+6. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `10-trust-safety` was step 7 until `SWP-2` scrapped it (owner, 2026-08-09) — its
 items are `wontfix` in place, and `SWP-3`'s public-discovery ruling is where the

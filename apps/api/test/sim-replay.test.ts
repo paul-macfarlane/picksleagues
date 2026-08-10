@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { simFixtureGames, simScenarios } from "@picksleagues/db";
+import { simFixtureGames, simFixtureTeams, simScenarios } from "@picksleagues/db";
 import { latestCompletedNflSeasonYear } from "@picksleagues/core";
 import { isReplayableSeasonYear } from "../src/services/sim/replay";
 import { GAME_STATUS, type JobRunResponse, type SimStateResponse } from "@picksleagues/schemas";
@@ -13,7 +13,7 @@ import {
   postJson,
   seedFakeEspnWeek,
 } from "./setup/sim-helpers";
-import { providerGame } from "./setup/provider-fixtures";
+import { providerGame, providerTeam } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 
 beforeEach(async () => {
@@ -78,6 +78,20 @@ describe("POST /api/sim/scenarios/replay", () => {
     const fakeEspn = new FakeProvider();
     const pastYear = latestCompletedNflSeasonYear(new Date());
     seedPastSeason(fakeEspn, pastYear);
+    // Only AAA appears in the teams listing — the other three exercise the
+    // fallback the importer builds from the game row, which has no logo to
+    // offer. Regression (FB-1): a replayed season's teams must carry the
+    // listing's logos, or every board rendered from a replay is logo-less.
+    fakeEspn.teams = [
+      providerTeam({
+        providerTeamId: "aaa-id",
+        abbreviation: "AAA",
+        name: "Team AAA",
+        location: "Cityville",
+        logoLightUrl: "https://logos.example/aaa-light.png",
+        logoDarkUrl: "https://logos.example/aaa-dark.png",
+      }),
+    ];
     const { app, cookie } = await adminCaller(fakeEspn);
 
     const res = await postJson(app, "/api/sim/scenarios/replay", { seasonYear: pastYear }, cookie);
@@ -106,6 +120,25 @@ describe("POST /api/sim/scenarios/replay", () => {
     for (const fixture of fixtureRows) {
       expect(fixture.spread).not.toBeNull();
     }
+
+    const teamRows = await db
+      .select()
+      .from(simFixtureTeams)
+      .where(eq(simFixtureTeams.scenarioId, scenario!.id))
+      .orderBy(asc(simFixtureTeams.abbreviation));
+    expect(
+      teamRows.map((t) => [t.abbreviation, t.location, t.logoLightUrl, t.logoDarkUrl]),
+    ).toEqual([
+      [
+        "AAA",
+        "Cityville",
+        "https://logos.example/aaa-light.png",
+        "https://logos.example/aaa-dark.png",
+      ],
+      ["BBB", "Team BBB", null, null],
+      ["CCC", "Team CCC", null, null],
+      ["DDD", "Team DDD", null, null],
+    ]);
   });
 
   it("re-importing the same season is idempotent and reproducible: fixture count unchanged, spreads byte-identical", async () => {
