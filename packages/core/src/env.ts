@@ -8,9 +8,21 @@ export const APP_ENV = {
 
 export type AppEnv = (typeof APP_ENV)[keyof typeof APP_ENV];
 
+// pg v8 treats these sslmode values as aliases for verify-full and warns on
+// every cold start; pg v9 will silently downgrade them to libpq semantics,
+// which skip full server-cert verification. Rejecting the aliases at boot
+// forces the explicit spelling, so the pg upgrade can never weaken TLS on a
+// Neon connection without a diff here. Local URLs simply omit sslmode.
+const WEAK_SSLMODE_ALIASES = new Set(["prefer", "require", "verify-ca"]);
+
 const EnvSchema = z.object({
   APP_ENV: z.enum(APP_ENV),
-  DATABASE_URL: z.url(),
+  DATABASE_URL: z
+    .url()
+    .refine((url) => !WEAK_SSLMODE_ALIASES.has(new URL(url).searchParams.get("sslmode") ?? ""), {
+      message:
+        "sslmode=prefer/require/verify-ca become weaker libpq semantics in pg v9 — spell sslmode=verify-full explicitly (or omit sslmode for local Postgres)",
+    }),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.url(),
   GOOGLE_CLIENT_ID: z.string().min(1),
