@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle), and ADR-0033 (Survivor's Push/Tie Resolution setting is removed, fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle), ADR-0033 (Survivor's Push/Tie Resolution setting is removed, fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all), and ADR-0034 (March Madness scoring is Standard Doubling only and the pre-deadline seed-correction wipe is an admin-by-hand procedure — both cut before the mode was built) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -173,8 +173,9 @@ A bracket pool for the NCAA Men's Basketball Tournament. Members submit brackets
 
 ### League Settings
 1. **Max Brackets Per Member** — 1–10 (default 5)
-2. **Scoring Model** — Standard Doubling (default) or Custom (commissioner sets each round's per-correct-pick value independently; any non-negative integer)
-3. **Visibility** — Public or Private (global rule, listed here because pools are created per tournament)
+2. **Visibility** — Public or Private (global rule, listed here because pools are created per tournament)
+
+**There is no Scoring Model setting.** Scoring is Standard Doubling for every pool — a friends' pool doesn't tune per-round values, and the Custom model was cut before the mode was built (ADR-0034).
 
 ### Bracket Structure
 - The tournament field is 68 teams; the **First Four is not picked**. Picks open once all First Four games conclude and the 64-team field is set.
@@ -189,7 +190,7 @@ A bracket pool for the NCAA Men's Basketball Tournament. Members submit brackets
 - A member with no submitted bracket by the deadline has no entry.
 
 ### Scoring
-**Standard Doubling (default):**
+**Standard Doubling:**
 | Round | Points per correct pick |
 | --- | --- |
 | Round of 64 | 1 |
@@ -199,7 +200,7 @@ A bracket pool for the NCAA Men's Basketball Tournament. Members submit brackets
 | Final Four | 16 |
 | Championship | 32 |
 
-**Custom:** commissioner-configured per-round values. A pick is correct if the picked team wins that game, regardless of path (a team picked to reach a round via one opponent still scores if it arrives via another).
+A pick is correct if the picked team wins that game, regardless of path (a team picked to reach a round via one opponent still scores if it arrives via another).
 
 ### Standings
 Single cumulative pool leaderboard, updating as games complete. One row **per bracket** (a member with multiple brackets appears once per bracket, with member name shown). No per-round reset.
@@ -215,7 +216,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 ### Edge Cases
 - Identical brackets (same 63 picks, same score prediction) are allowed and tie completely.
 - Original Selection Committee seeds and pairings are used throughout; there is no re-seeding.
-- If the app publishes an incorrect seed/region that is corrected **before** the deadline: all brackets are wiped and members are prompted to resubmit. After the deadline, seedings are frozen for scoring.
+- If the app publishes an incorrect seed/region that is corrected **before** the deadline: an admin handles it by hand — correcting the data and telling affected members to resubmit — rather than an automated wipe-and-resubmit flow (ADR-0034; a once-a-tournament case at this scale). After the deadline, seedings are frozen for scoring.
 - A game postponed within the tournament resolves normally when played.
 
 ---
@@ -310,6 +311,8 @@ Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor e
 | Survivor season range | No range setting — the server resolves and stores a regular-season range (ADR-0024) |
 | Survivor pick type | Straight up only; the Pick Type setting removed, since changeable picks plus pick-time spreads reward refreshing (ADR-0026) |
 | Survivor push/tie | Fixed at advance-with-team-consumed; the Push/Tie Resolution setting removed — NFL ties are too rare to earn a knob (ADR-0033) |
+| MM scoring model | Standard Doubling only; the Custom per-round-values setting cut before the mode was built (ADR-0034) |
+| MM seed-correction wipe | Admin-by-hand procedure, not an automated wipe-and-resubmit flow (ADR-0034) |
 | Survivor lives | Fixed at 1; buy-back deferred |
 | Survivor end-of-league | Co-winners share rank; no extension weeks |
 | MM bonuses (upset, perfect round) | Deferred |

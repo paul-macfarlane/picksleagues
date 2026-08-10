@@ -275,52 +275,7 @@
             "$ref": "#/components/schemas/SurvivorSettings"
           },
           {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "standard_doubling"
-                ]
-              }
-            },
-            "required": [
-              "scoringModel"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "custom"
-                ]
-              },
-              "roundValues": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            },
-            "required": [
-              "scoringModel",
-              "roundValues"
-            ]
+            "$ref": "#/components/schemas/MarchMadnessSettings"
           }
         ]
       },
@@ -438,6 +393,17 @@
           "startWeek",
           "endWeek"
         ]
+      },
+      "MarchMadnessSettings": {
+        "type": "object",
+        "properties": {
+          "maxBracketsPerMember": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5
+          }
+        }
       },
       "MemberRole": {
         "type": "string",
@@ -605,58 +571,6 @@
       "SurvivorSettingsInput": {
         "type": "object",
         "properties": {}
-      },
-      "MarchMadnessSettings": {
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "standard_doubling"
-                ]
-              }
-            },
-            "required": [
-              "scoringModel"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "custom"
-                ]
-              },
-              "roundValues": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            },
-            "required": [
-              "scoringModel",
-              "roundValues"
-            ]
-          }
-        ]
       },
       "MyLeaguesResponse": {
         "type": "object",

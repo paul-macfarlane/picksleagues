@@ -141,7 +141,7 @@ describe("PATCH /api/leagues/:leagueId", () => {
   it("400s settings that fail the league's mode schema", async () => {
     const { commish, league } = await seedLeague();
     const res = await patchLeague(commish.cookie, league.id, {
-      settings: { scoringModel: "standard_doubling" }, // MM settings on a pickem league
+      settings: { maxBracketsPerMember: 5 }, // MM settings on a pickem league
     });
     expect(res.status).toBe(400);
   });

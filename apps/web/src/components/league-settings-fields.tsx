@@ -1,10 +1,8 @@
 import {
   NFL_REGULAR_SEASON_RANGE,
   LEAGUE_VISIBILITY,
-  MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
   type LeagueVisibility,
-  type MarchMadnessScoringModel,
   type NflSeasonRange,
   type PickType,
 } from "@picksleagues/schemas";
@@ -38,24 +36,10 @@ export const PICK_TYPE_OPTIONS: { value: PickType; label: string }[] = [
   { value: PICK_TYPE.AGAINST_THE_SPREAD, label: "Against the Spread" },
 ];
 
-export const MM_SCORING_MODEL_OPTIONS: { value: MarchMadnessScoringModel; label: string }[] = [
-  { value: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING, label: "Standard Doubling" },
-  { value: MARCH_MADNESS_SCORING_MODEL.CUSTOM, label: "Custom" },
-];
-
-export const MM_ROUND_LABELS = [
-  "Round of 64",
-  "Round of 32",
-  "Sweet 16",
-  "Elite Eight",
-  "Final Four",
-  "Championship",
-] as const;
-
 /**
  * Shared radio-group wiring: a legend, then one Radio + Label pair per
- * option (with optional helper text) — used for mode, visibility, Pick'em's
- * pick type, and March Madness's scoring model.
+ * option (with optional helper text) — used for mode, visibility, and
+ * Pick'em's pick type.
  */
 export function RadioField<Value extends string>({
   legend,
@@ -171,20 +155,14 @@ export function SurvivorSettingsFields({ seasonRange }: { seasonRange?: NflSeaso
   );
 }
 
+// Scoring is standard doubling only (ADR-0034) — max brackets is the one
+// setting the mode has.
 export function MarchMadnessSettingsFields({
   maxBrackets,
   onMaxBracketsChange,
-  scoringModel,
-  onScoringModelChange,
-  roundValues,
-  onRoundValueChange,
 }: {
   maxBrackets: number;
   onMaxBracketsChange: (value: number) => void;
-  scoringModel: MarchMadnessScoringModel;
-  onScoringModelChange: (value: MarchMadnessScoringModel) => void;
-  roundValues: number[];
-  onRoundValueChange: (index: number, value: number) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -197,27 +175,6 @@ export function MarchMadnessSettingsFields({
         value={maxBrackets}
         onValueChange={onMaxBracketsChange}
       />
-      <RadioField
-        legend="Scoring model"
-        name="mm-scoring-model"
-        value={scoringModel}
-        onValueChange={onScoringModelChange}
-        options={MM_SCORING_MODEL_OPTIONS}
-      />
-      {scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM && (
-        <div className="grid grid-cols-2 gap-3">
-          {MM_ROUND_LABELS.map((label, index) => (
-            <NumberField
-              key={label}
-              id={`mm-round-value-${index}`}
-              label={label}
-              min={0}
-              value={roundValues[index] ?? 0}
-              onValueChange={(next) => onRoundValueChange(index, next)}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

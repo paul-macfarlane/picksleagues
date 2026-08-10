@@ -7,7 +7,6 @@ import {
   ADMIN_AUDIT_TARGET_TABLE,
   GAME_STATUS,
   LEAGUE_MODE,
-  MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICKEM_PICK_SIDE,
   type AdminAuditResponse,
@@ -235,7 +234,6 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
       seasonId,
       mode: LEAGUE_MODE.MARCH_MADNESS,
       settings: {
-        scoringModel: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
         maxBracketsPerMember: 5,
       },
       members: [{ userId, role: MEMBER_ROLE.COMMISSIONER }],

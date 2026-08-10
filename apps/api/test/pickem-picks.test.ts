@@ -7,7 +7,6 @@ import {
   GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_STATUS,
-  MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
@@ -541,7 +540,6 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       seasonId,
       mode: LEAGUE_MODE.MARCH_MADNESS,
       settings: {
-        scoringModel: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
         maxBracketsPerMember: 5,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
