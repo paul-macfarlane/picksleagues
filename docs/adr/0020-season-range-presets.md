@@ -1,6 +1,6 @@
 # 0020. Season-range presets replace explicit Start Week / End Week
 
-- **Status:** Accepted — amended by ADR-0021 (the mid-week resolution rule now judges a games-less week in range by its own `weeks.ends_at`, so a not-yet-seeded playoff round is still a selectable start week; range confinement is unchanged)
+- **Status:** Superseded by [0031](0031-pickem-is-regular-season-only.md) — the presets are removed and Pick'em is regular-season only; the mid-week resolution rule this ADR defines survives, applied to the fixed regular-season range (as ADR-0024 already applied it for Survivor). Earlier amended by ADR-0021 (a games-less week in range is judged by its own `weeks.ends_at`)
 - **Date:** 2026-08-04
 - **Related:** [0008](0008-league-season-binding.md) (`leagueStartAt` derivation),
   [0009](0009-multi-season-leagues.md) (per-instance settings, provisional seasons); `docs/mvp-spec.md`

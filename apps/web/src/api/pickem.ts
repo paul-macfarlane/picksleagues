@@ -60,50 +60,6 @@ export function usePickemStandings(leagueId: string, weekId?: string) {
 }
 
 /**
- * The create form's answer: which ADR-0020 presets the latest ingested NFL
- * season can still start. Session-gated, not league-scoped — any authed user
- * may reach the create form. No league to key by, so the key is fixed.
- */
-export function pickemSeasonRangePresetsQueryKey() {
-  return ["pickem", "season-range-presets"];
-}
-
-export function usePickemSeasonRangePresets() {
-  return useQuery({
-    queryKey: pickemSeasonRangePresetsQueryKey(),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/pickem/season-range-presets");
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-/**
- * The settings editor's answer: which presets the league's own bound season
- * can still start (which may not be the latest ingested season — ADR-0009).
- */
-export function leaguePickemSeasonRangePresetsQueryKey(leagueId: string) {
-  return ["league", leagueId, "pickem", "season-range-presets"];
-}
-
-export function useLeaguePickemSeasonRangePresets(leagueId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: leaguePickemSeasonRangePresetsQueryKey(leagueId),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/leagues/{leagueId}/pickem/season-range-presets", {
-        params: { path: { leagueId } },
-      });
-      if (error) throw error;
-      return data;
-    },
-    // Same gate as usePickemPickSummary below: only a commissioner editing a
-    // pre-start Pick'em league needs this.
-    enabled,
-  });
-}
-
-/**
  * The settings editor's pre-save warning input: how much a Pick'em-invalidating
  * settings edit would destroy. Its own query key (not folded into the league
  * query) since it's fetched conditionally and on a different cadence — every

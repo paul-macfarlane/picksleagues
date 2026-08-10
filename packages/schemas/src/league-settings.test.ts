@@ -9,13 +9,10 @@ import {
   LEAGUE_SETTINGS_SCHEMAS,
   MarchMadnessSettingsSchema,
   nflSeasonOrdinal,
-  PICKEM_NOMINAL_RANGE,
-  PICKEM_SEASON_RANGE_PRESET,
   pickemSettingsInvalidatePicks,
   PickemSettingsInputSchema,
   PickemSettingsSchema,
   survivorSettingsInvalidatePicks,
-  type PickemSeasonRangePreset,
   type PickemSettings,
   type SurvivorSettings,
 } from "./league-settings";
@@ -97,7 +94,6 @@ describe("isWeekInSeasonRange", () => {
 
 describe("PickemSettingsSchema", () => {
   const base = {
-    seasonRangePreset: "regular_season",
     startWeek: regular(1),
     endWeek: regular(18),
     pickType: "straight_up",
@@ -114,17 +110,8 @@ describe("PickemSettingsSchema", () => {
       input: { ...base, endWeek: regular(1), startWeek: regular(1) },
     },
     {
-      label: "regular start, playoff end",
-      input: { ...base, startWeek: regular(10), endWeek: postseason(4) },
-    },
-    {
-      label: "playoff-only league",
-      input: {
-        ...base,
-        seasonRangePreset: "postseason",
-        startWeek: postseason(1),
-        endWeek: postseason(4),
-      },
+      label: "mid-season resolved start",
+      input: { ...base, startWeek: regular(5) },
     },
     {
       label: "ATS with 16 picks",
@@ -138,65 +125,65 @@ describe("PickemSettingsSchema", () => {
       label: "a stored row still carrying the retired pushTieResolution key",
       input: { ...base, pushTieResolution: "full_point" },
     },
+    {
+      // Same stripping rule for the preset ADR-0031 retired: a row written
+      // under ADR-0020 carries the label alongside the refs it resolved to,
+      // and the refs are all anything downstream ever computed on.
+      label: "a stored row still carrying the retired seasonRangePreset key",
+      input: { ...base, seasonRangePreset: "regular_season" },
+    },
   ])("accepts $label", ({ input }) => {
     expect(PickemSettingsSchema.safeParse(input).success).toBe(true);
   });
 
   it.each([
     {
-      label: "end before start (regular)",
+      label: "end before start",
       input: { ...base, startWeek: regular(5), endWeek: regular(4) },
     },
+    // The mode is regular-season only (ADR-0031): a postseason ref anywhere in
+    // a stored range is a bug, not a configuration.
     {
-      label: "end in regular after playoff start",
-      input: { ...base, startWeek: postseason(1), endWeek: regular(18) },
+      label: "postseason start",
+      input: { ...base, startWeek: postseason(1), endWeek: postseason(4) },
     },
+    { label: "postseason end", input: { ...base, endWeek: postseason(1) } },
     { label: "regular week 0", input: { ...base, startWeek: regular(0) } },
     { label: "regular week 19", input: { ...base, endWeek: regular(19) } },
-    { label: "postseason round 5", input: { ...base, endWeek: postseason(5) } },
     { label: "0 picks per week", input: { ...base, picksPerWeek: 0 } },
     { label: "17 picks per week", input: { ...base, picksPerWeek: 17 } },
     { label: "fractional picks per week", input: { ...base, picksPerWeek: 2.5 } },
     { label: "unknown pick type", input: { ...base, pickType: "parlay" } },
-    { label: "unknown season range preset", input: { ...base, seasonRangePreset: "preseason" } },
-    // The preset has no `.default()` on purpose: a stored row without one was
-    // written before ADR-0020 and its range came from somewhere else entirely,
-    // so defaulting it would mislabel that league rather than fail loudly.
-    {
-      label: "no season range preset at all",
-      input: { startWeek: regular(1), endWeek: regular(18), pickType: "straight_up" },
-    },
   ])("rejects $label", ({ input }) => {
     expect(PickemSettingsSchema.safeParse(input).success).toBe(false);
   });
 });
 
 describe("PickemSettingsInputSchema", () => {
-  const base = { seasonRangePreset: "full_season", pickType: "straight_up" };
+  const base = { pickType: "straight_up" };
 
   it("applies defaults: 5 picks per week", () => {
     expect(PickemSettingsInputSchema.parse(base).picksPerWeek).toBe(5);
   });
 
-  // The wire/stored divergence ADR-0020 rests on: a client naming week refs
-  // gets them dropped, so resolution — not the request — decides the range.
-  it("drops client-supplied week refs instead of carrying them through", () => {
+  // The wire/stored divergence ADR-0031 keeps from ADR-0020: a client naming
+  // week refs — or the preset clients sent until ADR-0031 — gets them
+  // dropped, so resolution, not the request, decides the range.
+  it("drops client-supplied week refs and the retired preset instead of carrying them through", () => {
     const parsed = PickemSettingsInputSchema.parse({
       ...base,
+      seasonRangePreset: "postseason",
       startWeek: regular(9),
       endWeek: postseason(4),
     });
     expect(parsed).toEqual({
-      seasonRangePreset: "full_season",
       pickType: "straight_up",
       picksPerWeek: 5,
     });
   });
 
   it.each([
-    { label: "every preset", input: base },
-    { label: "regular season", input: { ...base, seasonRangePreset: "regular_season" } },
-    { label: "postseason", input: { ...base, seasonRangePreset: "postseason" } },
+    { label: "the minimal request", input: base },
     {
       label: "ATS with 16 picks",
       input: { ...base, pickType: "against_the_spread", picksPerWeek: 16 },
@@ -206,8 +193,7 @@ describe("PickemSettingsInputSchema", () => {
   });
 
   it.each([
-    { label: "unknown preset", input: { ...base, seasonRangePreset: "weeks_4_to_15" } },
-    { label: "missing preset", input: { pickType: "straight_up" } },
+    { label: "missing pick type", input: {} },
     { label: "unknown pick type", input: { ...base, pickType: "parlay" } },
     { label: "17 picks per week", input: { ...base, picksPerWeek: 17 } },
   ])("rejects $label", ({ input }) => {
@@ -217,7 +203,6 @@ describe("PickemSettingsInputSchema", () => {
 
 describe("pickemSettingsInvalidatePicks", () => {
   const base: PickemSettings = {
-    seasonRangePreset: "regular_season",
     startWeek: regular(1),
     endWeek: regular(18),
     pickType: "straight_up",
@@ -239,17 +224,9 @@ describe("pickemSettingsInvalidatePicks", () => {
     // under submit-once (ADR-0018) the member has spent their one submission
     // and would sit permanently under the new cap with no way to add picks.
     { label: "picksPerWeek is raised", next: { ...base, picksPerWeek: 6 } },
+    // The one range clause left (ADR-0031): the server's pre-start
+    // re-resolution can advance the start under an unchanged request.
     { label: "startWeek moves later in season order", next: { ...base, startWeek: regular(2) } },
-    {
-      label: "startWeek moves later across the regular/postseason boundary",
-      next: { ...base, startWeek: postseason(1) },
-    },
-    { label: "endWeek moves earlier in season order", next: { ...base, endWeek: regular(17) } },
-    {
-      label: "endWeek moves earlier across the regular/postseason boundary",
-      previous: { ...base, endWeek: postseason(1) },
-      next: base,
-    },
   ])("invalidates when $label", ({ next, previous = base }) => {
     expect(pickemSettingsInvalidatePicks(previous, next)).toBe(true);
   });
@@ -261,13 +238,12 @@ describe("pickemSettingsInvalidatePicks", () => {
       previous: { ...base, startWeek: regular(2) },
       next: base,
     },
-    { label: "endWeek moves later (widens the range)", next: { ...base, endWeek: postseason(4) } },
-    // The preset is a label for the range, not a second source of truth: the
-    // resolved refs are what could strand a pick, so a preset that resolved to
-    // the same range strands nothing.
+    // Pins the deliberate absence of a narrowing-end clause: the end week is
+    // fixed at regular week 18 with no path that lowers it (ADR-0031), so the
+    // clause would be inert protection.
     {
-      label: "only the preset label changes, resolving to the same range",
-      next: { ...base, seasonRangePreset: "full_season" as const },
+      label: "endWeek differs (no write path can produce this)",
+      next: { ...base, endWeek: regular(17) },
     },
   ])("does not invalidate when $label", ({ next, previous = base }) => {
     expect(pickemSettingsInvalidatePicks(previous, next)).toBe(false);
@@ -300,105 +276,6 @@ describe("survivorSettingsInvalidatePicks", () => {
     },
   ])("does not invalidate when $label", ({ next, previous = base }) => {
     expect(survivorSettingsInvalidatePicks(previous, next)).toBe(false);
-  });
-});
-
-describe("PICKEM_NOMINAL_RANGE", () => {
-  it("pins each preset's nominal range", () => {
-    expect(PICKEM_NOMINAL_RANGE).toEqual({
-      regular_season: { startWeek: regular(1), endWeek: regular(18) },
-      postseason: { startWeek: postseason(1), endWeek: postseason(4) },
-      full_season: { startWeek: regular(1), endWeek: postseason(4) },
-    });
-  });
-
-  // Resolution starts from these and the settings editor builds its draft from
-  // them, so a nominal range that violates the stored schema's ordering rule
-  // would surface as a thrown parse on a real save rather than here.
-  it.each(Object.values(PICKEM_SEASON_RANGE_PRESET))(
-    "%s's nominal range satisfies the stored schema",
-    (preset) => {
-      const parsed = PickemSettingsSchema.safeParse({
-        seasonRangePreset: preset,
-        ...PICKEM_NOMINAL_RANGE[preset],
-        pickType: "straight_up",
-      });
-      expect(parsed.success).toBe(true);
-    },
-  );
-});
-
-/**
- * The question the pre-start settings editor actually asks before a save:
- * switching from one preset to another re-resolves the range server-side, so
- * "would this change strand already-submitted picks?" has to be answered from
- * the *new* preset's nominal range, not from the refs the league currently
- * stores. These cases are that answer, mode-level and copy-free — the warning's
- * wording and placement are presentation policy and deliberately untested.
- */
-describe("changing the season-range preset", () => {
-  function settingsFor(
-    preset: PickemSeasonRangePreset,
-    overrides: Partial<PickemSettings> = {},
-  ): PickemSettings {
-    return {
-      seasonRangePreset: preset,
-      startWeek: PICKEM_NOMINAL_RANGE[preset].startWeek,
-      endWeek: PICKEM_NOMINAL_RANGE[preset].endWeek,
-      pickType: "straight_up",
-      picksPerWeek: 5,
-      ...overrides,
-    };
-  }
-
-  it.each([
-    {
-      label: "regular season → postseason skips every week already picked",
-      from: "regular_season",
-      to: "postseason",
-    },
-    {
-      label: "full season → regular season drops the playoff weeks",
-      from: "full_season",
-      to: "regular_season",
-    },
-    {
-      label: "full season → postseason drops the regular-season weeks",
-      from: "full_season",
-      to: "postseason",
-    },
-    {
-      label: "postseason → regular season drops the playoff weeks",
-      from: "postseason",
-      to: "regular_season",
-    },
-  ] as const)("strands picks: $label", ({ from, to }) => {
-    expect(pickemSettingsInvalidatePicks(settingsFor(from), settingsFor(to))).toBe(true);
-  });
-
-  it.each([
-    {
-      label: "regular season → full season only adds playoff weeks",
-      from: "regular_season",
-      to: "full_season",
-    },
-    {
-      label: "postseason → full season only adds regular-season weeks",
-      from: "postseason",
-      to: "full_season",
-    },
-  ] as const)("strands nothing: $label", ({ from, to }) => {
-    expect(pickemSettingsInvalidatePicks(settingsFor(from), settingsFor(to))).toBe(false);
-  });
-
-  // The case a nominal draft could get wrong and doesn't: a league created
-  // mid-week stores a start *later* than its preset's nominal one (ADR-0020's
-  // mid-week rule). Editing pick type alone must not read as narrowing the
-  // range back to week 1 — nominal-vs-stored is a widening, which strands
-  // nothing.
-  it("does not strand picks when a mid-week-resolved league keeps its preset", () => {
-    const stored = settingsFor("regular_season", { startWeek: regular(5) });
-    expect(pickemSettingsInvalidatePicks(stored, settingsFor("regular_season"))).toBe(false);
   });
 });
 
@@ -548,7 +425,7 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
     expect(LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.MARCH_MADNESS]).toBe(MarchMadnessSettingsSchema);
   });
 
-  // Both NFL modes' entries differ from the stored map (ADR-0020, ADR-0024):
+  // Both NFL modes' entries differ from the stored map (ADR-0024, ADR-0031):
   // each has its season range resolved rather than chosen. March Madness has
   // no range, and an entry of its drifting apart would mean a wire shape
   // nothing resolves into the stored one.
@@ -568,10 +445,5 @@ describe("LEAGUE_SETTINGS_SCHEMAS", () => {
     expect(Object.values(PICK_TYPE).sort()).toEqual(["against_the_spread", "straight_up"]);
     expect(Object.values(SURVIVOR_PUSH_TIE_RESOLUTION).sort()).toEqual(["advance", "eliminate"]);
     expect(Object.values(WEEK_TYPE).sort()).toEqual(["postseason", "regular"]);
-    expect(Object.values(PICKEM_SEASON_RANGE_PRESET).sort()).toEqual([
-      "full_season",
-      "postseason",
-      "regular_season",
-    ]);
   });
 });

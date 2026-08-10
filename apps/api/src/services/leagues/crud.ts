@@ -244,9 +244,11 @@ export async function updateLeague(
 
     const now = clock.now();
     if (input.settings !== undefined) {
-      // Re-resolves against the clock as it stands now (ADR-0020): a preset
-      // change is the one edit that can move the range, and this is the last
-      // moment it can happen, since settings lock at league start.
+      // Re-resolves against the clock as it stands now (ADR-0020's rule, kept
+      // by ADR-0024/0031): no field on the wire names a range anymore, but the
+      // clock can still move it — a stored start week that has emptied and
+      // passed re-resolves forward under a byte-identical request. This is the
+      // last moment it can happen, since settings lock at league start.
       const resolved = await resolveLeagueSettings(
         tx,
         clock,

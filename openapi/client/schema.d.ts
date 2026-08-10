@@ -318,40 +318,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/pickem/season-range-presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Which of the three ADR-0020 season-range presets the latest ingested NFL season can still start (create form) */
-        get: operations["getPickemSeasonRangePresets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/leagues/{leagueId}/pickem/season-range-presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Which presets the league's own bound season can still start (commissioner, settings editor only) */
-        get: operations["getLeaguePickemSeasonRangePresets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/leagues/{leagueId}/pickem/pick-summary": {
         parameters: {
             query?: never;
@@ -826,23 +792,19 @@ export interface components {
             roundValues: number[];
         };
         PickemSettings: {
-            seasonRangePreset: components["schemas"]["PickemSeasonRangePreset"];
-            startWeek: components["schemas"]["NflWeekRef"];
-            endWeek: components["schemas"]["NflWeekRef"];
+            startWeek: {
+                /** @enum {string} */
+                type: "regular";
+                number: number;
+            };
+            endWeek: {
+                /** @enum {string} */
+                type: "regular";
+                number: number;
+            };
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
-        };
-        /** @enum {string} */
-        PickemSeasonRangePreset: "regular_season" | "postseason" | "full_season";
-        NflWeekRef: {
-            /** @enum {string} */
-            type: "regular";
-            number: number;
-        } | {
-            /** @enum {string} */
-            type: "postseason";
-            number: number;
         };
         /** @enum {string} */
         PickType: "straight_up" | "against_the_spread";
@@ -901,7 +863,6 @@ export interface components {
         /** @default 10 */
         MaxMembers: number;
         PickemSettingsInput: {
-            seasonRangePreset: components["schemas"]["PickemSeasonRangePreset"];
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
@@ -1061,10 +1022,6 @@ export interface components {
             /** Format: date-time */
             endsAt: string;
             gameCount: number;
-        };
-        PickemSeasonRangePresetsResponse: {
-            seasonYear: number | null;
-            startablePresets: components["schemas"]["PickemSeasonRangePreset"][];
         };
         PickemPickSummary: {
             pickCount: number;
@@ -1953,7 +1910,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start) */
+            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the season's remaining weeks have already started (start_week_passed — a league must be born pre-start) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2915,111 +2872,6 @@ export interface operations {
             };
             /** @description No valid session */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getPickemSeasonRangePresets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The latest ingested NFL season's year (null if none ingested) and which presets it can still start */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PickemSeasonRangePresetsResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getLeaguePickemSeasonRangePresets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                leagueId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The league's bound season year and which presets it can still start — the settings editor's availability hint */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PickemSeasonRangePresetsResponse"];
-                };
-            };
-            /** @description Not a Pick'em league (wrong_league_mode) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The caller is a member but not a commissioner */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3,7 +3,7 @@ import { type GameStatus, type WeekType } from "@picksleagues/schemas";
 export type ProviderWeek = {
   weekType: WeekType;
   // DOMAIN numbering, not the provider's: regular 1..18, postseason contiguous
-  // 1..4 with Super Bowl = 4 (aligned with `NflWeekRefSchema` and
+  // 1..4 with Super Bowl = 4 (aligned with `NflWeekRef` and
   // `estimatedNflWeeks`). Adapters own any translation from their own scheme
   // — e.g. ESPN numbers the postseason 1,2,3,5 (its 4 is the excluded Pro
   // Bowl); its adapter maps that gap away so this field is always domain.

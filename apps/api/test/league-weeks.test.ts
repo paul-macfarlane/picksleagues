@@ -5,7 +5,6 @@ import {
   MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICK_TYPE,
-  PICKEM_SEASON_RANGE_PRESET,
   WEEK_TYPE,
   type LeagueWeeksResponse,
   type PickemSettings,
@@ -168,11 +167,12 @@ describe("GET /api/leagues/:leagueId/weeks", () => {
     });
 
     it("is null for a league whose configured range has no ingested weeks", async () => {
+      // Only weeks 1-3 are ingested; the stored range starts past all of them
+      // (a provisional-season shape — the schedule hasn't landed yet).
       const { league, member } = await seedLeague({
         ...DEFAULT_PICKEM_SETTINGS,
-        seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
-        startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
-        endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+        startWeek: { type: WEEK_TYPE.REGULAR, number: 10 },
+        endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
       });
 
       const body = (await (await getWeeks(member.cookie, league.id)).json()) as LeagueWeeksResponse;

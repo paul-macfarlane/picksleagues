@@ -4,17 +4,14 @@ import {
   LEAGUE_VISIBILITY,
   MARCH_MADNESS_SCORING_MODEL,
   PICK_TYPE,
-  PICKEM_SEASON_RANGE_PRESET,
   type SurvivorPushTieResolution,
   type LeagueVisibility,
   type MarchMadnessScoringModel,
   type NflSeasonRange,
   type PickType,
-  type PickemSeasonRangePreset,
 } from "@picksleagues/schemas";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { LabeledSelect } from "@/components/labeled-select";
 import { NumberField } from "@/components/number-field";
 
 // Per-mode league settings fieldsets, shared by the create-league form
@@ -66,26 +63,6 @@ export const MM_ROUND_LABELS = [
 ] as const;
 
 /**
- * Pick'em names its season range by preset, never by week numbers (ADR-0020):
- * the server resolves the concrete refs against the bound season and the clock,
- * so there is nothing here for a commissioner to spell out week by week.
- */
-export const PICKEM_SEASON_RANGE_OPTIONS: {
-  value: PickemSeasonRangePreset;
-  label: string;
-}[] = [
-  { value: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON, label: "Regular Season" },
-  { value: PICKEM_SEASON_RANGE_PRESET.POSTSEASON, label: "Postseason" },
-  { value: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON, label: "Full Season" },
-];
-
-/**
- * Matches the range weeks 1-18 described before presets existed, so a league
- * created without touching this control covers what it always did.
- */
-export const DEFAULT_PICKEM_SEASON_RANGE = PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON;
-
-/**
  * Shared radio-group wiring: a legend, then one Radio + Label pair per
  * option (with optional helper text) — used for mode, visibility, Pick'em's
  * pick type, and Survivor's push/tie setting.
@@ -128,21 +105,38 @@ export function RadioField<Value extends string>({
   );
 }
 
+/**
+ * The range the league covers, stated rather than chosen: both NFL modes are
+ * regular-season only (ADR-0024, ADR-0031), so the one legal range is implicit
+ * in the mode and a select would be a required click with a single possible
+ * answer. Still shown, because the covered weeks drive the join cutoff and the
+ * last week that scores — removing the control is not the same as hiding the
+ * answer.
+ *
+ * `seasonRange` is the league's *stored* resolved refs; the create form has
+ * none yet and says what creation will resolve instead.
+ */
+function NflSeasonRangeReadout({ seasonRange }: { seasonRange?: NflSeasonRange }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <h3 className="text-sm font-medium text-foreground">Season range</h3>
+      <p className="text-sm text-muted-foreground">
+        {seasonRange
+          ? `Regular season, weeks ${seasonRange.startWeek.number}–${seasonRange.endWeek.number}.`
+          : `Regular season, through week ${NFL_REGULAR_SEASON_RANGE.endWeek.number} — starting at the first week that hasn't kicked off yet.`}
+      </p>
+    </div>
+  );
+}
+
 export function PickemSettingsFields({
   seasonRange,
-  onSeasonRangeChange,
-  seasonRangeOptions = PICKEM_SEASON_RANGE_OPTIONS,
   pickType,
   onPickTypeChange,
   picksPerWeek,
   onPicksPerWeekChange,
 }: {
-  seasonRange: PickemSeasonRangePreset;
-  onSeasonRangeChange: (value: PickemSeasonRangePreset) => void;
-  // Caller-filtered to what the bound season can still start (LG-9) — the
-  // create form and the settings editor each answer against a different
-  // season (ADR-0009), so neither can share the other's filtered list.
-  seasonRangeOptions?: { value: PickemSeasonRangePreset; label: string }[];
+  seasonRange?: NflSeasonRange;
   pickType: PickType;
   onPickTypeChange: (value: PickType) => void;
   picksPerWeek: number;
@@ -151,13 +145,7 @@ export function PickemSettingsFields({
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Pick&apos;em settings</h2>
-      <LabeledSelect
-        id="pickem-season-range"
-        label="Season range"
-        value={seasonRange}
-        onValueChange={onSeasonRangeChange}
-        options={seasonRangeOptions}
-      />
+      <NflSeasonRangeReadout seasonRange={seasonRange} />
       <RadioField
         legend="Pick type"
         name="pickem-pick-type"
@@ -178,29 +166,6 @@ export function PickemSettingsFields({
 }
 
 /**
- * The range the league covers, stated rather than chosen (ADR-0024): Survivor
- * is regular-season only, so its one legal range is implicit in the mode and a
- * select would be a required click with a single possible answer. Still shown,
- * because the covered weeks drive the join cutoff and the last week that
- * scores — removing the control is not the same as hiding the answer.
- *
- * `seasonRange` is the league's *stored* resolved refs; the create form has
- * none yet and says what creation will resolve instead.
- */
-function SurvivorSeasonRange({ seasonRange }: { seasonRange?: NflSeasonRange }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <h3 className="text-sm font-medium text-foreground">Season range</h3>
-      <p className="text-sm text-muted-foreground">
-        {seasonRange
-          ? `Regular season, weeks ${seasonRange.startWeek.number}–${seasonRange.endWeek.number}.`
-          : `Regular season, through week ${NFL_REGULAR_SEASON_RANGE.endWeek.number} — starting at the first week that hasn't kicked off yet.`}
-      </p>
-    </div>
-  );
-}
-
-/**
  * No Pick Type control, and no plan for one: Survivor is straight-up only
  * (ADR-0026).
  */
@@ -216,7 +181,7 @@ export function SurvivorSettingsFields({
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold text-foreground">Survivor settings</h2>
-      <SurvivorSeasonRange seasonRange={seasonRange} />
+      <NflSeasonRangeReadout seasonRange={seasonRange} />
       <RadioField
         legend="Push / tie result"
         name="survivor-push-tie"

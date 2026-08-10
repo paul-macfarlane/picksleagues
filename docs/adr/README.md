@@ -29,7 +29,7 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
 | [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |
 | [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
-| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Accepted (amended by 0021) |
+| [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Superseded by 0031 (mid-week resolution rule survives) |
 | [0021](0021-unseeded-playoff-games-excluded-at-ingestion.md) | Unseeded playoff games are excluded at ingestion | Accepted |
 | [0022](0022-member-set-avatar-url.md)         | Member-set avatar is an `https:` URL in an `image_override` column | Accepted |
 | [0023](0023-survivor-is-the-mode-name.md)     | Game Mode 2 is named Survivor, not Elimination | Accepted |
@@ -40,3 +40,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0028](0028-survivor-provisional-elimination.md) | A Survivor member goes out as soon as their loss is certain | Accepted |
 | [0029](0029-invite-creation-is-pre-start-only.md) | Invite creation closes at league start; revocation stays open | Accepted |
 | [0030](0030-league-season-conclusion-is-settlement-output.md) | A league season's conclusion is settlement's output, recomputed both ways | Accepted |
+| [0031](0031-pickem-is-regular-season-only.md) | Pick'em is regular-season only; the season-range presets are removed | Accepted |

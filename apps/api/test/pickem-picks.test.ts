@@ -12,7 +12,6 @@ import {
   MEMBER_ROLE,
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
-  PICKEM_SEASON_RANGE_PRESET,
   PICK_TYPE,
   WEEK_TYPE,
   type PickemSettings,
@@ -1305,11 +1304,11 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
 });
 
 describe("PATCH /api/leagues/:leagueId — settings changes reset picks (settings-reset.ts)", () => {
-  // Builds a *wire* settings payload: a season-range preset and no week refs
-  // (ADR-0020) — the range these edits move is the one the server resolves.
+  // Builds a *wire* settings payload: the pick rules and no week refs
+  // (ADR-0031) — the stored range is the server's to resolve, so no edit here
+  // can name one.
   function settingsWith(overrides: Partial<PickemSettingsInput> = {}): PickemSettingsInput {
     return {
-      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
       picksPerWeek: DEFAULT_PICKEM_SETTINGS.picksPerWeek,
       ...overrides,
@@ -1341,12 +1340,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // already spent their one submission and would be stuck under the new cap
     // forever. Clearing is the only way back into the week.
     { label: "picksPerWeek is raised", settings: settingsWith({ picksPerWeek: 8 }) },
-    {
-      // Regular Season → Postseason moves the resolved start past every week
-      // the submitted picks live in.
-      label: "the season range preset moves the start later",
-      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON }),
-    },
   ])("clears picks when $label — a change that could strand them", async ({ settings }) => {
     const { league, memberA } = await seedWithSubmittedWeek();
 
@@ -1355,19 +1348,63 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     expect(await pickCountFor(league.id)).toBe(0);
   });
 
-  it.each([
-    {
-      // Regular Season → Full Season keeps the same resolved start and pushes
-      // the end out: every existing pick still sits in a week the league plays.
-      label: "the season range preset moves the end later",
-      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON }),
-    },
-  ])("keeps picks when $label — nothing is stranded", async ({ settings }) => {
+  it("keeps picks when the settings are re-saved unchanged — nothing is stranded", async () => {
+    // Re-resolving an unchanged range lands on the same weeks, and identical
+    // pick rules strand nothing — the save must not clear anyone's picks.
     const { league, memberA } = await seedWithSubmittedWeek();
 
-    const res = await patchLeague(memberA.cookie, league.id, { settings });
+    const res = await patchLeague(memberA.cookie, league.id, { settings: settingsWith() });
     expect(res.status).toBe(200);
     expect(await pickCountFor(league.id)).toBe(3);
+  });
+
+  it("clears picks when re-resolution advances the start under an unchanged request", async () => {
+    // The server-side start move the predicate's range clause exists for
+    // (ADR-0031): the stored start week holds no games and its window has
+    // passed by the edit's clock, so a byte-identical save re-resolves the
+    // start forward without the commissioner naming a week. The picks live in
+    // week 2, which stays in range — the clause is deliberately coarse (any
+    // advance clears the whole instance), and the picks are still unlocked,
+    // so the clear proceeds rather than refusing with picks_locked.
+    const WEEK2_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+      weeks: [
+        { weekNumber: 1, endsAt: WEEK1_KICKOFF, kickoffs: [] },
+        {
+          weekNumber: 2,
+          kickoffs: [
+            { kickoffAt: WEEK2_KICKOFF },
+            { kickoffAt: new Date(WEEK2_KICKOFF.getTime() + 60 * 60 * 1000) },
+            { kickoffAt: new Date(WEEK2_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
+          ],
+        },
+      ],
+    });
+    const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+      picks: gameIds.get("regular:2")!.map((gameId) => ({
+        gameId,
+        side: PICKEM_PICK_SIDE.HOME,
+        spread: null,
+      })),
+    });
+    expect(submitted.status).toBe(200);
+    expect(await pickCountFor(league.id)).toBe(3);
+
+    // Post-kickoff clock: week 1 (games-less, window closed) is no longer
+    // ahead, so resolution advances the stored start to week 2.
+    const res = await patchLeague(
+      memberA.cookie,
+      league.id,
+      { settings: settingsWith() },
+      appAfterKickoff,
+    );
+    expect(res.status).toBe(200);
+    const [instance] = await db
+      .select()
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.leagueId, league.id));
+    expect(instance?.settings).toMatchObject({ startWeek: { type: "regular", number: 2 } });
+    expect(await pickCountFor(league.id)).toBe(0);
   });
 
   it("clears picks when a stored settings row omits picksPerWeek entirely and the new value undercuts the schema default", async () => {
@@ -1382,7 +1419,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // JSONB directly (settings-reset.ts: `1 < undefined` is false, which is
     // exactly the bug this pins).
     const withoutPicksPerWeek = {
-      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       startWeek: DEFAULT_PICKEM_SETTINGS.startWeek,
       endWeek: DEFAULT_PICKEM_SETTINGS.endWeek,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
