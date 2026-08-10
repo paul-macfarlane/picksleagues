@@ -190,6 +190,13 @@
       "when": 1786245192053,
       "tag": "0026_green_marrow",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786325930799,
+      "tag": "0027_complete_dragon_man",
+      "breakpoints": true
     }
   ]
 }

@@ -16,8 +16,8 @@ const TIME_PATTERN = /^\d{2}:\d{2}$/;
 
 /**
  * `new Date(value)` here parses a value the operator already typed or
- * selected — the sanctioned exception to the Clock rule (not a "now" read;
- * see invite-panel.tsx for the same reasoning at the existing call sites).
+ * selected — the sanctioned exception to the Clock rule: parsing a
+ * user-entered datetime-local string into an instant is not a "now" read.
  */
 export function splitLocalDateTimeValue(value: string): LocalDateTimeParts {
   if (!value) return { date: undefined, time: "" };

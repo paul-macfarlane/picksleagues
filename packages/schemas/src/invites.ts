@@ -4,28 +4,13 @@ import { LeagueNameSchema } from "./leagues";
 import { LeagueVisibilitySchema } from "./league-visibility";
 
 /**
- * spec §Invites: expiry and max-use are both optional; a bare invite never
- * expires and has unlimited uses. Revocation is the only other lifecycle.
- */
-export const CreateInviteRequestSchema = z
-  .object({
-    expiresAt: z.iso.datetime().optional(),
-    maxUses: z.number().int().min(1).max(1000).optional(),
-  })
-  .openapi("CreateInviteRequest");
-
-export type CreateInviteRequest = z.infer<typeof CreateInviteRequestSchema>;
-
-/**
- * Derived, never stored — computed from (revokedAt, expiresAt, useCount,
- * maxUses) against the injected Clock at serialization time, same pattern as
- * lock state (arch D11).
+ * An invite is a bare opaque code (spec §Invites, ADR-0032): no expiry, no
+ * use cap, no create-time options at all. Revocation is its only lifecycle,
+ * so status is derived from `revokedAt` alone at serialization time.
  */
 export const INVITE_STATUS = {
   ACTIVE: "active",
   REVOKED: "revoked",
-  EXPIRED: "expired",
-  EXHAUSTED: "exhausted",
 } as const;
 
 export type InviteStatus = (typeof INVITE_STATUS)[keyof typeof INVITE_STATUS];
@@ -37,8 +22,6 @@ export const InviteSchema = z
     id: z.string(),
     code: z.string(),
     status: InviteStatusSchema,
-    expiresAt: z.iso.datetime().nullable(),
-    maxUses: z.number().int().nullable(),
     useCount: z.number().int(),
     revokedAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
@@ -63,15 +46,13 @@ export type InvitesResponse = z.infer<typeof InvitesResponseSchema>;
 
 /**
  * Why a join would be refused, in precedence order: invite validity
- * (revoked/expired/exhausted), then the caller's own membership, then league
- * lifecycle, then the clock-derived cutoff, then capacity. The preview and
- * the join endpoint share this set so the join screen can explain the exact
- * refusal the POST would produce.
+ * (revoked), then the caller's own membership, then league lifecycle, then
+ * the clock-derived cutoff, then capacity. The preview and the join endpoint
+ * share this set so the join screen can explain the exact refusal the POST
+ * would produce.
  */
 export const JOIN_BLOCKED_REASON = {
   INVITE_REVOKED: "invite_revoked",
-  INVITE_EXPIRED: "invite_expired",
-  INVITE_EXHAUSTED: "invite_exhausted",
   ALREADY_MEMBER: "already_member",
   LEAGUE_CONCLUDED: "league_concluded",
   JOIN_CLOSED: "join_closed",
@@ -88,8 +69,6 @@ export const JoinBlockedReasonSchema = z.enum(JOIN_BLOCKED_REASON).openapi("Join
  */
 export const JOIN_BLOCKED_REASON_MESSAGES: Record<JoinBlockedReason, string> = {
   [JOIN_BLOCKED_REASON.INVITE_REVOKED]: "That invite link has been revoked.",
-  [JOIN_BLOCKED_REASON.INVITE_EXPIRED]: "That invite link has expired.",
-  [JOIN_BLOCKED_REASON.INVITE_EXHAUSTED]: "That invite link has reached its use limit.",
   [JOIN_BLOCKED_REASON.ALREADY_MEMBER]: "You're already a member of this league.",
   [JOIN_BLOCKED_REASON.LEAGUE_CONCLUDED]: "This league has concluded.",
   [JOIN_BLOCKED_REASON.JOIN_CLOSED]: "This league has started — joining is closed.",

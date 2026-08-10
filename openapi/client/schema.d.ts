@@ -914,9 +914,6 @@ export interface components {
             id: string;
             code: string;
             status: components["schemas"]["InviteStatus"];
-            /** Format: date-time */
-            expiresAt: string | null;
-            maxUses: number | null;
             useCount: number;
             /** Format: date-time */
             revokedAt: string | null;
@@ -929,12 +926,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        InviteStatus: "active" | "revoked" | "expired" | "exhausted";
-        CreateInviteRequest: {
-            /** Format: date-time */
-            expiresAt?: string;
-            maxUses?: number;
-        };
+        InviteStatus: "active" | "revoked";
         InvitesResponse: {
             invites: components["schemas"]["LeagueInvite"][];
         };
@@ -953,7 +945,7 @@ export interface components {
             reason: components["schemas"]["JoinBlockedReason"];
         };
         /** @enum {string|null} */
-        JoinBlockedReason: "invite_revoked" | "invite_expired" | "invite_exhausted" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
+        JoinBlockedReason: "invite_revoked" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
         UpdateMemberRoleRequest: {
             role: components["schemas"]["MemberRole"];
         };
@@ -2316,11 +2308,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["CreateInviteRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Invite created */
             201: {
@@ -2329,15 +2317,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeagueInvite"];
-                };
-            };
-            /** @description Invalid expiry (in the past) or max-use bound */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description No valid session */
@@ -2531,7 +2510,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Join refused: invite revoked/expired/exhausted, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason */
+            /** @description Join refused: invite revoked, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason */
             409: {
                 headers: {
                     [name: string]: unknown;

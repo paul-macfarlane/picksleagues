@@ -41,3 +41,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0029](0029-invite-creation-is-pre-start-only.md) | Invite creation closes at league start; revocation stays open | Accepted |
 | [0030](0030-league-season-conclusion-is-settlement-output.md) | A league season's conclusion is settlement's output, recomputed both ways | Accepted |
 | [0031](0031-pickem-is-regular-season-only.md) | Pick'em is regular-season only; the season-range presets are removed | Accepted |
+| [0032](0032-invites-are-bare-revocable-codes.md) | Invite links are bare revocable codes; expiry and max-use caps removed | Accepted |
