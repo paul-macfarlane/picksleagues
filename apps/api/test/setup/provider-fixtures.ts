@@ -1,4 +1,4 @@
-import { type ProviderGame, type ProviderWeek } from "@picksleagues/core";
+import { type ProviderGame, type ProviderTeam, type ProviderWeek } from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 
 /** Shared across the NFL sync + sim integration suites — a fake provider week. */
@@ -10,6 +10,20 @@ export function providerWeek(
   label = `Week ${weekNumber}`,
 ): ProviderWeek {
   return { weekType, weekNumber, label, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
+}
+
+/** Shared across the NFL sync + sim integration suites — a fake teams-listing entry. */
+export function providerTeam(
+  overrides: Partial<ProviderTeam> & { providerTeamId: string },
+): ProviderTeam {
+  return {
+    abbreviation: "HOM",
+    name: "Home Team",
+    location: "Home",
+    logoLightUrl: "https://example.com/hom-light.png",
+    logoDarkUrl: "https://example.com/hom-dark.png",
+    ...overrides,
+  };
 }
 
 /** Shared across the NFL sync + sim integration suites — a fake provider game. */

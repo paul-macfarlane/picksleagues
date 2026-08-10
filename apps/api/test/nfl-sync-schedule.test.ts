@@ -41,7 +41,7 @@ import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
 import { settlePicksForGames } from "../src/services/settlement";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
-import { providerGame, providerWeek } from "./setup/provider-fixtures";
+import { providerGame, providerTeam, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -93,17 +93,6 @@ class FakeProvider implements GameDataProvider {
   async fetchNflTeams(): Promise<ProviderTeam[]> {
     return this.teams;
   }
-}
-
-function providerTeam(overrides: Partial<ProviderTeam> & { providerTeamId: string }): ProviderTeam {
-  return {
-    abbreviation: "HOM",
-    name: "Home Team",
-    location: "Home",
-    logoLightUrl: "https://example.com/hom-light.png",
-    logoDarkUrl: "https://example.com/hom-dark.png",
-    ...overrides,
-  };
 }
 
 const db = createDb(getTestDatabaseUrl());
