@@ -61,6 +61,17 @@ export function leagueHasStarted(league: LeagueResponse, now: Date): boolean {
 }
 
 /**
+ * Mirrors the server's `last_commissioner` boundary
+ * (apps/api/src/services/members.ts): a league must keep ≥1 commissioner
+ * (ADR-0004), so when this is true the sole commissioner's own step-down or
+ * leave can only be refused. The server's refusal stays the actual
+ * enforcement; this is only the disable-with-reason hint.
+ */
+export function hasSoleCommissioner(league: LeagueResponse): boolean {
+  return league.members.filter((member) => member.role === MEMBER_ROLE.COMMISSIONER).length === 1;
+}
+
+/**
  * Section visibility runs on the LEAGUE_ACTION matrix's role axis; the window
  * axis is `leagueHasStarted` against the caller's `now` (arch D11: the
  * server's Clock is the only trustworthy "now", so callers must pass one
