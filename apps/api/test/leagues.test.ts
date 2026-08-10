@@ -241,8 +241,8 @@ describe("POST /api/leagues", () => {
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as LeagueResponse;
-    // The range is the server's answer, not the request's (ADR-0024); the
-    // push/tie default is the schema's.
+    // The range is the server's answer, not the request's (ADR-0024); nothing
+    // else is chosen at all (ADR-0026/0033).
     expect(body.settings).toMatchObject({
       startWeek: { type: "regular", number: 1 },
       endWeek: { type: "regular", number: 18 },

@@ -66,7 +66,7 @@ Simulator API surface (non-prod only), as built in SIM-1…SIM-6: `GET /sim/stat
 
 Three layers, weighted by where bugs actually live (per Paulitakes experience: e2e catches what unit tests miss):
 
-**1. Unit — `packages/scoring` (exhaustive).** Table-driven tests, one case per rule and edge case in the MVP spec: Pick'em's fixed half-point push, short-week behavior, cancellation-as-push, per-pick margins, shared ranks when members tie on points, Survivor's advance-or-eliminate tie resolution, all-eliminated revival, team-consumption on ties, bracket auto-advance neutrality, the bracket score-prediction tiebreaker, co-winner ties. Pure functions make these trivial to write and fast to run. The spec is the test plan; a spec rule without a test case is a review failure.
+**1. Unit — `packages/scoring` (exhaustive).** Table-driven tests, one case per rule and edge case in the MVP spec: Pick'em's fixed half-point push, short-week behavior, cancellation-as-push, per-pick margins, shared ranks when members tie on points, Survivor's fixed advance-on-tie (ADR-0033), all-eliminated revival, team-consumption on ties, bracket auto-advance neutrality, the bracket score-prediction tiebreaker, co-winner ties. Pure functions make these trivial to write and fast to run. The spec is the test plan; a spec rule without a test case is a review failure.
 
 **2. Integration — API against a real Postgres.** Hono app exercised in-process (no HTTP server needed) against Docker Postgres (locally: the same compose file as dev; in CI: a Postgres service container). Covers what unit tests can't: transaction-level lock validation (409 on post-kickoff mutation), spread staleness rejection, pick visibility filtering, join cutoff and commissioner-cap enforcement, settlement idempotency (run twice, assert identical state), and override precedence (see Manual Sports Data Overrides).
 
@@ -332,7 +332,7 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 
 ```ts
 settlePickemWeek(picks, results, settings) → PickOutcome[]
-settleSurvivorWeek(aliveMemberIds, picks, results, settings) → SurvivorWeekSettlement
+settleSurvivorWeek(aliveMemberIds, picks, results) → SurvivorWeekSettlement
 scoreBracket(bracket, tournamentResults, settings) → BracketScore
 ```
 

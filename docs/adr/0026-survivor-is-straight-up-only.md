@@ -1,6 +1,6 @@
 # 0026. Survivor is straight-up only; the Pick Type setting is removed
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by ADR-0033: decision 3 below ("Push/Tie Resolution survives") is reversed; the setting is now removed, fixed at its advance default
 - **Date:** 2026-08-07
 - **Related:** `docs/mvp-spec.md` §Game Mode 2 (amended by this ADR); `docs/architecture.md`
   §Spread strategy, §Domain Model, §MVP Rule Scope (all amended by this ADR);

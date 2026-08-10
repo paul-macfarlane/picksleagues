@@ -23,11 +23,12 @@ and reset scopes. This runbook assumes it and does not restate it.
 
 **Three rules shape everything below**, and a step that implies otherwise is
 stale rather than the product. Survivor is **straight-up only** (ADR-0026): no
-spread appears anywhere, and the Push/Tie Resolution setting rules on exactly one
-thing, a tied final score. Its season range is the **whole regular season**,
-resolved server-side rather than chosen (ADR-0024) — there is no range control on
-the form. And a used team is **spent for the season**, except where a
-cancellation hands it back (ADR-0025).
+spread appears anywhere, and a tied final score always **advances the member
+with the team consumed** — the Push/Tie Resolution setting was cut at that
+default (ADR-0033), so the mode has no league settings at all. Its season range
+is the **whole regular season**, resolved server-side rather than chosen
+(ADR-0024) — there is no range control on the form. And a used team is **spent
+for the season**, except where a cancellation hands it back (ADR-0025).
 
 ## What automation already covers — skip these
 
@@ -36,7 +37,7 @@ here:
 
 | Covered by                                | So don't spend a manual pass on                                                                                                                                                                                                                    |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/scoring/src/survivor.test.ts`   | The grading matrix as a table: won/lost either side, a one-point win, a tie under **both** push/tie settings, and a cancelled game under both (push and team returned either way); missed-pick elimination; the everyone-out revival, including mixes of wrong picks, missed picks and a fatal tie; an incomplete week grading to nothing; an all-cancelled slate; idempotency and input purity |
+| `packages/scoring/src/survivor.test.ts`   | The grading matrix as a table: won/lost either side, a one-point win, a tie (push, advance, team consumed — ADR-0033), and a cancelled game (push, team returned); missed-pick elimination; the everyone-out revival, including a mix of wrong and missed picks; an incomplete week grading to nothing; an all-cancelled slate; idempotency and input purity |
 | `apps/api/test/survivor-picks.test.ts`    | The refusal matrix (`pick_locked` both into and out of a started game, `game_not_pickable`, `team_not_in_game`, `team_consumed`, `member_eliminated`, a Pick'em league at the Survivor path, a week outside the range, a postseason week); that a save *replaces* rather than adds; that a released team is re-pickable; the ledger's partial unique index; and pick visibility at the endpoint — another member's team withheld until kickoff while the fact they picked is shown, and their consumed teams never leaked |
 | `apps/api/test/survivor-settlement.test.ts` | Week completeness and prefix ordering (ADR-0025), a late correction cascading forward from the earliest affected week, the sticky-release rule surviving a reverted cancellation, override precedence in the input loader, settling twice landing identically, a full recompute reproducing the incremental path, the rebuild audit row, and the nightly sweep dispatching to Survivor |
 | `apps/api/test/survivor-standings.test.ts` | The board's own refusals and visibility rules — a withheld team, consumed teams derived from revealed picks only, an eliminated member receiving the identical board — plus no last-updated stamp before settlement, the revived marker, and co-winners appearing only once the end week settles |
@@ -51,27 +52,24 @@ second window watching, and two fixture edits the clock cannot produce.
 ```
 Reset → environment (drop it)          →  Scenarios → Load survivor-season
 →  Admin → Jobs → Sync schedule        →  (no odds sync — ADR-0026, nothing reads a spread)
-→  Create three leagues, join them     →  only then start moving the clock
+→  Create two leagues, join them     →  only then start moving the clock
 ```
 
 **Create every league before the clock moves.** A Survivor league's start week is
 the first week not already under way (ADR-0020 §The mid-week resolution rule), so
 a league created at week 17 gets a two-week season and none of the passes below
-fit it. Created against the freshly loaded scenario, all three resolve to weeks
+fit it. Created against the freshly loaded scenario, both resolve to weeks
 15–18 — assert that first, because every pass rests on it.
 
-The three leagues, all NFL Survivor:
+The two leagues, both NFL Survivor:
 
-| League          | Push / tie result       | Used by      |
-| --------------- | ----------------------- | ------------ |
-| **Main**        | Advance (team consumed) | Passes 1–2, 4–8 |
-| **Tie-Advance** | Advance (team consumed) | Pass 3       |
-| **Tie-Eliminate** | Eliminate             | Pass 3       |
+| League          | Used by         |
+| --------------- | --------------- |
+| **Main**        | Passes 1–2, 4–8 |
+| **Tie**         | Pass 3          |
 
-Two leagues rather than one edited mid-run, because `edit_settings` is
-`preStartOnly` (`packages/schemas/src/league-actions.ts`): once a Survivor league
-has started, its tie rule is fixed, and putting the two answers side by side is
-the only way to see them both.
+There is nothing to configure on either (ADR-0024/0026/0033) — the second
+league exists only so Pass 3's tie fixture can't contaminate Main's season.
 
 **Three members**, named M1 (commissioner), M2 and M3 throughout. Two cannot hold
 the states these passes need at once: a league whose entire alive set busts
@@ -188,40 +186,34 @@ Assert:
       (ADR-0016). The question it answers is who is left.
 - [x] M3's dashboard glance reads **Eliminated** without opening the league.
 
-## Pass 3 — A tie, under both settings
+## Pass 3 — A tie
 
-**Week 15** · **Tie-Advance and Tie-Eliminate** · **fixture editor**
+**Week 15** · **Tie** · **fixture editor**
 
-The one league setting Survivor still has, and the only pass that needs two
-leagues. The grading is pinned in `packages/scoring`; what is not is that the
-*same* verdict word produces two different fates on screen, and that the
-commissioner's one control is the thing that decides which.
+Ties always advance, with the team consumed (ADR-0033). The grading is pinned
+in `packages/scoring`; what is not is that the **Push** verdict and the
+**Alive** status render together correctly, and that the tie still spends the
+team.
 
 > **The clock cannot produce a tie**, any more than it can produce a
 > cancellation: a scenario's final score is declared by its fixture. Edit the
 > fixture *before* the game goes final, or the ingested score is already written.
 
-1. In both tie leagues, M1 takes **DAL** and M2 takes **KC**, week 15.
+1. In the Tie league, M1 takes **DAL** and M2 takes **KC**, week 15.
 2. Sim → Fixtures → week 15 → `survivor-season-15-3` (PHI @ DAL) → final score
    **24–24**.
-3. Play out week 15 → `/sim/settle` for each league.
+3. Play out week 15 → `/sim/settle`.
 
 Assert:
 
-- [x] The create form's Survivor fieldset offers **exactly one** setting —
-      Push / tie result, Advance (team consumed) vs Eliminate. No pick type
-      (ADR-0026) and no season range, which reads instead as a sentence: *Regular
-      season, through week 18 — starting at the first week that hasn't kicked off
-      yet* (ADR-0024).
-- [x] In **Tie-Advance**, M1's week-15 entry grades **Push**, M1 stays **Alive**,
-      and **DAL is in Teams used** — advancing costs the team anyway.
-- [x] In **Tie-Eliminate**, the same fixture and the same pick grade **Push**
-      again — the badge names what the game did — but M1 is **Out in Week 15**.
-      The badge and the status pill are answering different questions, and a
-      reader must be able to tell which is which.
-- [x] The eliminate league's board puts the surviving member **first** and the
-      eliminated one below, whatever order the roster is in.
-- [x] Neither league's tie touches the other, and neither touches Main, whose
+- [x] The create form's Survivor fieldset offers **no settings at all** — no
+      pick type (ADR-0026), no push/tie rule (ADR-0033), and no season range,
+      which reads instead as a sentence: *Regular season, through week 18 —
+      starting at the first week that hasn't kicked off yet* (ADR-0024).
+- [x] M1's week-15 entry grades **Push**, M1 stays **Alive**, and **DAL is in
+      Teams used** — advancing costs the team anyway. The badge names what the
+      game did; the status pill answers who is left.
+- [x] The tie touches nobody else: M2's win grades normally, and Main's
       members held no stake in that game.
 
 ## Pass 4 — The ledger, and whose ledger it is
@@ -420,10 +412,10 @@ Stated so the checklist isn't mistaken for full coverage:
 - **Real provider ingestion.** Every score is a simulated provider's or an
   override's. The live `sync-scores` path first runs for real on an actual game
   day.
-- **A settings change on a running league.** `edit_settings` is `preStartOnly`, so
-  the tie rule is fixed at creation and Pass 3 uses two leagues to see both
-  answers. Whether a *pre-start* Survivor settings edit behaves is the settings
-  pass in `docs/runbooks/pickem-regression.md`, not this one.
+- **A settings change on a running league.** `edit_settings` is `preStartOnly` —
+  and since ADR-0033 a Survivor league has no rule settings to change at any
+  point. Whether a *pre-start* settings edit behaves is the settings pass in
+  `docs/runbooks/pickem-regression.md`, not this one.
 - **Postponement.** A postponed game stays pickable and resolves later, so
   Survivor inherits the Pick'em behaviour with nothing mode-specific about it;
   `postponed-game` is a one-week fixture and a Survivor league built on it has no

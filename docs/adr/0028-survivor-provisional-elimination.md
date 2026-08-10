@@ -1,6 +1,6 @@
 # 0028. A Survivor member goes out as soon as their loss is certain
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by ADR-0033: a tied final now always advances, so the tied-final condition on an advancing push reads unconditionally and a tie is always a confirmed survivor
 - **Date:** 2026-08-08
 - **Related:** `docs/mvp-spec.md` §Game Mode 2 (Core Rules — Missed pick, Everyone eliminated in
   the same week, Eliminated members cannot pick; unchanged by this ADR),

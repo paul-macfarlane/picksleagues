@@ -5,7 +5,8 @@
 - **Related:** [0026](0026-survivor-is-straight-up-only.md) and
   [0024](0024-survivor-settings-carry-a-resolved-range.md) (the same reasoning
   applied to Survivor's other two settings, which this completes — the mode now
-  has no league settings at all); `docs/mvp-spec.md` §Game Mode 2 League
+  has no league settings at all), [0028](0028-survivor-provisional-elimination.md)
+  (whose tie edge case this simplifies); `docs/mvp-spec.md` §Game Mode 2 League
   Settings; backlog SWP-5 (`backlog/15-scope-sweep.md`)
 
 ## Context
@@ -34,10 +35,12 @@ setting is removed rather than hidden:
 - `packages/scoring` takes no settings at all: `settleSurvivorWeek`,
   `settleSurvivorWeekProvisionally`, and grading lose the parameter, and the
   tie branch hardcodes advance-with-team-consumed. A stored row still
-  carrying the retired key parses (stripped) — and since the stored value
-  never reached settlement output retroactively (it was read at grading
-  time), no recompute changes meaning. There are no active leagues anyway
-  (owner, 2026-08-09).
+  carrying the retired key parses (stripped) — but because the value was read
+  at grading time, a recompute of an eliminate-on-tie league's season would
+  now grade its tied members as advanced, cascading through every later
+  week's results under prefix-ordered replay (ADR-0025). That semantics
+  change is accepted solely because there are no active leagues in any
+  environment (owner, 2026-08-09).
 - The provisional-elimination rule (ADR-0028) gets simpler at the edges: a
   tied final is now always a confirmed survivor, so the eliminate-on-tie
   case that could hold a provisional elimination open disappears.
