@@ -61,7 +61,7 @@ header `x-job-secret: <production JOB_SECRET>`.
 | ------------------ | ----------------------------------- | ----------------------- | --------------------------------------------------------- |
 | `nfl-sync-schedule`| Daily 6am ET                        | `0 10 * * *`            | 10:00 UTC = 6am EDT; acceptable drift under EST           |
 | `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season. Covers two weeks per run — see below |
-| `nfl-sync-scores`  | Every 5 minutes                     | `*/5 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
+| `nfl-sync-scores`  | Every 15 minutes                     | `*/15 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
 | `settle-sweep`     | Daily 3am ET                        | `0 7 * * *`             | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
 
 `settle-sweep` takes no query params — it derives its own scope (every active league
