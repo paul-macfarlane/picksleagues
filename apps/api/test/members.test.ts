@@ -457,6 +457,27 @@ describe("DELETE /api/me — last-commissioner guard (LG-6 closes the ID-3 TODO)
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "last_commissioner" });
   });
+
+  it("names the blocking leagues on the pre-click read, and empties once a replacement is promoted (FB-13)", async () => {
+    const { commish, member, league } = await seedLeague();
+
+    const blocked = await app.request("/api/me/deletion-blockers", {
+      headers: withCookie(commish.cookie),
+    });
+    expect(blocked.status).toBe(200);
+    expect(await blocked.json()).toEqual({
+      leagues: [{ id: league.id, name: league.name }],
+    });
+
+    // The same fix the refusal asks for clears the read: promote a replacement.
+    const target = await membershipOf(league.id, member.user.id);
+    await patchMember(commish.cookie, league.id, target!.id, "commissioner");
+
+    const cleared = await app.request("/api/me/deletion-blockers", {
+      headers: withCookie(commish.cookie),
+    });
+    expect(await cleared.json()).toEqual({ leagues: [] });
+  });
 });
 
 describe("concurrency", () => {

@@ -74,6 +74,21 @@ export const MeResponseSchema = z
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 /**
+ * The leagues standing between the caller and account deletion — each one a
+ * league they are the sole commissioner of that still has other members
+ * (ADR-0004). Named so the profile screen can say *which* leagues need a
+ * replacement promoted before the Delete control works, rather than refusing
+ * after the click with no way to act on it.
+ */
+export const AccountDeletionBlockersResponseSchema = z
+  .object({
+    leagues: z.array(z.object({ id: z.string(), name: z.string() })),
+  })
+  .openapi("AccountDeletionBlockersResponse");
+
+export type AccountDeletionBlockersResponse = z.infer<typeof AccountDeletionBlockersResponseSchema>;
+
+/**
  * Claiming a username (first sign-in), changing it later (mvp-spec: username
  * is changeable anytime, old name released immediately), and editing the
  * freely-editable display name are all the same partial-update operation —

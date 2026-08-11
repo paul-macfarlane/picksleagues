@@ -40,6 +40,23 @@ export interface paths {
         patch: operations["updateMe"];
         trace?: never;
     };
+    "/api/me/deletion-blockers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leagues blocking the caller's account deletion */
+        get: operations["getDeletionBlockers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/nfl/sync-schedule": {
         parameters: {
             query?: never;
@@ -745,6 +762,12 @@ export interface components {
         };
         Username: string;
         DisplayName: string;
+        AccountDeletionBlockersResponse: {
+            leagues: {
+                id: string;
+                name: string;
+            }[];
+        };
         JobRunResponse: {
             job: string;
             /** @enum {string} */
@@ -1585,6 +1608,44 @@ export interface operations {
             };
             /** @description Username already taken by another user */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDeletionBlockers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's sole-commissioner leagues with other members; empty = deletable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDeletionBlockersResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

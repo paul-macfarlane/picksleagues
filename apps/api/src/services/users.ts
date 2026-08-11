@@ -1,4 +1,4 @@
-import { and, count, eq, gt, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   accounts,
@@ -148,7 +148,7 @@ export async function deleteAccount(
       for update of l
     `);
 
-    if (await isLastCommissionerOfNonEmptyLeague(tx, userId)) {
+    if ((await listAccountDeletionBlockingLeagues(tx, userId)).length > 0) {
       return { ok: false as const, reason: "last_commissioner" as const };
     }
 
@@ -180,9 +180,12 @@ export async function deleteAccount(
 export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_commissioner" };
 
 /**
- * True when any league would be left commissioner-less but not member-less by
- * this user's departure — the ADR-0004 invariant, evaluated inside the deletion
- * transaction.
+ * The leagues that would be left commissioner-less but not member-less by this
+ * user's departure — the ADR-0004 invariant. `deleteAccount` refuses while this
+ * is non-empty (evaluated inside its transaction); the profile's Danger Zone
+ * reads the same list to disable Delete *before* the click and name the leagues
+ * needing a replacement promoted, so both surfaces derive from one query and
+ * cannot disagree about what blocks (backlog FB-13).
  *
  * **A concluded league counts** (owner, LG-12). The guard used to filter the
  * current instance to `ACTIVE`, which was vacuous while nothing wrote
@@ -193,7 +196,10 @@ export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_comm
  * grants the role — so the league would sit inert on every remaining member's
  * dashboard with nobody able to act on it ever again.
  */
-async function isLastCommissionerOfNonEmptyLeague(db: Db, userId: string): Promise<boolean> {
+export async function listAccountDeletionBlockingLeagues(
+  db: Db,
+  userId: string,
+): Promise<Array<{ id: string; name: string }>> {
   const commissionerCount = db
     .select({ value: count() })
     .from(leagueMembers)
@@ -206,8 +212,8 @@ async function isLastCommissionerOfNonEmptyLeague(db: Db, userId: string): Promi
     .where(eq(leagueMembers.leagueId, leagues.id));
 
   const current = currentLeagueSeason(db);
-  const rows = await db
-    .select({ id: leagues.id })
+  return db
+    .select({ id: leagues.id, name: leagues.name })
     .from(leagues)
     .innerJoin(
       leagueMembers,
@@ -219,6 +225,5 @@ async function isLastCommissionerOfNonEmptyLeague(db: Db, userId: string): Promi
     )
     .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
     .where(and(eq(commissionerCount, 1), gt(memberCount, 1)))
-    .limit(1);
-  return rows.length > 0;
+    .orderBy(asc(leagues.name));
 }
