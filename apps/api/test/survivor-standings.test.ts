@@ -186,13 +186,23 @@ describe("GET /api/leagues/:leagueId/survivor/standings — visibility", () => {
     // The leak this rule exists to close: week 2's team is withheld above, so
     // listing it as consumed would disclose exactly what was withheld.
     expect(memberEntry(league, memberA).consumedTeamIds).toEqual([week1.homeTeamId]);
-    // The revealed week-1 game discloses both its sides now (FB-25); the
-    // withheld week-2 pick still discloses nothing new (same two teams in this
-    // fixture, but asserted through the revealed game alone).
+    // The revealed week-1 game discloses both its sides now (FB-25); week 2's
+    // game plays a *distinct* pair (seedSurvivorGame mints fresh teams per
+    // week), so this also proves the withheld pick's two teams stay out of the
+    // lookup entirely.
     expect(league.teams.map((team) => team.id).sort()).toEqual(
       [week1.homeTeamId, memberEntry(league, memberA).picks[0]!.game!.awayTeamId].sort(),
     );
     expect(memberEntry(own, memberA).consumedTeamIds).toEqual([week1.homeTeamId, week2.homeTeamId]);
+    // The one place a game block escapes the kickoff gate: the viewer's own
+    // pre-kickoff pick is revealed by ownership (FB-25), so their board carries
+    // its game — and week 2's pair joins *their* lookup while staying out of
+    // the league's above.
+    expect(memberEntry(own, memberA).picks[1]!.game).toMatchObject({
+      homeTeamId: week2.homeTeamId,
+    });
+    expect(own.teams.map((team) => team.id)).toContain(week2.homeTeamId);
+    expect(league.teams.map((team) => team.id)).not.toContain(week2.homeTeamId);
   });
 
   it("carries the current week and a revealed pick's effective game state (FB-25, FB-26)", async () => {

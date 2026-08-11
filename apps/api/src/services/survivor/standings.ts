@@ -24,7 +24,7 @@ import { resolveCurrentWeekId } from "../league-weeks";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
-import { resolveLockStates } from "../slate";
+import { isLocked } from "../slate";
 import { resolveUserImage } from "../users";
 import { loadContext, type SurvivorLeagueRefusal, type SurvivorResult } from "./picks";
 import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
@@ -43,8 +43,9 @@ import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
  * The two visibility rules the query layer owns, both enforced below and never
  * left to a client (arch §Locking Model):
  * - a member's pick for a week reaches the rest of the league only once that
- *   pick's own game has kicked off, through the same `resolveLockStates` the
- *   week read path uses;
+ *   pick's own game has kicked off — the same `isLocked`-on-effective-kickoff
+ *   rule the week read path applies (arch D11), computed here from the one
+ *   game read the pick's state block also serializes from;
  * - **another member's consumed-team list is built from their revealed picks
  *   alone.** This is the board's one subtle leak vector: a member's current-week
  *   pick is withheld above, and listing its team here would disclose exactly
@@ -131,15 +132,11 @@ export async function getSurvivorStandings(
             ),
           );
 
-  const lockedByGame = await resolveLockStates(
-    db,
-    clock,
-    picks.map((pick) => pick.gameId),
-  );
-
-  // The game rows behind the picks, for the state block each *revealed* pick
-  // carries (FB-25) — effective values only, resolved once here so the board
-  // shows the same corrected score settlement would grade (arch D15).
+  // The game rows behind the picks — one read serving both the reveal gate and
+  // the state block each revealed pick carries (FB-25). Locks derive from the
+  // same rows rather than a second `resolveLockStates` query: two reads of the
+  // same table leave a window where a kickoff override lands between them and
+  // the gate and the block disagree about the same game.
   const gameRows =
     picks.length === 0
       ? []
@@ -148,6 +145,10 @@ export async function getSurvivorStandings(
           .from(games)
           .where(inArray(games.id, [...new Set(picks.map((pick) => pick.gameId))]));
   const gamesById = new Map(gameRows.map((row) => [row.id, row]));
+  const now = clock.now();
+  const lockedByGame = new Map(
+    gameRows.map((row) => [row.id, isLocked(resolveGameOverrides(row).kickoffAt, now)]),
+  );
 
   const results = await db
     .select()
