@@ -1,6 +1,13 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { survivorPickResults, survivorPicks, survivorState, teams, weeks } from "@picksleagues/db";
+import {
+  games,
+  survivorPickResults,
+  survivorPicks,
+  survivorState,
+  teams,
+  weeks,
+} from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   SURVIVOR_MEMBER_STATUS,
@@ -12,6 +19,8 @@ import {
   type SurvivorStandingsPick,
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
+import { resolveGameOverrides } from "../games";
+import { resolveCurrentWeekId } from "../league-weeks";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
 import { loadMembers } from "../leagues/serialize";
@@ -52,6 +61,8 @@ interface InRangeWeek {
   id: string;
   label: string;
   ordinal: number;
+  startsAt: Date;
+  endsAt: Date;
 }
 
 /**
@@ -72,6 +83,8 @@ async function loadInRangeWeeks(
       weekType: weeks.weekType,
       weekNumber: weeks.weekNumber,
       label: weeks.label,
+      startsAt: weeks.startsAt,
+      endsAt: weeks.endsAt,
     })
     .from(weeks)
     .where(eq(weeks.seasonId, seasonId));
@@ -80,7 +93,9 @@ async function loadInRangeWeeks(
     .flatMap((row) => {
       if (!isSurvivorRangeWeek(row, settings)) return [];
       const ordinal = nflSeasonOrdinal({ type: WEEK_TYPE.REGULAR, number: row.weekNumber });
-      return [{ id: row.id, label: row.label, ordinal }];
+      return [
+        { id: row.id, label: row.label, ordinal, startsAt: row.startsAt, endsAt: row.endsAt },
+      ];
     })
     .sort((a, b) => a.ordinal - b.ordinal);
 }
@@ -121,6 +136,18 @@ export async function getSurvivorStandings(
     clock,
     picks.map((pick) => pick.gameId),
   );
+
+  // The game rows behind the picks, for the state block each *revealed* pick
+  // carries (FB-25) — effective values only, resolved once here so the board
+  // shows the same corrected score settlement would grade (arch D15).
+  const gameRows =
+    picks.length === 0
+      ? []
+      : await db
+          .select()
+          .from(games)
+          .where(inArray(games.id, [...new Set(picks.map((pick) => pick.gameId))]));
+  const gamesById = new Map(gameRows.map((row) => [row.id, row]));
 
   const results = await db
     .select()
@@ -171,11 +198,36 @@ export async function getSurvivorStandings(
 
     const history: SurvivorStandingsPick[] = own.map((pick) => {
       const visible = revealed.get(pick.id) === true;
-      if (visible) disclosedTeamIds.add(pick.teamId);
+      const gameRow = visible ? gamesById.get(pick.gameId) : undefined;
+      const game = gameRow ? resolveGameOverrides(gameRow) : null;
+      if (visible) {
+        disclosedTeamIds.add(pick.teamId);
+        // Both sides of a revealed pick's game, so the shared lookup can label
+        // its score — the opponent may appear nowhere else in the response. A
+        // withheld pick discloses neither (its game alone narrows the hidden
+        // pick to two teams).
+        if (gameRow) {
+          disclosedTeamIds.add(gameRow.homeTeamId);
+          disclosedTeamIds.add(gameRow.awayTeamId);
+        }
+      }
       return {
         weekId: pick.weekId,
         teamId: visible ? pick.teamId : null,
         outcome: visible ? (outcomeByPickId.get(pick.id) ?? null) : null,
+        game:
+          game && gameRow
+            ? {
+                status: game.status,
+                kickoffAt: game.kickoffAt.toISOString(),
+                homeTeamId: gameRow.homeTeamId,
+                awayTeamId: gameRow.awayTeamId,
+                homeScore: game.homeScore,
+                awayScore: game.awayScore,
+                period: game.period,
+                clockSeconds: game.clockSeconds,
+              }
+            : null,
       };
     });
 
@@ -216,6 +268,11 @@ export async function getSurvivorStandings(
     ok: true,
     value: {
       weeks: inRangeWeeks.map((week) => ({ weekId: week.id, label: week.label })),
+      // The one current-week definition (league-weeks.ts), so the board's
+      // row-level "this week" (FB-26) is the same week every other surface
+      // calls current. Rows arrive ordinal-sorted, which is the season order
+      // the positional fallback expects.
+      currentWeekId: resolveCurrentWeekId(inRangeWeeks, clock),
       members: serialized,
       teams: await loadTeams(db, [...disclosedTeamIds]),
       concluded: season.decided,

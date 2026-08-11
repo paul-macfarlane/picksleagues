@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { GameStatusSchema } from "./game-status";
 import { NullablePickOutcomeSchema } from "./pick-outcome";
 import { SlateTeamSchema } from "./slate";
 
@@ -147,6 +148,37 @@ export const SurvivorStandingsWeekSchema = z
 export type SurvivorStandingsWeek = z.infer<typeof SurvivorStandingsWeekSchema>;
 
 /**
+ * The effective (override-resolved) state of a *revealed* pick's game — what
+ * lets the board show a pick's score, status, and derived verdict without a
+ * second fetch (FB-25). Both team ids travel because a Survivor pick names a
+ * team, not a side, so the client can't attach the score to the right end
+ * without them; their display data rides the response's shared `teams` lookup.
+ */
+export const SurvivorStandingsPickGameSchema = z
+  .object({
+    status: GameStatusSchema,
+    kickoffAt: z.iso.datetime(),
+    homeTeamId: z.string(),
+    awayTeamId: z.string(),
+    homeScore: z.number().int().nullable(),
+    awayScore: z.number().int().nullable(),
+    period: z.number().int().nullable(),
+    clockSeconds: z.number().int().nullable(),
+  })
+  .openapi("SurvivorStandingsPickGame");
+
+export type SurvivorStandingsPickGame = z.infer<typeof SurvivorStandingsPickGameSchema>;
+
+/**
+ * Registered under its own component name rather than wrapped inline — a
+ * `.nullable()` applied to the registered node above would fold `null` into
+ * the shared component (same reason as `NullableGameStatus`).
+ */
+const NullableSurvivorStandingsPickGameSchema = SurvivorStandingsPickGameSchema.nullable().openapi(
+  "NullableSurvivorStandingsPickGame",
+);
+
+/**
  * One week of a member's history. The entry existing *is* "they picked that
  * week" — a week they missed has none at all, which in this mode is the fact
  * that eliminated them (spec §Game Mode 2 — Missed pick).
@@ -167,6 +199,12 @@ export const SurvivorStandingsPickSchema = z
      * a pick still withheld by the rule above never carries one on the wire.
      */
     outcome: NullablePickOutcomeSchema,
+    /**
+     * Null exactly when `teamId` is null, and deliberately so: a withheld
+     * pick's game names two teams, which narrows the hidden pick to a coin
+     * flip — the same disclosure §Pick Visibility exists to prevent.
+     */
+    game: NullableSurvivorStandingsPickGameSchema,
   })
   .openapi("SurvivorStandingsPick");
 
@@ -216,6 +254,13 @@ export const SurvivorStandingsResponseSchema = z
   .object({
     /** The league's in-range weeks in season order — the frame `picks` is indexed by. */
     weeks: z.array(SurvivorStandingsWeekSchema),
+    /**
+     * The league's current week by the app's one definition
+     * (`resolveCurrentWeekId`), so the board can surface each member's
+     * current-week pick at the row level (FB-26) without re-deriving which
+     * week that is. Null when the league has no in-range weeks.
+     */
+    currentWeekId: z.string().nullable(),
     members: z.array(SurvivorStandingsMemberSchema),
     /**
      * Every team named anywhere above, once. A lookup rather than a team
