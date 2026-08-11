@@ -131,17 +131,30 @@ describe("GET /api/leagues/:leagueId/survivor/standings — visibility", () => {
     const after = await board(viewer, fixture.league.id, appAfterSeason);
 
     const hidden = memberEntry(before, memberA);
-    // The entry existing is the "they're in" signal; the team is not.
-    expect(hidden.picks).toEqual([{ weekId: week1.weekId, teamId: null, outcome: null }]);
+    // The entry existing is the "they're in" signal; the team is not — and a
+    // withheld pick carries no game either, since naming the game narrows the
+    // hidden pick to a coin flip (FB-25).
+    expect(hidden.picks).toEqual([
+      { weekId: week1.weekId, teamId: null, outcome: null, game: null },
+    ]);
     expect(hidden.consumedTeamIds).toEqual([]);
     expect(before.teams).toEqual([]);
 
     const revealed = memberEntry(after, memberA);
-    expect(revealed.picks).toEqual([
-      { weekId: week1.weekId, teamId: week1.homeTeamId, outcome: null },
-    ]);
+    expect(revealed.picks).toHaveLength(1);
+    expect(revealed.picks[0]).toMatchObject({
+      weekId: week1.weekId,
+      teamId: week1.homeTeamId,
+      outcome: null,
+      // A revealed pick carries its game's effective state (FB-25).
+      game: { homeTeamId: week1.homeTeamId },
+    });
     expect(revealed.consumedTeamIds).toEqual([week1.homeTeamId]);
-    expect(after.teams.map((team) => team.id)).toEqual([week1.homeTeamId]);
+    // Both sides of the revealed game, so the lookup can label its score —
+    // sorted by abbreviation (AWY before HOM).
+    expect(after.teams.map((team) => team.id).sort()).toEqual(
+      [week1.homeTeamId, revealed.picks[0]!.game!.awayTeamId].sort(),
+    );
     // Their own board never withheld any of it.
     expect(memberEntry(await board(fixture.users[0]!.cookie, fixture.league.id), memberA)).toEqual({
       ...revealed,
@@ -173,8 +186,55 @@ describe("GET /api/leagues/:leagueId/survivor/standings — visibility", () => {
     // The leak this rule exists to close: week 2's team is withheld above, so
     // listing it as consumed would disclose exactly what was withheld.
     expect(memberEntry(league, memberA).consumedTeamIds).toEqual([week1.homeTeamId]);
-    expect(league.teams.map((team) => team.id)).toEqual([week1.homeTeamId]);
+    // The revealed week-1 game discloses both its sides now (FB-25); week 2's
+    // game plays a *distinct* pair (seedSurvivorGame mints fresh teams per
+    // week), so this also proves the withheld pick's two teams stay out of the
+    // lookup entirely.
+    expect(league.teams.map((team) => team.id).sort()).toEqual(
+      [week1.homeTeamId, memberEntry(league, memberA).picks[0]!.game!.awayTeamId].sort(),
+    );
     expect(memberEntry(own, memberA).consumedTeamIds).toEqual([week1.homeTeamId, week2.homeTeamId]);
+    // The one place a game block escapes the kickoff gate: the viewer's own
+    // pre-kickoff pick is revealed by ownership (FB-25), so their board carries
+    // its game — and week 2's pair joins *their* lookup while staying out of
+    // the league's above.
+    expect(memberEntry(own, memberA).picks[1]!.game).toMatchObject({
+      homeTeamId: week2.homeTeamId,
+    });
+    expect(own.teams.map((team) => team.id)).toContain(week2.homeTeamId);
+    expect(league.teams.map((team) => team.id)).not.toContain(week2.homeTeamId);
+  });
+
+  it("carries the current week and a revealed pick's effective game state (FB-25, FB-26)", async () => {
+    const fixture = await seedFixture({ weekCount: 2, memberCount: 2 });
+    const [memberA] = fixture.memberIds as [string];
+    const [week1] = fixture.weeks as [(typeof fixture.weeks)[number]];
+    await insertSurvivorPick(db, {
+      leagueSeasonId: fixture.leagueSeasonId,
+      leagueMemberId: memberA,
+      weekId: week1.weekId,
+      gameId: week1.gameId,
+      teamId: week1.homeTeamId,
+    });
+    // Provider mid-game state with an admin score correction on top — the
+    // board must serve the corrected number (override_* ?? provider_*, arch
+    // D15), the same one settlement would grade.
+    await setGame(db, week1.gameId, {
+      status: GAME_STATUS.IN_PROGRESS,
+      homeScore: 14,
+      awayScore: 7,
+      overrideHomeScore: 21,
+    });
+
+    const league = await board(fixture.users[1]!.cookie, fixture.league.id, appAfterKickoff);
+
+    expect(league.currentWeekId).toBe(week1.weekId);
+    expect(memberEntry(league, memberA).picks[0]!.game).toMatchObject({
+      status: GAME_STATUS.IN_PROGRESS,
+      homeTeamId: week1.homeTeamId,
+      homeScore: 21,
+      awayScore: 7,
+    });
   });
 
   it("gives an eliminated member the identical board an alive member sees", async () => {
@@ -375,9 +435,11 @@ describe("GET /api/leagues/:leagueId/survivor/standings — settled state", () =
     await settleSweep(db, settleClock);
 
     const graded = await board(fixture.users[0]!.cookie, fixture.league.id, appAfterSeason);
-    expect(memberEntry(graded, memberA).picks).toEqual([
-      { weekId: week1.weekId, teamId: week1.homeTeamId, outcome: PICK_OUTCOME.CORRECT },
-    ]);
+    expect(memberEntry(graded, memberA).picks[0]).toMatchObject({
+      weekId: week1.weekId,
+      teamId: week1.homeTeamId,
+      outcome: PICK_OUTCOME.CORRECT,
+    });
     expect(graded.concluded).toBe(true);
     expect(memberEntry(graded, memberA).isWinner).toBe(true);
     expect(await statusOf(fixture.leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);

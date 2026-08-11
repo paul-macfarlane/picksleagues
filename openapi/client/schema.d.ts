@@ -1094,6 +1094,7 @@ export interface components {
         } | null;
         SurvivorStandingsResponse: {
             weeks: components["schemas"]["SurvivorStandingsWeek"][];
+            currentWeekId: string | null;
             members: components["schemas"]["SurvivorStandingsMember"][];
             teams: components["schemas"]["SlateTeam"][];
             concluded: boolean;
@@ -1124,7 +1125,19 @@ export interface components {
             weekId: string;
             teamId: string | null;
             outcome: components["schemas"]["NullablePickOutcome"];
+            game: components["schemas"]["NullableSurvivorStandingsPickGame"];
         };
+        NullableSurvivorStandingsPickGame: {
+            status: components["schemas"]["GameStatus"];
+            /** Format: date-time */
+            kickoffAt: string;
+            homeTeamId: string;
+            awayTeamId: string;
+            homeScore: number | null;
+            awayScore: number | null;
+            period: number | null;
+            clockSeconds: number | null;
+        } | null;
         SubmitSurvivorPickRequest: {
             /** Format: uuid */
             gameId: string;

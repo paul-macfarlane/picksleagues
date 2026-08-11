@@ -177,9 +177,13 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     return board.getByTestId("survivor-board-row").filter({ hasText: displayName });
   }
 
-  function historyEntry(row: Locator, weekIndex: number): Locator {
+  // A member's pick for a week, wherever the board put it: the current week
+  // lives at the row level (FB-26), previous weeks behind the history
+  // disclosure — both carry the same data-week/data-team identity.
+  function pickEntry(row: Locator, weekIndex: number): Locator {
+    const week = weeks[weekIndex]!.id;
     return row.locator(
-      `[data-testid="survivor-history-entry"][data-week="${weeks[weekIndex]!.id}"]`,
+      `[data-testid="survivor-history-entry"][data-week="${week}"], [data-testid="survivor-current-pick"][data-week="${week}"]`,
     );
   }
 
@@ -303,7 +307,7 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
       "data-settled",
       "false",
     );
-    await expect(historyEntry(boardRow(preBoard, name3), 0)).not.toHaveAttribute("data-team", /./);
+    await expect(pickEntry(boardRow(preBoard, name3), 0)).not.toHaveAttribute("data-team", /./);
 
     await playOutWeek(0, 1);
 
@@ -330,10 +334,10 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
 
     // Every game has kicked off, so every pick is revealed — including the two
     // the viewer doesn't own, which is the reveal this week exists to show.
-    await expect(historyEntry(out, 0)).toHaveAttribute("data-team", "SF");
-    await expect(historyEntry(boardRow(board, name2), 0)).toHaveAttribute("data-team", "KC");
+    await expect(pickEntry(out, 0)).toHaveAttribute("data-team", "SF");
+    await expect(pickEntry(boardRow(board, name2), 0)).toHaveAttribute("data-team", "KC");
     const own = boardRow(board, name1);
-    await expect(historyEntry(own, 0)).toHaveAttribute("data-team", "BUF");
+    await expect(pickEntry(own, 0)).toHaveAttribute("data-team", "BUF");
     await expect(
       own.locator('[data-testid="survivor-consumed-team"][data-team="BUF"]'),
     ).toBeVisible();

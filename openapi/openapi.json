@@ -1524,6 +1524,12 @@
               "$ref": "#/components/schemas/SurvivorStandingsWeek"
             }
           },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "members": {
             "type": "array",
             "items": {
@@ -1549,6 +1555,7 @@
         },
         "required": [
           "weeks",
+          "currentWeekId",
           "members",
           "teams",
           "concluded",
@@ -1661,12 +1668,71 @@
           },
           "outcome": {
             "$ref": "#/components/schemas/NullablePickOutcome"
+          },
+          "game": {
+            "$ref": "#/components/schemas/NullableSurvivorStandingsPickGame"
           }
         },
         "required": [
           "weekId",
           "teamId",
-          "outcome"
+          "outcome",
+          "game"
+        ]
+      },
+      "NullableSurvivorStandingsPickGame": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "homeTeamId": {
+            "type": "string"
+          },
+          "awayTeamId": {
+            "type": "string"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "period": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "clockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "kickoffAt",
+          "homeTeamId",
+          "awayTeamId",
+          "homeScore",
+          "awayScore",
+          "period",
+          "clockSeconds"
         ]
       },
       "SubmitSurvivorPickRequest": {

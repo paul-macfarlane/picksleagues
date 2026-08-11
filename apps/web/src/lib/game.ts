@@ -351,3 +351,57 @@ export function survivorProvisionalOutcome(
   if (own < opposing) return PICK_OUTCOME.INCORRECT;
   return PICK_OUTCOME.PUSH;
 }
+
+/** The shape a survivor board pick entry needs to carry for grading here. */
+export interface SurvivorGradablePick {
+  teamId: string | null;
+  outcome: PickOutcome | null;
+  game: {
+    status: GameStatus;
+    homeScore: number | null;
+    awayScore: number | null;
+    homeTeamId: string;
+    awayTeamId: string;
+  } | null;
+}
+
+/**
+ * A board pick's verdict for display: the settled grade, else the one derived
+ * from its game's terminal state (`survivorProvisionalOutcome`) — the two can
+ * never disagree for a single pick. Null for a withheld pick (no team, no
+ * game) or an undecided one.
+ */
+export function survivorPickGrade(pick: SurvivorGradablePick): PickOutcome | null {
+  if (pick.outcome) return pick.outcome;
+  if (!pick.game || !pick.teamId) return null;
+  return survivorProvisionalOutcome(
+    {
+      status: pick.game.status,
+      homeScore: pick.game.homeScore,
+      awayScore: pick.game.awayScore,
+      homeTeam: { id: pick.game.homeTeamId },
+      awayTeam: { id: pick.game.awayTeamId },
+    },
+    pick.teamId,
+  );
+}
+
+/**
+ * Whether the everyone-out revival (spec §Game Mode 2) is still on the table
+ * for the week: false the moment any alive member's pick has already secured
+ * survival — a win, or a push (ties advance, ADR-0033; cancellations survive).
+ * A missing, hidden, or still-undecided pick keeps it possible — that member's
+ * fate is simply not known yet. The definitive end of the state is still the
+ * server's (ADR-0028's provisional elimination flips doomed members to Out);
+ * this is the display-side mirror so a "revival possible" claim can't stand
+ * beside a row whose derived win already disproves it.
+ */
+export function survivorRevivalStillPossible(
+  aliveCurrentPicks: ReadonlyArray<SurvivorGradablePick | null>,
+): boolean {
+  return !aliveCurrentPicks.some((pick) => {
+    if (!pick) return false;
+    const grade = survivorPickGrade(pick);
+    return grade === PICK_OUTCOME.CORRECT || grade === PICK_OUTCOME.PUSH;
+  });
+}
