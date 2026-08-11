@@ -1805,6 +1805,12 @@
             "items": {
               "$ref": "#/components/schemas/AdminWeek"
             }
+          },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1812,7 +1818,8 @@
           "sport",
           "year",
           "provisional",
-          "weeks"
+          "weeks",
+          "currentWeekId"
         ]
       },
       "AdminWeek": {

@@ -1,6 +1,8 @@
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { resolveCurrentWeekId } from "./league-weeks";
 import type { Db } from "@picksleagues/db";
+import type { Clock } from "@picksleagues/core";
 import {
   adminAudit,
   games,
@@ -62,7 +64,7 @@ export async function listTeams(db: Db, sport: Sport): Promise<AdminTeam[]> {
   }));
 }
 
-export async function listSeasons(db: Db, sport: Sport): Promise<AdminSeason[]> {
+export async function listSeasons(db: Db, clock: Clock, sport: Sport): Promise<AdminSeason[]> {
   const seasonRows = await db
     .select()
     .from(sportSeasons)
@@ -95,14 +97,17 @@ export async function listSeasons(db: Db, sport: Sport): Promise<AdminSeason[]> 
           .groupBy(games.weekId);
   const gameCountByWeek = new Map(gameCounts.map((row) => [row.weekId, row.value]));
 
-  return seasonRows.map((season) => ({
-    id: season.id,
-    sport: season.sport,
-    year: season.year,
-    provisional: season.provisional,
-    weeks: weekRows
-      .filter((week) => week.seasonId === season.id)
-      .map((week) => ({
+  return seasonRows.map((season) => {
+    const seasonWeeks = weekRows.filter((week) => week.seasonId === season.id);
+    return {
+      id: season.id,
+      sport: season.sport,
+      year: season.year,
+      provisional: season.provisional,
+      // The one current-week definition (league-weeks.ts), so the selectors
+      // this feeds default to the same week every member surface calls current.
+      currentWeekId: resolveCurrentWeekId(seasonWeeks, clock),
+      weeks: seasonWeeks.map((week) => ({
         id: week.id,
         weekType: week.weekType,
         weekNumber: week.weekNumber,
@@ -111,7 +116,8 @@ export async function listSeasons(db: Db, sport: Sport): Promise<AdminSeason[]> 
         endsAt: week.endsAt.toISOString(),
         gameCount: gameCountByWeek.get(week.id) ?? 0,
       })),
-  }));
+    };
+  });
 }
 
 /**

@@ -1159,6 +1159,7 @@ export interface components {
             year: number;
             provisional: boolean;
             weeks: components["schemas"]["AdminWeek"][];
+            currentWeekId: string | null;
         };
         AdminWeek: {
             id: string;

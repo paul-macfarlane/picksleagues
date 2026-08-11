@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { WEEK_TYPE, type SimStateResponse, type WeekType } from "@picksleagues/schemas";
+import { SPORT, WEEK_TYPE, type SimStateResponse, type WeekType } from "@picksleagues/schemas";
 import { useSimFixtureGames } from "@/api/sim";
+import { useAdminSeasons } from "@/api/admin";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { weekTypeLabel } from "@/lib/game";
@@ -36,8 +37,20 @@ const DEFAULT_WEEK_NUMBER = "1";
 
 export function SimFixturesCard({ state }: { state: SimStateResponse }) {
   const [scenarioChoice, setScenarioChoice] = useState<string>();
-  const [weekType, setWeekType] = useState<WeekType>(DEFAULT_WEEK_TYPE);
-  const [weekNumberFilter, setWeekNumberFilter] = useState(DEFAULT_WEEK_NUMBER);
+  // Both filters hold undefined until the operator touches them, so the
+  // current-week default below can land when the seasons query does — a
+  // useState seeded at mount would freeze on week 1 before it arrived.
+  const [weekTypeChoice, setWeekTypeChoice] = useState<WeekType>();
+  const [weekNumberChoice, setWeekNumberChoice] = useState<string>();
+
+  // The synced season's current week (server-resolved, FB-11): a fixtures
+  // browser opening on week 1 mid-season is the footgun that had the operator
+  // hand-editing the wrong week. Fixture week numbering matches the season the
+  // scenario imported, so the mapping is by (type, number). Nothing synced yet
+  // → week 1.
+  const seasons = useAdminSeasons(SPORT.NFL);
+  const newestSeason = seasons.data?.seasons[0];
+  const currentWeek = newestSeason?.weeks.find((week) => week.id === newestSeason.currentWeekId);
 
   // Resolved against the scenarios actually loaded, never trusted from local
   // state (same idiom as sim-clock-card.tsx's season resolution): an
@@ -48,10 +61,19 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
     state.activeScenario?.id ??
     state.scenarios[0]?.id;
 
+  const weekType = weekTypeChoice ?? currentWeek?.weekType ?? DEFAULT_WEEK_TYPE;
   // Clamped to the selected type's range rather than trusted from state:
   // switching regular week 12 -> postseason would otherwise select a week that
   // does not exist, and render a value absent from the select's own options.
+  // The current week's number only stands in while the type filter shows its
+  // own type — a regular-season current week says nothing about postseason.
   const weekOptions = weekNumberOptions(weekType);
+  const weekNumberFilter =
+    weekNumberChoice ??
+    (currentWeek && currentWeek.weekType === weekType
+      ? String(currentWeek.weekNumber)
+      : undefined) ??
+    DEFAULT_WEEK_NUMBER;
   const effectiveWeekNumber = weekOptions.includes(weekNumberFilter)
     ? weekNumberFilter
     : DEFAULT_WEEK_NUMBER;
@@ -86,7 +108,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
               id="sim-fixtures-week-type"
               label="Week type"
               value={weekType}
-              onValueChange={setWeekType}
+              onValueChange={(next) => setWeekTypeChoice(next as WeekType)}
               options={Object.values(WEEK_TYPE).map((value) => ({
                 value,
                 label: weekTypeLabel(value),
@@ -96,7 +118,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
               id="sim-fixtures-week-number"
               label="Week"
               value={effectiveWeekNumber}
-              onValueChange={setWeekNumberFilter}
+              onValueChange={setWeekNumberChoice}
               options={weekOptions.map((value) => ({ value, label: `Week ${value}` }))}
             />
           </div>

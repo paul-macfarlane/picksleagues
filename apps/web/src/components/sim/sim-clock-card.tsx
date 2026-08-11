@@ -103,8 +103,12 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
   // an environment reset deletes every week (and a re-sync mints new ids), so a
   // selection made beforehand would otherwise keep Jump enabled and post a dead
   // id — and render the select with a value absent from its own options.
+  // Defaults to the season's current week (server-resolved, FB-11): a Jump
+  // control that opens on week 1 is a jump *backwards* for most of a season.
   const effectiveWeekId =
-    selectedSeason?.weeks.find((week) => week.id === weekId)?.id ?? selectedSeason?.weeks[0]?.id;
+    selectedSeason?.weeks.find((week) => week.id === weekId)?.id ??
+    selectedSeason?.currentWeekId ??
+    selectedSeason?.weeks[0]?.id;
 
   // Each control scopes its own pending state off `mutation.variables`
   // (async-button standard) rather than one flag disabling every sibling.
