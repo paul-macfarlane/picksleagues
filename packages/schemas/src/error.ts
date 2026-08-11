@@ -44,6 +44,11 @@ export const ERROR_CODE = {
   SEASON_NOT_AVAILABLE: "season_not_available",
   WRONG_LEAGUE_MODE: "wrong_league_mode",
   WEEK_OUT_OF_RANGE: "week_out_of_range",
+  // Distinct from WEEK_OUT_OF_RANGE on purpose: that week is never part of the
+  // league's season; this one is, but sits beyond the member's pick window —
+  // ahead of the current week, and not yet unlocked by the current week
+  // resolving (spec §Game Mode 1/2 — Pick window; ADR-0036).
+  WEEK_NOT_OPEN: "week_not_open",
   GAME_NOT_IN_WEEK: "game_not_in_week",
   GAME_NOT_PICKABLE: "game_not_pickable",
   DUPLICATE_PICK: "duplicate_pick",

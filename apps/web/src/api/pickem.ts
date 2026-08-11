@@ -111,6 +111,8 @@ function pickSubmissionErrorMessage(error: ErrorResponse): string {
       return "That game has no spread posted yet — it can't be picked until the line is up.";
     case ERROR_CODE.GAME_NOT_PICKABLE:
       return "One of those games was cancelled and can't be picked.";
+    case ERROR_CODE.WEEK_NOT_OPEN:
+      return "That week isn't open for picks yet — it opens once all of your current picks resolve.";
     case ERROR_CODE.WEEK_OUT_OF_RANGE:
       return "This week is outside the league's pick range.";
     default:
@@ -152,7 +154,14 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
         // Their picks are already in; refetching is what shows them, since the
         // week's own submitted view is the honest answer to "why was that
         // refused".
-        if (response.status === 409 && error.error === ERROR_CODE.ALREADY_SUBMITTED) {
+        if (
+          response.status === 409 &&
+          (error.error === ERROR_CODE.ALREADY_SUBMITTED ||
+            // The window fact (`pickWindowOpen`) lives on the same response,
+            // and this refusal means the screen's copy of it is stale
+            // (ADR-0036).
+            error.error === ERROR_CODE.WEEK_NOT_OPEN)
+        ) {
           await queryClient.invalidateQueries({
             queryKey: pickemWeekPicksQueryKey(leagueId, weekId),
           });

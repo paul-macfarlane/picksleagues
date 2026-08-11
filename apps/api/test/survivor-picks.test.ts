@@ -279,6 +279,9 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       gameId: week1Game1,
       teamId: teamIds.home,
     });
+    // Resolve week 1 in their favor so week 2 is inside the pick window
+    // (ADR-0036) and the refusal under test is the ledger's, not the window's.
+    await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
     const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
       gameId: week2Game1,
@@ -342,6 +345,9 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       teamId: teamIds.home,
       released: true,
     });
+    // The cancellation that released the team also resolves week 1 as a push,
+    // which is what opens week 2's window (ADR-0036).
+    await setGame(db, week1Game1, { status: GAME_STATUS.CANCELLED });
 
     const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
       gameId: week2Game1,
@@ -363,8 +369,27 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
   ])(
     "judges elimination on settled state: $ledger → $expected",
     async ({ eliminated, seedRow, expected }) => {
-      const { league, memberA, memberAId, leagueSeasonId, week1, week2, week2Game1, teamIds } =
-        await seedLeague();
+      const {
+        league,
+        memberA,
+        memberAId,
+        leagueSeasonId,
+        week1,
+        week1Game1,
+        week2,
+        week2Game1,
+        teamIds,
+      } = await seedLeague();
+      // A resolved week-1 win puts week 2 inside the pick window (ADR-0036) so
+      // the elimination judgement is the only gate the week-2 pick faces.
+      await insertSurvivorPick(db, {
+        leagueSeasonId,
+        leagueMemberId: memberAId,
+        weekId: week1,
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+      await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
       if (seedRow) {
         await insertSurvivorState(db, {
           leagueSeasonId,
@@ -379,14 +404,17 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       });
 
       expect(response.status).toBe(expected);
+      const storedWeekIds = (await survivorPicksFor(db, leagueSeasonId, memberAId)).map(
+        (row) => row.weekId,
+      );
       if (expected === 409) {
         // The refusal about *them*, not the one about the league: this two-member
         // fixture is also a decided season now, and the personal reason wins
         // (ADR-0027).
         expect(((await response.json()) as { error: string }).error).toBe("member_eliminated");
-        expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(0);
+        expect(storedWeekIds).not.toContain(week2);
       } else {
-        expect(await survivorPicksFor(db, leagueSeasonId, memberAId)).toHaveLength(1);
+        expect(storedWeekIds).toContain(week2);
       }
     },
   );
@@ -477,6 +505,17 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       leagueMemberId: base.members.get(base.users[2]!.user.id)!,
       eliminatedWeekId: base.weekIds.get("regular:1")!,
     });
+    // A resolved week-1 win (on the away side, keeping home unconsumed) puts
+    // week 2 inside A's pick window (ADR-0036).
+    const week1Game1 = base.gameIds.get("regular:1")![0]!;
+    await insertSurvivorPick(db, {
+      leagueSeasonId: base.leagueSeasonId,
+      leagueMemberId: memberAId,
+      weekId: base.weekIds.get("regular:1")!,
+      gameId: week1Game1,
+      teamId: base.teamIds.away,
+    });
+    await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 });
 
     const response = await putSurvivorPick(
       base.users[0]!.cookie,
@@ -486,7 +525,116 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await survivorPicksFor(db, base.leagueSeasonId, memberAId)).toHaveLength(1);
+    expect(await survivorPicksFor(db, base.leagueSeasonId, memberAId)).toHaveLength(2);
+  });
+
+  describe("pick window (ADR-0036)", () => {
+    const THREE_WEEK_SLATE: SeededWeek[] = [
+      ...TWO_WEEK_SLATE,
+      {
+        weekNumber: 3,
+        kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 14 * 24 * 60 * 60 * 1000) }],
+      },
+    ];
+
+    it("409s the next week while the current week's pick is unresolved", async () => {
+      const {
+        league,
+        memberA,
+        leagueSeasonId,
+        memberAId,
+        week1,
+        week1Game1,
+        week2,
+        week2Game1,
+        teamIds,
+      } = await seedLeague();
+      await putSurvivorPick(memberA.cookie, league.id, week1, {
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+
+      const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: string }).error).toBe("week_not_open");
+      expect(
+        (await survivorPicksFor(db, leagueSeasonId, memberAId)).map((row) => row.weekId),
+      ).toEqual([week1]);
+    });
+
+    it("409s the next week with no current-week pick at all — a miss resolves nothing", async () => {
+      const { league, memberA, week2, week2Game1, teamIds } = await seedLeague();
+
+      const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: string }).error).toBe("week_not_open");
+    });
+
+    it("409s the next week after a current-week loss — only a win or tie opens it", async () => {
+      const { league, memberA, week1, week1Game1, week2, week2Game1, teamIds } = await seedLeague();
+      await putSurvivorPick(memberA.cookie, league.id, week1, {
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+      await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 });
+
+      const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: string }).error).toBe("week_not_open");
+    });
+
+    it("takes the next week's pick after a current-week tie — a tie advances (ADR-0033)", async () => {
+      const { league, memberA, week1, week1Game1, week2, week2Game1, teamIds } = await seedLeague();
+      await putSurvivorPick(memberA.cookie, league.id, week1, {
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+      await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 17, awayScore: 17 });
+
+      const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("409s two weeks ahead even with the current week resolved — the window is one week deep", async () => {
+      const base = await seedSurvivorLeague(db, auth, {
+        weeks: THREE_WEEK_SLATE,
+        members: [{ username: "member_a" }],
+      });
+      const memberA = base.users[0]!;
+      const week1 = base.weekIds.get("regular:1")!;
+      const week1Game1 = base.gameIds.get("regular:1")![0]!;
+      await putSurvivorPick(memberA.cookie, base.league.id, week1, {
+        gameId: week1Game1,
+        teamId: base.teamIds.home,
+      });
+      await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+
+      const response = await putSurvivorPick(
+        memberA.cookie,
+        base.league.id,
+        base.weekIds.get("regular:3")!,
+        { gameId: base.gameIds.get("regular:3")![0]!, teamId: base.teamIds.away },
+      );
+
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: string }).error).toBe("week_not_open");
+    });
   });
 });
 
@@ -606,6 +754,8 @@ describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
       gameId: week1Game1,
       teamId: teamIds.home,
     });
+    // Resolve week 1 in their favor so week 2 is inside the pick window (ADR-0036).
+    await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
     await putSurvivorPick(memberA.cookie, league.id, week2, {
       gameId: week2Game1,
       teamId: teamIds.away,
@@ -620,6 +770,27 @@ describe("GET /api/leagues/:leagueId/survivor/weeks/:weekId/picks", () => {
 
     expect(week2Body.consumedTeamIds).toEqual([teamIds.home]);
     expect(week1Body.consumedTeamIds).toEqual([teamIds.away]);
+  });
+
+  it("reports the pick window: open on the current week, shut on the next until the pick resolves", async () => {
+    const { league, memberA, week1, week1Game1, week2, teamIds } = await seedLeague();
+    await putSurvivorPick(memberA.cookie, league.id, week1, {
+      gameId: week1Game1,
+      teamId: teamIds.home,
+    });
+
+    const readWindow = async (weekId: string) =>
+      (
+        (await (
+          await getSurvivorPicks(memberA.cookie, league.id, weekId)
+        ).json()) as SurvivorWeekPicksResponse
+      ).pickWindowOpen;
+
+    expect(await readWindow(week1)).toBe(true);
+    expect(await readWindow(week2)).toBe(false);
+
+    await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
+    expect(await readWindow(week2)).toBe(true);
   });
 
   it("does not leak another member's consumed teams", async () => {

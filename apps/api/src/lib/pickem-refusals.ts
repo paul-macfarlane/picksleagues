@@ -28,6 +28,7 @@ const REFUSAL_STATUS = {
   pick_set_incomplete: 400,
   already_submitted: 409,
   pick_locked: 409,
+  week_not_open: 409,
   spread_stale: 409,
   spread_unavailable: 409,
   not_commissioner: 403,
@@ -74,6 +75,11 @@ const REFUSAL_BODY = {
   pick_locked: {
     error: ERROR_CODE.PICK_LOCKED,
     message: "That game has already kicked off — its pick is locked.",
+  },
+  week_not_open: {
+    error: ERROR_CODE.WEEK_NOT_OPEN,
+    message:
+      "That week isn't open for your picks — pick the current week, or next week once your current picks resolve.",
   },
   spread_stale: {
     error: ERROR_CODE.SPREAD_STALE,

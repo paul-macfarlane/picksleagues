@@ -1226,12 +1226,16 @@
             "items": {
               "$ref": "#/components/schemas/PickemMemberPicks"
             }
+          },
+          "pickWindowOpen": {
+            "type": "boolean"
           }
         },
         "required": [
           "weekId",
           "picksAllowed",
-          "members"
+          "members",
+          "pickWindowOpen"
         ]
       },
       "PickemMemberPicks": {
@@ -1395,11 +1399,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "pickWindowOpen": {
+            "type": "boolean"
           }
         },
         "required": [
           "members",
-          "consumedTeamIds"
+          "consumedTeamIds",
+          "pickWindowOpen"
         ]
       },
       "SurvivorMemberPick": {

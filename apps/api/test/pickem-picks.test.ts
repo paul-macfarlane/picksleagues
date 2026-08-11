@@ -1103,6 +1103,144 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(Object.keys(parsed as object).sort()).toEqual(["error", "message"]);
   });
 
+  describe("pick window (ADR-0036)", () => {
+    const TWO_WEEK_SLATE: SeededWeek[] = [
+      ...THREE_GAME_WEEK,
+      {
+        weekNumber: 2,
+        kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000) }],
+      },
+    ];
+
+    it("409s the next week while the member's current-week picks are unresolved", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: gameIds
+          .get("regular:1")!
+          .map((gameId) => ({ gameId, side: PICKEM_PICK_SIDE.HOME, spread: null })),
+      });
+      expect(submitted.status).toBe(200);
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("409s the next week with no current-week submission — a missed week resolves nothing", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("409s the next week while only part of the member's set is final", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+      expect(submitted.status).toBe(200);
+      for (const gameId of week1Games.slice(0, 2)) {
+        await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
+      }
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("takes the next week's picks once every game in the member's set is terminal", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+      expect(submitted.status).toBe(200);
+      // A mixed terminal set on purpose: a cancellation resolves a pick (as a
+      // push) the same as a final does.
+      await setGame(db, week1Games[0]!, {
+        status: GAME_STATUS.FINAL,
+        homeScore: 21,
+        awayScore: 14,
+      });
+      await setGame(db, week1Games[1]!, {
+        status: GAME_STATUS.FINAL,
+        homeScore: 10,
+        awayScore: 17,
+      });
+      await setGame(db, week1Games[2]!, { status: GAME_STATUS.CANCELLED });
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("reports the pick window on the read: open on the current week, shut on the next until the set resolves", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+
+      const readWindow = async (weekId: string) =>
+        (
+          (await (
+            await getPicks(memberA.cookie, league.id, weekId)
+          ).json()) as PickemWeekPicksResponse
+        ).pickWindowOpen;
+
+      expect(await readWindow(weekIds.get("regular:1")!)).toBe(true);
+      expect(await readWindow(weekIds.get("regular:2")!)).toBe(false);
+
+      for (const gameId of week1Games) {
+        await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
+      }
+      expect(await readWindow(weekIds.get("regular:2")!)).toBe(true);
+    });
+  });
+
   describe("against the spread", () => {
     const ATS_SETTINGS: PickemSettings = {
       ...DEFAULT_PICKEM_SETTINGS,

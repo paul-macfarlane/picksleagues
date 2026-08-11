@@ -109,6 +109,8 @@ export function PickemPicks({
         picks.data &&
         (viewerPicks.length > 0 ? (
           <SubmittedWeek slate={slate.data} pickType={pickType} viewerPicks={viewerPicks} />
+        ) : !picks.data.pickWindowOpen ? (
+          <WeekNotOpen slate={slate.data} />
         ) : (
           <PickSheet
             // Remounted per week (and dropped/re-seeded on any other week
@@ -123,6 +125,28 @@ export function PickemPicks({
           />
         ))}
     </QueryState>
+  );
+}
+
+/**
+ * A week beyond the member's pick window (spec §Game Mode 1 — Pick window;
+ * ADR-0036): a notice, not a sheet. The server's `pickWindowOpen` is the
+ * authority — re-deriving the window here would drift from the write path's
+ * refusal, and under the simulator would be derived at the wrong instant.
+ * Checked after the submitted branch, so a submission that landed while the
+ * window was open keeps rendering as a submission.
+ */
+function WeekNotOpen({ slate }: { slate: WeekSlateResponse }) {
+  return (
+    <Card data-testid="pickem-week-not-open">
+      <CardHeader>
+        <CardTitle>{slate.label}</CardTitle>
+        <CardDescription>
+          This week isn&apos;t open for picks yet. You can pick the current week — this one opens
+          once all of your current picks resolve.
+        </CardDescription>
+      </CardHeader>
+    </Card>
   );
 }
 

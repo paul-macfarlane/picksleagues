@@ -1010,6 +1010,7 @@ export interface components {
             weekId: string;
             picksAllowed: number;
             members: components["schemas"]["PickemMemberPicks"][];
+            pickWindowOpen: boolean;
         };
         PickemMemberPicks: {
             leagueMemberId: string;
@@ -1048,6 +1049,7 @@ export interface components {
         SurvivorWeekPicksResponse: {
             members: components["schemas"]["SurvivorMemberPick"][];
             consumedTeamIds: string[];
+            pickWindowOpen: boolean;
         };
         SurvivorMemberPick: {
             leagueMemberId: string;
