@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import { ERROR_CODE, JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
 import type { GameOverrideRequest, JobSkipReason, NflSyncJob, Sport } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
@@ -65,7 +66,7 @@ export function useRunNflSyncJob() {
         toast.info(skipMessage(data.job, data.details?.reason));
         return;
       }
-      toast.success(`Ran ${data.job} in ${data.durationMs}ms`);
+      toastSuccess(`Ran ${data.job} in ${data.durationMs}ms`);
       await queryClient.invalidateQueries({ queryKey: ADMIN_QUERY_KEY_PREFIX });
     },
     onError: () => toast.error("Job failed — check the server logs."),
@@ -214,7 +215,7 @@ export function useSetGameOverride() {
       if (!data) return;
       const label = `${data.game.awayTeam.abbreviation} @ ${data.game.homeTeam.abbreviation}`;
       if (data.resettled) {
-        toast.success(`Saved override for ${label}`);
+        toastSuccess(`Saved override for ${label}`);
       } else {
         // The correction committed — only the recompute that follows it failed.
         // Saying "couldn't save" here would be false, and the retry it invites

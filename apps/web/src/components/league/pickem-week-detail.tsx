@@ -27,15 +27,14 @@ import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 
-// One pick per row. At phone width the row is a padded block of three stacked
-// lines — what the member took, how it graded, where the game stands — each a
-// group of its own so no line ever wraps into another's territory; the muted
-// background is what separates one pick from the next where an unbounded text
-// stack read as clutter (FB-12). Widening to `sm` drops the block treatment and
-// restores the one-line, state-pushed-right layout, where the room actually
-// exists.
-const PICK_ROW_CLASS_NAME =
-  "flex flex-col gap-1 rounded-md bg-muted/40 p-2 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:rounded-none sm:bg-transparent sm:p-0";
+// One pick per row: a padded block of three stacked lines — what the member
+// took, how it graded, where the game stands — each a group of its own so no
+// line ever wraps into another's territory, with the muted background
+// separating one pick from the next where an unbounded text stack read as
+// clutter (FB-12). One layout at every width on purpose (FB-24, owner's call):
+// the block briefly reverted to an inline single line at `sm`, and the same
+// list reading differently per device cost more than the desktop line saved.
+const PICK_ROW_CLASS_NAME = "flex flex-col gap-1 rounded-md bg-muted/40 p-2 text-xs";
 
 function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStandingsRow> {
   return new Map(rows.map((row) => [row.leagueMemberId, row]));
@@ -258,10 +257,10 @@ function MemberPicksSection({
         )}
 
         {picked.length > 0 && (
-          // Shallower indent at phone width on purpose: the blocks are already
-          // set off by their background, and the full sm indent would spend
-          // 36px of a ~375px viewport on alignment with the avatar column.
-          <ul className="flex flex-col gap-2 pl-2 sm:gap-1.5 sm:pl-9">
+          // Shallow indent at every width: the blocks are set off by their
+          // background rather than by alignment with the avatar column, and at
+          // phone width the full indent would spend 36px of a ~375px viewport.
+          <ul className="flex flex-col gap-2 pl-2">
             {picked.map(({ pick, game }) => (
               <PickRow key={pick.id} pick={pick} game={game} pickType={pickType} />
             ))}
@@ -350,7 +349,7 @@ function PickRow({
           row, which has the room), so it trails the state text it's dating,
           dimmer still so it can't be mistaken for a live badge (DATA-8; spec
           §UI conventions). */}
-      <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground sm:ml-auto">
+      <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
         <GameStatePill status={game.status} />
         <span>
           {gameStateLabel(game, now)}

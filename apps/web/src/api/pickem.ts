@@ -1,5 +1,6 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import { ERROR_CODE, type ErrorResponse, type PickemPickSubmission } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
@@ -172,7 +173,7 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toast.success("Picks submitted");
+      toastSuccess("Picks submitted");
       await queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) });
     },
     onError: () => toast.error("Couldn't submit your picks — please try again."),

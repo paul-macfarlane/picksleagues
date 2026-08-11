@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import type { Invite } from "@picksleagues/schemas";
@@ -29,7 +29,14 @@ export function InvitePanel({
     <Card>
       <CardHeader>
         <CardTitle>Invites</CardTitle>
-        <CardDescription>Share a link so others can join.</CardDescription>
+        {/* Phrased for the phase (FB-22): once the league starts this panel
+            exists to revoke leaked links, and "share a link so others can
+            join" / "no invites yet" both promise a joining that is closed. */}
+        <CardDescription>
+          {started
+            ? "Joining is closed for this season — existing links can only be revoked."
+            : "Share a link so others can join."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <QueryState
@@ -41,7 +48,7 @@ export function InvitePanel({
           onRetry={() => void invites.refetch()}
           errorMessage="Couldn't load invites."
           isEmpty={invites.data?.invites.length === 0}
-          emptyMessage="No invites yet."
+          emptyMessage={started ? "No invite links are outstanding." : "No invites yet."}
         >
           <ul className="flex flex-col gap-3">
             {invites.data?.invites.map((invite) => (
@@ -99,7 +106,7 @@ function InviteRow({
           size="sm"
           onClick={async () => {
             await navigator.clipboard.writeText(`${window.location.origin}/join/${invite.code}`);
-            toast.success("Invite link copied");
+            toastSuccess("Invite link copied");
           }}
         >
           Copy link

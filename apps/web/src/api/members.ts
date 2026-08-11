@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import type { ErrorResponse, MemberRole } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
@@ -76,7 +77,7 @@ export function useLeaveLeague(leagueId: string) {
         await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
         return;
       }
-      toast.success("Left the league");
+      toastSuccess("Left the league");
       await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/" });
     },
@@ -110,7 +111,7 @@ function useJoinMutation<T extends { id: string; name: string }>(
         await onBlocked?.();
         return;
       }
-      toast.success(`Joined ${data.name}`);
+      toastSuccess(`Joined ${data.name}`);
       await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },

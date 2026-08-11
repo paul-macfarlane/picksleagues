@@ -29,6 +29,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
+import { SlatePreview } from "@/components/league/slate-preview";
 import { SheetGameRow, SubmittedPickRow } from "@/components/league/pickem-game-row";
 
 /**
@@ -144,10 +145,13 @@ function WeekNotOpen({ slate }: { slate: WeekSlateResponse }) {
       <CardHeader>
         <CardTitle>{slate.label}</CardTitle>
         <CardDescription>
-          This week isn&apos;t open for picks yet. You can pick the current week — this one opens
-          once all of your current picks resolve.
+          This week isn&apos;t open for picks yet — it opens once all of your current picks resolve.
+          Here&apos;s the slate in the meantime.
         </CardDescription>
       </CardHeader>
+      <CardContent>
+        <SlatePreview slate={slate} />
+      </CardContent>
     </Card>
   );
 }

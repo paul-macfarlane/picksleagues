@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm, useStore } from "@tanstack/react-form";
-import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import {
   DisplayNameSchema,
   ImageUrlSchema,
@@ -93,7 +93,7 @@ function ProfileForm({
         onSubmit: { fields: { username: "That username is already taken." } },
       }),
     onSuccess: async () => {
-      toast.success("Profile updated");
+      toastSuccess("Profile updated");
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       await refetchSession();
     },

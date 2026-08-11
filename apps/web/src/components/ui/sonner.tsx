@@ -25,7 +25,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // lowering it — moving position is the fix that removes the whole class
       // of bottom-fixed collisions. A future bottom-fixed element must keep
       // this constraint in mind rather than re-introducing a bottom toaster.
-      position="top-center"
+      //
+      // Right, not center (FB-21): the page column is a centered max-w-5xl, so
+      // top-center parked every toast over the header/tab-nav line and the
+      // content a member was reading, while top-right rides the empty gutter
+      // beside the column on anything wider than a phone. Under 600px sonner
+      // spans near-full width wherever it sits, so the phone-width relief is
+      // the shorter success duration (lib/toast.ts), not the position.
+      position="top-right"
       // Offset below the sticky header rather than under it — the same
       // `--app-header-height` custom property TabNav's own sticky offset
       // (tab-nav.tsx) already reads, so this tracks the header's real height
