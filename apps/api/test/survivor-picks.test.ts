@@ -11,6 +11,7 @@ import {
   type SurvivorSettings,
   type SurvivorWeekPicksResponse,
 } from "@picksleagues/schemas";
+import { createApp } from "../src/app";
 import { rebuildLeagueSeason } from "../src/services/settlement";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
@@ -609,6 +610,78 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       });
 
       expect(response.status).toBe(200);
+    });
+
+    it("follows an admin override when deriving the unlock — a corrected loss into a win opens next week", async () => {
+      const { league, memberA, week1, week1Game1, week2, week2Game1, teamIds } = await seedLeague();
+      await putSurvivorPick(memberA.cookie, league.id, week1, {
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+      // Provider says the pick lost…
+      await setGame(db, week1Game1, { status: GAME_STATUS.FINAL, homeScore: 10, awayScore: 24 });
+      const refused = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+      expect(refused.status).toBe(409);
+
+      // …and an admin score correction says it won (override_* ?? provider_*,
+      // arch D15) — the window must follow the corrected result.
+      await setGame(db, week1Game1, { overrideHomeScore: 30, overrideAwayScore: 24 });
+      const allowed = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+      expect(allowed.status).toBe(200);
+    });
+
+    it("holds next week shut behind a final without scores — a provider fault is not an unlock", async () => {
+      const { league, memberA, week1, week1Game1, week2, week2Game1, teamIds } = await seedLeague();
+      await putSurvivorPick(memberA.cookie, league.id, week1, {
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+      await setGame(db, week1Game1, { status: GAME_STATUS.FINAL });
+
+      const response = await putSurvivorPick(memberA.cookie, league.id, week2, {
+        gameId: week2Game1,
+        teamId: teamIds.away,
+      });
+
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: string }).error).toBe("week_not_open");
+    });
+
+    it("reports a played week inside the window, and refuses its writes on the per-game lock", async () => {
+      const { league, memberA, week1, week1Game1, teamIds } = await seedLeague();
+      await putSurvivorPick(memberA.cookie, league.id, week1, {
+        gameId: week1Game1,
+        teamId: teamIds.home,
+      });
+      // A clock inside week 2's bounds: week 1 is now behind the window.
+      const appDuringWeek2 = createApp({
+        auth,
+        db,
+        clock: async () => new FixedClock(new Date(WEEK2_KICKOFF.getTime() + 1)),
+      });
+
+      const read = (await (
+        await getSurvivorPicks(memberA.cookie, league.id, week1, appDuringWeek2)
+      ).json()) as SurvivorWeekPicksResponse;
+      // Inside the window on purpose (ADR-0036): a behind week renders its real
+      // states — a "not open yet" notice would be false in both words.
+      expect(read.pickWindowOpen).toBe(true);
+
+      const write = await putSurvivorPick(
+        memberA.cookie,
+        league.id,
+        week1,
+        { gameId: week1Game1, teamId: teamIds.away },
+        appDuringWeek2,
+      );
+      expect(write.status).toBe(409);
+      expect(((await write.json()) as { error: string }).error).toBe("pick_locked");
     });
 
     it("409s two weeks ahead even with the current week resolved — the window is one week deep", async () => {

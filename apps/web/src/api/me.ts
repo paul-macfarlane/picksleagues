@@ -57,7 +57,7 @@ export function useUpdateMe(options: {
   });
 }
 
-export const DELETION_BLOCKERS_QUERY_KEY = ["me", "deletion-blockers"];
+const DELETION_BLOCKERS_QUERY_KEY = ["me", "deletion-blockers"];
 
 /**
  * The leagues standing between the member and account deletion (ADR-0004) —

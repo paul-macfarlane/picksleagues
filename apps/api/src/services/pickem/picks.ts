@@ -169,14 +169,21 @@ async function loadContext(
  */
 async function hasCurrentWeekResolvedForMember(
   db: Db,
+  leagueSeasonId: string,
   membershipId: string,
   currentWeekId: string,
 ): Promise<boolean> {
+  // (leagueMemberId, weekId) is already unique to one instance — the season
+  // scope is redundant but kept so this reads like Survivor's twin query.
   const picks = await db
     .select({ gameId: pickemPicks.gameId })
     .from(pickemPicks)
     .where(
-      and(eq(pickemPicks.leagueMemberId, membershipId), eq(pickemPicks.weekId, currentWeekId)),
+      and(
+        eq(pickemPicks.leagueSeasonId, leagueSeasonId),
+        eq(pickemPicks.leagueMemberId, membershipId),
+        eq(pickemPicks.weekId, currentWeekId),
+      ),
     );
   if (picks.length === 0) return false;
 
@@ -202,7 +209,7 @@ async function hasCurrentWeekResolvedForMember(
 function isWeekInPickWindow(
   db: Db,
   clock: Clock,
-  context: Pick<PickemContext, "seasonId" | "membershipId" | "settings">,
+  context: Pick<PickemContext, "leagueSeasonId" | "seasonId" | "membershipId" | "settings">,
   weekId: string,
 ): Promise<boolean> {
   return isWeekInsidePickWindow(db, clock, {
@@ -210,7 +217,12 @@ function isWeekInPickWindow(
     targetWeekId: weekId,
     playsWeek: (week) => isWeekInSeasonRange(week, context.settings),
     hasCurrentWeekResolvedForMember: (currentWeekId) =>
-      hasCurrentWeekResolvedForMember(db, context.membershipId, currentWeekId),
+      hasCurrentWeekResolvedForMember(
+        db,
+        context.leagueSeasonId,
+        context.membershipId,
+        currentWeekId,
+      ),
   });
 }
 

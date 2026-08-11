@@ -206,12 +206,14 @@ export const PickemWeekPicksResponseSchema = z
     members: z.array(PickemMemberPicksSchema),
     /**
      * Whether the requested week is inside the *viewer's* pick window (spec
-     * §Game Mode 1 — Pick window; ADR-0036): the current week, or the next week
-     * once every game in the viewer's current-week submission is terminal.
-     * Server-computed so the UI never re-derives the window — a client-side
-     * copy would drift from the write path's refusal, and under the simulator
-     * would be derived at the wrong instant. False for past weeks; per-game
-     * kickoff locks are a separate, stricter gate.
+     * §Game Mode 1 — Pick window; ADR-0036). False only for weeks *ahead* of
+     * the window — beyond the current week, and not yet unlocked by every game
+     * in the viewer's current-week submission going terminal. A past week
+     * reports true: its pickability is entirely the per-game kickoff locks'
+     * story, and reporting it closed had the UI calling completed weeks "not
+     * open yet". Server-computed so the UI never re-derives the window — a
+     * client-side copy would drift from the write path's refusal, and under
+     * the simulator would be derived at the wrong instant.
      */
     pickWindowOpen: z.boolean(),
   })

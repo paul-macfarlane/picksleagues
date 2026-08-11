@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import type { SlateGame, SlateTeam, SurvivorPick, WeekSlateResponse } from "@picksleagues/schemas";
 import { useSubmitSurvivorPick, useSurvivorStandings, useSurvivorWeekPicks } from "@/api/survivor";
 import { useWeekSlate } from "@/api/weeks";
@@ -10,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
 import { SurvivorGameRow, SurvivorPickedGameRow } from "@/components/league/survivor-game-row";
 
 /** A team taken out of a specific game — the shape both the sheet and the write path speak. */
@@ -189,12 +189,14 @@ function SeasonOverWeek({
 }
 
 /**
- * A week beyond the member's pick window (spec §Game Mode 2 — Pick window;
- * ADR-0036): a notice, not a sheet. The server's `pickWindowOpen` is the
- * authority — re-deriving the window here would drift from the write path's
- * refusal, and under the simulator would be derived at the wrong instant.
- * A pick is still shown if one exists (a window can close back over a made
- * pick when an admin override reopens the prior week's game).
+ * A week *ahead of* the member's pick window (spec §Game Mode 2 — Pick window;
+ * ADR-0036): a notice, not a sheet. Only future weeks can reach this — the
+ * server reports past weeks inside the window, so browsing history renders the
+ * real sheet states, never "not open yet". The server's `pickWindowOpen` is
+ * the authority — re-deriving the window here would drift from the write
+ * path's refusal, and under the simulator would be derived at the wrong
+ * instant. A pick is still shown if one exists (a window can close back over
+ * a made pick when an admin override reopens the prior week's game).
  */
 function WeekNotOpen({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
   return (
@@ -309,18 +311,7 @@ function SurvivorPickSheet({
                 ? "This week is closed — no games are still open to pick."
                 : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."}
           </CardDescription>
-          {/* New tab on purpose: the sheet's draft lives only in local state, and a
-              same-tab navigation would unmount it and silently discard the picks. */}
-          <p className="text-xs">
-            <Link
-              to="/rules/survivor"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground underline hover:text-foreground"
-            >
-              Full Survivor rules
-            </Link>
-          </p>
+          <PickSheetGuideLinks rulesTo="/rules/survivor" rulesLabel="Full Survivor rules" />
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never covers
             the last row's controls when scrolled to the bottom — and is dropped

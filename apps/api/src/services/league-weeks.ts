@@ -64,7 +64,10 @@ export async function listLeagueWeeks(
     .leftJoin(games, eq(games.weekId, weeks.id))
     .where(eq(weeks.seasonId, current.season.seasonId))
     .groupBy(weeks.id)
-    .orderBy(asc(weeks.startsAt));
+    // Week number as tiebreak, matching `listSeasonWeeksInRange` and
+    // `resolveLeagueWeekFrames` — under a startsAt tie a divergent order would
+    // hand the positional current-week fallback a different row per surface.
+    .orderBy(asc(weeks.startsAt), asc(weeks.weekNumber));
 
   // Clipped in app code rather than SQL: the ordinal is a domain rule
   // (postseason follows week 18) that `isWeekInSeasonRange` owns, and no SQL
@@ -120,16 +123,21 @@ export function resolveCurrentWeekId(
  * Where a requested week sits relative to the member pick window (spec §Game
  * Mode 1/2 — Pick window; ADR-0036): the current week is always inside it, the
  * week immediately after is conditionally inside it (each mode owns the unlock
- * condition), and everything else — further ahead, or already behind — is
- * outside. Positional on the caller's own in-range rows, so the "next" week is
+ * condition), weeks further ahead are `closed`, and weeks already played are
+ * `behind`. Positional on the caller's own in-range rows, so the "next" week is
  * the next week *this league plays*, not the next on the calendar.
  *
- * Past weeks report `closed` rather than a fourth position: every gate that
- * consults this also enforces per-game kickoff locks, which refuse past weeks
- * on their own, so a position naming them would never be read.
+ * `behind` is distinguished from `closed` because the two mean opposite things
+ * to a reader: a closed week will open later and the UI says so, while a behind
+ * week is history whose pickability is entirely the per-game kickoff locks'
+ * story — folding them together painted "not open yet" over every completed
+ * week a member browsed back to.
  */
 export type WeekWindowPosition =
-  { position: "current" } | { position: "next"; currentWeekId: string } | { position: "closed" };
+  | { position: "current" }
+  | { position: "next"; currentWeekId: string }
+  | { position: "behind" }
+  | { position: "closed" };
 
 export function resolveWeekWindowPosition(
   rows: ReadonlyArray<{ id: string; startsAt: Date; endsAt: Date }>,
@@ -141,6 +149,9 @@ export function resolveWeekWindowPosition(
   if (targetWeekId === currentWeekId) return { position: "current" };
 
   const currentIndex = rows.findIndex((row) => row.id === currentWeekId);
+  const targetIndex = rows.findIndex((row) => row.id === targetWeekId);
+  if (targetIndex !== -1 && targetIndex < currentIndex) return { position: "behind" };
+
   const next = rows[currentIndex + 1];
   if (next && next.id === targetWeekId) return { position: "next", currentWeekId };
 
@@ -199,6 +210,12 @@ export async function isWeekInsidePickWindow(
   const inRange = await listSeasonWeeksInRange(db, input.seasonId, input.playsWeek);
   const window = resolveWeekWindowPosition(inRange, clock, input.targetWeekId);
   if (window.position === "current") return true;
+  // The window only constrains picking *ahead*. A behind week reports inside it
+  // so the read path renders the week's real states (locked picks, missed
+  // picks) instead of a "not open yet" notice that is false in both words —
+  // its writes are refused game by game by the kickoff locks every pick
+  // mutation re-validates (arch D11).
+  if (window.position === "behind") return true;
   if (window.position === "closed") return false;
 
   const [gamesInCurrent] = await db
