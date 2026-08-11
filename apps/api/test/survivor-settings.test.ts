@@ -128,17 +128,19 @@ describe("PATCH /api/leagues/:leagueId — Survivor settings reset picks", () =>
     });
     const memberA = seeded.users[0]!;
     const [week3Game] = seeded.gameIds.get("regular:3") as [string];
-    // Week 3 is inside the stored range and still ahead of both clocks, so this
-    // is a pick the member made legally and has not locked — the state the
-    // reset exists for, as against the refusal the next case pins.
-    const picked = await putSurvivorPick(
-      memberA.cookie,
-      seeded.league.id,
-      seeded.weekIds.get("regular:3")!,
-      { gameId: week3Game, teamId: seeded.teamIds.home },
-      appAfterKickoff,
-    );
-    expect(picked.status).toBe(200);
+    // Week 3 is inside the stored range and still ahead of both clocks — an
+    // unlocked pick, the state the reset exists for, as against the refusal the
+    // next case pins. Inserted directly: reaching it through the endpoint would
+    // need week 2 resolved in the member's favor first (the pick window,
+    // ADR-0036), and that resolved week-2 pick would itself be locked and trip
+    // the picks_locked refusal this test is deliberately not about.
+    await insertSurvivorPick(db, {
+      leagueSeasonId: seeded.leagueSeasonId,
+      leagueMemberId: seeded.members.get(memberA.user.id)!,
+      weekId: seeded.weekIds.get("regular:3")!,
+      gameId: week3Game,
+      teamId: seeded.teamIds.home,
+    });
     expect(await pickCountFor(seeded.league.id)).toBe(1);
 
     const res = await patchLeague(

@@ -27,15 +27,15 @@ import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
 import { PickOutcomeBadge } from "@/components/league/pick-outcome";
 
-// One pick per row, and each row is a two-line block at phone width: what the
-// member took on the first line, where that game stands on the second.
-// Previously both lines were a single wrapping flex row, so a short matchup
-// happened to fit beside its status while a long one wrapped — the same
-// information landed in a different place on every row, which is what made the
-// list hard to read. Widening to `sm` restores the one-line,
-// state-pushed-right layout, where the room actually exists.
+// One pick per row. At phone width the row is a padded block of three stacked
+// lines — what the member took, how it graded, where the game stands — each a
+// group of its own so no line ever wraps into another's territory; the muted
+// background is what separates one pick from the next where an unbounded text
+// stack read as clutter (FB-12). Widening to `sm` drops the block treatment and
+// restores the one-line, state-pushed-right layout, where the room actually
+// exists.
 const PICK_ROW_CLASS_NAME =
-  "flex flex-col gap-0.5 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2";
+  "flex flex-col gap-1 rounded-md bg-muted/40 p-2 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:rounded-none sm:bg-transparent sm:p-0";
 
 function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStandingsRow> {
   return new Map(rows.map((row) => [row.leagueMemberId, row]));
@@ -258,7 +258,10 @@ function MemberPicksSection({
         )}
 
         {picked.length > 0 && (
-          <ul className="flex flex-col gap-1.5 pl-9">
+          // Shallower indent at phone width on purpose: the blocks are already
+          // set off by their background, and the full sm indent would spend
+          // 36px of a ~375px viewport on alignment with the avatar column.
+          <ul className="flex flex-col gap-2 pl-2 sm:gap-1.5 sm:pl-9">
             {picked.map(({ pick, game }) => (
               <PickRow key={pick.id} pick={pick} game={game} pickType={pickType} />
             ))}
@@ -325,24 +328,29 @@ function PickRow({
         <span className="text-muted-foreground">
           ({game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation})
         </span>
-        {/* Same badge the pick editor uses, so a member reading their own row
-            here and there sees one vocabulary for how a pick graded. The badge
-            owns the verdict and the standing beside it owns the magnitude —
-            they pair on a graded pick, and the standing stands alone while the
-            game is still running. */}
-        {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
-        {standing && (
-          <span data-testid="pick-standing" className="text-muted-foreground">
-            {standing}
-          </span>
-        )}
       </span>
+      {/* Same badge the pick editor uses, so a member reading their own row
+          here and there sees one vocabulary for how a pick graded. The badge
+          owns the verdict and the standing beside it owns the magnitude — they
+          pair on a graded pick, and the standing stands alone while the game is
+          still running. A group of its own so the phone layout can give the
+          grade a line to itself; inline it reads exactly where it used to. */}
+      {(pick.outcome || standing) && (
+        <span className="flex flex-wrap items-center gap-1.5">
+          {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
+          {standing && (
+            <span data-testid="pick-standing" className="text-muted-foreground">
+              {standing}
+            </span>
+          )}
+        </span>
+      )}
       {/* The "as of" qualifier is folded into this same line rather than given
           a block of its own: the row is already tight (unlike the pick-entry
           row, which has the room), so it trails the state text it's dating,
           dimmer still so it can't be mistaken for a live badge (DATA-8; spec
           §UI conventions). */}
-      <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+      <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground sm:ml-auto">
         <GameStatePill status={game.status} />
         <span>
           {gameStateLabel(game, now)}

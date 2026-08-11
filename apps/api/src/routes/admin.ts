@@ -304,7 +304,7 @@ export function adminRoutes(deps: AppDeps) {
 
   app.openapi(listAdminSeasonsRoute, async (c) => {
     const { sport } = c.req.valid("query");
-    return c.json({ seasons: await listSeasons(c.get("db"), sport) }, 200);
+    return c.json({ seasons: await listSeasons(c.get("db"), c.get("clock"), sport) }, 200);
   });
 
   app.openapi(listAdminGamesRoute, async (c) => {

@@ -127,6 +127,32 @@
         "minLength": 1,
         "maxLength": 50
       },
+      "AccountDeletionBlockersResponse": {
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "leagues"
+        ]
+      },
       "JobRunResponse": {
         "type": "object",
         "properties": {
@@ -1226,12 +1252,16 @@
             "items": {
               "$ref": "#/components/schemas/PickemMemberPicks"
             }
+          },
+          "pickWindowOpen": {
+            "type": "boolean"
           }
         },
         "required": [
           "weekId",
           "picksAllowed",
-          "members"
+          "members",
+          "pickWindowOpen"
         ]
       },
       "PickemMemberPicks": {
@@ -1395,11 +1425,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "pickWindowOpen": {
+            "type": "boolean"
           }
         },
         "required": [
           "members",
-          "consumedTeamIds"
+          "consumedTeamIds",
+          "pickWindowOpen"
         ]
       },
       "SurvivorMemberPick": {
@@ -1771,6 +1805,12 @@
             "items": {
               "$ref": "#/components/schemas/AdminWeek"
             }
+          },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1778,7 +1818,8 @@
           "sport",
           "year",
           "provisional",
-          "weeks"
+          "weeks",
+          "currentWeekId"
         ]
       },
       "AdminWeek": {
@@ -3165,6 +3206,44 @@
           },
           "409": {
             "description": "Blocked: the caller is the last commissioner of a non-empty active league (ADR-0004) — promote a replacement first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/deletion-blockers": {
+      "get": {
+        "operationId": "getDeletionBlockers",
+        "summary": "Leagues blocking the caller's account deletion",
+        "responses": {
+          "200": {
+            "description": "The caller's sole-commissioner leagues with other members; empty = deletable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionBlockersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
             "content": {
               "application/json": {
                 "schema": {

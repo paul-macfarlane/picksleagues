@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import {
   PICK_TYPE,
   requiredPickemPickCount,
@@ -29,6 +28,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
 import { SheetGameRow, SubmittedPickRow } from "@/components/league/pickem-game-row";
 
 /**
@@ -109,6 +109,8 @@ export function PickemPicks({
         picks.data &&
         (viewerPicks.length > 0 ? (
           <SubmittedWeek slate={slate.data} pickType={pickType} viewerPicks={viewerPicks} />
+        ) : !picks.data.pickWindowOpen ? (
+          <WeekNotOpen slate={slate.data} />
         ) : (
           <PickSheet
             // Remounted per week (and dropped/re-seeded on any other week
@@ -123,6 +125,30 @@ export function PickemPicks({
           />
         ))}
     </QueryState>
+  );
+}
+
+/**
+ * A week *ahead of* the member's pick window (spec §Game Mode 1 — Pick window;
+ * ADR-0036): a notice, not a sheet. Only future weeks can reach this — the
+ * server reports past weeks inside the window, so browsing history renders the
+ * closed sheet, never "not open yet". The server's `pickWindowOpen` is the
+ * authority — re-deriving the window here would drift from the write path's
+ * refusal, and under the simulator would be derived at the wrong instant.
+ * Checked after the submitted branch, so a submission that landed while the
+ * window was open keeps rendering as a submission.
+ */
+function WeekNotOpen({ slate }: { slate: WeekSlateResponse }) {
+  return (
+    <Card data-testid="pickem-week-not-open">
+      <CardHeader>
+        <CardTitle>{slate.label}</CardTitle>
+        <CardDescription>
+          This week isn&apos;t open for picks yet. You can pick the current week — this one opens
+          once all of your current picks resolve.
+        </CardDescription>
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -285,18 +311,7 @@ function PickSheet({
               {credit}
             </p>
           )}
-          {/* New tab on purpose: the sheet's draft lives only in local state, and a
-              same-tab navigation would unmount it and silently discard the picks. */}
-          <p className="text-xs">
-            <Link
-              to="/rules/pickem"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground underline hover:text-foreground"
-            >
-              Full Pick&apos;em rules
-            </Link>
-          </p>
+          <PickSheetGuideLinks rulesTo="/rules/pickem" rulesLabel="Full Pick'em rules" />
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never
             covers the last game row's controls when scrolled to the bottom

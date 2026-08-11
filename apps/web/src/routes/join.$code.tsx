@@ -127,19 +127,43 @@ function JoinByCode() {
             </Button>
           ) : (
             <div className="flex flex-col gap-3">
-              {reason && (
-                <p className="text-sm text-muted-foreground">
-                  {JOIN_BLOCKED_REASON_MESSAGES[reason]}
-                </p>
+              {/* Already-member is good news and stays quiet; every other block
+                  (full, closed, revoked, concluded) is a refusal the member
+                  came here to act on, so it gets alert weight instead of
+                  reading like one more detail line (FB-19). role="status" so
+                  the outcome is announced, not just painted. */}
+              {reason &&
+                (reason === JOIN_BLOCKED_REASON.ALREADY_MEMBER ? (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    {JOIN_BLOCKED_REASON_MESSAGES[reason]}
+                  </p>
+                ) : (
+                  <p
+                    role="status"
+                    className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-center text-sm font-medium text-destructive"
+                  >
+                    {JOIN_BLOCKED_REASON_MESSAGES[reason]}
+                  </p>
+                ))}
+              {/* An existing member's destination is the league the link was
+                  for, not a dashboard detour (FB-8) — the join success path
+                  already lands there. */}
+              {reason === JOIN_BLOCKED_REASON.ALREADY_MEMBER ? (
+                <Link
+                  to="/leagues/$leagueId"
+                  params={{ leagueId: league.id }}
+                  className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
+                >
+                  Open league
+                </Link>
+              ) : (
+                <Link
+                  to="/"
+                  className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
+                >
+                  Go to dashboard
+                </Link>
               )}
-              <Link
-                to="/"
-                className={buttonVariants({ size: "lg", className: "w-full justify-center" })}
-              >
-                {reason === JOIN_BLOCKED_REASON.ALREADY_MEMBER
-                  ? "Open dashboard"
-                  : "Go to dashboard"}
-              </Link>
             </div>
           )}
         </CardContent>

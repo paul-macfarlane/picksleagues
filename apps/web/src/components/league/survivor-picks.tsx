@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import type { SlateGame, SlateTeam, SurvivorPick, WeekSlateResponse } from "@picksleagues/schemas";
 import { useSubmitSurvivorPick, useSurvivorStandings, useSurvivorWeekPicks } from "@/api/survivor";
 import { useWeekSlate } from "@/api/weeks";
@@ -10,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
 import { SurvivorGameRow, SurvivorPickedGameRow } from "@/components/league/survivor-game-row";
 
 /** A team taken out of a specific game — the shape both the sheet and the write path speak. */
@@ -118,6 +118,8 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
           <SeasonOverWeek slate={slate.data} pick={viewer.pick} won={won} />
         ) : viewer.eliminated ? (
           <EliminatedWeek slate={slate.data} pick={viewer.pick} />
+        ) : !picks.data.pickWindowOpen ? (
+          <WeekNotOpen slate={slate.data} pick={viewer.pick} />
         ) : (
           <SurvivorPickSheet
             // Remounted per week so a selection made while looking at another
@@ -187,6 +189,31 @@ function SeasonOverWeek({
 }
 
 /**
+ * A week *ahead of* the member's pick window (spec §Game Mode 2 — Pick window;
+ * ADR-0036): a notice, not a sheet. Only future weeks can reach this — the
+ * server reports past weeks inside the window, so browsing history renders the
+ * real sheet states, never "not open yet". The server's `pickWindowOpen` is
+ * the authority — re-deriving the window here would drift from the write
+ * path's refusal, and under the simulator would be derived at the wrong
+ * instant. A pick is still shown if one exists (a window can close back over
+ * a made pick when an admin override reopens the prior week's game).
+ */
+function WeekNotOpen({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
+  return (
+    <Card data-testid="survivor-week-not-open">
+      <CardHeader>
+        <CardTitle>Not open yet</CardTitle>
+        <CardDescription>
+          You can pick the current week — this one opens once your current pick resolves with a win
+          or tie.
+        </CardDescription>
+      </CardHeader>
+      <PickedGame slate={slate} pick={pick} />
+    </Card>
+  );
+}
+
+/**
  * The week as an eliminated member sees it: an answer, not a sheet.
  *
  * A disabled sheet would be the wrong claim — it implies a pick that could be
@@ -248,6 +275,7 @@ function SurvivorPickSheet({
   const consumed = new Set(consumedTeamIds);
   const teams = teamsById(slate.games);
   const heldTeam = held ? (teams.get(held.teamId) ?? null) : null;
+  const savedTeam = saved ? (teams.get(saved.teamId) ?? null) : null;
 
   // The pick on record freezes at *its own* game's kickoff, which is the write
   // path's rule — so a member whose Thursday team has kicked off is done for the
@@ -283,18 +311,7 @@ function SurvivorPickSheet({
                 ? "This week is closed — no games are still open to pick."
                 : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."}
           </CardDescription>
-          {/* New tab on purpose: the sheet's draft lives only in local state, and a
-              same-tab navigation would unmount it and silently discard the picks. */}
-          <p className="text-xs">
-            <Link
-              to="/rules/survivor"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground underline hover:text-foreground"
-            >
-              Full Survivor rules
-            </Link>
-          </p>
+          <PickSheetGuideLinks rulesTo="/rules/survivor" rulesLabel="Full Survivor rules" />
         </CardHeader>
         {/* Bottom padding clears the fixed action bar below so it never covers
             the last row's controls when scrolled to the bottom — and is dropped
@@ -338,9 +355,14 @@ function SurvivorPickSheet({
                 claim about the week (ELM-6) and carries a machine value this
                 line has no equivalent of. */}
             <p data-testid="survivor-pick-save-state" className="text-sm text-muted-foreground">
+              {/* A change away from a saved pick names both teams — the member
+                  asked to see what they'd be replacing without leaving the
+                  sheet (FB-18). */}
               {heldTeam
                 ? changed
-                  ? `${heldTeam.name} selected — not saved yet`
+                  ? savedTeam
+                    ? `${heldTeam.name} selected — replaces ${savedTeam.name} when saved`
+                    : `${heldTeam.name} selected — not saved yet`
                   : `Your pick: ${heldTeam.name}`
                 : "No pick yet this week"}
             </p>
@@ -348,13 +370,24 @@ function SurvivorPickSheet({
                 never changes — outcome feedback is the toast the mutation
                 raises. Nothing else on the sheet is disabled by it: the member
                 may keep choosing while it lands. */}
-            <Button
-              className="shrink-0"
-              disabled={!changed || submit.isPending}
-              onClick={handleSave}
-            >
-              Save pick
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              {/* Drops the unsaved selection, falling back to whatever the
+                  server has on record — the way out of a mis-tap before it's
+                  committed (FB-18). Gone once nothing is pending, because an
+                  Undo that undoes nothing is a broken promise. */}
+              {changed && (
+                <Button
+                  variant="outline"
+                  disabled={submit.isPending}
+                  onClick={() => setSelection(null)}
+                >
+                  Undo
+                </Button>
+              )}
+              <Button disabled={!changed || submit.isPending} onClick={handleSave}>
+                Save pick
+              </Button>
+            </div>
           </div>
         </div>
       )}

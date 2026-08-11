@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import type { MeResponse, UpdateMeRequest } from "@picksleagues/schemas";
+import { ERROR_CODE, type MeResponse, type UpdateMeRequest } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { syncAppClock } from "@/lib/app-clock";
 
@@ -57,6 +57,26 @@ export function useUpdateMe(options: {
   });
 }
 
+const DELETION_BLOCKERS_QUERY_KEY = ["me", "deletion-blockers"];
+
+/**
+ * The leagues standing between the member and account deletion (ADR-0004) —
+ * what lets the Danger Zone disable Delete with the reason *before* the
+ * attempt, naming the leagues to hand off (FB-13). The server re-checks inside
+ * the deletion transaction, so this failing open costs nothing but the nicer
+ * message.
+ */
+export function useDeletionBlockers() {
+  return useQuery({
+    queryKey: DELETION_BLOCKERS_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/me/deletion-blockers");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useDeleteAccount() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -75,8 +95,14 @@ export function useDeleteAccount() {
       queryClient.clear();
       navigate({ to: "/sign-in" });
     },
-    onError: () => {
-      toast.error("Couldn't delete your account — please try again.");
+    onError: (error) => {
+      // The pre-click blockers read (FB-13) normally prevents this path, but it
+      // can fail open or go stale — the refusal still deserves its real reason.
+      toast.error(
+        (error as { error?: string }).error === ERROR_CODE.LAST_COMMISSIONER
+          ? "You're the only commissioner of a league that still has other members — promote another commissioner first."
+          : "Couldn't delete your account — please try again.",
+      );
     },
   });
 }

@@ -107,6 +107,7 @@ A season-long league where members compete to build the best record picking NFL 
 - **Locking:** each pick locks independently at its game's kickoff — the moment it becomes visible to the rest of the league and, for a member who has not submitted yet, the moment its game drops out of what they can still pick.
 - **ATS spread acceptance:** in ATS leagues, the member accepts the spreads shown at submission time, on the whole set, in the one write that creates it. Spreads cannot be selectively frozen, because there is only ever one write. SU leagues have no spread dependency.
 - **Missed/partial weeks:** a submission must be the **full required set** for the week, which is Picks Per Week or the number of games still unlocked and pickable at the moment of submission, whichever is smaller. A member who submits after some of the week's games have kicked off submits a full set of what can still be picked; the games that already locked are forgone and score nothing. A member who never submits scores zero for the week — there is no auto-submission and no default entry. This is deliberately **not** a weekly deadline: locking stays per game, and submitting late costs picks rather than the week.
+- **Pick window:** only the current week can be submitted — or the next week, once every game in the member's current-week submission has finished. A member who never submitted waits for the week to turn over. A current week holding no games opens the next week for everyone — there is nothing in it to resolve. Picking further ahead is refused (ADR-0036).
 
 ### Scoring
 | Outcome | Points |
@@ -150,6 +151,7 @@ A survivor pool. Each week, every member picks one team to win **straight up**. 
 - One pick per week per member. Each member has exactly **one life** — a single incorrect pick eliminates.
 - **Team reuse:** a member may pick each NFL team at most once per league. Consumed teams are unavailable for that member's future weeks.
 - Picks can be made or changed until the picked game's kickoff, and become visible to the league at kickoff.
+- **Pick window:** only the current week can be picked — or the next week, once the member's current-week pick has resolved without eliminating them (a win, a tie, or a cancellation's push). A loss or a missed pick opens nothing; the next week becomes pickable when it becomes current. A current week holding no games opens the next week for everyone — there is nothing in it to resolve (ADR-0036).
 - **Missed pick:** the member is eliminated (resolved at settlement after the week completes).
 - **Everyone eliminated in the same week:** all members eliminated that week are revived and continue. (Applies regardless of elimination cause — wrong picks, missed picks, or a mix.)
 - **Cancelled game:** pick resolves as a push — the member survives and the team is **not** consumed (available for future use). A game the provider moves to another week is not a modelled event in either NFL mode (ADR-0019); an admin corrects it with a `cancelled` status override, which lands here.

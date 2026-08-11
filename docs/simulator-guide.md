@@ -1,7 +1,9 @@
 # Simulator guide
 
 How to drive the season simulator. `docs/architecture.md` §Simulator & Time covers
-*why* it is built this way; this is the operator runbook.
+*why* it is built this way; this is the operator runbook. A reader-shaped
+restatement for non-technical testers ships in the app at `/rules/simulator`
+(FB-10) — a change here edits both or that page lies.
 
 Non-prod only. Production ignores `SIM_ENABLED` entirely and never registers an
 `/api/sim/*` route (ADR-0014). The SPA route `/sim` exists in the bundle either

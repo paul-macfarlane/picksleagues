@@ -98,6 +98,18 @@ export const SurvivorWeekPicksResponseSchema = z
      * it would have the UI disable the team they currently hold.
      */
     consumedTeamIds: z.array(z.string()),
+    /**
+     * Whether the requested week is inside the *viewer's* pick window (spec
+     * §Game Mode 2 — Pick window; ADR-0036). False only for weeks *ahead* of
+     * the window — beyond the current week, and not yet unlocked by the
+     * viewer's current-week pick resolving without eliminating them. A past
+     * week reports true: its pickability is entirely the per-game kickoff
+     * locks' story, and reporting it closed had the UI calling completed weeks
+     * "not open yet". Server-computed so the UI never re-derives the window —
+     * a client-side copy would drift from the write path's refusal, and under
+     * the simulator would be derived at the wrong instant.
+     */
+    pickWindowOpen: z.boolean(),
   })
   .openapi("SurvivorWeekPicksResponse");
 

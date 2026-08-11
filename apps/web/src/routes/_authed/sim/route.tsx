@@ -57,7 +57,20 @@ function SimLayout() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <h1 className="text-2xl font-semibold text-foreground">Simulator</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-2xl font-semibold text-foreground">Simulator</h1>
+        {/* New tab like the pick sheets' rules links: the guide is the page an
+            operator sends a tester mid-drive, and losing the sim page to read
+            it would lose the state being demonstrated. */}
+        <Link
+          to="/rules/simulator"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-muted-foreground underline outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          How the simulator works
+        </Link>
+      </div>
       <TabNav label="Simulator sections">
         <Link to="/sim" activeOptions={{ exact: true }} {...tabLinkProps}>
           Clock
