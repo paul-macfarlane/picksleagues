@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
@@ -41,7 +42,7 @@ export function useCreateInvite(leagueId: string) {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: invitesQueryKey });
-      if (data) toast.success("Invite created");
+      if (data) toastSuccess("Invite created");
     },
     onError: () => toast.error("Couldn't create an invite — please try again."),
   });

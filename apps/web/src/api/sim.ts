@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import {
   ERROR_CODE,
   type SimClockAdjustment,
@@ -77,7 +78,7 @@ export function useAdjustSimClock() {
       if (!data) return;
       // The resulting instant, not "done": the whole point of the control is
       // where the clock landed, and a week anchor makes that non-obvious.
-      toast.success(`Simulated now: ${formatDateTime(data.clock.now)}`);
+      toastSuccess(`Simulated now: ${formatDateTime(data.clock.now)}`);
       await invalidateClockDerived(queryClient);
     },
     onError: () => toast.error("Couldn't move the simulated clock — please try again."),
@@ -109,7 +110,7 @@ export function useLoadSimScenario() {
       if (!data) return;
       // Loading always repositions the clock to the scenario's start (ADR-0012),
       // so the confirmation names both or it looks like nothing moved.
-      toast.success(
+      toastSuccess(
         `Loaded ${data.activeScenario?.name ?? "scenario"} — simulated now ${formatDateTime(data.clock.now)}`,
       );
       await invalidateClockDerived(queryClient);
@@ -141,7 +142,7 @@ export function useImportReplaySeason() {
     },
     onSuccess: async (data, seasonYear) => {
       if (!data) return;
-      toast.success(
+      toastSuccess(
         `Imported ${seasonYear}: ${data.details?.games ?? 0} games in ${data.durationMs}ms`,
       );
       await invalidateClockDerived(queryClient);
@@ -213,7 +214,7 @@ export function useUpdateSimFixtureGame() {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toast.success(`Updated ${data.awayTeamAbbr} @ ${data.homeTeamAbbr}`);
+      toastSuccess(`Updated ${data.awayTeamAbbr} @ ${data.homeTeamAbbr}`);
       // Only the simulator's own keys, deliberately unlike the clock mutations:
       // editing a fixture changes what a *subsequent* sync would ingest, not
       // any table the rest of the app reads right now.
@@ -245,7 +246,7 @@ export function useResetSim() {
       // actually hit something (a no-op is otherwise indistinguishable from a
       // win), and an environment reset that keeps the scenario also rewinds the
       // clock to that scenario's start (reset.ts) — a move nothing else reports.
-      toast.success(
+      toastSuccess(
         `Reset ${data.scope}: ${rows} rows deleted — simulated now ${formatDateTime(data.state.clock.now)}`,
       );
       await invalidateClockDerived(queryClient);

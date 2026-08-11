@@ -1,8 +1,10 @@
 import {
   GAME_STATUS,
+  PICK_OUTCOME,
   PICK_TYPE,
   PICKEM_PICK_SIDE,
   WEEK_TYPE,
+  isUnplayedStatus,
   type GameStatus,
   type PickemPickSide,
   type PickOutcome,
@@ -309,4 +311,43 @@ export function pickRowState(
   if (game.locked) return "locked";
   if (hasSelection) return "picked";
   return "open";
+}
+
+/**
+ * The outcome a Survivor pick will grade to, derived from its game's terminal
+ * state ahead of settlement (FB-23). Survivor settles week-atomically
+ * (ADR-0025), so a pick whose game finished Sunday holds no stored result
+ * until the whole week ends — and a completed pick with nothing on it read as
+ * unacknowledged. This mirrors settlement's per-pick mapping (`gradePick` in
+ * `packages/scoring/src/survivor.ts`: cancelled → push, win → correct, tie →
+ * push, loss → incorrect), which can never disagree with it for a single pick;
+ * only week-level consequences (elimination, revival, the team ledger) wait for
+ * the settled week. Deliberately a different stance from Pick'em's
+ * `pickStandingLabel`, which stays silent between final and settlement — here
+ * the derivation *is* the verdict shown, so there is no unconfirmed reading.
+ *
+ * Null while the game is still ahead or in play, and on a final without scores
+ * (the provider fault an admin score override corrects) — the row keeps its
+ * ungraded explanation for those.
+ */
+export function survivorProvisionalOutcome(
+  game: {
+    status: GameStatus;
+    homeScore: number | null;
+    awayScore: number | null;
+    homeTeam: { id: string };
+    awayTeam: { id: string };
+  },
+  teamId: string,
+): PickOutcome | null {
+  if (isUnplayedStatus(game.status)) return PICK_OUTCOME.PUSH;
+  if (game.status !== GAME_STATUS.FINAL) return null;
+  if (game.homeScore === null || game.awayScore === null) return null;
+
+  const pickedHome = teamId === game.homeTeam.id;
+  const own = pickedHome ? game.homeScore : game.awayScore;
+  const opposing = pickedHome ? game.awayScore : game.homeScore;
+  if (own > opposing) return PICK_OUTCOME.CORRECT;
+  if (own < opposing) return PICK_OUTCOME.INCORRECT;
+  return PICK_OUTCOME.PUSH;
 }

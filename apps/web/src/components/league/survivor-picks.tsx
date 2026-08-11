@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
+import { SlatePreview } from "@/components/league/slate-preview";
 import { SurvivorGameRow, SurvivorPickedGameRow } from "@/components/league/survivor-game-row";
 
 /** A team taken out of a specific game — the shape both the sheet and the write path speak. */
@@ -204,11 +205,19 @@ function WeekNotOpen({ slate, pick }: { slate: WeekSlateResponse; pick: Survivor
       <CardHeader>
         <CardTitle>Not open yet</CardTitle>
         <CardDescription>
-          You can pick the current week — this one opens once your current pick resolves with a win
-          or tie.
+          This week opens once your current pick resolves with a win or tie. Here&apos;s the slate
+          in the meantime — worth scouting, since every team can only be used once all season.
         </CardDescription>
       </CardHeader>
-      <PickedGame slate={slate} pick={pick} />
+      {/* The member's own pick when the rare closed-back-over state holds one
+          (see the component comment); the read-only slate otherwise. */}
+      {pick ? (
+        <PickedGame slate={slate} pick={pick} />
+      ) : (
+        <CardContent>
+          <SlatePreview slate={slate} />
+        </CardContent>
+      )}
     </Card>
   );
 }
