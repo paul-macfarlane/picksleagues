@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm, useStore } from "@tanstack/react-form";
-import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import {
   DisplayNameSchema,
   ImageUrlSchema,
@@ -9,7 +9,7 @@ import {
   type MeResponse,
   type UpdateMeRequest,
 } from "@picksleagues/schemas";
-import { useDeleteAccount, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
+import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
@@ -93,7 +93,7 @@ function ProfileForm({
         onSubmit: { fields: { username: "That username is already taken." } },
       }),
     onSuccess: async () => {
-      toast.success("Profile updated");
+      toastSuccess("Profile updated");
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       await refetchSession();
     },
@@ -287,6 +287,13 @@ function ProfileForm({
 
 function DangerZone() {
   const deleteAccount = useDeleteAccount();
+  // Disable-with-reason before the click, matching the Leave button's
+  // sole-commissioner treatment (FB-6, FB-13): the server would only refuse
+  // with a 409 the member can't act on from here. A failed read falls open —
+  // the deletion transaction re-checks, and its refusal names the same reason.
+  const blockers = useDeletionBlockers();
+  const blockingLeagues = blockers.data?.leagues ?? [];
+  const blocked = blockingLeagues.length > 0;
 
   return (
     <Card className="w-full max-w-sm ring-destructive/30">
@@ -294,7 +301,14 @@ function DangerZone() {
         <CardTitle className="text-destructive">Danger zone</CardTitle>
         <CardDescription>Deleting your account is permanent and immediate.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-3">
+        {blocked && (
+          <p data-testid="deletion-blocked-reason" className="text-sm text-muted-foreground">
+            You&apos;re the only commissioner of{" "}
+            {blockingLeagues.map((league) => league.name).join(", ")} — promote another commissioner
+            there before deleting your account.
+          </p>
+        )}
         <AlertDialog>
           <AlertDialogTrigger
             render={
@@ -302,7 +316,7 @@ function DangerZone() {
                 variant="destructive"
                 size="lg"
                 className="w-full justify-center"
-                disabled={deleteAccount.isPending}
+                disabled={blocked || deleteAccount.isPending}
               />
             }
           >

@@ -79,6 +79,14 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      # The prerender's own proof (LNCH-13): it asserts every public route
+      # rendered its content rather than an error boundary, and throws if the
+      # shell's tags stopped matching. Without this step those guards fire for
+      # the first time in a Vercel build, so a page that ships as "Something
+      # went wrong!" fails the deploy instead of the pull request.
+      - name: Web build
+        run: pnpm --filter @picksleagues/web build
+
       - name: Unit tests
         run: pnpm test
 

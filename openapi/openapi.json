@@ -56,6 +56,9 @@
           "simEnabled": {
             "type": "boolean"
           },
+          "simClockOffsetMs": {
+            "type": "integer"
+          },
           "now": {
             "type": "string",
             "format": "date-time"
@@ -71,6 +74,7 @@
           "providerImage",
           "isAdmin",
           "simEnabled",
+          "simClockOffsetMs",
           "now"
         ]
       },
@@ -126,6 +130,32 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 50
+      },
+      "AccountDeletionBlockersResponse": {
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "leagues"
+        ]
       },
       "JobRunResponse": {
         "type": "object",
@@ -275,95 +305,14 @@
             "$ref": "#/components/schemas/SurvivorSettings"
           },
           {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "standard_doubling"
-                ]
-              }
-            },
-            "required": [
-              "scoringModel"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "custom"
-                ]
-              },
-              "roundValues": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            },
-            "required": [
-              "scoringModel",
-              "roundValues"
-            ]
+            "$ref": "#/components/schemas/MarchMadnessSettings"
           }
         ]
       },
       "PickemSettings": {
         "type": "object",
         "properties": {
-          "seasonRangePreset": {
-            "$ref": "#/components/schemas/PickemSeasonRangePreset"
-          },
           "startWeek": {
-            "$ref": "#/components/schemas/NflWeekRef"
-          },
-          "endWeek": {
-            "$ref": "#/components/schemas/NflWeekRef"
-          },
-          "pickType": {
-            "$ref": "#/components/schemas/PickType"
-          },
-          "picksPerWeek": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 16,
-            "default": 5
-          }
-        },
-        "required": [
-          "seasonRangePreset",
-          "startWeek",
-          "endWeek",
-          "pickType"
-        ]
-      },
-      "PickemSeasonRangePreset": {
-        "type": "string",
-        "enum": [
-          "regular_season",
-          "postseason",
-          "full_season"
-        ]
-      },
-      "NflWeekRef": {
-        "oneOf": [
-          {
             "type": "object",
             "properties": {
               "type": {
@@ -383,26 +332,40 @@
               "number"
             ]
           },
-          {
+          "endWeek": {
             "type": "object",
             "properties": {
               "type": {
                 "type": "string",
                 "enum": [
-                  "postseason"
+                  "regular"
                 ]
               },
               "number": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 4
+                "maximum": 18
               }
             },
             "required": [
               "type",
               "number"
             ]
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 5
           }
+        },
+        "required": [
+          "startWeek",
+          "endWeek",
+          "pickType"
         ]
       },
       "PickType": {
@@ -454,9 +417,6 @@
               "type",
               "number"
             ]
-          },
-          "pushTieResolution": {
-            "$ref": "#/components/schemas/SurvivorPushTieResolution"
           }
         },
         "required": [
@@ -464,13 +424,16 @@
           "endWeek"
         ]
       },
-      "SurvivorPushTieResolution": {
-        "type": "string",
-        "enum": [
-          "advance",
-          "eliminate"
-        ],
-        "default": "advance"
+      "MarchMadnessSettings": {
+        "type": "object",
+        "properties": {
+          "maxBracketsPerMember": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5
+          }
+        }
       },
       "MemberRole": {
         "type": "string",
@@ -621,9 +584,6 @@
       "PickemSettingsInput": {
         "type": "object",
         "properties": {
-          "seasonRangePreset": {
-            "$ref": "#/components/schemas/PickemSeasonRangePreset"
-          },
           "pickType": {
             "$ref": "#/components/schemas/PickType"
           },
@@ -635,69 +595,12 @@
           }
         },
         "required": [
-          "seasonRangePreset",
           "pickType"
         ]
       },
       "SurvivorSettingsInput": {
         "type": "object",
-        "properties": {
-          "pushTieResolution": {
-            "$ref": "#/components/schemas/SurvivorPushTieResolution"
-          }
-        }
-      },
-      "MarchMadnessSettings": {
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "standard_doubling"
-                ]
-              }
-            },
-            "required": [
-              "scoringModel"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "maxBracketsPerMember": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 5
-              },
-              "scoringModel": {
-                "type": "string",
-                "enum": [
-                  "custom"
-                ]
-              },
-              "roundValues": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            },
-            "required": [
-              "scoringModel",
-              "roundValues"
-            ]
-          }
-        ]
+        "properties": {}
       },
       "MyLeaguesResponse": {
         "type": "object",
@@ -747,6 +650,12 @@
             ],
             "format": "date-time"
           },
+          "currentWeekLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "renewable": {
             "type": "boolean"
           },
@@ -767,6 +676,7 @@
           "maxMembers",
           "myRole",
           "startsAt",
+          "currentWeekLabel",
           "renewable",
           "survivorPickStatus",
           "pickemPickStatus"
@@ -823,31 +733,8 @@
           "code": {
             "type": "string"
           },
-          "status": {
-            "$ref": "#/components/schemas/InviteStatus"
-          },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "maxUses": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
           "useCount": {
             "type": "integer"
-          },
-          "revokedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
           },
           "createdAt": {
             "type": "string",
@@ -882,37 +769,10 @@
         "required": [
           "id",
           "code",
-          "status",
-          "expiresAt",
-          "maxUses",
           "useCount",
-          "revokedAt",
           "createdAt",
           "createdBy"
         ]
-      },
-      "InviteStatus": {
-        "type": "string",
-        "enum": [
-          "active",
-          "revoked",
-          "expired",
-          "exhausted"
-        ]
-      },
-      "CreateInviteRequest": {
-        "type": "object",
-        "properties": {
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "maxUses": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000
-          }
-        }
       },
       "InvitesResponse": {
         "type": "object",
@@ -990,8 +850,6 @@
         ],
         "enum": [
           "invite_revoked",
-          "invite_expired",
-          "invite_exhausted",
           "already_member",
           "league_concluded",
           "join_closed",
@@ -1018,10 +876,26 @@
             "items": {
               "$ref": "#/components/schemas/DiscoveryLeague"
             }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
           }
         },
         "required": [
-          "leagues"
+          "leagues",
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
         ]
       },
       "DiscoveryLeague": {
@@ -1039,6 +913,9 @@
           "memberCount": {
             "type": "integer"
           },
+          "maxMembers": {
+            "type": "integer"
+          },
           "seasonYear": {
             "type": "integer"
           },
@@ -1048,6 +925,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "pickemSettings": {
+            "$ref": "#/components/schemas/NullableDiscoveryPickemSettings"
           }
         },
         "required": [
@@ -1055,8 +935,28 @@
           "name",
           "mode",
           "memberCount",
+          "maxMembers",
           "seasonYear",
-          "startsAt"
+          "startsAt",
+          "pickemSettings"
+        ]
+      },
+      "NullableDiscoveryPickemSettings": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pickType",
+          "picksPerWeek"
         ]
       },
       "WeekSlateResponse": {
@@ -1290,27 +1190,6 @@
           "gameCount"
         ]
       },
-      "PickemSeasonRangePresetsResponse": {
-        "type": "object",
-        "properties": {
-          "seasonYear": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "startablePresets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PickemSeasonRangePreset"
-            }
-          }
-        },
-        "required": [
-          "seasonYear",
-          "startablePresets"
-        ]
-      },
       "PickemPickSummary": {
         "type": "object",
         "properties": {
@@ -1426,12 +1305,16 @@
             "items": {
               "$ref": "#/components/schemas/PickemMemberPicks"
             }
+          },
+          "pickWindowOpen": {
+            "type": "boolean"
           }
         },
         "required": [
           "weekId",
           "picksAllowed",
-          "members"
+          "members",
+          "pickWindowOpen"
         ]
       },
       "PickemMemberPicks": {
@@ -1595,11 +1478,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "pickWindowOpen": {
+            "type": "boolean"
           }
         },
         "required": [
           "members",
-          "consumedTeamIds"
+          "consumedTeamIds",
+          "pickWindowOpen"
         ]
       },
       "SurvivorMemberPick": {
@@ -1690,6 +1577,12 @@
               "$ref": "#/components/schemas/SurvivorStandingsWeek"
             }
           },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "members": {
             "type": "array",
             "items": {
@@ -1715,6 +1608,7 @@
         },
         "required": [
           "weeks",
+          "currentWeekId",
           "members",
           "teams",
           "concluded",
@@ -1827,12 +1721,71 @@
           },
           "outcome": {
             "$ref": "#/components/schemas/NullablePickOutcome"
+          },
+          "game": {
+            "$ref": "#/components/schemas/NullableSurvivorStandingsPickGame"
           }
         },
         "required": [
           "weekId",
           "teamId",
-          "outcome"
+          "outcome",
+          "game"
+        ]
+      },
+      "NullableSurvivorStandingsPickGame": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "homeTeamId": {
+            "type": "string"
+          },
+          "awayTeamId": {
+            "type": "string"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "period": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "clockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "kickoffAt",
+          "homeTeamId",
+          "awayTeamId",
+          "homeScore",
+          "awayScore",
+          "period",
+          "clockSeconds"
         ]
       },
       "SubmitSurvivorPickRequest": {
@@ -1971,6 +1924,12 @@
             "items": {
               "$ref": "#/components/schemas/AdminWeek"
             }
+          },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1978,7 +1937,8 @@
           "sport",
           "year",
           "provisional",
-          "weeks"
+          "weeks",
+          "currentWeekId"
         ]
       },
       "AdminWeek": {
@@ -3386,6 +3346,44 @@
         }
       }
     },
+    "/api/me/deletion-blockers": {
+      "get": {
+        "operationId": "getDeletionBlockers",
+        "summary": "Leagues blocking the caller's account deletion",
+        "responses": {
+          "200": {
+            "description": "The caller's sole-commissioner leagues with other members; empty = deletable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionBlockersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/jobs/nfl/sync-schedule": {
       "post": {
         "operationId": "runNflSyncSchedule",
@@ -3703,7 +3701,7 @@
             }
           },
           "409": {
-            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start)",
+            "description": "Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the season's remaining weeks have already started (start_week_passed — a league must be born pre-start)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4149,15 +4147,6 @@
             "in": "path"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateInviteRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
             "description": "Invite created",
@@ -4165,16 +4154,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LeagueInvite"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid expiry (in the past) or max-use bound",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4474,7 +4453,7 @@
             }
           },
           "409": {
-            "description": "Join refused: invite revoked/expired/exhausted, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
+            "description": "Join refused: invite revoked, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason",
             "content": {
               "application/json": {
                 "schema": {
@@ -4740,7 +4719,7 @@
     "/api/discovery": {
       "get": {
         "operationId": "discoverLeagues",
-        "summary": "Browse public, joinable leagues with optional name search",
+        "summary": "Browse public, joinable leagues with optional name search and mode filter",
         "parameters": [
           {
             "schema": {
@@ -4749,6 +4728,24 @@
             },
             "required": false,
             "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/LeagueMode"
+            },
+            "required": false,
+            "name": "mode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
             "in": "query"
           }
         ],
@@ -4883,123 +4880,6 @@
           },
           "401": {
             "description": "No valid session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/pickem/season-range-presets": {
-      "get": {
-        "operationId": "getPickemSeasonRangePresets",
-        "summary": "Which of the three ADR-0020 season-range presets the latest ingested NFL season can still start (create form)",
-        "responses": {
-          "200": {
-            "description": "The latest ingested NFL season's year (null if none ingested) and which presets it can still start",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PickemSeasonRangePresetsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/leagues/{leagueId}/pickem/season-range-presets": {
-      "get": {
-        "operationId": "getLeaguePickemSeasonRangePresets",
-        "summary": "Which presets the league's own bound season can still start (commissioner, settings editor only)",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "leagueId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The league's bound season year and which presets it can still start — the settings editor's availability hint",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PickemSeasonRangePresetsResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Not a Pick'em league (wrong_league_mode)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is a member but not a commissioner",
             "content": {
               "application/json": {
                 "schema": {

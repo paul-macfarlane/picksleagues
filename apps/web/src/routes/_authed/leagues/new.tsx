@@ -5,29 +5,21 @@ import { toast } from "sonner";
 import {
   CreateLeagueRequestSchema,
   DEFAULT_MAX_MEMBERS,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_VISIBILITY,
   LeagueNameSchema,
-  MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   OFFERED_LEAGUE_MODES,
   PICK_TYPE,
-  type SurvivorPushTieResolution,
   type LeagueMode,
   type LeagueVisibility,
-  type MarchMadnessScoringModel,
   type PickType,
-  type PickemSeasonRangePreset,
 } from "@picksleagues/schemas";
 import { useCreateLeague } from "@/api/leagues";
-import { usePickemSeasonRangePresets } from "@/api/pickem";
 import { leagueModeLabel } from "@/lib/league";
 import {
-  DEFAULT_PICKEM_SEASON_RANGE,
   SurvivorSettingsFields,
   MarchMadnessSettingsFields,
-  PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
@@ -57,48 +49,12 @@ function NewLeague() {
   const [visibility, setVisibility] = useState<LeagueVisibility>(LEAGUE_VISIBILITY.PRIVATE);
   const [maxMembers, setMaxMembers] = useState(DEFAULT_MAX_MEMBERS);
 
-  const [pickemSeasonRange, setPickemSeasonRange] = useState<PickemSeasonRangePreset>(
-    DEFAULT_PICKEM_SEASON_RANGE,
-  );
   const [pickemPickType, setPickemPickType] = useState<PickType>(PICK_TYPE.STRAIGHT_UP);
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(5);
 
-  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
-    SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-  );
-
   const [mmMaxBrackets, setMmMaxBrackets] = useState(5);
-  const [mmScoringModel, setMmScoringModel] = useState<MarchMadnessScoringModel>(
-    MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
-  );
-  const [mmRoundValues, setMmRoundValues] = useState<number[]>([0, 0, 0, 0, 0, 0]);
 
   const createLeague = useCreateLeague();
-
-  // The create form's answer: which presets the latest ingested NFL season
-  // can still start (LG-9, ADR-0020). Pending or failed both fall back to the
-  // unfiltered list — the server's `start_week_passed` refusal on submit
-  // remains the real enforcement, so a slow or down side query must not block
-  // creation, only the informed-choice hint this adds on top of it.
-  const seasonRangePresets = usePickemSeasonRangePresets();
-  const pickemSeasonRangeOptions = seasonRangePresets.data
-    ? PICKEM_SEASON_RANGE_OPTIONS.filter((option) =>
-        seasonRangePresets.data.startablePresets.includes(option.value),
-      )
-    : PICKEM_SEASON_RANGE_OPTIONS;
-  // Derived from state + the offered options on every render, never written
-  // back into state via an effect: the submit payload below reads this same
-  // expression, so the two can never disagree about which preset is "current"
-  // (an effect syncing `pickemSeasonRange` could render one frame where the
-  // select and the payload would have differed).
-  const effectivePickemSeasonRange: PickemSeasonRangePreset =
-    pickemSeasonRangeOptions.find((option) => option.value === pickemSeasonRange)?.value ??
-    pickemSeasonRangeOptions[0]?.value ??
-    pickemSeasonRange;
-  // Only reachable once the query has actually answered "none" — pending and
-  // failed both keep the full three-option list above.
-  const pickemHasNoStartablePreset =
-    mode === LEAGUE_MODE.PICKEM && pickemSeasonRangeOptions.length === 0;
 
   const form = useForm({
     defaultValues: { name: "" },
@@ -109,29 +65,21 @@ function NewLeague() {
 
       let settings: unknown;
       if (mode === LEAGUE_MODE.PICKEM) {
-        // The preset is the whole range input (ADR-0020): the server resolves
-        // it against the bound season and the clock, so naming week refs here
+        // No range on the wire (ADR-0031, matching Survivor below): the mode is
+        // regular-season only, so the server resolves the refs it stores
+        // against the bound season and the clock, and naming week refs here
         // would be dropped by the request schema rather than honoured.
         settings = {
-          seasonRangePreset: effectivePickemSeasonRange,
           pickType: pickemPickType,
           picksPerWeek: pickemPicksPerWeek,
         };
       } else if (mode === LEAGUE_MODE.SURVIVOR) {
-        // The push/tie rule is the whole of a Survivor settings request: no
-        // range on the wire (ADR-0024, the mode is regular-season only, so the
-        // server resolves the refs it stores against the clock) and no pick type
-        // (ADR-0026, the mode is straight-up only).
-        settings = { pushTieResolution: survivorPushTie };
+        // A Survivor settings request carries nothing at all: the range is
+        // resolved server-side (ADR-0024), the pick type is fixed by the mode
+        // (ADR-0026), and the push/tie rule is fixed at its default (ADR-0033).
+        settings = {};
       } else {
-        settings =
-          mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-            ? {
-                maxBracketsPerMember: mmMaxBrackets,
-                scoringModel: mmScoringModel,
-                roundValues: mmRoundValues,
-              }
-            : { maxBracketsPerMember: mmMaxBrackets, scoringModel: mmScoringModel };
+        settings = { maxBracketsPerMember: mmMaxBrackets };
       }
 
       // Re-validate the assembled body against the exact contract shape
@@ -160,10 +108,7 @@ function NewLeague() {
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
     (mode === LEAGUE_MODE.PICKEM && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
-    (mode === LEAGUE_MODE.MARCH_MADNESS &&
-      (numberFieldInvalid(mmMaxBrackets, 1, 10) ||
-        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
+    (mode === LEAGUE_MODE.MARCH_MADNESS && numberFieldInvalid(mmMaxBrackets, 1, 10));
 
   return (
     <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
@@ -214,45 +159,21 @@ function NewLeague() {
               onValueChange={setMaxMembers}
             />
 
-            {mode === LEAGUE_MODE.PICKEM &&
-              (pickemHasNoStartablePreset ? (
-                <div className="flex flex-col gap-2">
-                  <h2 className="text-sm font-semibold text-foreground">Pick&apos;em settings</h2>
-                  <p className="text-sm text-muted-foreground">
-                    None of Pick&apos;em&apos;s season ranges can still be started for the current
-                    NFL season. Check back once next season&apos;s schedule is posted, or choose a
-                    different mode.
-                  </p>
-                </div>
-              ) : (
-                <PickemSettingsFields
-                  seasonRange={effectivePickemSeasonRange}
-                  onSeasonRangeChange={setPickemSeasonRange}
-                  seasonRangeOptions={pickemSeasonRangeOptions}
-                  pickType={pickemPickType}
-                  onPickTypeChange={setPickemPickType}
-                  picksPerWeek={pickemPicksPerWeek}
-                  onPicksPerWeekChange={setPickemPicksPerWeek}
-                />
-              ))}
-
-            {mode === LEAGUE_MODE.SURVIVOR && (
-              <SurvivorSettingsFields
-                pushTie={survivorPushTie}
-                onPushTieChange={setSurvivorPushTie}
+            {mode === LEAGUE_MODE.PICKEM && (
+              <PickemSettingsFields
+                pickType={pickemPickType}
+                onPickTypeChange={setPickemPickType}
+                picksPerWeek={pickemPicksPerWeek}
+                onPicksPerWeekChange={setPickemPicksPerWeek}
               />
             )}
+
+            {mode === LEAGUE_MODE.SURVIVOR && <SurvivorSettingsFields />}
 
             {mode === LEAGUE_MODE.MARCH_MADNESS && (
               <MarchMadnessSettingsFields
                 maxBrackets={mmMaxBrackets}
                 onMaxBracketsChange={setMmMaxBrackets}
-                scoringModel={mmScoringModel}
-                onScoringModelChange={setMmScoringModel}
-                roundValues={mmRoundValues}
-                onRoundValueChange={(index, next) =>
-                  setMmRoundValues((prev) => prev.map((value, i) => (i === index ? next : value)))
-                }
               />
             )}
 
@@ -261,9 +182,7 @@ function NewLeague() {
                 type="submit"
                 size="lg"
                 className="w-full justify-center"
-                disabled={
-                  createLeague.isPending || hasInvalidNumberField || pickemHasNoStartablePreset
-                }
+                disabled={createLeague.isPending || hasInvalidNumberField}
               >
                 Create league
               </Button>

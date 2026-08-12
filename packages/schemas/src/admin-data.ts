@@ -60,6 +60,13 @@ export const AdminSeasonSchema = z
     year: z.number().int(),
     provisional: z.boolean(),
     weeks: z.array(AdminWeekSchema),
+    /**
+     * The season's current week by the app's one definition
+     * (`resolveCurrentWeekId`), so admin/sim week selectors can default to it
+     * instead of week 1 — advancing the wrong week was a real operator footgun
+     * (backlog FB-11). Null when the season has no weeks.
+     */
+    currentWeekId: z.string().nullable(),
   })
   .openapi("AdminSeason");
 

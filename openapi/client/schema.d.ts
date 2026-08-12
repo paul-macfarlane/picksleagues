@@ -40,6 +40,23 @@ export interface paths {
         patch: operations["updateMe"];
         trace?: never;
     };
+    "/api/me/deletion-blockers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leagues blocking the caller's account deletion */
+        get: operations["getDeletionBlockers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/nfl/sync-schedule": {
         parameters: {
             query?: never;
@@ -274,7 +291,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Browse public, joinable leagues with optional name search */
+        /** Browse public, joinable leagues with optional name search and mode filter */
         get: operations["discoverLeagues"];
         put?: never;
         post?: never;
@@ -310,40 +327,6 @@ export interface paths {
         };
         /** The weeks this league plays, clipped to its configured start/end week */
         get: operations["listLeagueWeeks"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/pickem/season-range-presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Which of the three ADR-0020 season-range presets the latest ingested NFL season can still start (create form) */
-        get: operations["getPickemSeasonRangePresets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/leagues/{leagueId}/pickem/season-range-presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Which presets the league's own bound season can still start (commissioner, settings editor only) */
-        get: operations["getLeaguePickemSeasonRangePresets"];
         put?: never;
         post?: never;
         delete?: never;
@@ -762,6 +745,7 @@ export interface components {
             providerImage: string | null;
             isAdmin: boolean;
             simEnabled: boolean;
+            simClockOffsetMs: number;
             /** Format: date-time */
             now: string;
         };
@@ -779,6 +763,12 @@ export interface components {
         };
         Username: string;
         DisplayName: string;
+        AccountDeletionBlockersResponse: {
+            leagues: {
+                id: string;
+                name: string;
+            }[];
+        };
         JobRunResponse: {
             job: string;
             /** @enum {string} */
@@ -813,36 +803,21 @@ export interface components {
         LeagueVisibility: "public" | "private";
         /** @enum {string} */
         LeagueStatus: "active" | "concluded";
-        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "standard_doubling";
-        } | {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "custom";
-            roundValues: number[];
-        };
+        LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | components["schemas"]["MarchMadnessSettings"];
         PickemSettings: {
-            seasonRangePreset: components["schemas"]["PickemSeasonRangePreset"];
-            startWeek: components["schemas"]["NflWeekRef"];
-            endWeek: components["schemas"]["NflWeekRef"];
+            startWeek: {
+                /** @enum {string} */
+                type: "regular";
+                number: number;
+            };
+            endWeek: {
+                /** @enum {string} */
+                type: "regular";
+                number: number;
+            };
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
-        };
-        /** @enum {string} */
-        PickemSeasonRangePreset: "regular_season" | "postseason" | "full_season";
-        NflWeekRef: {
-            /** @enum {string} */
-            type: "regular";
-            number: number;
-        } | {
-            /** @enum {string} */
-            type: "postseason";
-            number: number;
         };
         /** @enum {string} */
         PickType: "straight_up" | "against_the_spread";
@@ -857,13 +832,11 @@ export interface components {
                 type: "regular";
                 number: number;
             };
-            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
         };
-        /**
-         * @default advance
-         * @enum {string}
-         */
-        SurvivorPushTieResolution: "advance" | "eliminate";
+        MarchMadnessSettings: {
+            /** @default 5 */
+            maxBracketsPerMember: number;
+        };
         /** @enum {string} */
         MemberRole: "commissioner" | "member";
         LeagueMember: {
@@ -901,26 +874,11 @@ export interface components {
         /** @default 10 */
         MaxMembers: number;
         PickemSettingsInput: {
-            seasonRangePreset: components["schemas"]["PickemSeasonRangePreset"];
             pickType: components["schemas"]["PickType"];
             /** @default 5 */
             picksPerWeek: number;
         };
-        SurvivorSettingsInput: {
-            pushTieResolution?: components["schemas"]["SurvivorPushTieResolution"];
-        };
-        MarchMadnessSettings: {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "standard_doubling";
-        } | {
-            /** @default 5 */
-            maxBracketsPerMember: number;
-            /** @enum {string} */
-            scoringModel: "custom";
-            roundValues: number[];
-        };
+        SurvivorSettingsInput: Record<string, never>;
         MyLeaguesResponse: {
             leagues: components["schemas"]["LeagueSummary"][];
         };
@@ -935,6 +893,7 @@ export interface components {
             myRole: components["schemas"]["MemberRole"];
             /** Format: date-time */
             startsAt: string | null;
+            currentWeekLabel: string | null;
             renewable: boolean;
             survivorPickStatus: components["schemas"]["NullableSurvivorPickStatus"];
             pickemPickStatus: components["schemas"]["NullablePickemPickStatus"];
@@ -952,13 +911,7 @@ export interface components {
         LeagueInvite: {
             id: string;
             code: string;
-            status: components["schemas"]["InviteStatus"];
-            /** Format: date-time */
-            expiresAt: string | null;
-            maxUses: number | null;
             useCount: number;
-            /** Format: date-time */
-            revokedAt: string | null;
             /** Format: date-time */
             createdAt: string;
             createdBy: {
@@ -966,13 +919,6 @@ export interface components {
                 username: string | null;
                 displayName: string;
             } | null;
-        };
-        /** @enum {string} */
-        InviteStatus: "active" | "revoked" | "expired" | "exhausted";
-        CreateInviteRequest: {
-            /** Format: date-time */
-            expiresAt?: string;
-            maxUses?: number;
         };
         InvitesResponse: {
             invites: components["schemas"]["LeagueInvite"][];
@@ -992,22 +938,32 @@ export interface components {
             reason: components["schemas"]["JoinBlockedReason"];
         };
         /** @enum {string|null} */
-        JoinBlockedReason: "invite_revoked" | "invite_expired" | "invite_exhausted" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
+        JoinBlockedReason: "invite_revoked" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
         UpdateMemberRoleRequest: {
             role: components["schemas"]["MemberRole"];
         };
         DiscoveryResponse: {
             leagues: components["schemas"]["DiscoveryLeague"][];
+            page: number;
+            pageSize: number;
+            total: number;
+            totalPages: number;
         };
         DiscoveryLeague: {
             id: string;
             name: components["schemas"]["LeagueName"];
             mode: components["schemas"]["LeagueMode"];
             memberCount: number;
+            maxMembers: number;
             seasonYear: number;
             /** Format: date-time */
             startsAt: string | null;
+            pickemSettings: components["schemas"]["NullableDiscoveryPickemSettings"];
         };
+        NullableDiscoveryPickemSettings: {
+            pickType: components["schemas"]["PickType"];
+            picksPerWeek: number;
+        } | null;
         WeekSlateResponse: {
             weekId: string;
             weekType: components["schemas"]["WeekType"];
@@ -1062,10 +1018,6 @@ export interface components {
             endsAt: string;
             gameCount: number;
         };
-        PickemSeasonRangePresetsResponse: {
-            seasonYear: number | null;
-            startablePresets: components["schemas"]["PickemSeasonRangePreset"][];
-        };
         PickemPickSummary: {
             pickCount: number;
             memberCount: number;
@@ -1093,6 +1045,7 @@ export interface components {
             weekId: string;
             picksAllowed: number;
             members: components["schemas"]["PickemMemberPicks"][];
+            pickWindowOpen: boolean;
         };
         PickemMemberPicks: {
             leagueMemberId: string;
@@ -1131,6 +1084,7 @@ export interface components {
         SurvivorWeekPicksResponse: {
             members: components["schemas"]["SurvivorMemberPick"][];
             consumedTeamIds: string[];
+            pickWindowOpen: boolean;
         };
         SurvivorMemberPick: {
             leagueMemberId: string;
@@ -1152,6 +1106,7 @@ export interface components {
         } | null;
         SurvivorStandingsResponse: {
             weeks: components["schemas"]["SurvivorStandingsWeek"][];
+            currentWeekId: string | null;
             members: components["schemas"]["SurvivorStandingsMember"][];
             teams: components["schemas"]["SlateTeam"][];
             concluded: boolean;
@@ -1182,7 +1137,19 @@ export interface components {
             weekId: string;
             teamId: string | null;
             outcome: components["schemas"]["NullablePickOutcome"];
+            game: components["schemas"]["NullableSurvivorStandingsPickGame"];
         };
+        NullableSurvivorStandingsPickGame: {
+            status: components["schemas"]["GameStatus"];
+            /** Format: date-time */
+            kickoffAt: string;
+            homeTeamId: string;
+            awayTeamId: string;
+            homeScore: number | null;
+            awayScore: number | null;
+            period: number | null;
+            clockSeconds: number | null;
+        } | null;
         SubmitSurvivorPickRequest: {
             /** Format: uuid */
             gameId: string;
@@ -1217,6 +1184,7 @@ export interface components {
             year: number;
             provisional: boolean;
             weeks: components["schemas"]["AdminWeek"][];
+            currentWeekId: string | null;
         };
         AdminWeek: {
             id: string;
@@ -1684,6 +1652,44 @@ export interface operations {
             };
         };
     };
+    getDeletionBlockers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's sole-commissioner leagues with other members; empty = deletable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDeletionBlockersResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     runNflSyncSchedule: {
         parameters: {
             query?: {
@@ -1953,7 +1959,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the chosen start week has already begun (start_week_passed — a league must be born pre-start) */
+            /** @description Creator is already commissioner of 10 active leagues (cap_exceeded), the mode isn't offered yet (mode_unavailable — March Madness until epic 07), the mode's sport has no ingested season to bind to (no_active_season), or the season's remaining weeks have already started (start_week_passed — a league must be born pre-start) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2359,11 +2365,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["CreateInviteRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Invite created */
             201: {
@@ -2372,15 +2374,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeagueInvite"];
-                };
-            };
-            /** @description Invalid expiry (in the past) or max-use bound */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description No valid session */
@@ -2574,7 +2567,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Join refused: invite revoked/expired/exhausted, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason */
+            /** @description Join refused: invite revoked, already a member, league concluded, join cutoff passed, or league full — `error` carries the exact reason */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2799,6 +2792,8 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                mode?: components["schemas"]["LeagueMode"];
+                page?: number;
             };
             header?: never;
             path?: never;
@@ -2915,111 +2910,6 @@ export interface operations {
             };
             /** @description No valid session */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getPickemSeasonRangePresets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The latest ingested NFL season's year (null if none ingested) and which presets it can still start */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PickemSeasonRangePresetsResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getLeaguePickemSeasonRangePresets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                leagueId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The league's bound season year and which presets it can still start — the settings editor's availability hint */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PickemSeasonRangePresetsResponse"];
-                };
-            };
-            /** @description Not a Pick'em league (wrong_league_mode) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The caller is a member but not a commissioner */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -2,23 +2,30 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { isSimEnabled } from "@picksleagues/core";
 import {
   APP_ROLE,
+  AccountDeletionBlockersResponseSchema,
   ERROR_CODE,
   ErrorResponseSchema,
   MeResponseSchema,
   UpdateMeRequestSchema,
   type MeResponse,
 } from "@picksleagues/schemas";
-import type { users } from "@picksleagues/db";
+import { getSimState, type Db, type users } from "@picksleagues/db";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import { errorResponse, MISCONFIGURED_500, UNAUTHENTICATED_401 } from "../lib/route-responses";
 import type { SessionVariables } from "../middleware/session";
-import { deleteAccount, getUser, resolveUserImage, updateProfile } from "../services/users";
+import {
+  deleteAccount,
+  getUser,
+  listAccountDeletionBlockingLeagues,
+  resolveUserImage,
+  updateProfile,
+} from "../services/users";
 
 function serializeMe(
   user: typeof users.$inferSelect,
-  capabilities: { simEnabled: boolean },
+  capabilities: { simEnabled: boolean; simClockOffsetMs: number },
   now: Date,
 ): MeResponse {
   return {
@@ -96,21 +103,55 @@ const deleteMe = createRoute({
   },
 });
 
+/**
+ * What stands between the caller and DELETE /me, *before* they try it: the
+ * leagues they solely commission that still hold other members (ADR-0004). The
+ * profile's Danger Zone disables Delete on a non-empty answer and names the
+ * leagues, so the member learns what to fix instead of colliding with the 409
+ * (backlog FB-13). Same service query the deletion transaction re-checks.
+ */
+const getDeletionBlockers = createRoute({
+  method: "get",
+  path: "/me/deletion-blockers",
+  operationId: "getDeletionBlockers",
+  summary: "Leagues blocking the caller's account deletion",
+  responses: {
+    200: {
+      description: "The caller's sole-commissioner leagues with other members; empty = deletable",
+      content: { "application/json": { schema: AccountDeletionBlockersResponseSchema } },
+    },
+    401: UNAUTHENTICATED_401,
+    500: MISCONFIGURED_500,
+  },
+});
+
 export function meRoutes(deps: AppDeps) {
   const app = new OpenAPIHono<{ Variables: SessionVariables & DepsVariables }>({
     defaultHook: zodValidationHook,
   });
 
   app.use("/me", requireSession(deps));
+  app.use("/me/deletion-blockers", requireSession(deps));
   // GET /me only needs db, but the middleware resolves clock too when
   // configured — cheap, and keeps one guard for the whole sub-app instead of
   // per-handler variants.
   app.use("/me", requireDbAndClock(deps));
+  app.use("/me/deletion-blockers", requireDbAndClock(deps));
 
   // Whether the simulator exists here at all (ADR-0011): the real gate is that
   // `/api/sim/*` is not registered when it doesn't, so this only tells the SPA
   // whether to render sim surfaces — it grants nothing.
-  const capabilities = { simEnabled: deps.env ? isSimEnabled(deps.env) : false };
+  const simEnabled = deps.env ? isSimEnabled(deps.env) : false;
+
+  // `simEnabled` plus how far the clock is shifted (FB-38) — the second is what
+  // lets a non-admin's banner say "now isn't real" without reaching for the
+  // admin-only sim state route. Read per response, not once at startup: the
+  // offset changes whenever an operator moves the clock, and it costs a query
+  // only where the simulator exists at all.
+  const readCapabilities = async (db: Db) => ({
+    simEnabled,
+    simClockOffsetMs: simEnabled ? (await getSimState(db)).offsetMs : 0,
+  });
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
@@ -129,7 +170,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(user, capabilities, clock.now()), 200);
+    return c.json(serializeMe(user, await readCapabilities(db), clock.now()), 200);
   });
 
   app.openapi(updateMe, async (c) => {
@@ -153,7 +194,14 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(result.user, capabilities, clock.now()), 200);
+    return c.json(serializeMe(result.user, await readCapabilities(db), clock.now()), 200);
+  });
+
+  app.openapi(getDeletionBlockers, async (c) => {
+    const db = c.get("db");
+    const sessionUser = c.get("sessionUser");
+    const leagues = await listAccountDeletionBlockingLeagues(db, sessionUser.id);
+    return c.json({ leagues }, 200);
   });
 
   app.openapi(deleteMe, async (c) => {

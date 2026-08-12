@@ -1,17 +1,16 @@
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { leagueInvites, users } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
-  INVITE_STATUS,
   JOIN_BLOCKED_REASON,
   LEAGUE_ACTION,
   LEAGUE_STATUS,
   leagueActionIsPreStartOnly,
   type Invite,
-  type InviteStatus,
   type JoinBlockedReason,
+  type LeagueMode,
   type JoinPreviewResponse,
   type LeagueResponse,
 } from "@picksleagues/schemas";
@@ -32,29 +31,15 @@ import {
 type InviteRow = typeof leagueInvites.$inferSelect;
 
 /**
- * Invite state is derived at read time from the row + Clock, never stored
- * (same pattern as lock state, arch D11) — so an expiry passing or the last
- * use being consumed needs no job to flip anything.
+ * Invite validity is derived at read time, never stored (same pattern as lock
+ * state, arch D11). Revocation is the only lifecycle an invite has (ADR-0032
+ * cut expiry and use caps), so the derivation is a single null check — kept
+ * as the one named home for the question so a second surface can't answer it
+ * from a different field.
  */
-export function inviteStatus(invite: InviteRow, clock: Clock): InviteStatus {
-  if (invite.revokedAt !== null) return INVITE_STATUS.REVOKED;
-  if (invite.expiresAt !== null && invite.expiresAt.getTime() <= clock.now().getTime()) {
-    return INVITE_STATUS.EXPIRED;
-  }
-  if (invite.maxUses !== null && invite.useCount >= invite.maxUses) {
-    return INVITE_STATUS.EXHAUSTED;
-  }
-  return INVITE_STATUS.ACTIVE;
+function inviteIsRevoked(invite: InviteRow): boolean {
+  return invite.revokedAt !== null;
 }
-
-const INVITE_STATUS_TO_REASON: Record<
-  Exclude<InviteStatus, typeof INVITE_STATUS.ACTIVE>,
-  JoinBlockedReason
-> = {
-  [INVITE_STATUS.REVOKED]: JOIN_BLOCKED_REASON.INVITE_REVOKED,
-  [INVITE_STATUS.EXPIRED]: JOIN_BLOCKED_REASON.INVITE_EXPIRED,
-  [INVITE_STATUS.EXHAUSTED]: JOIN_BLOCKED_REASON.INVITE_EXHAUSTED,
-};
 
 // MANAGE_INVITES (listing and revoking) is an anytime power — the shared gate
 // covers its only axis. Creation is the split-off CREATE_INVITE, which has a
@@ -62,16 +47,13 @@ const INVITE_STATUS_TO_REASON: Record<
 type CommissionerGateFailure = { ok: false; reason: "league_not_found" | "not_commissioner" };
 
 export type CreateInviteResult =
-  | { ok: true; invite: Invite }
-  | CommissionerGateFailure
-  | { ok: false; reason: "expiry_in_past" | "league_started" };
+  { ok: true; invite: Invite } | CommissionerGateFailure | { ok: false; reason: "league_started" };
 
 export async function createInvite(
   db: Db,
   clock: Clock,
   leagueId: string,
   userId: string,
-  input: { expiresAt?: Date; maxUses?: number },
 ): Promise<CreateInviteResult> {
   const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.CREATE_INVITE);
   if (!gate.ok) return gate;
@@ -88,10 +70,6 @@ export async function createInvite(
   }
 
   const now = clock.now();
-  if (input.expiresAt !== undefined && input.expiresAt.getTime() <= now.getTime()) {
-    return { ok: false, reason: "expiry_in_past" };
-  }
-
   // 128 bits of randomness, URL-safe — unguessable and collision-free in
   // practice; the unique constraint is the backstop.
   const code = randomBytes(16).toString("base64url");
@@ -101,8 +79,6 @@ export async function createInvite(
       leagueId,
       code,
       createdBy: userId,
-      expiresAt: input.expiresAt ?? null,
-      maxUses: input.maxUses ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -111,14 +87,13 @@ export async function createInvite(
     throw new Error("Invite insert returned no row.");
   }
 
-  return { ok: true, invite: await serializeInvite(db, created, clock) };
+  return { ok: true, invite: await serializeInvite(db, created) };
 }
 
 export type ListInvitesResult = { ok: true; invites: Invite[] } | CommissionerGateFailure;
 
 export async function listInvites(
   db: Db,
-  clock: Clock,
   leagueId: string,
   userId: string,
 ): Promise<ListInvitesResult> {
@@ -129,22 +104,15 @@ export async function listInvites(
     .select({ invite: leagueInvites, creator: users })
     .from(leagueInvites)
     .leftJoin(users, eq(leagueInvites.createdBy, users.id))
-    // Revoked and exhausted invites disappear from the commissioner's list —
-    // revocation/exhaustion stay idempotent and a revoked/exhausted code still
-    // 409s on join, this only trims stale entries from the management view.
-    // Expired invites remain listed; their status field distinguishes them.
-    .where(
-      and(
-        eq(leagueInvites.leagueId, leagueId),
-        isNull(leagueInvites.revokedAt),
-        or(isNull(leagueInvites.maxUses), lt(leagueInvites.useCount, leagueInvites.maxUses)),
-      ),
-    )
+    // Revoked invites disappear from the commissioner's list — revocation
+    // stays idempotent and a revoked code still 409s on join, this only trims
+    // stale entries from the management view.
+    .where(and(eq(leagueInvites.leagueId, leagueId), isNull(leagueInvites.revokedAt)))
     .orderBy(desc(leagueInvites.createdAt));
 
   return {
     ok: true,
-    invites: rows.map((row) => serializeInviteRow(row.invite, row.creator, clock)),
+    invites: rows.map((row) => serializeInviteRow(row.invite, row.creator)),
   };
 }
 
@@ -178,6 +146,63 @@ export async function revokeInvite(
   return { ok: true };
 }
 
+/** What a link unfurl says about an invite (FB-41). */
+export interface InviteLinkPreview {
+  leagueName: string;
+  mode: LeagueMode;
+  memberCount: number;
+  maxMembers: number;
+  startsAt: Date | null;
+  /** Whether a new member could still take a spot — the unfurl's tense. */
+  open: boolean;
+}
+
+/**
+ * The invite as a link-preview bot sees it: enough to say which league this is,
+ * and nothing else (ADR-0038).
+ *
+ * **Takes no `userId`, and that is the point of it.** A preview bot has no
+ * session, so this is the one read in the product that answers a league
+ * question without one — which does widen what a bare code discloses: today a
+ * code holder must sign in before learning the league's name, and after this
+ * they need only fetch the page. The trade is deliberate and bounded by what
+ * the code already is (unguessable, revocable, and worth a full membership to
+ * whoever holds it — ADR-0032); a revoked or unknown code resolves to null and
+ * the caller serves the generic tags, so this can't be used to probe.
+ *
+ * Never widen it. The member list, the standings, and anything a member
+ * authored are not in an unfurl's job.
+ */
+export async function getInviteLinkPreview(
+  db: Db,
+  clock: Clock,
+  code: string,
+): Promise<InviteLinkPreview | null> {
+  const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));
+  if (!invite || inviteIsRevoked(invite)) return null;
+
+  const current = await getLeagueWithCurrentSeason(db, invite.leagueId);
+  if (!current) return null;
+  const { league, season } = current;
+
+  const [memberCount, startsAt] = await Promise.all([
+    countMembers(db, league.id),
+    leagueStartAt(db, { mode: league.mode, seasonId: season.seasonId }, season.settings),
+  ]);
+
+  return {
+    leagueName: league.name,
+    mode: league.mode,
+    memberCount,
+    maxMembers: league.maxMembers,
+    startsAt,
+    open:
+      season.status === LEAGUE_STATUS.ACTIVE &&
+      isPreStart(startsAt, clock) &&
+      memberCount < league.maxMembers,
+  };
+}
+
 /**
  * Everything the join screen needs: the league card plus whether POSTing the
  * join would succeed, and if not, the exact refusal (precedence documented on
@@ -204,10 +229,9 @@ export async function getJoinPreview(
     leagueStartAt(db, { mode: league.mode, seasonId: season.seasonId }, season.settings),
   ]);
 
-  const status = inviteStatus(invite, clock);
   let reason: JoinBlockedReason | null = null;
-  if (status !== INVITE_STATUS.ACTIVE) {
-    reason = INVITE_STATUS_TO_REASON[status];
+  if (inviteIsRevoked(invite)) {
+    reason = JOIN_BLOCKED_REASON.INVITE_REVOKED;
   } else if (membership) {
     reason = JOIN_BLOCKED_REASON.ALREADY_MEMBER;
   } else if (season.status !== LEAGUE_STATUS.ACTIVE) {
@@ -239,11 +263,13 @@ export type JoinByCodeResult =
 
 /**
  * Join via invite link (spec §Invites, §Membership). The use-count increment
- * is a guarded UPDATE (`use_count < max_uses` in the predicate) inside the
- * same transaction as the membership insert: concurrent joins serialize on
- * the row lock and the loser re-evaluates against the committed count, so the
- * max-use cap can't be raced past; any later refusal in the tx rolls the
- * increment back (JoinRefusedError is thrown, not returned, for exactly that).
+ * is a guarded UPDATE (`revoked_at IS NULL` in the predicate) inside the same
+ * transaction as the membership insert: concurrent joins and revocations
+ * serialize on the row lock, so a revocation that lands between our status
+ * read and the update turns the join away instead of slipping through; any
+ * later refusal in the tx rolls the increment back (JoinRefusedError is
+ * thrown, not returned, for exactly that). The count itself is informational
+ * since ADR-0032 — nothing enforces on it.
  */
 export async function joinByCode(
   db: Db,
@@ -256,26 +282,19 @@ export async function joinByCode(
       const [invite] = await tx.select().from(leagueInvites).where(eq(leagueInvites.code, code));
       if (!invite) throw new InviteInvalidError();
 
-      const status = inviteStatus(invite, clock);
-      if (status !== INVITE_STATUS.ACTIVE) {
-        throw new JoinRefusedError(INVITE_STATUS_TO_REASON[status]);
+      if (inviteIsRevoked(invite)) {
+        throw new JoinRefusedError(JOIN_BLOCKED_REASON.INVITE_REVOKED);
       }
 
       const updated = await tx
         .update(leagueInvites)
         .set({ useCount: sql`${leagueInvites.useCount} + 1`, updatedAt: clock.now() })
-        .where(
-          and(
-            eq(leagueInvites.id, invite.id),
-            isNull(leagueInvites.revokedAt),
-            or(isNull(leagueInvites.maxUses), lt(leagueInvites.useCount, leagueInvites.maxUses)),
-          ),
-        )
+        .where(and(eq(leagueInvites.id, invite.id), isNull(leagueInvites.revokedAt)))
         .returning({ id: leagueInvites.id });
       if (updated.length === 0) {
-        // Lost a race: another join consumed the last use (or a revocation
-        // landed) between our status read and the guarded update.
-        throw new JoinRefusedError(JOIN_BLOCKED_REASON.INVITE_EXHAUSTED);
+        // Lost a race: a revocation landed between our status read and the
+        // guarded update.
+        throw new JoinRefusedError(JOIN_BLOCKED_REASON.INVITE_REVOKED);
       }
 
       // Locks the league row and re-reads league state post-lock (lock order:
@@ -300,26 +319,18 @@ export async function joinByCode(
 
 class InviteInvalidError extends Error {}
 
-async function serializeInvite(db: Db, invite: InviteRow, clock: Clock): Promise<Invite> {
+async function serializeInvite(db: Db, invite: InviteRow): Promise<Invite> {
   const creator = invite.createdBy
     ? ((await db.select().from(users).where(eq(users.id, invite.createdBy)))[0] ?? null)
     : null;
-  return serializeInviteRow(invite, creator, clock);
+  return serializeInviteRow(invite, creator);
 }
 
-function serializeInviteRow(
-  invite: InviteRow,
-  creator: typeof users.$inferSelect | null,
-  clock: Clock,
-): Invite {
+function serializeInviteRow(invite: InviteRow, creator: typeof users.$inferSelect | null): Invite {
   return {
     id: invite.id,
     code: invite.code,
-    status: inviteStatus(invite, clock),
-    expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : null,
-    maxUses: invite.maxUses,
     useCount: invite.useCount,
-    revokedAt: invite.revokedAt ? invite.revokedAt.toISOString() : null,
     createdAt: invite.createdAt.toISOString(),
     createdBy: creator
       ? { userId: creator.id, username: creator.username, displayName: creator.display_name }

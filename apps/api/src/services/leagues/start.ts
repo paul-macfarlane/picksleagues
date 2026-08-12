@@ -46,15 +46,10 @@ export async function leagueStartAt(
   return nflWeekFirstKickoffAt(db, league.seasonId, startWeek);
 }
 
-/**
- * The NFL branch of `leagueStartAt` — a season and a single week's first
- * effective kickoff, with no `LeagueSettings` cast in the way. `leagueStartAt`
- * delegates to this for its own NFL case; the season-range availability core
- * (`services/leagues/season-range.ts`) calls it directly per candidate preset,
- * where there is no settings object yet to cast a bare `{ startWeek }` from.
- * Same query both callers would otherwise run separately, so they can't drift.
- */
-export async function nflWeekFirstKickoffAt(
+// The NFL branch of `leagueStartAt` — a season and a single week's first
+// effective kickoff, with no `LeagueSettings` cast in the way. (Its second
+// caller, the preset availability core, went with ADR-0031.)
+async function nflWeekFirstKickoffAt(
   db: Db,
   seasonId: string,
   week: NflWeekRef,

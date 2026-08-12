@@ -126,7 +126,18 @@ export async function seedSurvivorSeason(
   const { weekCount = 1, memberCount = 2, settings, year, usernamePrefix = "member" } = opts;
 
   const base = await seedSurvivorLeague(db, auth, {
-    weeks: Array.from({ length: weekCount }, (_unused, i) => ({ weekNumber: i + 1 })),
+    weeks: Array.from({ length: weekCount }, (_unused, i) => {
+      const kickoffAt = new Date(WEEK1_KICKOFF.getTime() + i * SURVIVOR_WEEK_MS);
+      return {
+        weekNumber: i + 1,
+        // Real bounds even though the game is seeded separately below: a
+        // kickoff-less week spec falls back to SEED_AT bounds, which reads as
+        // an already-played week and shoves the current-week resolution to the
+        // fixture's last week — the seeder footgun the round-2 review named.
+        startsAt: new Date(kickoffAt.getTime() - 2 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(kickoffAt.getTime() + 24 * 60 * 60 * 1000),
+      };
+    }),
     settings,
     year,
     members: Array.from({ length: memberCount }, (_unused, i) => ({

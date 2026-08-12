@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import {
   ERROR_CODE,
   type CreateLeagueRequest,
@@ -81,7 +82,7 @@ export function useCreateLeague() {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toast.success("League created");
+      toastSuccess("League created");
       await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/leagues/$leagueId", params: { leagueId: data.id } });
     },
@@ -128,7 +129,7 @@ export function useUpdateLeague(leagueId: string) {
       // Renames show on the dashboard card too.
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
       await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
-      if (data) toast.success("League updated");
+      if (data) toastSuccess("League updated");
     },
     onError: () => toast.error("Couldn't update this league — please try again."),
   });
@@ -168,7 +169,7 @@ export function useRenewLeague(leagueId: string) {
         await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
         return;
       }
-      toast.success(`Started the ${data.seasonYear} season`);
+      toastSuccess(`Started the ${data.seasonYear} season`);
       await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
       await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
     },
@@ -195,7 +196,7 @@ export function useDeleteLeague(leagueId: string) {
         await queryClient.invalidateQueries({ queryKey: leagueQueryKey(leagueId) });
         return;
       }
-      toast.success("League deleted");
+      toastSuccess("League deleted");
       await queryClient.invalidateQueries({ queryKey: MY_LEAGUES_QUERY_KEY });
       navigate({ to: "/" });
     },

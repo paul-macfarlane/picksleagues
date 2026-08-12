@@ -5,7 +5,7 @@ import {
   type SlateGame,
   type SlateTeam,
 } from "@picksleagues/schemas";
-import { gameStateLabel } from "@/lib/game";
+import { gameStateLabel, survivorProvisionalOutcome } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -192,11 +192,11 @@ export function SurvivorGameRow({
  * One team of a game the member can no longer choose between: a record of who
  * they took, not an offer.
  *
- * The held side carries a glyph only once it has graded, and then it is the
- * *outcome's* glyph — the same rule Pick'em's row states, and for the same
- * reason: a checkmark on an ungraded pick reads as "you got this right" rather
- * than "you chose this", and on a week nothing has settled that is a claim the
- * app doesn't have (arch D10).
+ * The held side carries a glyph only once a grade exists — settled, or derived
+ * from the game's own terminal state (FB-23) — and then it is the *outcome's*
+ * glyph: a checkmark on an undecided pick would read as "you got this right"
+ * rather than "you chose this", a claim the app doesn't have until the game
+ * ends (arch D10; the derivation is `survivorProvisionalOutcome`'s contract).
  */
 function HeldTeamButton({
   team,
@@ -234,23 +234,32 @@ function HeldTeamButton({
 }
 
 /**
- * What the sheet has to say about a week that has *finished* without being
- * **graded** — a state distinct both from "no pick" and from "not yet kicked
- * off", and the one that makes a cancellation read as a bug. Settlement is what
- * hands a cancelled game's team back (spec §Game Mode 2 — Cancelled game), so
- * until every other game in the week has finished and the week is graded, the
- * team is still on the member's used list with nothing on screen saying why.
+ * What the sheet still has to say about a finished game the week hasn't graded
+ * (FB-23: the *verdict* now comes from the derived provisional outcome, so this
+ * carries only what that badge can't). A cancellation keeps its team-return
+ * explanation — settlement is what hands the team back (spec §Game Mode 2 —
+ * Cancelled game), and until then it sits on the used list with nothing else
+ * saying why. A final without scores keeps the old ungraded paragraph, because
+ * with no derivable verdict the badge slot is empty again. Everything else gets
+ * one short line naming why the grade is provisional at all.
  *
- * Null while the game is still ahead or in play: the state line already says so,
- * and "not graded yet" about a game nobody has finished is noise.
+ * Null while the game is still ahead or in play: the state line already says
+ * so, and "not graded yet" about a game nobody has finished is noise.
  */
-function ungradedNote(game: SlateGame, outcome: PickOutcome | null): string | null {
+function ungradedNote(
+  game: SlateGame,
+  outcome: PickOutcome | null,
+  provisional: PickOutcome | null,
+): string | null {
   if (outcome !== null) return null;
   if (isUnplayedStatus(game.status)) {
     return "This game was cancelled, so it can't put you out — but your team only comes back to you when the week is graded, after every other game in it has finished.";
   }
   if (game.status !== GAME_STATUS.FINAL) return null;
-  return "This week hasn't been graded yet, so your pick doesn't have a result on it — grading runs once every game in the week has finished.";
+  if (provisional === null) {
+    return "This week hasn't been graded yet, so your pick doesn't have a result on it — grading runs once every game in the week has finished.";
+  }
+  return "Official grading lands once every game in the week has finished.";
 }
 
 /**
@@ -275,7 +284,11 @@ export function SurvivorPickedGameRow({
 }) {
   const now = useAppNow();
   const heldTeam = teamId === game.homeTeam.id ? game.homeTeam : game.awayTeam;
-  const note = ungradedNote(game, outcome);
+  // The settled grade when it exists, else the derived one (FB-23): the two can
+  // never disagree for a single pick, so the member sees their verdict the
+  // moment the game ends instead of after Monday night's settlement.
+  const grade = outcome ?? survivorProvisionalOutcome(game, teamId);
+  const note = ungradedNote(game, outcome, grade);
 
   return (
     <li
@@ -288,11 +301,11 @@ export function SurvivorPickedGameRow({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <MatchupLine game={game} />
-        {/* One pill, most-informative-wins: a settled pick takes the slot from
-            "Your pick", which by then is both implied and the less interesting
-            fact. */}
-        {outcome ? (
-          <PickOutcomeBadge outcome={outcome} />
+        {/* One pill, most-informative-wins: a graded pick — settled or derived
+            — takes the slot from "Your pick", which by then is both implied and
+            the less interesting fact. */}
+        {grade ? (
+          <PickOutcomeBadge outcome={grade} />
         ) : (
           <StatusPill tone="accent" data-testid="survivor-pick-state">
             Your pick
@@ -305,8 +318,8 @@ export function SurvivorPickedGameRow({
       </p>
 
       <div className="grid grid-cols-2 gap-2">
-        <HeldTeamButton team={game.awayTeam} held={teamId === game.awayTeam.id} outcome={outcome} />
-        <HeldTeamButton team={game.homeTeam} held={teamId === game.homeTeam.id} outcome={outcome} />
+        <HeldTeamButton team={game.awayTeam} held={teamId === game.awayTeam.id} outcome={grade} />
+        <HeldTeamButton team={game.homeTeam} held={teamId === game.homeTeam.id} outcome={grade} />
       </div>
 
       {note && (

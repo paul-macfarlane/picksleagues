@@ -31,9 +31,9 @@ function isOverridden(game: AdminGame) {
  * Selection lives in the URL (owned by the route), not in state: a specific
  * week's slate is worth sharing while debugging a sync, and it survives a
  * refresh. Both params are optional — an absent one derives to the newest
- * season and its earliest week (seasons arrive newest-first, weeks
- * chronological), so the browser opens on something useful with no effect-driven
- * setState cascade.
+ * season and its *current* week (server-resolved, FB-11 — defaulting to week 1
+ * had operators editing a week the clock had long left), so the browser opens
+ * on something useful with no effect-driven setState cascade.
  */
 export function GamesBrowser({
   seasonId,
@@ -56,7 +56,7 @@ export function GamesBrowser({
     all.find((season) => season.weeks.some((week) => week.id === weekId)) ??
     all.find((season) => season.id === seasonId) ??
     all[0];
-  const effectiveWeekId = weekId ?? selectedSeason?.weeks[0]?.id;
+  const effectiveWeekId = weekId ?? selectedSeason?.currentWeekId ?? selectedSeason?.weeks[0]?.id;
   const games = useAdminGames(effectiveWeekId);
 
   return (

@@ -136,19 +136,14 @@ describe("invite management", () => {
   it("lets a commissioner create, list, and revoke invites", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();
 
-    const res = await postInvite(commissioner.cookie, league.id, {
-      expiresAt: "2026-09-10T00:00:00.000Z",
-      maxUses: 3,
-    });
+    const res = await postInvite(commissioner.cookie, league.id);
     expect(res.status).toBe(201);
     const invite = (await res.json()) as Invite;
-    expect(invite).toMatchObject({
-      status: "active",
-      maxUses: 3,
-      useCount: 0,
-      expiresAt: "2026-09-10T00:00:00.000Z",
-      revokedAt: null,
-    });
+    expect(invite).toMatchObject({ useCount: 0 });
+    // Wire carries no status or revocation timestamp (ADR-0032): every
+    // serialized invite is live by construction.
+    expect("status" in invite).toBe(false);
+    expect("revokedAt" in invite).toBe(false);
     expect(invite.code.length).toBeGreaterThanOrEqual(16);
     expect(invite.createdBy).toMatchObject({ userId: commissioner.user.id });
 
@@ -184,19 +179,20 @@ describe("invite management", () => {
     expect(revokedRowAfterSecond?.revokedAt).toEqual(PRE_START_NOW);
   });
 
-  it("excludes an exhausted invite from the list while a capped-but-unexhausted one remains", async () => {
+  it("ignores a stale client's expiry/max-use body — the invite minted is a bare code", async () => {
+    // Clients sent these options until ADR-0032; the route no longer declares
+    // a body at all, so they can't survive into enforcement anywhere. Two
+    // joins through a "maxUses: 1" request prove no cap was stored.
     const { commissioner, league } = await seedLeagueWithCommissioner();
+    const code = await createCode(commissioner.cookie, league.id, {
+      expiresAt: "2026-09-10T00:00:00.000Z",
+      maxUses: 1,
+    });
 
-    const exhausted = await createCode(commissioner.cookie, league.id, { maxUses: 1 });
-    const capped = await createCode(commissioner.cookie, league.id, { maxUses: 3 });
-
-    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
-    expect((await postJoin(joiner.cookie, exhausted)).status).toBe(201);
-
-    const list = (await (await listInvites(commissioner.cookie, league.id)).json()) as {
-      invites: Invite[];
-    };
-    expect(list.invites.map((i) => i.code)).toEqual([capped]);
+    const first = await createAuthenticatedUser(auth, { username: "first_joiner" });
+    const second = await createAuthenticatedUser(auth, { username: "second_joiner" });
+    expect((await postJoin(first.cookie, code)).status).toBe(201);
+    expect((await postJoin(second.cookie, code)).status).toBe(201);
   });
 
   it("403s a plain member and 404s a non-member on invite management", async () => {
@@ -216,14 +212,6 @@ describe("invite management", () => {
     expect((await revokeInvite(member.cookie, league.id, "whatever")).status).toBe(403);
     expect((await postInvite(outsider.cookie, league.id)).status).toBe(404);
     expect((await listInvites(outsider.cookie, league.id)).status).toBe(404);
-  });
-
-  it("400s an expiry in the past", async () => {
-    const { commissioner, league } = await seedLeagueWithCommissioner();
-    const res = await postInvite(commissioner.cookie, league.id, {
-      expiresAt: "2026-08-01T00:00:00.000Z",
-    });
-    expect(res.status).toBe(400);
   });
 
   it("404s revoking a code that belongs to a different league", async () => {
@@ -269,37 +257,18 @@ describe("GET /api/join/:code (preview)", () => {
     expect(body.league).not.toHaveProperty("members");
   });
 
-  it.each([
-    { label: "revoked invite", reason: "invite_revoked" },
-    { label: "expired invite", reason: "invite_expired" },
-    { label: "exhausted invite", reason: "invite_exhausted" },
-  ])("reports $label", async ({ reason }) => {
+  it("reports a revoked invite — revocation is the only invite-level refusal (ADR-0032)", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();
     const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
 
-    let code: string;
-    if (reason === "invite_revoked") {
-      code = await createCode(commissioner.cookie, league.id);
-      await revokeInvite(commissioner.cookie, league.id, code);
-    } else if (reason === "invite_expired") {
-      // Expiry after "now" at creation, before "now" at preview? A fixed clock
-      // can't move — so create valid-until-kickoff and preview via the
-      // post-kickoff app instead.
-      code = await createCode(commissioner.cookie, league.id, {
-        expiresAt: WEEK1_KICKOFF.toISOString(),
-      });
-    } else {
-      code = await createCode(commissioner.cookie, league.id, { maxUses: 1 });
-      const firstJoiner = await createAuthenticatedUser(auth, { username: "first_joiner" });
-      expect((await postJoin(firstJoiner.cookie, code)).status).toBe(201);
-    }
+    const code = await createCode(commissioner.cookie, league.id);
+    await revokeInvite(commissioner.cookie, league.id, code);
 
-    const on = reason === "invite_expired" ? appAfterKickoff : app;
-    const res = await getJoinPreview(joiner.cookie, code, on);
+    const res = await getJoinPreview(joiner.cookie, code);
     expect(res.status).toBe(200);
     const body = (await res.json()) as JoinPreviewResponse;
     expect(body.joinable).toBe(false);
-    expect(body.reason).toBe(reason);
+    expect(body.reason).toBe("invite_revoked");
   });
 
   it("reports already_member ahead of other league-level reasons", async () => {
@@ -322,10 +291,69 @@ describe("GET /api/join/:code (preview)", () => {
   });
 });
 
+describe("GET /api/invite-preview/:code (link unfurl, ADR-0038)", () => {
+  function getPreviewHtml(code: string, on: App = app) {
+    // Deliberately no cookie: a link-preview bot has no session, and that this
+    // route answers without one is the whole feature.
+    return on.request(`/api/invite-preview/${code}`, { method: "GET" });
+  }
+
+  it("names the league and its capacity, to no session at all", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({
+      name: "Sunday Crew",
+      maxMembers: 10,
+      visibility: LEAGUE_VISIBILITY.PRIVATE,
+    });
+    const code = await createCode(commissioner.cookie, league.id);
+
+    const res = await getPreviewHtml(code);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("You're invited to Sunday Crew");
+    expect(html).toContain("NFL Pick'em");
+    expect(html).toContain("1 of 10 members");
+    expect(html).toContain("9 spots left");
+  });
+
+  it("says the league is closed once it is full, rather than inviting into it", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({
+      name: "Full House",
+      maxMembers: 2,
+    });
+    const code = await createCode(commissioner.cookie, league.id);
+    await fillLeague(league.id, 1);
+
+    const html = await (await getPreviewHtml(code)).text();
+    expect(html).toContain("no longer taking members");
+    expect(html).not.toContain("spots left");
+  });
+
+  it("says the same generic thing for a revoked code as for one that never existed", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({ name: "Secret Club" });
+    const code = await createCode(commissioner.cookie, league.id);
+    await db
+      .update(leagueInvites)
+      .set({ revokedAt: PRE_START_NOW })
+      .where(eq(leagueInvites.code, code));
+
+    const revoked = await (await getPreviewHtml(code)).text();
+    const unknown = await (await getPreviewHtml("does-not-exist")).text();
+
+    // The league's name is the thing a revoked link must stop disclosing, and
+    // the two answers must be indistinguishable — otherwise the unfurl reports
+    // whether a code was ever real.
+    expect(revoked).not.toContain("Secret Club");
+    expect(revoked).toContain("You're invited to a league");
+    expect(unknown).toContain("You're invited to a league");
+    expect((await getPreviewHtml("does-not-exist")).status).toBe(200);
+  });
+});
+
 describe("POST /api/join/:code", () => {
   it("joins the league and increments the invite's use count", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();
-    const code = await createCode(commissioner.cookie, league.id, { maxUses: 5 });
+    const code = await createCode(commissioner.cookie, league.id);
     const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
 
     const res = await postJoin(joiner.cookie, code);
@@ -340,7 +368,7 @@ describe("POST /api/join/:code", () => {
 
   it("409s a re-join and rolls the use-count increment back", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();
-    const code = await createCode(commissioner.cookie, league.id, { maxUses: 5 });
+    const code = await createCode(commissioner.cookie, league.id);
     const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
 
     expect((await postJoin(joiner.cookie, code)).status).toBe(201);
@@ -351,30 +379,6 @@ describe("POST /api/join/:code", () => {
     // The refused join's increment rolled back with the transaction.
     const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));
     expect(invite?.useCount).toBe(1);
-  });
-
-  it("enforces max uses: the (n+1)th join is refused", async () => {
-    const { commissioner, league } = await seedLeagueWithCommissioner();
-    const code = await createCode(commissioner.cookie, league.id, { maxUses: 1 });
-    const first = await createAuthenticatedUser(auth, { username: "first_joiner" });
-    const second = await createAuthenticatedUser(auth, { username: "second_joiner" });
-
-    expect((await postJoin(first.cookie, code)).status).toBe(201);
-    const res = await postJoin(second.cookie, code);
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: "invite_exhausted" });
-  });
-
-  it("409s an expired invite", async () => {
-    const { commissioner, league } = await seedLeagueWithCommissioner();
-    const code = await createCode(commissioner.cookie, league.id, {
-      expiresAt: WEEK1_KICKOFF.toISOString(),
-    });
-    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
-
-    const res = await postJoin(joiner.cookie, code, appAfterKickoff);
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: "invite_expired" });
   });
 
   it("409s a revoked invite", async () => {
@@ -456,19 +460,6 @@ describe("boundary instants", () => {
     const res = await postJoin(joiner.cookie, code, appAtKickoff);
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "join_closed" });
-  });
-
-  it("expires an invite at exactly its expiry instant (expiresAt == now)", async () => {
-    const { commissioner, league } = await seedLeagueWithCommissioner();
-    const code = await createCode(commissioner.cookie, league.id, {
-      expiresAt: WEEK1_KICKOFF.toISOString(),
-    });
-    const joiner = await createAuthenticatedUser(auth, { username: "joiner" });
-
-    // Invite validity precedes the cutoff in the reason precedence, so the
-    // expiry boundary is observable even though the cutoff also lands here.
-    const res = await getJoinPreview(joiner.cookie, code, appAtKickoff);
-    expect(((await res.json()) as JoinPreviewResponse).reason).toBe("invite_expired");
   });
 });
 

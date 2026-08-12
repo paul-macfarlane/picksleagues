@@ -1,6 +1,6 @@
 # 0007. Game-data ingestion model
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by ADR-0031: the "playoffs are MVP scope" owner decision now covers ingestion only. No game mode consumes postseason data (Pick'em joined Survivor as regular-season only); postseason ingestion itself is unchanged
 - **Date:** 2026-07-21
 - **Related:** architecture.md §External Data, §Background Jobs, §Domain Model, D6–D7, D15; backlog DATA-1..7
 

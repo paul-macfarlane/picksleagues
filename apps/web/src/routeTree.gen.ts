@@ -22,6 +22,7 @@ import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as AuthedSimRouteRouteImport } from './routes/_authed/sim/route'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
 import { Route as RulesPickemRouteImport } from './routes/rules/pickem'
+import { Route as RulesSimulatorRouteImport } from './routes/rules/simulator'
 import { Route as RulesSurvivorRouteImport } from './routes/rules/survivor'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
 import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
@@ -102,6 +103,11 @@ const JoinCodeRoute = JoinCodeRouteImport.update({
 const RulesPickemRoute = RulesPickemRouteImport.update({
   id: '/rules/pickem',
   path: '/rules/pickem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesSimulatorRoute = RulesSimulatorRouteImport.update({
+  id: '/rules/simulator',
+  path: '/rules/simulator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RulesSurvivorRoute = RulesSurvivorRouteImport.update({
@@ -209,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/rules/pickem': typeof RulesPickemRoute
+  '/rules/simulator': typeof RulesSimulatorRoute
   '/rules/survivor': typeof RulesSurvivorRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/admin/audit': typeof AuthedAdminAuditRoute
@@ -237,6 +244,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/rules/pickem': typeof RulesPickemRoute
+  '/rules/simulator': typeof RulesSimulatorRoute
   '/rules/survivor': typeof RulesSurvivorRoute
   '/': typeof AuthedIndexRoute
   '/admin/audit': typeof AuthedAdminAuditRoute
@@ -269,6 +277,7 @@ export interface FileRoutesById {
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/rules/pickem': typeof RulesPickemRoute
+  '/rules/simulator': typeof RulesSimulatorRoute
   '/rules/survivor': typeof RulesSurvivorRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/join/$code'
     | '/rules/pickem'
+    | '/rules/simulator'
     | '/rules/survivor'
     | '/leagues/$leagueId'
     | '/admin/audit'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/join/$code'
     | '/rules/pickem'
+    | '/rules/simulator'
     | '/rules/survivor'
     | '/'
     | '/admin/audit'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/_authed/profile'
     | '/join/$code'
     | '/rules/pickem'
+    | '/rules/simulator'
     | '/rules/survivor'
     | '/_authed/'
     | '/_authed/leagues/$leagueId'
@@ -391,6 +403,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   JoinCodeRoute: typeof JoinCodeRoute
   RulesPickemRoute: typeof RulesPickemRoute
+  RulesSimulatorRoute: typeof RulesSimulatorRoute
   RulesSurvivorRoute: typeof RulesSurvivorRoute
 }
 
@@ -485,6 +498,13 @@ declare module '@tanstack/react-router' {
       path: '/rules/pickem'
       fullPath: '/rules/pickem'
       preLoaderRoute: typeof RulesPickemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/simulator': {
+      id: '/rules/simulator'
+      path: '/rules/simulator'
+      fullPath: '/rules/simulator'
+      preLoaderRoute: typeof RulesSimulatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rules/survivor': {
@@ -701,6 +721,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   JoinCodeRoute: JoinCodeRoute,
   RulesPickemRoute: RulesPickemRoute,
+  RulesSimulatorRoute: RulesSimulatorRoute,
   RulesSurvivorRoute: RulesSurvivorRoute,
 }
 export const routeTree = rootRouteImport

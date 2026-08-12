@@ -15,29 +15,32 @@ import { WEEK_TYPE, type WeekType } from "./week-type";
 
 /**
  * A settings-level reference into the `weeks` table, matching its
- * `(week_type, week_number)` identity. NFL postseason rounds restart at 1
- * (Wild Card=1 … Super Bowl=4), so a bare number can't address them.
+ * `(week_type, week_number)` identity. Both modes' stored ranges are
+ * regular-season only (ADR-0024, ADR-0031), so this is the only ref a
+ * settings blob may carry.
  */
 const nflRegularWeekRef = z.object({
   type: z.literal(WEEK_TYPE.REGULAR),
   number: z.number().int().min(1).max(18),
 });
 
-const nflPostseasonWeekRef = z.object({
-  type: z.literal(WEEK_TYPE.POSTSEASON),
-  number: z.number().int().min(1).max(4),
-});
-
-export const NflWeekRefSchema = z
-  .discriminatedUnion("type", [nflRegularWeekRef, nflPostseasonWeekRef])
-  .openapi("NflWeekRef");
-
-export type NflWeekRef = z.infer<typeof NflWeekRefSchema>;
+/**
+ * A week as the `weeks` table can address one. Postseason rounds restart at 1
+ * (Wild Card=1 … Super Bowl=4), so a bare number can't address them — and they
+ * still exist as *rows* (ingestion covers the postseason, ADR-0007/0021) even
+ * though no league settings can name one since ADR-0031. The type survives the
+ * settings schemas for exactly that reason: range clipping and settlement
+ * ordering take arbitrary week rows, postseason included.
+ */
+export type NflWeekRef =
+  | { type: typeof WEEK_TYPE.REGULAR; number: number }
+  | { type: typeof WEEK_TYPE.POSTSEASON; number: number };
 
 /**
- * Position of a week in whole-season order — playoff rounds follow week 18
- * (spec §Pick'em League Settings), so ordering start/end weeks across the
- * regular/postseason boundary needs a single scale.
+ * Position of a week in whole-season order — postseason rows follow week 18,
+ * so clipping arbitrary week rows against a regular-season range (and ordering
+ * settlement replays) needs a single scale even though no stored range crosses
+ * the boundary anymore (ADR-0031).
  */
 export function nflSeasonOrdinal(week: NflWeekRef): number {
   return week.type === WEEK_TYPE.REGULAR ? week.number : 18 + week.number;
@@ -51,28 +54,9 @@ export function nflSeasonOrdinal(week: NflWeekRef): number {
 export const MAX_PICKS_PER_WEEK = 16;
 
 /**
- * The season range a Pick'em league covers, as a commissioner names it
- * (ADR-0020). Replaces the explicit start/end week pair as the *input*; the
- * concrete refs it resolves to are still what gets stored and computed on.
- */
-export const PICKEM_SEASON_RANGE_PRESET = {
-  REGULAR_SEASON: "regular_season",
-  POSTSEASON: "postseason",
-  FULL_SEASON: "full_season",
-} as const;
-
-export type PickemSeasonRangePreset =
-  (typeof PICKEM_SEASON_RANGE_PRESET)[keyof typeof PICKEM_SEASON_RANGE_PRESET];
-
-export const PickemSeasonRangePresetSchema = z
-  .enum(PICKEM_SEASON_RANGE_PRESET)
-  .openapi("PickemSeasonRangePreset");
-
-/**
  * The two week refs a season range resolves to — what the rest of the system
- * computes on. Mode-neutral because both NFL modes resolve into it: Pick'em
- * from a commissioner's preset (ADR-0020), Survivor from the one range its
- * mode allows (ADR-0024).
+ * computes on. Mode-neutral because both NFL modes resolve into it, from the
+ * one range either mode allows (ADR-0024, ADR-0031).
  */
 export type NflSeasonRange = { startWeek: NflWeekRef; endWeek: NflWeekRef };
 
@@ -107,11 +91,11 @@ export function isWeekInSeasonRange(
 }
 
 /**
- * The regular season as a range, with one home because two modes name it:
- * Pick'em's Regular Season preset (and the front half of Full Season), and the
- * whole of Survivor, which is regular-season only (ADR-0007) and therefore has
- * no preset to choose. A second copy of the week numbers could disagree with
- * itself about which weeks the regular season is.
+ * The regular season as a range, with one home because both NFL modes resolve
+ * it: each is regular-season only (Survivor by ADR-0024, Pick'em by ADR-0031),
+ * so this is the one range a settings write can ever produce. A second copy of
+ * the week numbers could disagree with itself about which weeks the regular
+ * season is.
  */
 export const NFL_REGULAR_SEASON_RANGE = {
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
@@ -119,85 +103,52 @@ export const NFL_REGULAR_SEASON_RANGE = {
 } as const satisfies NflSeasonRange;
 
 /**
- * Each preset's nominal range (ADR-0020 §The three presets), in the week
- * vocabulary the spec already uses: regular-season weeks 1-18, then the four
- * playoff rounds Wild Card through Super Bowl.
- *
- * It lives beside the preset because it *is* the preset's definition, not a
- * detail of how the API resolves one. Two consumers read it: the server's
- * resolver, which starts from the nominal range and may advance the start past
- * a week already underway, and the web settings editor, which builds the draft
- * range it warns about from it. A second copy in either place would be a rule
- * able to disagree with itself about what "Regular Season" covers.
+ * The stored resolved-range field pair and its ordering rule, shared by both
+ * NFL modes' settings schemas — SWP-1 and SWP-5 converged the two on the same
+ * shape independently, and two copies of the one legal range rule could drift
+ * the same way NFL_REGULAR_SEASON_RANGE's comment warns for the week numbers.
  */
-export const PICKEM_NOMINAL_RANGE = {
-  [PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON]: NFL_REGULAR_SEASON_RANGE,
-  [PICKEM_SEASON_RANGE_PRESET.POSTSEASON]: {
-    startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
-    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
-  },
-  [PICKEM_SEASON_RANGE_PRESET.FULL_SEASON]: {
-    startWeek: NFL_REGULAR_SEASON_RANGE.startWeek,
-    endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
-  },
-} as const satisfies Record<PickemSeasonRangePreset, NflSeasonRange>;
+const nflResolvedRangeFields = {
+  startWeek: nflRegularWeekRef,
+  endWeek: nflRegularWeekRef,
+};
+const rangeOrderCheck = (s: { startWeek: { number: number }; endWeek: { number: number } }) =>
+  s.endWeek.number >= s.startWeek.number;
+const rangeOrderRule = {
+  message: "End week must be at or after the start week.",
+  path: ["endWeek"],
+};
 
 /**
- * The create form's and the settings editor's shared availability answer
- * (`GET /pickem/season-range-presets`, `GET
- * /leagues/{leagueId}/pickem/season-range-presets`): which presets the
- * relevant season can still start, and that season's year. `seasonYear` is
- * `null` only when no NFL season has been ingested at all — reachable from
- * the create-form endpoint, never the league-scoped one (a league always has
- * a bound season). A fresh component, not a `.nullable()` wrap of an
- * already-registered schema (engineering rules §Contract & codegen — the
- * wrapper would inherit the registration and widen every other `$ref` to it).
- */
-export const PickemSeasonRangePresetsResponseSchema = z
-  .object({
-    seasonYear: z.number().nullable(),
-    startablePresets: z.array(PickemSeasonRangePresetSchema),
-  })
-  .openapi("PickemSeasonRangePresetsResponse");
-
-export type PickemSeasonRangePresetsResponse = z.infer<
-  typeof PickemSeasonRangePresetsResponseSchema
->;
-
-/**
- * Stored Pick'em settings: the commissioner's preset *and* the concrete week
- * refs it resolved to at the moment the setting was written (ADR-0020 §The
- * resolved range is stored, not re-derived). The refs are kept because
+ * Stored Pick'em settings: the concrete week refs the server resolved at the
+ * moment the setting was written (ADR-0020's mid-week resolution rule, applied
+ * to the fixed regular-season range by ADR-0031). The refs are stored because
  * `leagueStartAt`, the join cutoff, `nflSeasonOrdinal` range checks and
- * `pickemSettingsInvalidatePicks` all compute on them — none of them needed to
- * learn about presets.
+ * `pickemSettingsInvalidatePicks` all compute on them.
  */
 export const PickemSettingsSchema = z
   .object({
-    seasonRangePreset: PickemSeasonRangePresetSchema,
-    startWeek: NflWeekRefSchema,
-    endWeek: NflWeekRefSchema,
+    ...nflResolvedRangeFields,
     pickType: PickTypeSchema,
     picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
   })
-  .refine((s) => nflSeasonOrdinal(s.endWeek) >= nflSeasonOrdinal(s.startWeek), {
-    message: "End week must be at or after the start week in season order.",
-    path: ["endWeek"],
-  })
+  .refine(rangeOrderCheck, rangeOrderRule)
   .openapi("PickemSettings");
 
 export type PickemSettings = z.infer<typeof PickemSettingsSchema>;
 
 /**
- * Wire shape for a Pick'em settings write — the preset, and no week refs
- * (ADR-0020 §The wire shape diverges from the stored shape). The omission is
- * the point: a client that cannot name `startWeek`/`endWeek` cannot dictate the
- * range the server resolves against the season and the clock, and no stripping
- * step on the write path can be forgotten.
+ * Wire shape for a Pick'em settings write: the pick rules, and no week refs —
+ * Pick'em is regular-season only (ADR-0031), so its one legal range is
+ * implicit in the mode and the server resolves the concrete refs it stores
+ * against the bound season and the clock, exactly as Survivor's input works
+ * (ADR-0024). The omission is the point: a client that cannot name
+ * `startWeek`/`endWeek` cannot dictate the range, and no stripping step on the
+ * write path can be forgotten. Stray keys are stripped rather than refused —
+ * load-bearing for `seasonRangePreset`, which clients sent until ADR-0031.
  */
 export const PickemSettingsInputSchema = z
   .object({
-    seasonRangePreset: PickemSeasonRangePresetSchema,
     pickType: PickTypeSchema,
     picksPerWeek: z.number().int().min(1).max(MAX_PICKS_PER_WEEK).default(5),
   })
@@ -222,10 +173,16 @@ export type PickemSettingsInput = z.infer<typeof PickemSettingsInputSchema>;
  *   picks and can never submit again, so a raise would strand them permanently
  *   undersized with no re-submit path. Clearing their picks re-opens the week,
  *   which is the only outcome that leaves every member able to comply;
- * - narrowing the week range orphans picks in weeks no longer in the league.
+ * - advancing the start week orphans a pick in a week the league no longer
+ *   plays. The range is re-resolved server-side on every pre-start settings
+ *   write (ADR-0031, applying ADR-0024's rule), so a save can move the start
+ *   forward without the commissioner ever naming a week.
  *
- * Widening the week range is the one edit that strands nothing: every existing
- * pick still sits in a week the league plays.
+ * There is no narrowing-end clause: the end week is fixed at regular week 18
+ * (ADR-0031) with no path that lowers it, so the clause would be inert — a
+ * clause that can never be true reads as protection the code does not
+ * actually provide (the same reasoning `survivorSettingsInvalidatePicks`
+ * records below).
  */
 export function pickemSettingsInvalidatePicks(
   previous: PickemSettings,
@@ -234,71 +191,40 @@ export function pickemSettingsInvalidatePicks(
   return (
     previous.pickType !== next.pickType ||
     next.picksPerWeek !== previous.picksPerWeek ||
-    nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek) ||
-    nflSeasonOrdinal(next.endWeek) < nflSeasonOrdinal(previous.endWeek)
+    nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek)
   );
 }
 
 /**
- * On a straight-up tie in Survivor (spec §Survivor League Settings): advance
- * with the team consumed (default), or eliminate. A tie is the only push the
- * setting can be asked about — Survivor is straight-up only (ADR-0026), so
- * there is no spread for a pick to land exactly on.
- */
-export const SURVIVOR_PUSH_TIE_RESOLUTION = {
-  ADVANCE: "advance",
-  ELIMINATE: "eliminate",
-} as const;
-
-export type SurvivorPushTieResolution =
-  (typeof SURVIVOR_PUSH_TIE_RESOLUTION)[keyof typeof SURVIVOR_PUSH_TIE_RESOLUTION];
-
-export const SurvivorPushTieResolutionSchema = z
-  .enum(SURVIVOR_PUSH_TIE_RESOLUTION)
-  .openapi("SurvivorPushTieResolution");
-
-/**
  * Survivor is regular-season only (spec §Survivor Core Rules) — the
  * week refs still carry `type` so both NFL modes' settings address weeks with
- * one shape, but only the regular member is admitted.
+ * one shape, but only the regular member is admitted. The resolved range is
+ * the whole of the stored settings: Pick Type went with ADR-0026, and the
+ * Push/Tie Resolution was fixed at its default — a tie advances with the team
+ * consumed — by ADR-0033, so no rule knob remains.
  */
 export const SurvivorSettingsSchema = z
-  .object({
-    startWeek: nflRegularWeekRef,
-    endWeek: nflRegularWeekRef,
-    pushTieResolution: SurvivorPushTieResolutionSchema.default(
-      SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-    ),
-  })
-  .refine((s) => s.endWeek.number >= s.startWeek.number, {
-    message: "End week must be at or after the start week.",
-    path: ["endWeek"],
-  })
+  .object(nflResolvedRangeFields)
+  .refine(rangeOrderCheck, rangeOrderRule)
   .openapi("SurvivorSettings");
 
 export type SurvivorSettings = z.infer<typeof SurvivorSettingsSchema>;
 
 /**
- * Wire shape for a Survivor settings write (ADR-0024): the push/tie rule, and
- * nothing else — no season range, and since ADR-0026 no pick type either.
- * Unlike Pick'em's input there is no preset field — Survivor is regular-season
- * only (ADR-0007), so its one legal range is implicit in the mode and the
- * server resolves the concrete refs it stores against the bound season and the
- * clock.
+ * Wire shape for a Survivor settings write: nothing at all. The season range
+ * is resolved server-side (ADR-0024), the pick type is fixed by the mode
+ * (ADR-0026), and the push/tie rule is fixed at advance-with-team-consumed
+ * (ADR-0033) — a Survivor league has no rule left for a commissioner to
+ * choose.
  *
  * As with Pick'em's input, the omission is the point and stray keys are simply
- * stripped: a client cannot dictate the range either way, so refusing the
- * request buys no safety the omission hasn't already bought — it only turns a
- * client that is merely out of date into a failed league creation. That is now
- * load-bearing for `pickType` too, which clients sent until ADR-0026.
+ * stripped: a client cannot dictate any of the above, so refusing the request
+ * buys no safety the omission hasn't already bought — it only turns a client
+ * that is merely out of date into a failed league creation. That is now
+ * load-bearing for `pushTieResolution` too, which clients sent until
+ * ADR-0033 (and `pickType` before it, until ADR-0026).
  */
-export const SurvivorSettingsInputSchema = z
-  .object({
-    pushTieResolution: SurvivorPushTieResolutionSchema.default(
-      SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-    ),
-  })
-  .openapi("SurvivorSettingsInput");
+export const SurvivorSettingsInputSchema = z.object({}).openapi("SurvivorSettingsInput");
 
 export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
 
@@ -318,13 +244,12 @@ export type SurvivorSettingsInput = z.infer<typeof SurvivorSettingsInputSchema>;
  * save whose wire body is byte-identical to the stored settings.
  *
  * Three Pick'em clauses have no counterpart here, and their absence is decided
- * rather than overlooked. Push/Tie Resolution is read by settlement at grading
- * time, so no stored pick becomes ungradeable when it changes. Survivor has no
- * Pick Type to switch: it is straight-up only (ADR-0026), so no stored pick can
- * be left needing a spread it never captured. And the end week is fixed at
- * regular week 18 (ADR-0024) with no path that lowers it, so a narrowing-end
- * clause would be inert — a clause that can never be true reads as protection
- * the code does not actually provide.
+ * rather than overlooked. Survivor has no rule settings left to change at all —
+ * Pick Type is fixed by the mode (ADR-0026) and Push/Tie Resolution at its
+ * default (ADR-0033) — so no stored pick can be stranded by a rule edit. And
+ * the end week is fixed at regular week 18 (ADR-0024) with no path that lowers
+ * it, so a narrowing-end clause would be inert — a clause that can never be
+ * true reads as protection the code does not actually provide.
  */
 export function survivorSettingsInvalidatePicks(
   previous: SurvivorSettings,
@@ -333,40 +258,17 @@ export function survivorSettingsInvalidatePicks(
   return nflSeasonOrdinal(next.startWeek) > nflSeasonOrdinal(previous.startWeek);
 }
 
-export const MARCH_MADNESS_SCORING_MODEL = {
-  STANDARD_DOUBLING: "standard_doubling",
-  CUSTOM: "custom",
-} as const;
-
-export type MarchMadnessScoringModel =
-  (typeof MARCH_MADNESS_SCORING_MODEL)[keyof typeof MARCH_MADNESS_SCORING_MODEL];
-
-export const MarchMadnessScoringModelSchema = z
-  .enum(MARCH_MADNESS_SCORING_MODEL)
-  .openapi("MarchMadnessScoringModel");
-
-const marchMadnessBaseSettings = {
-  maxBracketsPerMember: z.number().int().min(1).max(10).default(5),
-};
-
 /**
- * Custom scoring sets each round's per-correct-pick value independently
- * (spec §MM League Settings): six values, R64 → Championship, any
- * non-negative integer. `roundValues` exists only under the custom model so
- * a standard-doubling league can't carry stale round values.
+ * Scoring is standard doubling only — the Custom per-round-values model was
+ * cut before the mode was built (ADR-0034), so the round values live as
+ * constants in the future scoring module, not here. Stray keys from the
+ * retired shape (`scoringModel`, `roundValues`) are stripped, matching how
+ * every other retired setting ages out.
  */
 export const MarchMadnessSettingsSchema = z
-  .discriminatedUnion("scoringModel", [
-    z.object({
-      ...marchMadnessBaseSettings,
-      scoringModel: z.literal(MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING),
-    }),
-    z.object({
-      ...marchMadnessBaseSettings,
-      scoringModel: z.literal(MARCH_MADNESS_SCORING_MODEL.CUSTOM),
-      roundValues: z.array(z.number().int().min(0)).length(6),
-    }),
-  ])
+  .object({
+    maxBracketsPerMember: z.number().int().min(1).max(10).default(5),
+  })
   .openapi("MarchMadnessSettings");
 
 export type MarchMadnessSettings = z.infer<typeof MarchMadnessSettingsSchema>;
@@ -399,10 +301,10 @@ export type LeagueSettingsInput =
  * Wire-side dispatch, the counterpart to `LEAGUE_SETTINGS_SCHEMAS`: the schema
  * a settings *request* must satisfy. Both NFL modes' entries differ from the
  * stored map, because both have their season range resolved server-side rather
- * than chosen — Pick'em from a preset (ADR-0020), Survivor from the one range
- * its mode allows (ADR-0024). March Madness has no season range at all, so it
- * accepts exactly what it stores and its wire and stored schemas are the same
- * object rather than a duplicate that could drift.
+ * than chosen — each mode's one legal range is the regular season (ADR-0024,
+ * ADR-0031). March Madness has no season range at all, so it accepts exactly
+ * what it stores and its wire and stored schemas are the same object rather
+ * than a duplicate that could drift.
  */
 export const LEAGUE_SETTINGS_INPUT_SCHEMAS = {
   [LEAGUE_MODE.PICKEM]: PickemSettingsInputSchema,

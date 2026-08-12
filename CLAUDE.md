@@ -17,7 +17,7 @@ pnpm workspaces monorepo · Vite + React + TanStack Router/Query/Form SPA · Hon
 
 ## Layout (target — scaffolded in FND-1)
 
-`apps/web` SPA (incl. static rules guide) · `apps/api` Hono app (routes, jobs, sim) · `packages/schemas` Zod DTOs + per-mode league settings · `packages/db` Drizzle schema/migrations · `packages/scoring` pure settlement functions · `packages/core` Clock service, `GameDataProvider`, ESPN/simulated providers, env config · `openapi/` committed generated spec + web client.
+`apps/web` SPA (incl. static rules guide; `prerender/` renders the public routes to static HTML at build — ADR-0039) · `apps/api` Hono app (routes, jobs, sim) · `packages/schemas` Zod DTOs + per-mode league settings · `packages/db` Drizzle schema/migrations · `packages/scoring` pure settlement functions · `packages/html-shell` shared rewrites of the built `index.html` · `packages/core` Clock service, `GameDataProvider`, ESPN/simulated providers, env config · `openapi/` committed generated spec + web client.
 
 ## Working here
 

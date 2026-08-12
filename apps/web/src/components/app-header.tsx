@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { MenuIcon } from "lucide-react";
+import { MenuIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { useMe } from "@/api/me";
@@ -10,7 +11,6 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { SimClockBanner } from "@/components/sim-clock-banner";
 import { UserIdentity } from "@/components/user-identity";
@@ -20,6 +20,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -109,7 +111,7 @@ export function AppHeader() {
                 inactiveProps={navLinkInactiveProps}
                 activeProps={navLinkActiveProps}
               >
-                Discover
+                Browse
               </Link>
               {me.data?.isAdmin && (
                 <Link
@@ -136,7 +138,6 @@ export function AppHeader() {
           </div>
           <div className="flex items-center gap-2">
             <MobileNav />
-            <ThemeToggle />
             <SessionMenu />
           </div>
         </div>
@@ -188,7 +189,7 @@ function MobileNav() {
             activeProps={navLinkActiveProps}
             onClick={() => setOpen(false)}
           >
-            Discover
+            Browse
           </Link>
           {me.data?.isAdmin && (
             <Link
@@ -256,6 +257,11 @@ function MobileNav() {
 
 function SessionMenu() {
   const { data: session } = authClient.useSession();
+  // Theme selection lives in this menu rather than as its own top-bar control
+  // (FB-14, owner's call): it's a set-and-forget account preference, not a
+  // per-visit action worth permanent header real estate. No SSR pass, so
+  // next-themes' `theme` is already correct on first paint.
+  const { theme, setTheme } = useTheme();
   // The avatar comes from /me, not from `session.user.image`: that column is
   // the provider's, and Better Auth's session knows nothing about the member's
   // override (ADR-0022), so reading it here would show the provider photo to
@@ -297,6 +303,27 @@ function SessionMenu() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>Profile</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {/* Label nested in a Group on purpose — this dropdown-menu is the Base
+            UI flavor, and a bare GroupLabel throws at runtime. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Theme</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+            <DropdownMenuRadioItem value="light">
+              <SunIcon />
+              Light
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="dark">
+              <MoonIcon />
+              Dark
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="system">
+              <MonitorIcon />
+              System
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={async () => {
             // Navigate regardless of the result: /sign-in's beforeLoad bounces a

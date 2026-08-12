@@ -1,0 +1,20 @@
+# Without this file the SPA fallback answers /robots.txt with an HTML document
+# and a 200 (LNCH-14).
+#
+# Only the routes in apps/web/prerender/routes.ts serve real content; every
+# other path returns the empty app shell, so there is nothing to gain by
+# hiding them and nothing to index if a crawler tries. The two Disallows below
+# are the exceptions worth stating.
+
+User-agent: *
+Allow: /
+
+# An invite URL is a capability, not a page: it unfurls with its league's name
+# (ADR-0038), so it must never end up in a search index.
+Disallow: /join/
+
+# Nothing to index, and a sign-in page in search results is a dead end.
+Disallow: /sign-in
+Disallow: /claim-username
+
+Sitemap: https://www.picksleagues.com/sitemap.xml

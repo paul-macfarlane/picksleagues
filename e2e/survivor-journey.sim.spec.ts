@@ -177,9 +177,13 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     return board.getByTestId("survivor-board-row").filter({ hasText: displayName });
   }
 
-  function historyEntry(row: Locator, weekIndex: number): Locator {
+  // A member's pick for a week, wherever the board put it: the current week
+  // lives at the row level (FB-26), previous weeks behind the history
+  // disclosure — both carry the same data-week/data-team identity.
+  function pickEntry(row: Locator, weekIndex: number): Locator {
+    const week = weeks[weekIndex]!.id;
     return row.locator(
-      `[data-testid="survivor-history-entry"][data-week="${weeks[weekIndex]!.id}"]`,
+      `[data-testid="survivor-history-entry"][data-week="${week}"], [data-testid="survivor-current-pick"][data-week="${week}"]`,
     );
   }
 
@@ -241,14 +245,11 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     // value (`mode-survivor`) land on Base UI's visually-hidden form input, not
     // on the control a member clicks, so addressing those clicks nothing.
     await page1.getByRole("radio", { name: "NFL Survivor" }).click();
-    // The mode's fieldset appearing is how this knows the radio took, and the
-    // push/tie rule is the only setting Survivor's form still offers — no season
-    // range (ADR-0024) and no pick type (ADR-0026), which is exactly what having
-    // just this one control on screen proves.
-    const pushTie = page1.getByRole("radio", { name: "Advance (team consumed)" });
-    await expect(pushTie).toBeVisible();
-    await pushTie.click();
-    await expect(pushTie).toBeChecked();
+    // The mode's fieldset appearing is how this knows the radio took. Survivor
+    // offers no settings at all — no season range (ADR-0024), no pick type
+    // (ADR-0026), no push/tie rule (ADR-0033) — so the read-only range line is
+    // what proves the fieldset swapped.
+    await expect(page1.getByRole("heading", { name: "Survivor settings" })).toBeVisible();
 
     await page1.locator("#name").fill(leagueName);
     await page1.getByRole("button", { name: "Create league" }).click();
@@ -306,7 +307,7 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
       "data-settled",
       "false",
     );
-    await expect(historyEntry(boardRow(preBoard, name3), 0)).not.toHaveAttribute("data-team", /./);
+    await expect(pickEntry(boardRow(preBoard, name3), 0)).not.toHaveAttribute("data-team", /./);
 
     await playOutWeek(0, 1);
 
@@ -333,10 +334,10 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
 
     // Every game has kicked off, so every pick is revealed — including the two
     // the viewer doesn't own, which is the reveal this week exists to show.
-    await expect(historyEntry(out, 0)).toHaveAttribute("data-team", "SF");
-    await expect(historyEntry(boardRow(board, name2), 0)).toHaveAttribute("data-team", "KC");
+    await expect(pickEntry(out, 0)).toHaveAttribute("data-team", "SF");
+    await expect(pickEntry(boardRow(board, name2), 0)).toHaveAttribute("data-team", "KC");
     const own = boardRow(board, name1);
-    await expect(historyEntry(own, 0)).toHaveAttribute("data-team", "BUF");
+    await expect(pickEntry(own, 0)).toHaveAttribute("data-team", "BUF");
     await expect(
       own.locator('[data-testid="survivor-consumed-team"][data-team="BUF"]'),
     ).toBeVisible();

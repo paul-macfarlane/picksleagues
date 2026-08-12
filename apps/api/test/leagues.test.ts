@@ -6,7 +6,6 @@ import {
   LEAGUE_STATUS,
   MEMBER_ROLE,
   PICKEM_PICK_SIDE,
-  PICKEM_SEASON_RANGE_PRESET,
   PICK_TYPE,
   SPORT,
   WEEK_TYPE,
@@ -30,14 +29,13 @@ import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app, appAfterKickoff, appAtKickoff } = makeLeagueTestHarness();
 
-// The Pick'em wire shape names a season-range preset and no week refs
-// (ADR-0020); the server resolves the range it stores.
+// The Pick'em wire shape names no range at all (ADR-0031); the server
+// resolves the regular-season range it stores.
 const VALID_PICKEM_BODY = {
   mode: "pickem",
   name: "The Gridiron Gang",
   visibility: "private",
   settings: {
-    seasonRangePreset: "regular_season",
     pickType: "straight_up",
   },
 };
@@ -147,7 +145,7 @@ describe("POST /api/leagues", () => {
     expect(memberRows[0]).toMatchObject({ userId: user.id, role: "commissioner" });
   });
 
-  it("derives startsAt as null when no week in the preset's range has ingested games", async () => {
+  it("derives startsAt as null when no week in the league's range has ingested games", async () => {
     // Weeks exist, kickoffs don't — resolution has nothing to advance past, so
     // the nominal start stands and no start boundary is derivable yet.
     await seedSeason(db, {
@@ -181,12 +179,8 @@ describe("POST /api/leagues", () => {
 
   it.each([
     {
-      label: "unknown season range preset",
-      settings: { seasonRangePreset: "weeks_4_to_15", pickType: "straight_up" },
-    },
-    {
-      label: "no season range preset",
-      settings: { pickType: "straight_up" },
+      label: "no pick type",
+      settings: {},
     },
     {
       label: "unknown pick type",
@@ -247,12 +241,11 @@ describe("POST /api/leagues", () => {
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as LeagueResponse;
-    // The range is the server's answer, not the request's (ADR-0024); the
-    // push/tie default is the schema's.
+    // The range is the server's answer, not the request's (ADR-0024); nothing
+    // else is chosen at all (ADR-0026/0033).
     expect(body.settings).toMatchObject({
       startWeek: { type: "regular", number: 1 },
       endWeek: { type: "regular", number: 18 },
-      pushTieResolution: "advance",
     });
   });
 
@@ -291,7 +284,7 @@ describe("POST /api/leagues", () => {
       mode: "march_madness",
       name: "Bracket Bash",
       visibility: "public",
-      settings: { scoringModel: "standard_doubling" },
+      settings: { maxBracketsPerMember: 5 },
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "mode_unavailable" });
@@ -550,6 +543,46 @@ describe("GET /api/leagues", () => {
     expect(res.status).toBe(200);
     return (await res.json()) as { leagues: Array<Record<string, unknown>> };
   }
+
+  // FB-28: the dashboard card describes a started league by where it is, and
+  // it can only do that if the server names the week — the card has no week
+  // list to derive one from, and a second derivation could disagree with the
+  // pick screen it links to.
+  describe("currentWeekLabel", () => {
+    it("names the week the league is on", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertLeague(db, {
+        seasonId,
+        name: "Mine",
+        members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+
+      // Both harness clocks sit inside week 1's bounds, before and after its
+      // kickoff — the label is the week, not the kickoff.
+      expect((await readMyLeagues(cookie)).leagues[0]).toMatchObject({
+        currentWeekLabel: "Week 1",
+      });
+      expect((await readMyLeagues(cookie, appAfterKickoff)).leagues[0]).toMatchObject({
+        currentWeekLabel: "Week 1",
+      });
+    });
+
+    it("is null when the season holds no weeks to name", async () => {
+      const { seasonId } = await seedSeason(db, { year: 2026, weeks: [] });
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertLeague(db, {
+        seasonId,
+        name: "Unscheduled",
+        members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+
+      expect((await readMyLeagues(cookie)).leagues[0]).toMatchObject({
+        currentWeekLabel: null,
+        startsAt: null,
+      });
+    });
+  });
 
   describe("survivorPickStatus", () => {
     async function insertSurvivorLeagueFor(seasonId: string, userId: string, name: string) {
@@ -829,43 +862,6 @@ describe("GET /api/leagues", () => {
       expect(body.leagues[0]).toMatchObject({ pickemPickStatus: null });
     });
 
-    it("reports nothing for a Postseason league whose rounds are not seeded yet", async () => {
-      // The production shape of the case above, and the reason it can't be
-      // `locked`: an unseeded playoff round ingests zero games while its week
-      // exists (ADR-0021), so a Postseason-preset league created in the regular
-      // season sits on a gameless wild-card week from creation until January. A
-      // state here would be a claim held for months, not hours.
-      const { seasonId } = await seedSeason(db, {
-        weeks: [
-          {
-            weekNumber: 1,
-            startsAt: GLANCE_WEEK_STARTS,
-            endsAt: GLANCE_WEEK_ENDS,
-            kickoffs: [{ kickoffAt: WEEK1_KICKOFF }],
-          },
-          {
-            weekType: WEEK_TYPE.POSTSEASON,
-            weekNumber: 1,
-            startsAt: new Date("2027-01-09T00:00:00.000Z"),
-            endsAt: new Date("2027-01-16T00:00:00.000Z"),
-            kickoffs: [],
-          },
-        ],
-      });
-      const { user, cookie } = await createAuthenticatedUser(auth);
-      await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
-        settings: {
-          ...DEFAULT_PICKEM_SETTINGS,
-          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
-          startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
-          endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
-        },
-      });
-
-      const body = await readMyLeagues(cookie);
-      expect(body.leagues[0]).toMatchObject({ pickemPickStatus: null });
-    });
-
     it("still asks for picks in an ATS week whose lines have not landed yet", async () => {
       // Games are unstarted and unpriced: the week is waiting on the odds sync,
       // which is what its pick screen says too — not a week that has closed. The
@@ -882,17 +878,16 @@ describe("GET /api/leagues", () => {
     });
 
     it("reports nothing for a league whose season holds no week it plays at all", async () => {
-      // One step further than the two above: not a gameless week, but no week
-      // in range for the frame to resolve — a playoffs-only league over a season
-      // ingested only through the regular season.
+      // One step further than the case above: not a gameless week, but no week
+      // in range for the frame to resolve — a league whose stored range starts
+      // past everything ingested (a provisional-season shape).
       const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
       const { user, cookie } = await createAuthenticatedUser(auth);
       await insertPickemLeagueFor(seasonId, user.id, "Pickem", {
         settings: {
           ...DEFAULT_PICKEM_SETTINGS,
-          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON,
-          startWeek: { type: WEEK_TYPE.POSTSEASON, number: 1 },
-          endWeek: { type: WEEK_TYPE.POSTSEASON, number: 4 },
+          startWeek: { type: WEEK_TYPE.REGULAR, number: 10 },
+          endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         },
       });
 

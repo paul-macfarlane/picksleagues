@@ -1,6 +1,7 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
+  games,
   isUniqueViolation,
   survivorPickResults,
   survivorPicks,
@@ -8,6 +9,7 @@ import {
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   type LeagueStatus,
@@ -23,6 +25,8 @@ import { getMembership } from "../leagues/authz";
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import { resolveUserImage } from "../users";
+import { resolveGameOverrides } from "../games";
+import { isWeekInsidePickWindow } from "../league-weeks";
 import { getWeek, loadResolvedWeekGames, resolveLockStates } from "../slate";
 import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
 
@@ -57,6 +61,7 @@ export const SURVIVOR_REFUSAL = {
   TEAM_CONSUMED: "team_consumed",
   MEMBER_ELIMINATED: "member_eliminated",
   PICK_LOCKED: "pick_locked",
+  WEEK_NOT_OPEN: "week_not_open",
 } as const;
 
 export type SurvivorRefusal = (typeof SURVIVOR_REFUSAL)[keyof typeof SURVIVOR_REFUSAL];
@@ -141,6 +146,79 @@ async function isWeekInRange(
   const week = await getWeek(db, weekId);
   if (!week || week.seasonId !== seasonId) return false;
   return isSurvivorRangeWeek(week, settings);
+}
+
+/**
+ * Whether the member's pick for the current week has resolved without
+ * eliminating them — the condition that opens the next week (spec §Game Mode 2
+ * — Pick window; ADR-0036). Derived from the picked game's terminal state
+ * rather than from settlement rows, because Survivor settles week-atomically
+ * (ADR-0025): waiting on a result row would hold the window shut until the
+ * whole week finishes, when the owner's rule is that *your* Sunday win opens
+ * next week on the spot.
+ *
+ * A loss reads closed even though the everyone-out revival may later bring the
+ * member back: revival is a whole-week answer only settlement can give, and by
+ * the time it lands the next week is at most the tail of the current one from
+ * becoming current on its own. A missed pick likewise stays closed — there is
+ * nothing to resolve. Final-without-scores is the provider fault an admin score
+ * override corrects (arch §Overrides); until then it is unresolved, not a free
+ * unlock.
+ */
+async function hasCurrentWeekResolvedForMember(
+  db: Db,
+  leagueSeasonId: string,
+  membershipId: string,
+  currentWeekId: string,
+): Promise<boolean> {
+  const [pick] = await db
+    .select({ gameId: survivorPicks.gameId, teamId: survivorPicks.teamId })
+    .from(survivorPicks)
+    .where(
+      and(
+        eq(survivorPicks.leagueSeasonId, leagueSeasonId),
+        eq(survivorPicks.leagueMemberId, membershipId),
+        eq(survivorPicks.weekId, currentWeekId),
+      ),
+    );
+  if (!pick) return false;
+
+  const [gameRow] = await db.select().from(games).where(eq(games.id, pick.gameId));
+  if (!gameRow) return false;
+  const game = resolveGameOverrides(gameRow);
+
+  // A cancellation pushes and hands the team back — the member advances (spec
+  // §Game Mode 2 — Cancelled game).
+  if (game.status === GAME_STATUS.CANCELLED) return true;
+  if (game.status !== GAME_STATUS.FINAL) return false;
+  if (game.homeScore === null || game.awayScore === null) return false;
+
+  const pickedHome = pick.teamId === gameRow.homeTeamId;
+  const own = pickedHome ? game.homeScore : game.awayScore;
+  const opposing = pickedHome ? game.awayScore : game.homeScore;
+  // A tie advances with the team consumed (ADR-0033), so >= is the test.
+  return own >= opposing;
+}
+
+/** Survivor's binding of the shared window gate to its range clip and unlock. */
+function isWeekInPickWindow(
+  db: Db,
+  clock: Clock,
+  context: Pick<SurvivorContext, "leagueSeasonId" | "seasonId" | "membershipId" | "settings">,
+  weekId: string,
+): Promise<boolean> {
+  return isWeekInsidePickWindow(db, clock, {
+    seasonId: context.seasonId,
+    targetWeekId: weekId,
+    playsWeek: (week) => isSurvivorRangeWeek(week, context.settings),
+    hasCurrentWeekResolvedForMember: (currentWeekId) =>
+      hasCurrentWeekResolvedForMember(
+        db,
+        context.leagueSeasonId,
+        context.membershipId,
+        currentWeekId,
+      ),
+  });
 }
 
 /** The member ids settlement has eliminated. A member with no row is alive. */
@@ -258,9 +336,15 @@ export async function getSurvivorWeekPicks(
       ),
     );
 
+  const pickWindowOpen = await isWeekInPickWindow(db, clock, context.value, weekId);
+
   return {
     ok: true,
-    value: { members: serialized, consumedTeamIds: consumed.map((row) => row.teamId) },
+    value: {
+      members: serialized,
+      consumedTeamIds: consumed.map((row) => row.teamId),
+      pickWindowOpen,
+    },
   };
 }
 
@@ -327,6 +411,14 @@ export async function submitSurvivorPick(
     // rule may be about to bring back. A pick landed in the window simply
     // grades to nothing.
     if (state?.eliminatedWeekId) return SURVIVOR_REFUSAL.MEMBER_ELIMINATED;
+
+    // After the personal refusal above on purpose — an eliminated member
+    // picking a far-off week is told they are out, not that the week is closed
+    // (the same ranking ADR-0027 §4 applies to conclusion). Inside the
+    // transaction because the window is clock-derived like the locks below.
+    if (!(await isWeekInPickWindow(tx, clock, preflight.value, weekId))) {
+      return SURVIVOR_REFUSAL.WEEK_NOT_OPEN;
+    }
 
     // Re-read the slate inside the transaction: a kickoff can have moved between
     // the pre-flight read and here, and it is load-bearing (arch §Locking Model

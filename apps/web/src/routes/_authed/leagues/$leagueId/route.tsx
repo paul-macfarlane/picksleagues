@@ -61,12 +61,12 @@ function LeagueLayout() {
               <Link
                 to="/leagues/$leagueId"
                 params={{ leagueId }}
-                // `includeSearch: false` because the Overview tab owns a `?week=`
-                // search param (the standings period). Router compares search
-                // alongside the path by default, and `exact` makes that
-                // comparison a full equality — so selecting any non-default
-                // period left the tab reading as inactive on the very route it
-                // was on. The tab marks the section, and the section is the path.
+                // `includeSearch: false`: the tab marks the section, and the
+                // section is the path. Router compares search alongside the
+                // path by default and `exact` makes that a full equality — so
+                // a stale deep link still carrying the retired `?week=`
+                // standings-scope param (ADR-0035) would read as "not on
+                // Overview" on the very route it's on.
                 activeOptions={{ exact: true, includeSearch: false }}
                 {...tabLinkProps}
               >

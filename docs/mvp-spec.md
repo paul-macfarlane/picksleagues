@@ -2,7 +2,7 @@
 
 **Status:** Draft for review
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), and ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime) are reflected in the rules below.
+**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle), ADR-0033 (Survivor's Push/Tie Resolution setting is removed, fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all), and ADR-0034 (March Madness scoring is Standard Doubling only and the pre-deadline seed-correction wipe is an admin-by-hand procedure — both cut before the mode was built) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -53,15 +53,16 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 
 ### Invites
 - Any commissioner generates invite links containing an opaque code, **pre-start only** — once the league starts no new link can be minted, because the join cutoff below would refuse every use of it. (ADR-0029)
-- Links may optionally have an expiry and/or max-use cap.
+- A link is a bare opaque code: no expiry, no use cap. Revocation (below) is its only lifecycle — nobody handing a link to friends sets an expiry, and the leak case was already answered by revocation. (ADR-0032)
 - Visiting a link while signed out routes through sign-in and back to the join screen.
+- A pasted link **previews as an invitation**, naming the league, its mode, and the spots left, so a link in a group thread reads as an invite from a friend rather than as an advert for the app. A revoked or unknown code previews generically — it must not report whether a code was ever real. This is the one read in the product answered without a session, and its scope is exactly those fields; see ADR-0038 for what that discloses and why the bound is where it is.
 - Any commissioner can revoke an outstanding invite link at any time, including after the league has started — a link minted pre-start outlives the start, so killing a leaked one has to stay possible for as long as the link does. (ADR-0029)
 - Invite links work for public leagues too (they're just an alternate path to the same join).
 
 ### Membership
 - League size: **2 minimum, 100 maximum**.
 - Join cutoff: no joins once the league's first week has started (NFL modes) or once the first Round of 64 game has tipped (March Madness). Enforced automatically; not configurable.
-  - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
+  - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020's rule, kept by ADR-0031), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
 - A league that never reaches 2 members by its start simply proceeds; standings with one member are valid but trivially uninteresting. No auto-cancellation.
 - Leaving: a member may leave a league **pre-start only** — once the league starts, membership is frozen and there is no mid-season leaving. The last commissioner of a league with other members must promote a replacement before leaving; a commissioner who is the only member deletes the league instead. (ADR-0004)
 
@@ -85,7 +86,11 @@ Once a league starts: membership and settings are frozen except cosmetics, commi
 A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. Eliminated players (Survivor mode) retain identical visibility rights to active players.
 
 ### Public Discovery
-A browse page listing public leagues that have not passed their join cutoff, with **search by league name**. Each entry shows: name, game mode, member count, start week (or tournament year), and a join button. No filters, categories, or recommendations.
+A browse page listing public leagues that have not passed their join cutoff and are not already full, with **search by league name** and a **filter by game mode**. Each entry shows: name, game mode (given visual prominence — it is the attribute that decides whether a member wants the league at all), member count against the cap and the spots remaining, start week (or tournament year), the mode's member-facing settings summary, and a join button.
+
+The settings summary is per mode and is a *chosen* subset, never the stored settings: Pick'em shows pick type and picks per week — the two settings that decide what the league asks of a member each week — and Survivor shows none, having no member-facing configurable setting. A member must be able to tell what they are signing up for before they join.
+
+Entries are ordered by **remaining space, fullest first** (creation order as the tiebreak), so a league close to playing fills before an empty one, and are served **10 per page**. No categories or recommendations — the two filters run over data the list already carries, and nothing here is editorial. (ADR-0037.)
 
 ---
 
@@ -94,21 +99,20 @@ A browse page listing public leagues that have not passed their join cutoff, wit
 A season-long league where members compete to build the best record picking NFL games each week, on both a weekly and a cumulative season leaderboard.
 
 ### League Settings
-1. **Season Range** — one of three presets: **Regular Season** (regular season weeks 1–18), **Postseason** (Wild Card, Divisional, Conference Championship, Super Bowl), or **Full Season** (regular season week 1 through the Super Bowl)
-2. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
-3. **Picks Per Week** — 1–16 (default 5)
+1. **Pick Type** — Straight Up (SU) or Against the Spread (ATS); applies to all picks all season
+2. **Picks Per Week** — 1–16 (default 5)
 
-The chosen preset is resolved to a concrete start week and end week **when the league is created** — and again if a commissioner changes it while the league is still pre-start, since settings lock at league start (§Commissioner Powers). Once the league starts, the range it resolved to is fixed. A league created after the preset's first week has already begun starts instead at the next week whose first kickoff is still ahead — so a league is never born already-started. (ADR-0020)
+**Pick'em has no season-range setting.** The mode is regular-season only, so the regular season is the only range it can ever run, and a control offering one option is not a choice. The league's week range is instead resolved server-side when settings are written — regular-season week 1 through week 18, advanced past any week already under way so the league is never born already-started — and stored as the concrete week refs the join cutoff and settlement compute on. Once the league starts, the range it resolved to is fixed. Commissioners see the resolved range read-only. (ADR-0031, applying ADR-0020's mid-week resolution rule the same way ADR-0024 does for Survivor.)
 
 ### Core Rules
-- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night; in leagues whose season range extends into the playoffs, each playoff round's slate is eligible in its week. Preseason and the Pro Bowl are never eligible.
-- **Playoff weeks have small slates** (Wild Card 6 games → Super Bowl 1); the fewer-games rule below applies naturally — in a week with fewer available games than Picks Per Week, everyone picks every available game.
+- Each week, every member submits **one set of picks** — the week's full required set, in a single submission — from the current week's NFL slate. All of the week's games are eligible, including Thursday night. Preseason, the playoffs, and the Pro Bowl are never eligible — Pick'em is regular-season only (ADR-0031).
 - Members choose their own games; overlap with other members is not required.
 - **Fewer games than Picks Per Week:** if the week's slate has fewer available games than the configured count, all members pick every available game that week.
 - **One submission per week, and it is final.** A week's picks go in together, in one submission, behind a confirmation stating that it cannot be undone. Once it lands, no pick in that week can be changed, replaced, or removed — there is no second submission and no editing. A misclick is permanent for that week.
 - **Locking:** each pick locks independently at its game's kickoff — the moment it becomes visible to the rest of the league and, for a member who has not submitted yet, the moment its game drops out of what they can still pick.
 - **ATS spread acceptance:** in ATS leagues, the member accepts the spreads shown at submission time, on the whole set, in the one write that creates it. Spreads cannot be selectively frozen, because there is only ever one write. SU leagues have no spread dependency.
 - **Missed/partial weeks:** a submission must be the **full required set** for the week, which is Picks Per Week or the number of games still unlocked and pickable at the moment of submission, whichever is smaller. A member who submits after some of the week's games have kicked off submits a full set of what can still be picked; the games that already locked are forgone and score nothing. A member who never submits scores zero for the week — there is no auto-submission and no default entry. This is deliberately **not** a weekly deadline: locking stays per game, and submitting late costs picks rather than the week.
+- **Pick window:** only the current week can be submitted — or the next week, once every game in the member's current-week submission has finished. A member who never submitted waits for the week to turn over. A current week holding no games opens the next week for everyone — there is nothing in it to resolve. Picking further ahead is refused (ADR-0036).
 
 ### Scoring
 | Outcome | Points |
@@ -140,7 +144,8 @@ Two parallel leaderboards:
 A survivor pool. Each week, every member picks one team to win **straight up**. Correct → advance. Incorrect or no pick → eliminated. Last member standing wins.
 
 ### League Settings
-1. **Push/Tie Resolution** — on a tie: member advances and the team is consumed (default), or member is eliminated
+
+**Survivor has no league settings.** Every rule that was once a setting is fixed by the mode: on a tie the member **advances and the team is consumed** — the game was played, so the team is spent, and NFL ties are too rare (one or two a season) to earn a knob (ADR-0033, which retired the Push/Tie Resolution setting at that default). The remaining fixed rules are below.
 
 **Survivor has no Pick Type setting.** The mode is straight up only, so a pick carries no spread and there is nothing to accept at pick time. Picks stay changeable until kickoff (below), and against-the-spread grading is priced at pick time — the two together would let a member re-pick the same team purely to be re-graded against a friendlier line, which rewards refreshing rather than picking. Pick'em keeps its own Pick Type, because its week is a single immutable submission and has no second write to shop with. (ADR-0026.)
 
@@ -151,6 +156,7 @@ A survivor pool. Each week, every member picks one team to win **straight up**. 
 - One pick per week per member. Each member has exactly **one life** — a single incorrect pick eliminates.
 - **Team reuse:** a member may pick each NFL team at most once per league. Consumed teams are unavailable for that member's future weeks.
 - Picks can be made or changed until the picked game's kickoff, and become visible to the league at kickoff.
+- **Pick window:** only the current week can be picked — or the next week, once the member's current-week pick has resolved without eliminating them (a win, a tie, or a cancellation's push). A loss or a missed pick opens nothing; the next week becomes pickable when it becomes current. A current week holding no games opens the next week for everyone — there is nothing in it to resolve (ADR-0036).
 - **Missed pick:** the member is eliminated (resolved at settlement after the week completes).
 - **Everyone eliminated in the same week:** all members eliminated that week are revived and continue. (Applies regardless of elimination cause — wrong picks, missed picks, or a mix.)
 - **Cancelled game:** pick resolves as a push — the member survives and the team is **not** consumed (available for future use). A game the provider moves to another week is not a modelled event in either NFL mode (ADR-0019); an admin corrects it with a `cancelled` status override, which lands here.
@@ -174,8 +180,9 @@ A bracket pool for the NCAA Men's Basketball Tournament. Members submit brackets
 
 ### League Settings
 1. **Max Brackets Per Member** — 1–10 (default 5)
-2. **Scoring Model** — Standard Doubling (default) or Custom (commissioner sets each round's per-correct-pick value independently; any non-negative integer)
-3. **Visibility** — Public or Private (global rule, listed here because pools are created per tournament)
+2. **Visibility** — Public or Private (global rule, listed here because pools are created per tournament)
+
+**There is no Scoring Model setting.** Scoring is Standard Doubling for every pool — a friends' pool doesn't tune per-round values, and the Custom model was cut before the mode was built (ADR-0034).
 
 ### Bracket Structure
 - The tournament field is 68 teams; the **First Four is not picked**. Picks open once all First Four games conclude and the 64-team field is set.
@@ -190,7 +197,7 @@ A bracket pool for the NCAA Men's Basketball Tournament. Members submit brackets
 - A member with no submitted bracket by the deadline has no entry.
 
 ### Scoring
-**Standard Doubling (default):**
+**Standard Doubling:**
 | Round | Points per correct pick |
 | --- | --- |
 | Round of 64 | 1 |
@@ -200,7 +207,7 @@ A bracket pool for the NCAA Men's Basketball Tournament. Members submit brackets
 | Final Four | 16 |
 | Championship | 32 |
 
-**Custom:** commissioner-configured per-round values. A pick is correct if the picked team wins that game, regardless of path (a team picked to reach a round via one opponent still scores if it arrives via another).
+A pick is correct if the picked team wins that game, regardless of path (a team picked to reach a round via one opponent still scores if it arrives via another).
 
 ### Standings
 Single cumulative pool leaderboard, updating as games complete. One row **per bracket** (a member with multiple brackets appears once per bracket, with member name shown). No per-round reset.
@@ -216,7 +223,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 ### Edge Cases
 - Identical brackets (same 63 picks, same score prediction) are allowed and tie completely.
 - Original Selection Committee seeds and pairings are used throughout; there is no re-seeding.
-- If the app publishes an incorrect seed/region that is corrected **before** the deadline: all brackets are wiped and members are prompted to resubmit. After the deadline, seedings are frozen for scoring.
+- If the app publishes an incorrect seed/region that is corrected **before** the deadline: an admin handles it by hand — correcting the data and telling affected members to resubmit — rather than an automated wipe-and-resubmit flow (ADR-0034; a once-a-tournament case at this scale). After the deadline, seedings are frozen for scoring.
 - A game postponed within the tournament resolves normally when played.
 
 ---
@@ -232,9 +239,9 @@ When brackets tie on points: closest **absolute difference** between the Champio
 
 ## Screens (MVP inventory)
 
-- **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked); create + discover entry points
-- **Discovery** — public league browse + name search
-- **League home** — standings (primary view: weekly/season toggle for Pick'em, the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
+- **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked), each card naming when the league starts or, once it has, the week it is on; the create and browse entry points sit together here, since getting into a league is one job with two answers
+- **Discovery** — public league browse, name search, and mode filter (ADR-0037)
+- **League home** — standings (primary view: season standings for Pick'em (ADR-0035 — weekly boards live on the League Picks screen), the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
 - **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
 
@@ -296,7 +303,7 @@ Acceptance bar: every scoring rule and edge case in this spec is reproducible in
 
 ## Explicitly Out of Scope (MVP)
 
-Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges outside the three season-range presets · Survivor against-the-spread picks
+Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor extension weeks ("continue until one winner") · March Madness upset & perfect-round bonuses · other game modes (H2H, App-Wide Pick'em, Win Total Pool, Franchise Pool, App-Wide Bracket) · email of any kind · push notifications & deadline reminders · native mobile apps · custom avatars · league chat/comments · historical season archives · configurable join cutoffs · cross-league pick accuracy stats · real-time score updates · Pick'em pick editing after submission · Pick'em cancellation re-picks · a configurable Pick'em push/tie value · custom Pick'em week ranges (the regular season is the only range — ADR-0031) · Survivor against-the-spread picks
 
 ## Decisions Log
 
@@ -306,10 +313,13 @@ Confidence scoring · Money Pick · Survivor lives > 1 · Buy-back · Survivor e
 | Cancellation re-picks | Shipped, then removed (ADR-0018); a cancelled game's pick pushes and the push stands |
 | Pick'em pick entry | One submission per week, confirmed and immutable (ADR-0018) |
 | Pick'em push value and ties | Fixed at +0.5, no setting; tied members share the rank with no tiebreaker (ADR-0018) |
-| Pick'em season range | Three presets — Regular Season, Postseason, Full Season — resolved to concrete weeks at league creation; custom ranges dropped (ADR-0020) |
+| Pick'em season range | No range setting — regular-season only; the server resolves and stores the range (ADR-0031, which retired ADR-0020's three presets) |
 | Game Mode 2 name | Ships as **NFL Survivor**, the industry-standard term; called "Elimination" in the original v0.3 text (ADR-0023) |
 | Survivor season range | No range setting — the server resolves and stores a regular-season range (ADR-0024) |
 | Survivor pick type | Straight up only; the Pick Type setting removed, since changeable picks plus pick-time spreads reward refreshing (ADR-0026) |
+| Survivor push/tie | Fixed at advance-with-team-consumed; the Push/Tie Resolution setting removed — NFL ties are too rare to earn a knob (ADR-0033) |
+| MM scoring model | Standard Doubling only; the Custom per-round-values setting cut before the mode was built (ADR-0034) |
+| MM seed-correction wipe | Admin-by-hand procedure, not an automated wipe-and-resubmit flow (ADR-0034) |
 | Survivor lives | Fixed at 1; buy-back deferred |
 | Survivor end-of-league | Co-winners share rank; no extension weeks |
 | MM bonuses (upset, perfect round) | Deferred |

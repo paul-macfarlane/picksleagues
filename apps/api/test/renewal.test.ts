@@ -9,7 +9,6 @@ import {
   LEAGUE_VISIBILITY,
   MEMBER_ROLE,
   PICK_TYPE,
-  PICKEM_SEASON_RANGE_PRESET,
   SPORT,
   WEEK_TYPE,
   type LeagueResponse,
@@ -26,7 +25,6 @@ const { db, auth, app } = makeLeagueTestHarness();
 // Distinct settings so "copied verbatim" is a real assertion, not a match
 // against the default fixture.
 const CUSTOM_SETTINGS: LeagueSettings = {
-  seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
@@ -265,7 +263,6 @@ describe("Survivor's resolved range across a renewal", () => {
     // new season's first still-ahead week.
     const res = await patchLeagueSettings(cookie, league.id, {
       pickType: PICK_TYPE.STRAIGHT_UP,
-      pushTieResolution: "advance",
     });
     expect(res.status).toBe(200);
 

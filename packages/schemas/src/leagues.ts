@@ -50,8 +50,8 @@ export const MaxMembersSchema = z.number().int().min(2).max(MAX_LEAGUE_SIZE).ope
  * discriminated union makes an invalid mode/settings pairing unrepresentable
  * rather than a service-layer check. Both NFL modes take their *input* schema:
  * neither request carries week refs, because the server resolves the range it
- * stores — Pick'em from a season-range preset (ADR-0020), Survivor from the
- * one range its mode allows (ADR-0024).
+ * stores — each mode's one legal range is the regular season (ADR-0024,
+ * ADR-0031).
  */
 export const CreateLeagueRequestSchema = z
   .discriminatedUnion("mode", [
@@ -173,6 +173,19 @@ export const LeagueSummarySchema = z
     maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     startsAt: z.iso.datetime().nullable(),
+    /**
+     * The label of the week the league is on right now ("Week 5", "Wild Card"),
+     * server-resolved so the card names the same week the pick screen it links
+     * to does. Null for a mode with no season range and before a season's weeks
+     * are ingested.
+     *
+     * Carried alongside `startsAt` rather than replacing it because the card
+     * needs both: a league that hasn't started is described by when it will,
+     * and one that has is described by where it is — a card still announcing a
+     * start date the season is months past is what this field exists to fix
+     * (FB-28).
+     */
+    currentWeekLabel: z.string().nullable(),
     // See LeagueResponse.renewable — drives the dashboard "New season available"
     // badge without an extra per-league fetch.
     renewable: z.boolean(),

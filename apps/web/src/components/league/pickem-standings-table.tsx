@@ -150,8 +150,8 @@ function SortableHeader({
   );
 }
 
-export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; weekId?: string }) {
-  const standings = usePickemStandings(leagueId, weekId);
+export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
+  const standings = usePickemStandings(leagueId);
   const [sort, setSort] = useState<StandingsSort>(DEFAULT_STANDINGS_SORT);
 
   const rows = sortStandingsRows(standings.data?.rows ?? [], sort);
@@ -179,15 +179,17 @@ export function PickemStandingsTable({ leagueId, weekId }: { leagueId: string; w
           // because the fixed layout never exceeds the container — keep
           // `table-fixed` and the colgroup or that guarantee is gone. The record
           // column is a single "W-L-P" cell for the same reason: three more
-          // numeric columns would not fit, and the widths here are sized for the
-          // sorted column's arrow as well as the label.
+          // numeric columns would not fit. Each narrow width must hold its
+          // label *plus* the active-sort arrow — sized to the label alone, the
+          // header truncates the moment its column is sorted, which is exactly
+          // how the Rank header got clipped (FB-9).
           <div className="overflow-hidden rounded-lg border border-border">
             <Table className="table-fixed">
               <colgroup>
-                <col className="w-14" />
-                <col />
                 <col className="w-16" />
-                <col className="w-14" />
+                <col />
+                <col className="w-18" />
+                <col className="w-18" />
               </colgroup>
               <TableHeader>
                 <TableRow className="bg-muted/50 text-left text-xs font-medium text-muted-foreground">

@@ -1,5 +1,6 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import { ERROR_CODE, type ErrorResponse, type PickemPickSubmission } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
@@ -60,50 +61,6 @@ export function usePickemStandings(leagueId: string, weekId?: string) {
 }
 
 /**
- * The create form's answer: which ADR-0020 presets the latest ingested NFL
- * season can still start. Session-gated, not league-scoped — any authed user
- * may reach the create form. No league to key by, so the key is fixed.
- */
-export function pickemSeasonRangePresetsQueryKey() {
-  return ["pickem", "season-range-presets"];
-}
-
-export function usePickemSeasonRangePresets() {
-  return useQuery({
-    queryKey: pickemSeasonRangePresetsQueryKey(),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/pickem/season-range-presets");
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-/**
- * The settings editor's answer: which presets the league's own bound season
- * can still start (which may not be the latest ingested season — ADR-0009).
- */
-export function leaguePickemSeasonRangePresetsQueryKey(leagueId: string) {
-  return ["league", leagueId, "pickem", "season-range-presets"];
-}
-
-export function useLeaguePickemSeasonRangePresets(leagueId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: leaguePickemSeasonRangePresetsQueryKey(leagueId),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/leagues/{leagueId}/pickem/season-range-presets", {
-        params: { path: { leagueId } },
-      });
-      if (error) throw error;
-      return data;
-    },
-    // Same gate as usePickemPickSummary below: only a commissioner editing a
-    // pre-start Pick'em league needs this.
-    enabled,
-  });
-}
-
-/**
  * The settings editor's pre-save warning input: how much a Pick'em-invalidating
  * settings edit would destroy. Its own query key (not folded into the league
  * query) since it's fetched conditionally and on a different cadence — every
@@ -155,6 +112,8 @@ function pickSubmissionErrorMessage(error: ErrorResponse): string {
       return "That game has no spread posted yet — it can't be picked until the line is up.";
     case ERROR_CODE.GAME_NOT_PICKABLE:
       return "One of those games was cancelled and can't be picked.";
+    case ERROR_CODE.WEEK_NOT_OPEN:
+      return "That week isn't open for picks yet — it opens once all of your current picks resolve.";
     case ERROR_CODE.WEEK_OUT_OF_RANGE:
       return "This week is outside the league's pick range.";
     default:
@@ -196,7 +155,14 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
         // Their picks are already in; refetching is what shows them, since the
         // week's own submitted view is the honest answer to "why was that
         // refused".
-        if (response.status === 409 && error.error === ERROR_CODE.ALREADY_SUBMITTED) {
+        if (
+          response.status === 409 &&
+          (error.error === ERROR_CODE.ALREADY_SUBMITTED ||
+            // The window fact (`pickWindowOpen`) lives on the same response,
+            // and this refusal means the screen's copy of it is stale
+            // (ADR-0036).
+            error.error === ERROR_CODE.WEEK_NOT_OPEN)
+        ) {
           await queryClient.invalidateQueries({
             queryKey: pickemWeekPicksQueryKey(leagueId, weekId),
           });
@@ -207,7 +173,7 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toast.success("Picks submitted");
+      toastSuccess("Picks submitted");
       await queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) });
     },
     onError: () => toast.error("Couldn't submit your picks — please try again."),

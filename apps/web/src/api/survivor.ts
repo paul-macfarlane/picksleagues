@@ -1,5 +1,6 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastSuccess } from "@/lib/toast";
 import {
   ERROR_CODE,
   type ErrorResponse,
@@ -85,6 +86,8 @@ function survivorPickErrorMessage(error: ErrorResponse): string {
       return "You've already used that team this season — each team can only be picked once.";
     case ERROR_CODE.MEMBER_ELIMINATED:
       return "You've been eliminated, so you can't make any more picks.";
+    case ERROR_CODE.WEEK_NOT_OPEN:
+      return "That week isn't open for picks yet — it opens once your current pick resolves.";
     case ERROR_CODE.LEAGUE_CONCLUDED:
       return "This league has concluded, so its picks are closed.";
     case ERROR_CODE.WEEK_OUT_OF_RANGE:
@@ -136,7 +139,11 @@ export function useSubmitSurvivorPick(leagueId: string, weekId: string) {
         // facts live.
         if (
           error.error === ERROR_CODE.TEAM_CONSUMED ||
-          error.error === ERROR_CODE.MEMBER_ELIMINATED
+          error.error === ERROR_CODE.MEMBER_ELIMINATED ||
+          // The window fact (`pickWindowOpen`) also lives on the week's own
+          // picks response, and this refusal means the screen's copy of it is
+          // stale (ADR-0036).
+          error.error === ERROR_CODE.WEEK_NOT_OPEN
         ) {
           await queryClient.invalidateQueries({
             queryKey: survivorWeekPicksQueryKey(leagueId, weekId),
@@ -148,7 +155,7 @@ export function useSubmitSurvivorPick(leagueId: string, weekId: string) {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toast.success("Pick saved");
+      toastSuccess("Pick saved");
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: survivorWeekPicksQueryKey(leagueId, weekId),

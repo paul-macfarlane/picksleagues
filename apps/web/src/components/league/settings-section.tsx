@@ -2,30 +2,23 @@ import { useState } from "react";
 import { Field } from "@base-ui/react/field";
 import { toast } from "sonner";
 import {
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_INPUT_SCHEMAS,
-  MARCH_MADNESS_SCORING_MODEL,
   MAX_LEAGUE_SIZE,
   PICK_TYPE,
-  PICKEM_NOMINAL_RANGE,
   LeagueNameSchema,
   pickemSettingsInvalidatePicks,
-  type SurvivorPushTieResolution,
   type LeagueResponse,
   type LeagueVisibility,
-  type MarchMadnessScoringModel,
   type PickType,
-  type PickemSeasonRangePreset,
   type PickemSettings,
   type PickemSettingsInput,
+  type SurvivorSettingsInput,
   type UpdateLeagueRequest,
 } from "@picksleagues/schemas";
 import {
-  DEFAULT_PICKEM_SEASON_RANGE,
   SurvivorSettingsFields,
   MarchMadnessSettingsFields,
-  PICKEM_SEASON_RANGE_OPTIONS,
   PickemSettingsFields,
   RadioField,
   VISIBILITY_OPTIONS,
@@ -47,7 +40,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
-import { useLeaguePickemSeasonRangePresets, usePickemPickSummary } from "@/api/pickem";
+import { usePickemPickSummary } from "@/api/pickem";
 import {
   survivorSettingsOf,
   marchMadnessSettingsOf,
@@ -146,48 +139,16 @@ function SettingsForm({
   // and nothing below reads this unless it's true.
   const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
 
-  // The editor's answer: which presets the league's own bound season can
-  // still start (LG-9), which may not be the latest ingested season
-  // (ADR-0009). Filter only, no fallback and no empty state: a pre-start
-  // league's stored preset is provably still in this set (its stored start
-  // week's first kickoff is by definition still ahead), and once started,
-  // the Field.Root disable below already owns the whole fieldset. Pending or
-  // failed both fall back to the unfiltered list, same as the create form.
-  const seasonRangePresets = useLeaguePickemSeasonRangePresets(
-    league.id,
-    isPickem && canEdit && !started,
-  );
-  const pickemSeasonRangeOptions = seasonRangePresets.data
-    ? PICKEM_SEASON_RANGE_OPTIONS.filter((option) =>
-        seasonRangePresets.data.startablePresets.includes(option.value),
-      )
-    : PICKEM_SEASON_RANGE_OPTIONS;
-
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
   // branching the hooks themselves on it would violate rules-of-hooks.
-  const [pickemSeasonRange, setPickemSeasonRange] = useState<PickemSeasonRangePreset>(
-    pickemSettings?.seasonRangePreset ?? DEFAULT_PICKEM_SEASON_RANGE,
-  );
   const [pickemPickType, setPickemPickType] = useState<PickType>(
     pickemSettings?.pickType ?? PICK_TYPE.STRAIGHT_UP,
   );
   const [pickemPicksPerWeek, setPickemPicksPerWeek] = useState(pickemSettings?.picksPerWeek ?? 5);
 
-  const [survivorPushTie, setSurvivorPushTie] = useState<SurvivorPushTieResolution>(
-    survivorSettings?.pushTieResolution ?? SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
-  );
-
   const [mmMaxBrackets, setMmMaxBrackets] = useState(
     marchMadnessSettings?.maxBracketsPerMember ?? 5,
-  );
-  const [mmScoringModel, setMmScoringModel] = useState<MarchMadnessScoringModel>(
-    marchMadnessSettings?.scoringModel ?? MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
-  );
-  const [mmRoundValues, setMmRoundValues] = useState<number[]>(
-    marchMadnessSettings?.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-      ? marchMadnessSettings.roundValues
-      : [0, 0, 0, 0, 0, 0],
   );
 
   const nameParsed = LeagueNameSchema.safeParse(name);
@@ -218,29 +179,23 @@ function SettingsForm({
   // value only ever governs whether the client shows a warning first.
   let wouldInvalidatePicks = false;
   if (isPickem) {
-    // The draft's range is the *chosen preset's nominal* range, never the
-    // stored refs: a save re-resolves the preset server-side (ADR-0020), so
-    // carrying the stored refs through would answer "nothing strands" while the
-    // server narrows the range and clears every pick — the exact silent
-    // destructive save this warning exists to prevent.
-    //
-    // Nominal is exact here, not an approximation, because settings only edit
-    // pre-start: the stored start week's first kickoff is by definition still
-    // ahead, so the server's resolved start can only be the stored start or the
-    // nominal one, never some week in between that this would miss.
-    const nominal = PICKEM_NOMINAL_RANGE[pickemSeasonRange];
-    const draft: PickemSettings = {
-      seasonRangePreset: pickemSeasonRange,
-      startWeek: nominal.startWeek,
-      endWeek: nominal.endWeek,
-      pickType: pickemPickType,
-      picksPerWeek: pickemPicksPerWeek,
-    };
-    // What actually goes on the wire carries no week refs (ADR-0020 §The wire
-    // shape diverges from the stored shape) — the draft's refs exist only to
-    // ask the invalidation question above.
+    // The draft carries the *stored* refs unchanged: no field here moves the
+    // range (ADR-0031 — the mode is regular-season only, and a save re-resolves
+    // the refs server-side against the clock), so the range clauses of the
+    // predicate are identity here and only the pick-rule clauses can fire. The
+    // server-side start re-resolution this can't predict is the same
+    // browser-can't-know caveat Survivor documents below.
+    const draft: PickemSettings | null = pickemSettings
+      ? {
+          startWeek: pickemSettings.startWeek,
+          endWeek: pickemSettings.endWeek,
+          pickType: pickemPickType,
+          picksPerWeek: pickemPicksPerWeek,
+        }
+      : null;
+    // What actually goes on the wire carries no week refs (ADR-0031, matching
+    // ADR-0024) — the draft's refs exist only to ask the invalidation question.
     assembledSettings = {
-      seasonRangePreset: pickemSeasonRange,
       pickType: pickemPickType,
       picksPerWeek: pickemPicksPerWeek,
     } satisfies PickemSettingsInput;
@@ -249,44 +204,29 @@ function SettingsForm({
     // is materialized identically here and there — no `??` fallback restating
     // one, which is what would silently drift the day a default changes.
     settingsDirty = pickemSettings
-      ? pickemSeasonRange !== pickemSettings.seasonRangePreset ||
-        pickemPickType !== pickemSettings.pickType ||
+      ? pickemPickType !== pickemSettings.pickType ||
         pickemPicksPerWeek !== pickemSettings.picksPerWeek
       : true;
-    wouldInvalidatePicks = pickemSettings
-      ? pickemSettingsInvalidatePicks(pickemSettings, draft)
-      : true;
+    wouldInvalidatePicks =
+      pickemSettings && draft ? pickemSettingsInvalidatePicks(pickemSettings, draft) : true;
   } else if (isSurvivor) {
-    // No range on the wire (ADR-0024) — and none in the dirty check either: a
-    // save re-resolves the stored refs server-side against the clock, so the
-    // range is never something this form has an opinion about.
-    assembledSettings = { pushTieResolution: survivorPushTie };
-    settingsDirty = survivorSettings
-      ? survivorPushTie !== survivorSettings.pushTieResolution
-      : true;
+    // A Survivor settings request is empty (ADR-0024/0026/0033) — nothing on
+    // this form can express a Survivor rule, so the fieldset is never dirty
+    // unless the stored blob failed to parse, in which case a save lets the
+    // commissioner write a valid one back.
+    assembledSettings = {} satisfies SurvivorSettingsInput;
+    settingsDirty = survivorSettings ? false : true;
     // `wouldInvalidatePicks` stays false, and that is a statement about the
     // form rather than about the mode. Survivor's one invalidating change is an
     // advanced start week (`survivorSettingsInvalidatePicks`), and no field here
     // moves it: the server re-resolves the range against *its* clock, so
     // whether a save strands a pick is not something this browser can know
     // before asking. The server still clears (or 409s) correctly — this warning
-    // was only ever advisory, and with Pick Type gone (ADR-0026) there is no
-    // longer a Survivor change it can honestly predict.
+    // was only ever advisory.
   } else {
-    assembledSettings =
-      mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM
-        ? {
-            maxBracketsPerMember: mmMaxBrackets,
-            scoringModel: mmScoringModel,
-            roundValues: mmRoundValues,
-          }
-        : { maxBracketsPerMember: mmMaxBrackets, scoringModel: mmScoringModel };
+    assembledSettings = { maxBracketsPerMember: mmMaxBrackets };
     settingsDirty = marchMadnessSettings
-      ? mmMaxBrackets !== marchMadnessSettings.maxBracketsPerMember ||
-        mmScoringModel !== marchMadnessSettings.scoringModel ||
-        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          marchMadnessSettings.scoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          JSON.stringify(mmRoundValues) !== JSON.stringify(marchMadnessSettings.roundValues))
+      ? mmMaxBrackets !== marchMadnessSettings.maxBracketsPerMember
       : true;
   }
 
@@ -304,10 +244,7 @@ function SettingsForm({
   const hasInvalidNumberField =
     numberFieldInvalid(maxMembers, 2, MAX_LEAGUE_SIZE) ||
     (isPickem && numberFieldInvalid(pickemPicksPerWeek, 1, 16)) ||
-    (isMarchMadness &&
-      (numberFieldInvalid(mmMaxBrackets, 1, 10) ||
-        (mmScoringModel === MARCH_MADNESS_SCORING_MODEL.CUSTOM &&
-          mmRoundValues.some((roundValue) => numberFieldInvalid(roundValue, 0)))));
+    (isMarchMadness && numberFieldInvalid(mmMaxBrackets, 1, 10));
 
   // Once started, only the name axis is still editable — a
   // dirty lockable field left over from the same minute the window closed
@@ -372,9 +309,9 @@ function SettingsForm({
       if (visibilityDirty) body.visibility = visibility;
       if (maxMembersDirty) body.maxMembers = maxMembers;
       if (settingsDirty) {
-        // The *input* map, not the stored one: Pick'em's request shape is the
-        // preset without the week refs the server resolves (ADR-0020), and the
-        // two other modes map to the same schema in both.
+        // The *input* map, not the stored one: both NFL modes' request shapes
+        // omit the week refs the server resolves (ADR-0024/0031); March
+        // Madness maps to the same schema in both.
         const parsedSettings =
           LEAGUE_SETTINGS_INPUT_SCHEMAS[league.mode].safeParse(assembledSettings);
         if (!parsedSettings.success) {
@@ -434,9 +371,7 @@ function SettingsForm({
 
         {isPickem && (
           <PickemSettingsFields
-            seasonRange={pickemSeasonRange}
-            onSeasonRangeChange={setPickemSeasonRange}
-            seasonRangeOptions={pickemSeasonRangeOptions}
+            seasonRange={pickemSettings ?? undefined}
             pickType={pickemPickType}
             onPickTypeChange={setPickemPickType}
             picksPerWeek={pickemPicksPerWeek}
@@ -444,24 +379,12 @@ function SettingsForm({
           />
         )}
 
-        {isSurvivor && (
-          <SurvivorSettingsFields
-            seasonRange={survivorSettings ?? undefined}
-            pushTie={survivorPushTie}
-            onPushTieChange={setSurvivorPushTie}
-          />
-        )}
+        {isSurvivor && <SurvivorSettingsFields seasonRange={survivorSettings ?? undefined} />}
 
         {isMarchMadness && (
           <MarchMadnessSettingsFields
             maxBrackets={mmMaxBrackets}
             onMaxBracketsChange={setMmMaxBrackets}
-            scoringModel={mmScoringModel}
-            onScoringModelChange={setMmScoringModel}
-            roundValues={mmRoundValues}
-            onRoundValueChange={(index, next) =>
-              setMmRoundValues((prev) => prev.map((value, i) => (i === index ? next : value)))
-            }
           />
         )}
       </Field.Root>

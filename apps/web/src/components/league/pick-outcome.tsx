@@ -50,6 +50,22 @@ export function pickOutcomeButtonClassName(outcome: PickOutcome): string {
   return PICK_OUTCOME_DISPLAY[outcome].button;
 }
 
+/**
+ * The left rule on a pick row, coloured by how the pick graded (FB-42) — what
+ * lets a member scan a week's worth of rows instead of reading each one.
+ *
+ * **Redundant by design.** The rule repeats what the row's badge already says
+ * in a glyph and a word, exactly so the same colour-never-alone rule this
+ * module is built on still holds: strip the colour and nothing is lost. An
+ * ungraded pick keeps the neutral border rather than losing its rule, so rows
+ * stay the same width whatever state they're in.
+ */
+export function pickOutcomeAccentClassName(outcome: PickOutcome | null): string {
+  if (outcome === PICK_OUTCOME.CORRECT) return "border-l-success";
+  if (outcome === PICK_OUTCOME.INCORRECT) return "border-l-destructive";
+  return "border-l-border";
+}
+
 export function PickOutcomeIcon({ outcome }: { outcome: PickOutcome }) {
   const { Icon } = PICK_OUTCOME_DISPLAY[outcome];
   return <Icon aria-hidden="true" />;

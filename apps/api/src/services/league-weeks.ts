@@ -6,8 +6,10 @@ import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   isWeekInSeasonRange,
+  type LeagueMode,
   type LeagueWeek,
   type LeagueWeeksResponse,
+  type NflSeasonRange,
   type WeekType,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "./leagues/current-season";
@@ -64,7 +66,10 @@ export async function listLeagueWeeks(
     .leftJoin(games, eq(games.weekId, weeks.id))
     .where(eq(weeks.seasonId, current.season.seasonId))
     .groupBy(weeks.id)
-    .orderBy(asc(weeks.startsAt));
+    // Week number as tiebreak, matching `listSeasonWeeksInRange` and
+    // `resolveLeagueWeekFrames` — under a startsAt tie a divergent order would
+    // hand the positional current-week fallback a different row per surface.
+    .orderBy(asc(weeks.startsAt), asc(weeks.weekNumber));
 
   // Clipped in app code rather than SQL: the ordinal is a domain rule
   // (postseason follows week 18) that `isWeekInSeasonRange` owns, and no SQL
@@ -114,6 +119,188 @@ export function resolveCurrentWeekId(
   if (upcoming) return upcoming.id;
 
   return rows[rows.length - 1]?.id ?? null;
+}
+
+/**
+ * Where a requested week sits relative to the member pick window (spec §Game
+ * Mode 1/2 — Pick window; ADR-0036): the current week is always inside it, the
+ * week immediately after is conditionally inside it (each mode owns the unlock
+ * condition), weeks further ahead are `closed`, and weeks already played are
+ * `behind`. Positional on the caller's own in-range rows, so the "next" week is
+ * the next week *this league plays*, not the next on the calendar.
+ *
+ * `behind` is distinguished from `closed` because the two mean opposite things
+ * to a reader: a closed week will open later and the UI says so, while a behind
+ * week is history whose pickability is entirely the per-game kickoff locks'
+ * story — folding them together painted "not open yet" over every completed
+ * week a member browsed back to.
+ */
+export type WeekWindowPosition =
+  | { position: "current" }
+  | { position: "next"; currentWeekId: string }
+  | { position: "behind" }
+  | { position: "closed" };
+
+export function resolveWeekWindowPosition(
+  rows: ReadonlyArray<{ id: string; startsAt: Date; endsAt: Date }>,
+  clock: Clock,
+  targetWeekId: string,
+): WeekWindowPosition {
+  const currentWeekId = resolveCurrentWeekId(rows, clock);
+  if (currentWeekId === null) return { position: "closed" };
+  if (targetWeekId === currentWeekId) return { position: "current" };
+
+  const currentIndex = rows.findIndex((row) => row.id === currentWeekId);
+  const targetIndex = rows.findIndex((row) => row.id === targetWeekId);
+  if (targetIndex !== -1 && targetIndex < currentIndex) return { position: "behind" };
+
+  const next = rows[currentIndex + 1];
+  if (next && next.id === targetWeekId) return { position: "next", currentWeekId };
+
+  return { position: "closed" };
+}
+
+/** A season's week as the current-week derivations read it. */
+export interface SeasonWeekRow {
+  id: string;
+  weekType: WeekType;
+  weekNumber: number;
+  label: string;
+  startsAt: Date;
+  endsAt: Date;
+}
+
+/**
+ * Every named season's weeks in one read, grouped by season and ordered the way
+ * `resolveCurrentWeekId` requires. For callers resolving a current week for
+ * *many* leagues at once (the dashboard): leagues overwhelmingly share a
+ * season, so a query per league would re-read the same ~22 rows per card.
+ */
+export async function loadSeasonWeeks(
+  db: Db,
+  seasonIds: readonly string[],
+): Promise<Map<string, SeasonWeekRow[]>> {
+  const bySeason = new Map<string, SeasonWeekRow[]>();
+  const distinct = [...new Set(seasonIds)];
+  if (distinct.length === 0) return bySeason;
+
+  const rows = await db
+    .select({
+      id: weeks.id,
+      seasonId: weeks.seasonId,
+      weekType: weeks.weekType,
+      weekNumber: weeks.weekNumber,
+      label: weeks.label,
+      startsAt: weeks.startsAt,
+      endsAt: weeks.endsAt,
+    })
+    .from(weeks)
+    .where(inArray(weeks.seasonId, distinct))
+    .orderBy(asc(weeks.startsAt), asc(weeks.weekNumber));
+
+  for (const { seasonId, ...week } of rows) {
+    const bucket = bySeason.get(seasonId);
+    if (bucket) bucket.push(week);
+    else bySeason.set(seasonId, [week]);
+  }
+  return bySeason;
+}
+
+/**
+ * The label of the week a league is currently on — "Week 5", "Wild Card" —
+ * clipped to the weeks that league plays, or null for a mode with no season
+ * range (March Madness) and for a season whose weeks aren't ingested yet.
+ *
+ *
+ * Same `resolveCurrentWeekId` every other surface names a current week with, so
+ * a card can't report a different week than the pick screen it links to. Says
+ * nothing about whether the league has *started*: a pre-start league resolves
+ * to its first week, and the caller decides whether that is what it wants to
+ * show (the dashboard shows the start date there instead — FB-28).
+ */
+export function resolveCurrentWeekLabel(
+  rows: readonly SeasonWeekRow[],
+  league: { mode: LeagueMode; settings: unknown },
+  clock: Clock,
+): string | null {
+  // March Madness has no season range to clip to (its settings carry none), so
+  // there is no "current week" for it to name — not an empty one, an absent
+  // question. Parsed rather than trusted, like every other settings read, so
+  // defaults materialize on rows written before a field existed.
+  if (league.mode !== LEAGUE_MODE.PICKEM && league.mode !== LEAGUE_MODE.SURVIVOR) return null;
+  const range: NflSeasonRange = LEAGUE_SETTINGS_SCHEMAS[league.mode].parse(league.settings);
+  const inRange = rows.filter((row) => isWeekInSeasonRange(row, range));
+  const currentWeekId = resolveCurrentWeekId(inRange, clock);
+  return inRange.find((row) => row.id === currentWeekId)?.label ?? null;
+}
+
+/**
+ * One season's weeks, ordered like every other week list (start instant, week
+ * number as tiebreak) and clipped to the weeks the caller's league plays. The
+ * pick services load their window rows through this so the window position and
+ * the week list can't order weeks differently — a divergence that would move
+ * "next week" itself.
+ */
+async function listSeasonWeeksInRange(
+  db: Db,
+  seasonId: string,
+  playsWeek: (week: { weekType: WeekType; weekNumber: number }) => boolean,
+): Promise<Array<{ id: string; startsAt: Date; endsAt: Date }>> {
+  const rows = await db
+    .select({
+      id: weeks.id,
+      weekType: weeks.weekType,
+      weekNumber: weeks.weekNumber,
+      startsAt: weeks.startsAt,
+      endsAt: weeks.endsAt,
+    })
+    .from(weeks)
+    .where(eq(weeks.seasonId, seasonId))
+    .orderBy(asc(weeks.startsAt), asc(weeks.weekNumber));
+  return rows.filter(playsWeek);
+}
+
+/**
+ * The member pick-window gate (spec §Game Mode 1/2 — Pick window; ADR-0036),
+ * shared by both NFL modes' write paths and read flags so a mode's refusal and
+ * the `pickWindowOpen` its UI rendered can't disagree. The skeleton is
+ * mode-agnostic — current week always inside, next week conditionally, the rest
+ * outside; what "the current week resolved for this member" means is the one
+ * mode-specific part, so it arrives as a callback.
+ *
+ * A current week with no games at all opens the next week for everyone: there
+ * is nothing in it to pick or to resolve, and it exists in-range only through
+ * the start re-resolution window ADR-0031 describes — refusing there would
+ * close pick entry entirely until the empty week's dates pass.
+ */
+export async function isWeekInsidePickWindow(
+  db: Db,
+  clock: Clock,
+  input: {
+    seasonId: string;
+    targetWeekId: string;
+    playsWeek: (week: { weekType: WeekType; weekNumber: number }) => boolean;
+    hasCurrentWeekResolvedForMember: (currentWeekId: string) => Promise<boolean>;
+  },
+): Promise<boolean> {
+  const inRange = await listSeasonWeeksInRange(db, input.seasonId, input.playsWeek);
+  const window = resolveWeekWindowPosition(inRange, clock, input.targetWeekId);
+  if (window.position === "current") return true;
+  // The window only constrains picking *ahead*. A behind week reports inside it
+  // so the read path renders the week's real states (locked picks, missed
+  // picks) instead of a "not open yet" notice that is false in both words —
+  // its writes are refused game by game by the kickoff locks every pick
+  // mutation re-validates (arch D11).
+  if (window.position === "behind") return true;
+  if (window.position === "closed") return false;
+
+  const [gamesInCurrent] = await db
+    .select({ total: count() })
+    .from(games)
+    .where(eq(games.weekId, window.currentWeekId));
+  if ((gamesInCurrent?.total ?? 0) === 0) return true;
+
+  return input.hasCurrentWeekResolvedForMember(window.currentWeekId);
 }
 
 /**

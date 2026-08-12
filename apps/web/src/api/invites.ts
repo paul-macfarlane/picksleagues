@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { CreateInviteRequest } from "@picksleagues/schemas";
+import { toastSuccess } from "@/lib/toast";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
@@ -28,22 +28,21 @@ export function useCreateInvite(leagueId: string) {
   const queryClient = useQueryClient();
   const invitesQueryKey = leagueInvitesQueryKey(leagueId);
   return useMutation({
-    mutationFn: async (body: CreateInviteRequest) => {
+    mutationFn: async () => {
       const { data, error, response } = await api.POST("/api/leagues/{leagueId}/invites", {
         params: { path: { leagueId } },
-        body,
       });
       if (error) {
-        // 409 `league_started` is reachable even with the form disabled: the
+        // 409 `league_started` is reachable even with the button disabled: the
         // window can close between the page's last league read and the submit.
-        toastOnExpectedError(error, response, (status) => status === 400 || status === 409);
+        toastOnExpectedError(error, response, (status) => status === 409);
         return null;
       }
       return data;
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: invitesQueryKey });
-      if (data) toast.success("Invite created");
+      if (data) toastSuccess("Invite created");
     },
     onError: () => toast.error("Couldn't create an invite — please try again."),
   });

@@ -1,23 +1,26 @@
-import { and, count, countDistinct, eq } from "drizzle-orm";
+import { and, count, countDistinct, eq, inArray } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { isUniqueViolation, pickemPickResults, pickemPicks } from "@picksleagues/db";
+import { games, isUniqueViolation, pickemPickResults, pickemPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  GAME_STATUS,
   LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   LEAGUE_STATUS,
   PICK_TYPE,
+  isWeekInSeasonRange,
   nflSeasonOrdinal,
   requiredPickemPickCount,
   type PickemMemberPicks,
   type PickemPickSubmission,
-  type PickemSeasonRangePresetsResponse,
   type PickemPickSummary,
   type LeagueStatus,
   type PickemSettings,
   type PickemWeekPicksResponse,
 } from "@picksleagues/schemas";
+import { resolveGameOverrides } from "../games";
+import { isWeekInsidePickWindow } from "../league-weeks";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
 import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 // Deep import by design: `serialize` is module-public so sibling domains can
@@ -25,7 +28,6 @@ import { authorizeLeagueAction, getMembership } from "../leagues/authz";
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import { resolveUserImage } from "../users";
-import { startablePickemSeasonRangePresets } from "../leagues/season-range";
 import {
   getWeek,
   loadResolvedWeekGames,
@@ -62,6 +64,7 @@ export const PICKEM_REFUSAL = {
   PICK_SET_INCOMPLETE: "pick_set_incomplete",
   ALREADY_SUBMITTED: "already_submitted",
   PICK_LOCKED: "pick_locked",
+  WEEK_NOT_OPEN: "week_not_open",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
   // Only the settings-editor reads (commissioner-gated, see below) can produce
@@ -98,6 +101,7 @@ export type PickemWriteRefusal = Exclude<PickemRefusal, "not_commissioner">;
 
 interface PickemContext {
   leagueSeasonId: string;
+  seasonId: string;
   membershipId: string;
   settings: PickemSettings;
   status: LeagueStatus;
@@ -146,11 +150,80 @@ async function loadContext(
     ok: true,
     value: {
       leagueSeasonId: current.season.id,
+      seasonId: current.season.seasonId,
       membershipId: membership.id,
       settings,
       status: current.season.status,
     },
   };
+}
+
+/**
+ * Whether every game in the member's current-week submission is terminal — the
+ * condition that opens the next week (spec §Game Mode 1 — Pick window;
+ * ADR-0036). Derived from the games' effective states rather than from result
+ * rows, so the window opens when the last of the member's games ends instead of
+ * when the settlement job next runs. A member with no submission has nothing to
+ * resolve and waits for the week to turn over. Final-without-scores is the
+ * provider fault an admin score override corrects; until then it is unresolved.
+ */
+async function hasCurrentWeekResolvedForMember(
+  db: Db,
+  leagueSeasonId: string,
+  membershipId: string,
+  currentWeekId: string,
+): Promise<boolean> {
+  // (leagueMemberId, weekId) is already unique to one instance — the season
+  // scope is redundant but kept so this reads like Survivor's twin query.
+  const picks = await db
+    .select({ gameId: pickemPicks.gameId })
+    .from(pickemPicks)
+    .where(
+      and(
+        eq(pickemPicks.leagueSeasonId, leagueSeasonId),
+        eq(pickemPicks.leagueMemberId, membershipId),
+        eq(pickemPicks.weekId, currentWeekId),
+      ),
+    );
+  if (picks.length === 0) return false;
+
+  const gameRows = await db
+    .select()
+    .from(games)
+    .where(
+      inArray(
+        games.id,
+        picks.map((pick) => pick.gameId),
+      ),
+    );
+  if (gameRows.length !== picks.length) return false;
+
+  return gameRows.every((row) => {
+    const game = resolveGameOverrides(row);
+    if (game.status === GAME_STATUS.CANCELLED) return true;
+    return game.status === GAME_STATUS.FINAL && game.homeScore !== null && game.awayScore !== null;
+  });
+}
+
+/** Pick'em's binding of the shared window gate to its range clip and unlock. */
+function isWeekInPickWindow(
+  db: Db,
+  clock: Clock,
+  context: Pick<PickemContext, "leagueSeasonId" | "seasonId" | "membershipId" | "settings">,
+  weekId: string,
+): Promise<boolean> {
+  return isWeekInsidePickWindow(db, clock, {
+    seasonId: context.seasonId,
+    targetWeekId: weekId,
+    playsWeek: (week) => isWeekInSeasonRange(week, context.settings),
+    hasCurrentWeekResolvedForMember: (currentWeekId) =>
+      hasCurrentWeekResolvedForMember(
+        db,
+        context.leagueSeasonId,
+        context.membershipId,
+        currentWeekId,
+      ),
+  });
 }
 
 /**
@@ -289,16 +362,17 @@ export async function getPickemWeekPicks(
     };
   });
 
-  return { ok: true, value: { weekId, picksAllowed, members: serialized } };
+  const pickWindowOpen = await isWeekInPickWindow(db, clock, context.value, weekId);
+
+  return { ok: true, value: { weekId, picksAllowed, members: serialized, pickWindowOpen } };
 }
 
 /**
- * The refusal set shared by the reads only the settings editor consumes (the
- * pick summary and the season-range availability hint). They have a role axis
- * the member-only `loadContext` gate doesn't — the editor is commissioner-only
- * — so the set names `not_commissioner` alongside the two `loadContext`
- * produces, and never `week_out_of_range`, since neither read is scoped to a
- * week.
+ * The refusal set for the read only the settings editor consumes (the pick
+ * summary). It has a role axis the member-only `loadContext` gate doesn't —
+ * the editor is commissioner-only — so the set names `not_commissioner`
+ * alongside the two `loadContext` produces, and never `week_out_of_range`,
+ * since the read isn't scoped to a week.
  */
 export type PickemSettingsEditorRefusal = Extract<
   PickemRefusal,
@@ -343,41 +417,6 @@ export async function getPickemPickSummary(
   return {
     ok: true,
     value: { pickCount: row?.pickCount ?? 0, memberCount: row?.memberCount ?? 0 },
-  };
-}
-
-/**
- * The settings editor's availability hint (LG-9, ADR-0020): which season-range
- * presets the league's own *bound* season can still start, so a commissioner
- * only sees a preset switch offered when it would not meet the identical
- * `start_week_passed` refusal `updateLeague` gives it on save. Gated and
- * mode-checked exactly like `getPickemPickSummary` above — same role axis,
- * same refusal set — because both are settings-editor-only reads a member has
- * no use for. Answers for `current.season.seasonId`, the same instance
- * `updateLeague` re-resolves against, never the sport's latest season (a
- * league may sit on a non-latest instance, ADR-0009).
- */
-export async function getPickemSeasonRangePresets(
-  db: Db,
-  clock: Clock,
-  leagueId: string,
-  userId: string,
-): Promise<PickemResult<PickemSeasonRangePresetsResponse, PickemSettingsEditorRefusal>> {
-  const gate = await authorizeLeagueAction(db, leagueId, userId, LEAGUE_ACTION.EDIT_SETTINGS);
-  if (!gate.ok) return gate;
-
-  const current = await getLeagueWithCurrentSeason(db, leagueId);
-  if (!current) return { ok: false, reason: PICKEM_REFUSAL.LEAGUE_NOT_FOUND };
-  if (current.league.mode !== LEAGUE_MODE.PICKEM) {
-    return { ok: false, reason: PICKEM_REFUSAL.WRONG_LEAGUE_MODE };
-  }
-
-  return {
-    ok: true,
-    value: {
-      seasonYear: current.season.seasonYear,
-      startablePresets: await startablePickemSeasonRangePresets(db, clock, current.season.seasonId),
-    },
   };
 }
 
@@ -438,6 +477,13 @@ export async function submitPickemPicks(
     // closed gets the honest reason, rather than a stale-spread or lock
     // complaint about a sheet that was never going to be accepted.
     if ((existing?.held ?? 0) > 0) return PICKEM_REFUSAL.ALREADY_SUBMITTED;
+
+    // After the already-submitted refusal for the same honest-reason ordering,
+    // and inside the transaction because the window is clock-derived like the
+    // per-game locks below.
+    if (!(await isWeekInPickWindow(tx, clock, preflight.value, weekId))) {
+      return PICKEM_REFUSAL.WEEK_NOT_OPEN;
+    }
 
     // A full set of what can *still* be picked (ADR-0018 decision 2): sizing
     // against `picksAllowed` instead would ask a member arriving after the

@@ -127,7 +127,7 @@ async function rangePlayedOut(tx: Db, season: SettleableSeason): Promise<boolean
 
   // Scoped to the weeks the league plays rather than the whole season: this runs
   // on the 5-minute incremental path, inside the transaction holding the
-  // league-season lock, and a Postseason-preset league has no business loading
+  // league-season lock, and a mid-season-created league has no business loading
   // eighteen weeks of regular-season games to answer it.
   const gameRows = await tx.select().from(games).where(inArray(games.weekId, inRangeWeekIds));
 

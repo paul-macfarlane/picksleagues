@@ -19,9 +19,7 @@ import {
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
   PICK_TYPE,
-  PICKEM_SEASON_RANGE_PRESET,
   SPORT,
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   WEEK_TYPE,
   type LeagueMode,
   type LeagueSettings,
@@ -41,7 +39,13 @@ export const SEED_AT = new Date("2026-01-01T00:00:00.000Z");
 export interface SeededWeek {
   weekType?: WeekType;
   weekNumber: number;
-  /** Defaults to `SEED_AT` — most callers don't care about the week's own bounds. */
+  /**
+   * Defaults derive from the week's kickoffs (two days before the first to one
+   * day after the last), because the pick window resolves the current week from
+   * these bounds (ADR-0036) — a placeholder bound would make every seeded week
+   * read as already played and close week 1 to picks. A week with no kickoffs
+   * falls back to `SEED_AT`.
+   */
   startsAt?: Date;
   endsAt?: Date;
   /** Kickoffs of the games in this week; empty = week with no games. */
@@ -122,6 +126,15 @@ export async function seedSeason(
   for (const spec of weekSpecs) {
     const weekType = spec.weekType ?? WEEK_TYPE.REGULAR;
     const key = `${weekType}:${spec.weekNumber}`;
+    const kickoffInstants = (spec.kickoffs ?? []).map((game) => game.kickoffAt.getTime());
+    const defaultStartsAt =
+      kickoffInstants.length > 0
+        ? new Date(Math.min(...kickoffInstants) - 2 * 24 * 60 * 60 * 1000)
+        : SEED_AT;
+    const defaultEndsAt =
+      kickoffInstants.length > 0
+        ? new Date(Math.max(...kickoffInstants) + 24 * 60 * 60 * 1000)
+        : SEED_AT;
     const [week] = await db
       .insert(weeks)
       .values({
@@ -129,8 +142,8 @@ export async function seedSeason(
         weekType,
         weekNumber: spec.weekNumber,
         label: `Week ${spec.weekNumber}`,
-        startsAt: spec.startsAt ?? SEED_AT,
-        endsAt: spec.endsAt ?? SEED_AT,
+        startsAt: spec.startsAt ?? defaultStartsAt,
+        endsAt: spec.endsAt ?? defaultEndsAt,
         createdAt: SEED_AT,
         updatedAt: SEED_AT,
       })
@@ -173,7 +186,6 @@ export async function seedSeason(
 }
 
 export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
-  seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
   pickType: PICK_TYPE.STRAIGHT_UP,
@@ -188,7 +200,6 @@ export const DEFAULT_PICKEM_SETTINGS: PickemSettings = {
 export const DEFAULT_SURVIVOR_SETTINGS: SurvivorSettings = {
   startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
   endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
-  pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
 };
 
 /** Four unstarted games, spread an hour apart — a slate long enough to exceed a modest Picks Per Week cap. */

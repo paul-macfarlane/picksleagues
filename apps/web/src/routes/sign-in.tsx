@@ -35,7 +35,10 @@ function SignIn() {
         <CardHeader className="items-center text-center">
           <BrandMark className="mx-auto size-12" />
           <h1 className="text-2xl font-semibold text-foreground">Picks Leagues</h1>
-          <CardDescription>Sports pick&apos;em with friends.</CardDescription>
+          {/* Names the category, not one mode: the product has run Survivor
+              leagues since ELM, and March Madness lands later — a tagline that
+              lists modes goes stale every time one ships (FB-33). */}
+          <CardDescription>Season-long sports leagues with friends.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {/* Colors/border below are Google's mandated Sign-In button treatment, not

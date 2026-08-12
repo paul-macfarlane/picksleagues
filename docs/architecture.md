@@ -66,7 +66,7 @@ Simulator API surface (non-prod only), as built in SIM-1…SIM-6: `GET /sim/stat
 
 Three layers, weighted by where bugs actually live (per Paulitakes experience: e2e catches what unit tests miss):
 
-**1. Unit — `packages/scoring` (exhaustive).** Table-driven tests, one case per rule and edge case in the MVP spec: Pick'em's fixed half-point push, short-week behavior, cancellation-as-push, per-pick margins, shared ranks when members tie on points, Survivor's advance-or-eliminate tie resolution, all-eliminated revival, team-consumption on ties, bracket auto-advance neutrality, the bracket score-prediction tiebreaker, co-winner ties. Pure functions make these trivial to write and fast to run. The spec is the test plan; a spec rule without a test case is a review failure.
+**1. Unit — `packages/scoring` (exhaustive).** Table-driven tests, one case per rule and edge case in the MVP spec: Pick'em's fixed half-point push, short-week behavior, cancellation-as-push, per-pick margins, shared ranks when members tie on points, Survivor's fixed advance-on-tie (ADR-0033), all-eliminated revival, team-consumption on ties, bracket auto-advance neutrality, the bracket score-prediction tiebreaker, co-winner ties. Pure functions make these trivial to write and fast to run. The spec is the test plan; a spec rule without a test case is a review failure.
 
 **2. Integration — API against a real Postgres.** Hono app exercised in-process (no HTTP server needed) against Docker Postgres (locally: the same compose file as dev; in CI: a Postgres service container). Covers what unit tests can't: transaction-level lock validation (409 on post-kickoff mutation), spread staleness rejection, pick visibility filtering, join cutoff and commissioner-cap enforcement, settlement idempotency (run twice, assert identical state), and override precedence (see Manual Sports Data Overrides).
 
@@ -99,6 +99,8 @@ ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status
 **Alternatives:** Next.js full-stack (App Router, server actions/route handlers) · Vite SPA + separate API ✅
 
 Next.js would consolidate hosting and give SSR for free, and route handlers *can* serve a mobile client. But server actions and RSC data flows couple data access to the React tree, working against the API-first constraint — you end up maintaining a parallel "real" API for mobile anyway. Picks Leagues is a logged-in app with no SEO surface, so SSR buys nothing. A pure SPA against an explicit API keeps one contract for all clients. (Also matches stated preference.)
+
+**Amended by ADR-0039:** "no SEO surface" was wrong about the pages that exist to be read *before* signing in — the splash, the legal pages, and the rules guides. Serving them as an empty `<div id="root">` got the app's Google OAuth branding rejected ("your home page does not explain the purpose of your app"), since the reviewer never runs the SPA. Those routes are now prerendered to static HTML at build time (`apps/web/prerender`); the SPA-plus-API shape is unchanged, and no request-time rendering was added.
 
 ### D2. API language: TypeScript over Go
 
@@ -192,11 +194,14 @@ Direct edits create a fight between admin and ingestion. A separate table is rel
 picks-leagues/
 ├── apps/
 │   ├── web/                # Vite SPA (includes static rules-guide content)
+│   │   └── prerender/      # Build-time static render of the public routes (ADR-0039)
 │   └── api/                # Hono app, deployed as Vercel Functions (routes, jobs, sim)
 ├── packages/
 │   ├── schemas/            # Zod schemas: API DTOs + league settings per game mode
 │   ├── db/                 # Drizzle schema, migrations, query helpers
 │   ├── scoring/            # Pure scoring/settlement functions per game mode
+│   ├── html-shell/         # Rewrites of the built index.html, shared by the
+│   │                       #   invite unfurl (ADR-0038) and the prerender (ADR-0039)
 │   └── core/               # Clock service, GameDataProvider interface,
 │                           #   EspnProvider, SimulatedProvider, env config
 └── openapi/                # Generated spec (committed) + generated web client
@@ -242,7 +247,7 @@ leagues                     # identity only: mode discriminator, visibility, nam
 league_seasons              # per-season instance: league FK + season FK (unique pair), settings JSONB
                             #   (per-mode Zod schema), status; a league's newest instance is current
 league_members              # role (commissioner/member), joined_at; ≥1 commissioner per league (ADR-0004)
-league_invites              # invite code, created_by, expires_at?, max_uses?, revoked_at?
+league_invites              # invite code, created_by, revoked_at?, use_count (informational — ADR-0032)
 
 sport_seasons               # NFL 2026, NCAAMB 2027, ...; upcoming season exists (possibly
                             #   provisional, never with fabricated games) before its data (ADR-0009)
@@ -295,7 +300,7 @@ Spec-driven notes:
 
 **Decided:** invite links with codes; no email infrastructure.
 
-- Commissioner generates a link containing an opaque code (`/join/:code`); codes live in `league_invites` with optional expiry and max-use caps
+- Commissioner generates a link containing an opaque code (`/join/:code`); codes live in `league_invites` as bare revocable codes — no expiry, no use cap (ADR-0032)
 - Visiting the link while logged out routes through auth then back to the join flow
 - Public leagues are discoverable and joinable without a code; private leagues require one
 - Join cutoff (first week started / Round of 64 tipped) derived from game timestamps — same query-time pattern as pick locking. Enforced at the join endpoint, and at invite *creation* (ADR-0029), so a commissioner can't mint a link the cutoff would refuse every use of; revoking stays available past the cutoff
@@ -313,9 +318,11 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 | Week moves | **Not modelled** (ADR-0019) | `moved` leaves the game-status set; a real move is an admin `cancelled` override |
 | Buy-back, lives > 1, extension weeks | Deferred | `lives_remaining` default-1 column is the only trace |
 | MM upset / perfect-round bonuses | Deferred | Absent from `MarchMadnessSettings` schema |
-| Push/tie resolution config | Survivor only (ADR-0018) | Pick'em's push is the constant 0.5 inside its scoring function; Survivor keeps its advance-or-eliminate enum in its settings schema, now deciding a straight-up tie alone (ADR-0026) |
+| MM custom scoring model | **Removed** (ADR-0034) | Standard doubling only; `MarchMadnessSettings` is `{ maxBracketsPerMember }` and the doubling table lives as constants in the future `scoreBracket` |
+| MM seed-correction wipe flow | **Removed** (ADR-0034) | A pre-deadline seed correction is an admin-by-hand procedure, not a flow |
+| Push/tie resolution config | **Removed** (ADR-0033) | Pick'em's push is the constant 0.5 inside its scoring function (ADR-0018); Survivor's tie is fixed at advance-with-team-consumed, so neither mode carries a push/tie knob and the Survivor scoring functions take no settings |
 | Survivor Pick Type / ATS | **Removed** (ADR-0026) | No `pickType` in `SurvivorSettings`, no `spread_at_pick` on `survivor_picks`, no spread on its write path or in its refusal set |
-| Custom Pick'em week ranges | **Removed** (ADR-0020) | The create/update input carries a season-range preset only; the resolved `startWeek`/`endWeek` refs are still stored and still what everything downstream computes on, so a later "Custom" option writes them directly rather than forking the stored shape |
+| Custom Pick'em week ranges | **Removed** (ADR-0020, then ADR-0031) | The create/update input carries no range at all — the server resolves the regular-season range; the resolved `startWeek`/`endWeek` refs are still stored and still what everything downstream computes on, so a later "Custom" option writes them directly rather than forking the stored shape |
 
 ## Locking Model
 
@@ -332,11 +339,11 @@ All rule-scope decisions are settled in the MVP spec; recorded here only for the
 
 ```ts
 settlePickemWeek(picks, results, settings) → PickOutcome[]
-settleSurvivorWeek(aliveMemberIds, picks, results, settings) → SurvivorWeekSettlement
-scoreBracket(bracket, tournamentResults, settings) → BracketScore
+settleSurvivorWeek(aliveMemberIds, picks, results) → SurvivorWeekSettlement
+scoreBracket(bracket, tournamentResults) → BracketScore
 ```
 
-Each handles its mode's edge-case matrix from the product spec: Pick'em's fixed half-point push, Survivor's advance-or-eliminate tie resolution, confidence compression on short weeks, cancellation-as-push, revival when everyone busts in the same week, bracket auto-advance neutrality. Table-driven unit tests, one per spec rule.
+Each handles its mode's edge-case matrix from the product spec: Pick'em's fixed half-point push, Survivor's fixed advance-on-tie (ADR-0033), confidence compression on short weeks, cancellation-as-push, revival when everyone busts in the same week, bracket auto-advance neutrality. Table-driven unit tests, one per spec rule.
 
 The settlement job dispatches on the league's mode into that mode's own orchestration module, each writing only its own tables (ADR-0016) in one transaction per league season: load inputs — resolving `override_* ?? provider_*` — → call the pure functions → persist.
 
@@ -388,7 +395,7 @@ GET    /openapi.json                     generated spec
 
 Architecture v0.3 is reconciled against MVP Spec v0.3. Every spec requirement maps to a design element: environments and simulator (Environments, Simulator & Time, D12–D13), automated testing (Automated Testing, D14), operational data corrections (Manual Sports Data Overrides, D15), rule scope (MVP Rule Scope table), identity and caps (Domain Model notes), rules guide (static SPA content), and freshness expectations (Background Jobs). No open questions remain in either document.
 
-**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule), **ADR-0025** (Survivor persistence: team consumption is a partial unique index over a settlement-maintained `released` flag so a cancellation returns the team, `survivor_state` is a settlement-maintained ledger carrying `eliminated_week_id` and `revived_count`, and Survivor settles per completed week in prefix order), and **ADR-0026** (Survivor is straight-up only — its Pick Type setting, `survivor_picks.spread_at_pick`, and its spread-acceptance handshake are all removed, since a changeable pick graded at the spread it was made against rewards re-picking; Pick'em is untouched). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
+**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule), **ADR-0025** (Survivor persistence: team consumption is a partial unique index over a settlement-maintained `released` flag so a cancellation returns the team, `survivor_state` is a settlement-maintained ledger carrying `eliminated_week_id` and `revived_count`, and Survivor settles per completed week in prefix order), **ADR-0026** (Survivor is straight-up only — its Pick Type setting, `survivor_picks.spread_at_pick`, and its spread-acceptance handshake are all removed, since a changeable pick graded at the spread it was made against rewards re-picking; Pick'em is untouched), **ADR-0031** (Pick'em is regular-season only — ADR-0020's presets are retired, the Season Range setting is removed, and the server resolves and stores the regular-season range under the same mid-week rule ADR-0024 applies for Survivor; postseason ingestion is unchanged), **ADR-0032** (invite links are bare opaque codes — the optional expiry and max-use caps, their columns, and their derived statuses are removed; revocation is an invite's only lifecycle), **ADR-0033** (Survivor's Push/Tie Resolution is fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all; the scoring package takes no settings), and **ADR-0034** (March Madness scoring is Standard Doubling only — `MarchMadnessSettings` is `{ maxBracketsPerMember }` — and the pre-deadline seed-correction wipe is an admin-by-hand procedure, both cut before the mode was built). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
 
 ## Mobile Path (later, zero rework)
 

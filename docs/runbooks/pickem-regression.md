@@ -27,7 +27,7 @@ Manual time is worth spending where the safety net is thin. It is **not** thin h
 | `apps/api/test/pickem-picks.test.ts` §settings reset                            | Which settings changes clear picks, and the `picks_locked` refusal once one has locked                                                                                                                                 |
 | `apps/api/test/settlement.test.ts`                                             | Settlement idempotency, re-settling, the nightly sweep, concurrent settlement, override precedence, and a `cancelled` status override turning a pick into a push                                                       |
 | `apps/api/test/pickem-standings.test.ts`                                       | Weekly vs season boards, W/L/P counts, shared ranks, `lastUpdatedAt`                                                                                                                                                  |
-| `apps/api/test/leagues.test.ts` §`pickemPickStatus`                            | The dashboard glance's states: picks needed, still needed after the first kickoff while a later game is open, picks in, week closed (at the kickoff instant itself and after it), a week whose schedule hasn't been ingested (including a Postseason-preset league whose rounds aren't seeded yet), an ATS week with no lines yet, a concluded season, a league whose season holds no week it plays, and several leagues of both modes resolved in one payload |
+| `apps/api/test/leagues.test.ts` §`pickemPickStatus`                            | The dashboard glance's states: picks needed, still needed after the first kickoff while a later game is open, picks in, week closed (at the kickoff instant itself and after it), a week whose schedule hasn't been ingested, an ATS week with no lines yet, a concluded season, a league whose season holds no week it plays, and several leagues of both modes resolved in one payload |
 | `e2e/pickem-journey.sim.spec.ts` (`mixed-week`, **straight-up**, 2 members, 1 week) | The happy path end to end: create → join → assemble → confirm → freeze → lock → reveal → settle, a cap shorter than the slate, two tied members sharing a rank with nothing rendered behind them, and the dashboard glance flipping from picks-needed to picks-in across the submission |
 
 What is left over is this document: the branches around those, in a real browser,
@@ -65,10 +65,10 @@ document.addEventListener("visibilitychange", () => console.log("hidden:", docum
 **Pick type is a per-pass choice.** ATS exercises the spread; straight-up exercises
 the tie. Where a pass depends on one, it says so.
 
-**The league's weeks come from a preset, not a week pair.** The create form offers
-one **Season range** select — Regular Season / Postseason / Full Season (ADR-0020)
-— and the range only moves when the preset does. Every library scenario declares
-regular-season week 1, so leave it on the default, Regular Season.
+**The league's weeks are resolved, not chosen.** Pick'em is regular-season only
+(ADR-0031): the create form and settings editor show the resolved range read-only,
+and there is nothing range-shaped to configure. Every library scenario declares
+regular-season week 1, which the resolved range always covers.
 
 ---
 
@@ -327,10 +327,8 @@ Assert:
 - [x] The counts match what is actually deleted.
 - [x] A change that strands nothing — the league's name — raises **no** warning and no
       dialog.
-- [x] Changing **Pick type** warns the same way. So does moving **Season range** to a
-      narrower preset (Full Season → Regular Season); widening it (Regular Season →
-      Full Season) does not, because every existing pick still sits in a week the
-      league plays.
+- [x] Changing **Pick type** warns the same way. (Season range is no longer a
+      setting — ADR-0031 — so no range edit can strand picks from this form.)
 - [x] After saving, the members' weeks are open again: the sheet is back, and a
       **fresh full set** can be submitted. Not "re-pick within the new cap" — there is
       no partial edit, only another whole submission.

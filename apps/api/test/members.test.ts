@@ -3,12 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
-import {
-  LEAGUE_STATUS,
-  MEMBER_ROLE,
-  PICKEM_SEASON_RANGE_PRESET,
-  type LeagueResponse,
-} from "@picksleagues/schemas";
+import { LEAGUE_STATUS, MEMBER_ROLE, type LeagueResponse } from "@picksleagues/schemas";
 import { updateMemberRole } from "../src/services/members";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, seedSeason } from "./setup/league-helpers";
@@ -121,7 +116,6 @@ describe("PATCH /api/leagues/:leagueId", () => {
     const res = await patchLeague(commish.cookie, league.id, {
       visibility: "public",
       settings: {
-        seasonRangePreset: "full_season",
         pickType: "against_the_spread",
         picksPerWeek: 3,
       },
@@ -147,7 +141,7 @@ describe("PATCH /api/leagues/:leagueId", () => {
   it("400s settings that fail the league's mode schema", async () => {
     const { commish, league } = await seedLeague();
     const res = await patchLeague(commish.cookie, league.id, {
-      settings: { scoringModel: "standard_doubling" }, // MM settings on a pickem league
+      settings: { maxBracketsPerMember: 5 }, // MM settings on a pickem league
     });
     expect(res.status).toBe(400);
   });
@@ -463,6 +457,27 @@ describe("DELETE /api/me — last-commissioner guard (LG-6 closes the ID-3 TODO)
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "last_commissioner" });
   });
+
+  it("names the blocking leagues on the pre-click read, and empties once a replacement is promoted (FB-13)", async () => {
+    const { commish, member, league } = await seedLeague();
+
+    const blocked = await app.request("/api/me/deletion-blockers", {
+      headers: withCookie(commish.cookie),
+    });
+    expect(blocked.status).toBe(200);
+    expect(await blocked.json()).toEqual({
+      leagues: [{ id: league.id, name: league.name }],
+    });
+
+    // The same fix the refusal asks for clears the read: promote a replacement.
+    const target = await membershipOf(league.id, member.user.id);
+    await patchMember(commish.cookie, league.id, target!.id, "commissioner");
+
+    const cleared = await app.request("/api/me/deletion-blockers", {
+      headers: withCookie(commish.cookie),
+    });
+    expect(await cleared.json()).toEqual({ leagues: [] });
+  });
 });
 
 describe("concurrency", () => {
@@ -509,7 +524,6 @@ describe("PATCH settings cannot move the start into the past", () => {
     const league = await insertLeague(db, {
       seasonId,
       settings: {
-        seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
         startWeek: { type: "regular", number: 2 },
         endWeek: { type: "regular", number: 18 },
         pickType: "straight_up",
@@ -518,7 +532,7 @@ describe("PATCH settings cannot move the start into the past", () => {
       members: [{ userId: commish.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
 
-    // Re-resolving this preset now finds nothing in range still ahead — week 1
+    // Re-resolving the range now finds nothing in it still ahead — week 1
     // has begun, and week 2 has no games and no open window — so it falls back
     // to the nominal start, week 1, which has already started. The edit is
     // refused rather than being allowed to start the league by saving its
@@ -528,7 +542,6 @@ describe("PATCH settings cannot move the start into the past", () => {
       league.id,
       {
         settings: {
-          seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.REGULAR_SEASON,
           pickType: "straight_up",
           picksPerWeek: 5,
         },

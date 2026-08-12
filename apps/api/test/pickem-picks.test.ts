@@ -4,15 +4,12 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { games, leagueMembers, leagueSeasons, pickemPicks, users } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
-  SURVIVOR_PUSH_TIE_RESOLUTION,
   GAME_STATUS,
   LEAGUE_MODE,
   LEAGUE_STATUS,
-  MARCH_MADNESS_SCORING_MODEL,
   MEMBER_ROLE,
   PICK_OUTCOME,
   PICKEM_PICK_SIDE,
-  PICKEM_SEASON_RANGE_PRESET,
   PICK_TYPE,
   WEEK_TYPE,
   type PickemSettings,
@@ -528,7 +525,6 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });
@@ -544,7 +540,6 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       seasonId,
       mode: LEAGUE_MODE.MARCH_MADNESS,
       settings: {
-        scoringModel: MARCH_MADNESS_SCORING_MODEL.STANDARD_DOUBLING,
         maxBracketsPerMember: 5,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
@@ -1108,6 +1103,238 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(Object.keys(parsed as object).sort()).toEqual(["error", "message"]);
   });
 
+  describe("pick window (ADR-0036)", () => {
+    const TWO_WEEK_SLATE: SeededWeek[] = [
+      ...THREE_GAME_WEEK,
+      {
+        weekNumber: 2,
+        kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000) }],
+      },
+    ];
+
+    it("409s the next week while the member's current-week picks are unresolved", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: gameIds
+          .get("regular:1")!
+          .map((gameId) => ({ gameId, side: PICKEM_PICK_SIDE.HOME, spread: null })),
+      });
+      expect(submitted.status).toBe(200);
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("409s the next week with no current-week submission — a missed week resolves nothing", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("409s the next week while only part of the member's set is final", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+      expect(submitted.status).toBe(200);
+      for (const gameId of week1Games.slice(0, 2)) {
+        await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
+      }
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("takes the next week's picks once every game in the member's set is terminal", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+      expect(submitted.status).toBe(200);
+      // A mixed terminal set on purpose: a cancellation resolves a pick (as a
+      // push) the same as a final does.
+      await setGame(db, week1Games[0]!, {
+        status: GAME_STATUS.FINAL,
+        homeScore: 21,
+        awayScore: 14,
+      });
+      await setGame(db, week1Games[1]!, {
+        status: GAME_STATUS.FINAL,
+        homeScore: 10,
+        awayScore: 17,
+      });
+      await setGame(db, week1Games[2]!, { status: GAME_STATUS.CANCELLED });
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("opens the next week for everyone when the current week holds no games — nothing in it to resolve", async () => {
+      // The ADR-0031 start re-resolution shape: an in-progress, games-less week
+      // 1 (its bounds span the pre-start clock) ahead of a normal week 2. The
+      // one permissive branch in the gate (ADR-0036 §4) — a bug here opens the
+      // window wider than the rule allows, so it gets its own case.
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: [
+          {
+            weekNumber: 1,
+            kickoffs: [],
+            startsAt: new Date(WEEK1_KICKOFF.getTime() - 19 * 24 * 60 * 60 * 1000),
+            endsAt: new Date(WEEK1_KICKOFF.getTime() - 8 * 24 * 60 * 60 * 1000),
+          },
+          { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] },
+        ],
+      });
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("follows an admin override when deriving the unlock — a corrected status counts as terminal", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+      expect(submitted.status).toBe(200);
+      for (const gameId of week1Games.slice(0, 2)) {
+        await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
+      }
+      // The provider still thinks the third game is running; an admin
+      // correction says it finished (override_* ?? provider_*, arch D15).
+      await setGame(db, week1Games[2]!, {
+        status: GAME_STATUS.IN_PROGRESS,
+        overrideStatus: GAME_STATUS.FINAL,
+        overrideHomeScore: 3,
+        overrideAwayScore: 6,
+      });
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+        picks: [
+          { gameId: gameIds.get("regular:2")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("409s two weeks ahead even with the current week resolved — the window is one week deep", async () => {
+      const THREE_WEEK_SLATE: SeededWeek[] = [
+        ...TWO_WEEK_SLATE,
+        {
+          weekNumber: 3,
+          kickoffs: [{ kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 14 * 24 * 60 * 60 * 1000) }],
+        },
+      ];
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: THREE_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+      expect(submitted.status).toBe(200);
+      for (const gameId of week1Games) {
+        await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
+      }
+
+      const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:3")!, {
+        picks: [
+          { gameId: gameIds.get("regular:3")![0]!, side: PICKEM_PICK_SIDE.HOME, spread: null },
+        ],
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: "week_not_open" });
+    });
+
+    it("reports the pick window on the read: open on the current week, shut on the next until the set resolves", async () => {
+      const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+        weeks: TWO_WEEK_SLATE,
+      });
+      const week1Games = gameIds.get("regular:1")!;
+      await putPicks(memberA.cookie, league.id, weekIds.get("regular:1")!, {
+        picks: week1Games.map((gameId) => ({
+          gameId,
+          side: PICKEM_PICK_SIDE.HOME,
+          spread: null,
+        })),
+      });
+
+      const readWindow = async (weekId: string) =>
+        (
+          (await (
+            await getPicks(memberA.cookie, league.id, weekId)
+          ).json()) as PickemWeekPicksResponse
+        ).pickWindowOpen;
+
+      expect(await readWindow(weekIds.get("regular:1")!)).toBe(true);
+      expect(await readWindow(weekIds.get("regular:2")!)).toBe(false);
+
+      for (const gameId of week1Games) {
+        await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
+      }
+      expect(await readWindow(weekIds.get("regular:2")!)).toBe(true);
+    });
+  });
+
   describe("against the spread", () => {
     const ATS_SETTINGS: PickemSettings = {
       ...DEFAULT_PICKEM_SETTINGS,
@@ -1305,11 +1532,11 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
 });
 
 describe("PATCH /api/leagues/:leagueId — settings changes reset picks (settings-reset.ts)", () => {
-  // Builds a *wire* settings payload: a season-range preset and no week refs
-  // (ADR-0020) — the range these edits move is the one the server resolves.
+  // Builds a *wire* settings payload: the pick rules and no week refs
+  // (ADR-0031) — the stored range is the server's to resolve, so no edit here
+  // can name one.
   function settingsWith(overrides: Partial<PickemSettingsInput> = {}): PickemSettingsInput {
     return {
-      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
       picksPerWeek: DEFAULT_PICKEM_SETTINGS.picksPerWeek,
       ...overrides,
@@ -1341,12 +1568,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // already spent their one submission and would be stuck under the new cap
     // forever. Clearing is the only way back into the week.
     { label: "picksPerWeek is raised", settings: settingsWith({ picksPerWeek: 8 }) },
-    {
-      // Regular Season → Postseason moves the resolved start past every week
-      // the submitted picks live in.
-      label: "the season range preset moves the start later",
-      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.POSTSEASON }),
-    },
   ])("clears picks when $label — a change that could strand them", async ({ settings }) => {
     const { league, memberA } = await seedWithSubmittedWeek();
 
@@ -1355,19 +1576,63 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     expect(await pickCountFor(league.id)).toBe(0);
   });
 
-  it.each([
-    {
-      // Regular Season → Full Season keeps the same resolved start and pushes
-      // the end out: every existing pick still sits in a week the league plays.
-      label: "the season range preset moves the end later",
-      settings: settingsWith({ seasonRangePreset: PICKEM_SEASON_RANGE_PRESET.FULL_SEASON }),
-    },
-  ])("keeps picks when $label — nothing is stranded", async ({ settings }) => {
+  it("keeps picks when the settings are re-saved unchanged — nothing is stranded", async () => {
+    // Re-resolving an unchanged range lands on the same weeks, and identical
+    // pick rules strand nothing — the save must not clear anyone's picks.
     const { league, memberA } = await seedWithSubmittedWeek();
 
-    const res = await patchLeague(memberA.cookie, league.id, { settings });
+    const res = await patchLeague(memberA.cookie, league.id, { settings: settingsWith() });
     expect(res.status).toBe(200);
     expect(await pickCountFor(league.id)).toBe(3);
+  });
+
+  it("clears picks when re-resolution advances the start under an unchanged request", async () => {
+    // The server-side start move the predicate's range clause exists for
+    // (ADR-0031): the stored start week holds no games and its window has
+    // passed by the edit's clock, so a byte-identical save re-resolves the
+    // start forward without the commissioner naming a week. The picks live in
+    // week 2, which stays in range — the clause is deliberately coarse (any
+    // advance clears the whole instance), and the picks are still unlocked,
+    // so the clear proceeds rather than refusing with picks_locked.
+    const WEEK2_KICKOFF = new Date(WEEK1_KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
+      weeks: [
+        { weekNumber: 1, endsAt: WEEK1_KICKOFF, kickoffs: [] },
+        {
+          weekNumber: 2,
+          kickoffs: [
+            { kickoffAt: WEEK2_KICKOFF },
+            { kickoffAt: new Date(WEEK2_KICKOFF.getTime() + 60 * 60 * 1000) },
+            { kickoffAt: new Date(WEEK2_KICKOFF.getTime() + 2 * 60 * 60 * 1000) },
+          ],
+        },
+      ],
+    });
+    const submitted = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {
+      picks: gameIds.get("regular:2")!.map((gameId) => ({
+        gameId,
+        side: PICKEM_PICK_SIDE.HOME,
+        spread: null,
+      })),
+    });
+    expect(submitted.status).toBe(200);
+    expect(await pickCountFor(league.id)).toBe(3);
+
+    // Post-kickoff clock: week 1 (games-less, window closed) is no longer
+    // ahead, so resolution advances the stored start to week 2.
+    const res = await patchLeague(
+      memberA.cookie,
+      league.id,
+      { settings: settingsWith() },
+      appAfterKickoff,
+    );
+    expect(res.status).toBe(200);
+    const [instance] = await db
+      .select()
+      .from(leagueSeasons)
+      .where(eq(leagueSeasons.leagueId, league.id));
+    expect(instance?.settings).toMatchObject({ startWeek: { type: "regular", number: 2 } });
+    expect(await pickCountFor(league.id)).toBe(0);
   });
 
   it("clears picks when a stored settings row omits picksPerWeek entirely and the new value undercuts the schema default", async () => {
@@ -1382,7 +1647,6 @@ describe("PATCH /api/leagues/:leagueId — settings changes reset picks (setting
     // JSONB directly (settings-reset.ts: `1 < undefined` is false, which is
     // exactly the bug this pins).
     const withoutPicksPerWeek = {
-      seasonRangePreset: DEFAULT_PICKEM_SETTINGS.seasonRangePreset,
       startWeek: DEFAULT_PICKEM_SETTINGS.startWeek,
       endWeek: DEFAULT_PICKEM_SETTINGS.endWeek,
       pickType: DEFAULT_PICKEM_SETTINGS.pickType,
@@ -1488,7 +1752,6 @@ describe("GET /api/leagues/:leagueId/pickem/pick-summary", () => {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 1 },
         endWeek: { type: WEEK_TYPE.REGULAR, number: 18 },
         pickType: PICK_TYPE.STRAIGHT_UP,
-        pushTieResolution: SURVIVOR_PUSH_TIE_RESOLUTION.ADVANCE,
       },
       members: [{ userId: memberA.user.id, role: MEMBER_ROLE.COMMISSIONER }],
     });

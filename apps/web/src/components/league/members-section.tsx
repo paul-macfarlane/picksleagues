@@ -2,7 +2,7 @@ import { MEMBER_ROLE, type LeagueMember, type LeagueResponse } from "@picksleagu
 import { useKickMember, useLeaveLeague, useUpdateMemberRole } from "@/api/members";
 import { authClient } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
-import { memberRoleLabel } from "@/lib/league";
+import { hasSoleCommissioner, memberRoleLabel } from "@/lib/league";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { UserIdentity } from "@/components/user-identity";
 
 const KICK_LOCKED_REASON_ID = "kick-locked-reason";
+const DEMOTE_LOCKED_REASON_ID = "demote-locked-reason";
+const LEAVE_LOCKED_REASON_ID = "leave-league-reason";
 
 export function MembersSection({
   league,
@@ -36,9 +38,26 @@ export function MembersSection({
   const updateRole = useUpdateMemberRole(leagueId);
   const kickMember = useKickMember(leagueId);
 
-  // Every member, regardless of role, can leave from here; a sole member
-  // leaving deletes the league (server-enforced).
+  // Disables a sole commissioner's own Demote up front rather than walking
+  // them through a confirmation whose outcome the server can't grant.
+  const soleCommissioner = hasSoleCommissioner(league);
+
+  // Every member, regardless of role, can leave from here.
   const leaveLeague = useLeaveLeague(leagueId);
+
+  // Leaving hits the same server boundaries as the row actions: frozen once
+  // the league starts, and refused whenever it would strand the league
+  // without a commissioner (ADR-0004) — a sole-member commissioner deletes
+  // the league (Settings → Danger zone) rather than emptying it. Same
+  // disable-with-reason treatment as Demote: a confirmation the server must
+  // refuse is worse than a stated lock.
+  const leaveLockedReason = started
+    ? "Membership is frozen once the league starts."
+    : isCommissioner && soleCommissioner
+      ? league.members.length === 1
+        ? "You're the league's only member — deleting it from Settings is how you leave."
+        : "Leaving needs another commissioner — promote a replacement first."
+      : null;
 
   return (
     <Card>
@@ -57,6 +76,11 @@ export function MembersSection({
             Removing members is locked once the league starts.
           </p>
         )}
+        {isCommissioner && soleCommissioner && (
+          <p id={DEMOTE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+            Stepping down needs another commissioner — promote a replacement first.
+          </p>
+        )}
 
         {league.members.map((member) => (
           <MemberRow
@@ -64,6 +88,7 @@ export function MembersSection({
             member={member}
             isCommissioner={isCommissioner}
             isOwnRow={member.userId === myUserId}
+            demoteLocked={soleCommissioner}
             kickLocked={started}
             onPromote={() =>
               updateRole.mutate({ memberId: member.id, role: MEMBER_ROLE.COMMISSIONER })
@@ -78,9 +103,9 @@ export function MembersSection({
         {/* Clearly separated from the roster above — visible to every
             member, not gated on isCommissioner. */}
         <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
-          {started && (
-            <p id="leave-league-reason" className="text-sm text-muted-foreground">
-              Membership is frozen once the league starts.
+          {leaveLockedReason !== null && (
+            <p id={LEAVE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+              {leaveLockedReason}
             </p>
           )}
           <AlertDialog>
@@ -89,8 +114,8 @@ export function MembersSection({
                 <Button
                   variant="outline"
                   className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  disabled={started || leaveLeague.isPending}
-                  aria-describedby={started ? "leave-league-reason" : undefined}
+                  disabled={leaveLockedReason !== null || leaveLeague.isPending}
+                  aria-describedby={leaveLockedReason !== null ? LEAVE_LOCKED_REASON_ID : undefined}
                 />
               }
             >
@@ -125,6 +150,7 @@ function MemberRow({
   member,
   isCommissioner,
   isOwnRow,
+  demoteLocked,
   kickLocked,
   onPromote,
   onDemote,
@@ -135,6 +161,7 @@ function MemberRow({
   member: LeagueMember;
   isCommissioner: boolean;
   isOwnRow: boolean;
+  demoteLocked: boolean;
   kickLocked: boolean;
   onPromote: () => void;
   onDemote: () => void;
@@ -159,9 +186,54 @@ function MemberRow({
           {/* Promote/demote are anytime actions (LEAGUE_ACTION rules) — they
               stay enabled post-start; only Kick below has a window. */}
           {member.role === MEMBER_ROLE.COMMISSIONER ? (
-            <Button variant="outline" size="sm" disabled={isRolePending} onClick={onDemote}>
-              Demote
-            </Button>
+            isOwnRow ? (
+              // Self-demotion alone gets a confirmation: it's the one role
+              // change the actor can't undo from their own UI — the moment it
+              // lands they have no Promote button, and only another
+              // commissioner can restore them. Demoting someone else stays one
+              // click because the actor keeps the power to reverse it. A sole
+              // commissioner's trigger is disabled outright (same idiom as
+              // Kick's locked state): the server refuses that demotion
+              // (≥1-commissioner invariant, ADR-0004), so a dialog could only
+              // confirm an action that must fail.
+              <AlertDialog>
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isRolePending || demoteLocked}
+                      aria-describedby={demoteLocked ? DEMOTE_LOCKED_REASON_ID : undefined}
+                    />
+                  }
+                >
+                  Demote
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Step down as commissioner?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      You&apos;ll lose commissioner tools immediately, and only another commissioner
+                      can re-promote you.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isRolePending}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      disabled={isRolePending}
+                      onClick={onDemote}
+                    >
+                      Step down
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <Button variant="outline" size="sm" disabled={isRolePending} onClick={onDemote}>
+                Demote
+              </Button>
+            )
           ) : (
             <Button variant="outline" size="sm" disabled={isRolePending} onClick={onPromote}>
               Promote

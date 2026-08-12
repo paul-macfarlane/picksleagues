@@ -30,6 +30,28 @@ describe("loadEnv", () => {
     expect(() => loadEnv(missingDatabaseUrl)).toThrowError(/DATABASE_URL/);
   });
 
+  // pg v9 downgrades these sslmode aliases to weaker libpq semantics — the
+  // schema forces the explicit spelling so the upgrade can't weaken TLS.
+  it.each(["prefer", "require", "verify-ca"])(
+    "rejects DATABASE_URL with sslmode=%s, pointing at verify-full",
+    (sslmode) => {
+      const aliased = {
+        ...validSource,
+        DATABASE_URL: `postgres://user:pass@host.neon.tech/db?sslmode=${sslmode}`,
+      };
+      expect(() => loadEnv(aliased)).toThrowError(/verify-full/);
+    },
+  );
+
+  it("accepts DATABASE_URL with sslmode=verify-full", () => {
+    const explicit = {
+      ...validSource,
+      DATABASE_URL:
+        "postgres://user:pass@host.neon.tech/db?sslmode=verify-full&channel_binding=require",
+    };
+    expect(loadEnv(explicit).DATABASE_URL).toContain("sslmode=verify-full");
+  });
+
   it.each([
     { label: '"true"', raw: "true", expected: true },
     { label: '"false"', raw: "false", expected: false },

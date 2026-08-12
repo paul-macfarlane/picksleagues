@@ -19,6 +19,7 @@ import {
   type LeagueVisibility,
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { loadSeasonWeeks, resolveCurrentWeekLabel } from "../league-weeks";
 import { resolvePickemPickStatuses } from "../pickem/pick-status";
 import { resolveSurvivorPickStatuses } from "../survivor/pick-status";
 import { resetPicksInvalidatedBySettings } from "./settings-reset";
@@ -70,9 +71,10 @@ export async function createLeague(
   }
 
   // Second line of defense behind the route's discriminated union; also
-  // applies schema defaults if the service is ever called directly. Pick'em's
-  // season-range preset resolves to concrete week refs here (ADR-0020) — the
-  // stored settings are the resolved fact, never the request.
+  // applies schema defaults if the service is ever called directly. Both NFL
+  // modes' regular-season ranges resolve to concrete week refs here
+  // (ADR-0024/0031, under ADR-0020's mid-week rule) — the stored settings are
+  // the resolved fact, never the request.
   const resolved = await resolveLeagueSettings(db, clock, input.mode, season.id, input.settings);
   if (!resolved.ok) {
     throw new Error(
@@ -244,9 +246,11 @@ export async function updateLeague(
 
     const now = clock.now();
     if (input.settings !== undefined) {
-      // Re-resolves against the clock as it stands now (ADR-0020): a preset
-      // change is the one edit that can move the range, and this is the last
-      // moment it can happen, since settings lock at league start.
+      // Re-resolves against the clock as it stands now (ADR-0020's rule, kept
+      // by ADR-0024/0031): no field on the wire names a range anymore, but the
+      // clock can still move it — a stored start week that has emptied and
+      // passed re-resolves forward under a byte-identical request. This is the
+      // last moment it can happen, since settings lock at league start.
       const resolved = await resolveLeagueSettings(
         tx,
         clock,
@@ -470,6 +474,13 @@ export async function listMyLeagues(
     ),
   ]);
 
+  // Weeks for every season on the dashboard in one read — cards overwhelmingly
+  // share a season, so this is one query rather than one per card (FB-28).
+  const weeksBySeason = await loadSeasonWeeks(
+    db,
+    rows.map((row) => row.seasonId),
+  );
+
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
   // per-mode) beats a hand-rolled batch join.
@@ -490,6 +501,11 @@ export async function listMyLeagues(
         maxMembers: row.league.maxMembers,
         myRole: row.myRole,
         startsAt: startsAt ? startsAt.toISOString() : null,
+        currentWeekLabel: resolveCurrentWeekLabel(
+          weeksBySeason.get(row.seasonId) ?? [],
+          { mode: row.league.mode, settings: row.settings },
+          clock,
+        ),
         renewable: isRenewable(
           latestBySport.get(sportForMode(row.league.mode)) ?? null,
           row.seasonYear,
