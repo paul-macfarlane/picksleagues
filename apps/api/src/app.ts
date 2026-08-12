@@ -10,6 +10,7 @@ import { discoveryRoutes } from "./routes/discovery";
 import { healthRoutes } from "./routes/health";
 import { jobRoutes } from "./routes/jobs";
 import { inviteRoutes } from "./routes/invites";
+import { invitePreviewRoutes } from "./routes/invite-preview";
 import { leagueRoutes } from "./routes/leagues";
 import { memberRoutes } from "./routes/members";
 import { pickemRoutes } from "./routes/pickem";
@@ -55,6 +56,10 @@ export function createApp(deps: AppDeps = {}) {
 
   app.route("/", leagueRoutes(deps));
   app.route("/", inviteRoutes(deps));
+  // The invite link-unfurl document (ADR-0038). Mounted like the rest, but it
+  // contributes nothing to the generated spec — it serves HTML to preview bots,
+  // not JSON to the SPA.
+  app.route("/", invitePreviewRoutes(deps));
   app.route("/", memberRoutes(deps));
   app.route("/", discoveryRoutes(deps));
   app.route("/", weekRoutes(deps));

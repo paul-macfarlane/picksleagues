@@ -10,6 +10,7 @@ import {
   leagueActionIsPreStartOnly,
   type Invite,
   type JoinBlockedReason,
+  type LeagueMode,
   type JoinPreviewResponse,
   type LeagueResponse,
 } from "@picksleagues/schemas";
@@ -143,6 +144,63 @@ export async function revokeInvite(
       .where(eq(leagueInvites.id, invite.id));
   }
   return { ok: true };
+}
+
+/** What a link unfurl says about an invite (FB-41). */
+export interface InviteLinkPreview {
+  leagueName: string;
+  mode: LeagueMode;
+  memberCount: number;
+  maxMembers: number;
+  startsAt: Date | null;
+  /** Whether a new member could still take a spot — the unfurl's tense. */
+  open: boolean;
+}
+
+/**
+ * The invite as a link-preview bot sees it: enough to say which league this is,
+ * and nothing else (ADR-0038).
+ *
+ * **Takes no `userId`, and that is the point of it.** A preview bot has no
+ * session, so this is the one read in the product that answers a league
+ * question without one — which does widen what a bare code discloses: today a
+ * code holder must sign in before learning the league's name, and after this
+ * they need only fetch the page. The trade is deliberate and bounded by what
+ * the code already is (unguessable, revocable, and worth a full membership to
+ * whoever holds it — ADR-0032); a revoked or unknown code resolves to null and
+ * the caller serves the generic tags, so this can't be used to probe.
+ *
+ * Never widen it. The member list, the standings, and anything a member
+ * authored are not in an unfurl's job.
+ */
+export async function getInviteLinkPreview(
+  db: Db,
+  clock: Clock,
+  code: string,
+): Promise<InviteLinkPreview | null> {
+  const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));
+  if (!invite || inviteIsRevoked(invite)) return null;
+
+  const current = await getLeagueWithCurrentSeason(db, invite.leagueId);
+  if (!current) return null;
+  const { league, season } = current;
+
+  const [memberCount, startsAt] = await Promise.all([
+    countMembers(db, league.id),
+    leagueStartAt(db, { mode: league.mode, seasonId: season.seasonId }, season.settings),
+  ]);
+
+  return {
+    leagueName: league.name,
+    mode: league.mode,
+    memberCount,
+    maxMembers: league.maxMembers,
+    startsAt,
+    open:
+      season.status === LEAGUE_STATUS.ACTIVE &&
+      isPreStart(startsAt, clock) &&
+      memberCount < league.maxMembers,
+  };
 }
 
 /**

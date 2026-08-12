@@ -26,6 +26,12 @@ pnpm exec esbuild apps/api/src/vercel.ts \
   --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \
   --outfile="$FUNC_DIR/index.mjs"
 
+# The SPA shell, beside the function: /join/<code> is served by the function so
+# a pasted invite link unfurls with the league's name (ADR-0038), and what it
+# returns is this exact document with four meta tags swapped — so a human
+# following the link boots the same SPA, hashed asset URLs and all.
+cp apps/web/dist/index.html "$FUNC_DIR/index.html"
+
 cat > "$FUNC_DIR/.vc-config.json" <<'JSON'
 {
   "runtime": "nodejs24.x",
@@ -37,8 +43,14 @@ cat > "$FUNC_DIR/.vc-config.json" <<'JSON'
 JSON
 
 # Route order: immutable-cache headers for hashed assets, then static files,
-# then every /api path to the function (it owns its own 404s), then the SPA
-# fallback for client-side routes.
+# then invite links and every /api path to the function (it owns its own 404s),
+# then the SPA fallback for client-side routes.
+#
+# `/join/<code>` goes to the function ahead of the SPA fallback so the link
+# unfurls as an invitation instead of the generic app pitch (ADR-0038) — the
+# function returns the same shell with its meta tags rewritten, so the human
+# case is unchanged. Only the bare invite path: anything deeper still falls
+# through to the SPA.
 cat > .vercel/output/config.json <<'JSON'
 {
   "version": 3,
@@ -49,6 +61,7 @@ cat > .vercel/output/config.json <<'JSON'
       "continue": true
     },
     { "handle": "filesystem" },
+    { "src": "^/join/[^/]+/?$", "dest": "/api" },
     { "src": "^/api(?:/.*)?$", "dest": "/api" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

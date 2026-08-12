@@ -55,6 +55,7 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 - Any commissioner generates invite links containing an opaque code, **pre-start only** — once the league starts no new link can be minted, because the join cutoff below would refuse every use of it. (ADR-0029)
 - A link is a bare opaque code: no expiry, no use cap. Revocation (below) is its only lifecycle — nobody handing a link to friends sets an expiry, and the leak case was already answered by revocation. (ADR-0032)
 - Visiting a link while signed out routes through sign-in and back to the join screen.
+- A pasted link **previews as an invitation**, naming the league, its mode, and the spots left, so a link in a group thread reads as an invite from a friend rather than as an advert for the app. A revoked or unknown code previews generically — it must not report whether a code was ever real. This is the one read in the product answered without a session, and its scope is exactly those fields; see ADR-0038 for what that discloses and why the bound is where it is.
 - Any commissioner can revoke an outstanding invite link at any time, including after the league has started — a link minted pre-start outlives the start, so killing a leaked one has to stay possible for as long as the link does. (ADR-0029)
 - Invite links work for public leagues too (they're just an alternate path to the same join).
 
