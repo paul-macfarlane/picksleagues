@@ -12,6 +12,7 @@
     "@hono/zod-openapi": "^1.5.1",
     "@picksleagues/core": "workspace:*",
     "@picksleagues/db": "workspace:*",
+    "@picksleagues/html-shell": "workspace:*",
     "@picksleagues/schemas": "workspace:*",
     "@picksleagues/scoring": "workspace:*",
     "better-auth": "^1.6.23",

@@ -4,7 +4,16 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "types": ["node"],
     "moduleDetection": "force",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    // The prerender renders the app's components under Node, so this project
+    // compiles JSX and needs the DOM types React's own types are written
+    // against — without them a type error in the prerender surfaces as a
+    // failed Vercel build rather than a failed typecheck.
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "prerender"]
 }

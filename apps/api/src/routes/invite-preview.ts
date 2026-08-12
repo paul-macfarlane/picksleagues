@@ -2,12 +2,8 @@ import { readFileSync } from "node:fs";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { LEAGUE_MODE, type LeagueMode } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
-import {
-  fallbackInviteShell,
-  renderInviteShell,
-  GENERIC_INVITE_OG,
-  type InviteOgMeta,
-} from "../lib/invite-og";
+import { renderShellMeta } from "@picksleagues/html-shell";
+import { fallbackInviteShell, GENERIC_INVITE_OG, type InviteOgMeta } from "../lib/invite-og";
 import { requireDbAndClock, type DepsVariables } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
 import { getInviteLinkPreview, type InviteLinkPreview } from "../services/invites";
@@ -71,7 +67,7 @@ export function invitePreviewRoutes(deps: AppDeps) {
     // own "Invite not found" — the unfurl just can't name a league.
     const meta = preview ? inviteOgMeta(preview) : GENERIC_INVITE_OG;
 
-    return c.html(shell ? renderInviteShell(shell, meta) : fallbackInviteShell(meta), 200, {
+    return c.html(shell ? renderShellMeta(shell, meta) : fallbackInviteShell(meta), 200, {
       // Short and shared: an unfurl is fetched once per paste, and the capacity
       // line goes stale as members join. Long enough that the ten bots behind
       // one group thread don't each hit the database.
