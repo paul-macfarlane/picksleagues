@@ -5,6 +5,7 @@ import {
   survivorPickGrade,
   survivorProvisionalOutcome,
   survivorRevivalStillPossible,
+  spreadLabel,
 } from "./game";
 
 describe("isClosedToPicks", () => {
@@ -167,5 +168,24 @@ describe("survivorPickGrade", () => {
 
   it("returns null for a withheld pick — no team, no game, no verdict", () => {
     expect(survivorPickGrade({ teamId: null, outcome: null, game: null })).toBeNull();
+  });
+});
+
+describe("spreadLabel", () => {
+  // The domain rule under the label: the stored spread is home-relative (spec
+  // §ATS), so the away side reads the opposite sign. A surface that got this
+  // backwards would show a member the wrong favorite.
+  it.each([
+    { name: "home favored, home side", spread: -3.5, side: "home", expected: "-3.5" },
+    { name: "home favored, away side", spread: -3.5, side: "away", expected: "+3.5" },
+    { name: "away favored, home side", spread: 7, side: "home", expected: "+7" },
+    { name: "away favored, away side", spread: 7, side: "away", expected: "-7" },
+    { name: "no line yet", spread: null, side: "home", expected: null },
+    // Neither side is giving points, so both read the same word rather than
+    // "+0"/"-0" (FB-30).
+    { name: "even line, home side", spread: 0, side: "home", expected: "Even" },
+    { name: "even line, away side", spread: 0, side: "away", expected: "Even" },
+  ] as const)("$name → $expected", ({ spread, side, expected }) => {
+    expect(spreadLabel(spread, side)).toBe(expected);
   });
 });

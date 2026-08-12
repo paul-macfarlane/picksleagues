@@ -111,7 +111,7 @@ export function AppHeader() {
                 inactiveProps={navLinkInactiveProps}
                 activeProps={navLinkActiveProps}
               >
-                Discover
+                Browse
               </Link>
               {me.data?.isAdmin && (
                 <Link
@@ -189,7 +189,7 @@ function MobileNav() {
             activeProps={navLinkActiveProps}
             onClick={() => setOpen(false)}
           >
-            Discover
+            Browse
           </Link>
           {me.data?.isAdmin && (
             <Link

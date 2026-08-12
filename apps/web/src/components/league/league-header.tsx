@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { LeagueResponse } from "@picksleagues/schemas";
-import { formatDateTime } from "@/lib/format";
-import { leagueModeLabel, leagueModeRulesPath } from "@/lib/league";
+import { useAppNow } from "@/lib/app-clock";
+import { leagueModeLabel, leagueModeRulesPath, leagueTimingLine } from "@/lib/league";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/status-pill";
 
@@ -13,6 +13,7 @@ export function LeagueHeader({
   isCommissioner: boolean;
 }) {
   const rulesPath = leagueModeRulesPath(league.mode);
+  const now = useAppNow();
   return (
     <Card>
       <CardHeader>
@@ -41,7 +42,9 @@ export function LeagueHeader({
         <p>
           {league.members.length} member{league.members.length === 1 ? "" : "s"}
         </p>
-        <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
+        {/* No `currentWeekLabel` on this DTO — the week picker below names the
+            week — so a started league here reads as a past-tense start date. */}
+        <p>{leagueTimingLine(league, now)}</p>
       </CardContent>
     </Card>
   );

@@ -19,6 +19,7 @@ import {
   type LeagueVisibility,
 } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
+import { loadSeasonWeeks, resolveCurrentWeekLabel } from "../league-weeks";
 import { resolvePickemPickStatuses } from "../pickem/pick-status";
 import { resolveSurvivorPickStatuses } from "../survivor/pick-status";
 import { resetPicksInvalidatedBySettings } from "./settings-reset";
@@ -473,6 +474,13 @@ export async function listMyLeagues(
     ),
   ]);
 
+  // Weeks for every season on the dashboard in one read — cards overwhelmingly
+  // share a season, so this is one query rather than one per card (FB-28).
+  const weeksBySeason = await loadSeasonWeeks(
+    db,
+    rows.map((row) => row.seasonId),
+  );
+
   // One start-derivation query per league: fine at this scale (a user's
   // dashboard holds a handful of leagues), and correctness (override-aware,
   // per-mode) beats a hand-rolled batch join.
@@ -493,6 +501,11 @@ export async function listMyLeagues(
         maxMembers: row.league.maxMembers,
         myRole: row.myRole,
         startsAt: startsAt ? startsAt.toISOString() : null,
+        currentWeekLabel: resolveCurrentWeekLabel(
+          weeksBySeason.get(row.seasonId) ?? [],
+          { mode: row.league.mode, settings: row.settings },
+          clock,
+        ),
         renewable: isRenewable(
           latestBySport.get(sportForMode(row.league.mode)) ?? null,
           row.seasonYear,

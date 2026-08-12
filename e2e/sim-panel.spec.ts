@@ -65,7 +65,10 @@ test.describe("simulator", () => {
       // simulator's primary surface and its buttons could otherwise stop
       // rendering with the suite still green.
       await expect(page.getByRole("button", { name: "+1 week" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Jump" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "−1 week" })).toBeVisible();
+      // Exact: the kickoff-slot control's button also starts with "Jump".
+      await expect(page.getByRole("button", { name: "Jump", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Jump to kickoff" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Back to real time" })).toBeVisible();
 
       // /sim/scenarios: the edge-case library plus the replay importer, both

@@ -6,8 +6,10 @@ import {
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   isWeekInSeasonRange,
+  type LeagueMode,
   type LeagueWeek,
   type LeagueWeeksResponse,
+  type NflSeasonRange,
   type WeekType,
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "./leagues/current-season";
@@ -156,6 +158,80 @@ export function resolveWeekWindowPosition(
   if (next && next.id === targetWeekId) return { position: "next", currentWeekId };
 
   return { position: "closed" };
+}
+
+/** A season's week as the current-week derivations read it. */
+export interface SeasonWeekRow {
+  id: string;
+  weekType: WeekType;
+  weekNumber: number;
+  label: string;
+  startsAt: Date;
+  endsAt: Date;
+}
+
+/**
+ * Every named season's weeks in one read, grouped by season and ordered the way
+ * `resolveCurrentWeekId` requires. For callers resolving a current week for
+ * *many* leagues at once (the dashboard): leagues overwhelmingly share a
+ * season, so a query per league would re-read the same ~22 rows per card.
+ */
+export async function loadSeasonWeeks(
+  db: Db,
+  seasonIds: readonly string[],
+): Promise<Map<string, SeasonWeekRow[]>> {
+  const bySeason = new Map<string, SeasonWeekRow[]>();
+  const distinct = [...new Set(seasonIds)];
+  if (distinct.length === 0) return bySeason;
+
+  const rows = await db
+    .select({
+      id: weeks.id,
+      seasonId: weeks.seasonId,
+      weekType: weeks.weekType,
+      weekNumber: weeks.weekNumber,
+      label: weeks.label,
+      startsAt: weeks.startsAt,
+      endsAt: weeks.endsAt,
+    })
+    .from(weeks)
+    .where(inArray(weeks.seasonId, distinct))
+    .orderBy(asc(weeks.startsAt), asc(weeks.weekNumber));
+
+  for (const { seasonId, ...week } of rows) {
+    const bucket = bySeason.get(seasonId);
+    if (bucket) bucket.push(week);
+    else bySeason.set(seasonId, [week]);
+  }
+  return bySeason;
+}
+
+/**
+ * The label of the week a league is currently on — "Week 5", "Wild Card" —
+ * clipped to the weeks that league plays, or null for a mode with no season
+ * range (March Madness) and for a season whose weeks aren't ingested yet.
+ *
+ *
+ * Same `resolveCurrentWeekId` every other surface names a current week with, so
+ * a card can't report a different week than the pick screen it links to. Says
+ * nothing about whether the league has *started*: a pre-start league resolves
+ * to its first week, and the caller decides whether that is what it wants to
+ * show (the dashboard shows the start date there instead — FB-28).
+ */
+export function resolveCurrentWeekLabel(
+  rows: readonly SeasonWeekRow[],
+  league: { mode: LeagueMode; settings: unknown },
+  clock: Clock,
+): string | null {
+  // March Madness has no season range to clip to (its settings carry none), so
+  // there is no "current week" for it to name — not an empty one, an absent
+  // question. Parsed rather than trusted, like every other settings read, so
+  // defaults materialize on rows written before a field existed.
+  if (league.mode !== LEAGUE_MODE.PICKEM && league.mode !== LEAGUE_MODE.SURVIVOR) return null;
+  const range: NflSeasonRange = LEAGUE_SETTINGS_SCHEMAS[league.mode].parse(league.settings);
+  const inRange = rows.filter((row) => isWeekInSeasonRange(row, range));
+  const currentWeekId = resolveCurrentWeekId(inRange, clock);
+  return inRange.find((row) => row.id === currentWeekId)?.label ?? null;
 }
 
 /**

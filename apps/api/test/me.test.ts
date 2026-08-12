@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { accounts, createDb, sessions, users } from "@picksleagues/db";
+import { accounts, createDb, sessions, setSimState, users } from "@picksleagues/db";
 import { FixedClock, type Env } from "@picksleagues/core";
 import { APP_ROLE, DELETED_USER_DISPLAY_NAME, type MeResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
@@ -106,6 +106,7 @@ describe("GET /api/me", () => {
       providerImage: null,
       isAdmin: false,
       simEnabled: false,
+      simClockOffsetMs: 0,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
       // pinned to the fixture instant so a regression to real time fails here.
       now: FIXED_NOW.toISOString(),
@@ -161,6 +162,30 @@ describe("GET /api/me", () => {
       expect(body.simEnabled).toBe(expected);
     },
   );
+
+  // FB-38: what lets a non-admin's shell say "now isn't real" without touching
+  // the admin-only sim state route.
+  it("reports the simulated clock offset where the simulator is on, and 0 where it isn't", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    await setSimState(db, { activeScenarioId: null, offsetMs: 90 * 60 * 1000 });
+
+    const simApp = createApp({
+      auth,
+      db,
+      env: makeTestEnv({ APP_ENV: "staging", SIM_ENABLED: true }),
+      clock: async () => new FixedClock(FIXED_NOW),
+    });
+    const simBody = (await (
+      await simApp.request("/api/me", { method: "GET", headers: { cookie } })
+    ).json()) as MeResponse;
+    expect(simBody.simClockOffsetMs).toBe(90 * 60 * 1000);
+
+    // Same stored offset, simulator off: the row is never read, so the SPA is
+    // told the clock is real — which it is, since the clock resolution short-
+    // circuits the same way (arch D13).
+    const realBody = (await (await getMe(cookie)).json()) as MeResponse;
+    expect(realBody.simClockOffsetMs).toBe(0);
+  });
 });
 
 describe("PATCH /api/me", () => {
@@ -187,6 +212,7 @@ describe("PATCH /api/me", () => {
       providerImage: null,
       isAdmin: false,
       simEnabled: false,
+      simClockOffsetMs: 0,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
       // pinned to the fixture instant so a regression to real time fails here.
       now: FIXED_NOW.toISOString(),
@@ -263,6 +289,7 @@ describe("PATCH /api/me", () => {
       providerImage: null,
       isAdmin: false,
       simEnabled: false,
+      simClockOffsetMs: 0,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
       // pinned to the fixture instant so a regression to real time fails here.
       now: FIXED_NOW.toISOString(),
@@ -290,6 +317,7 @@ describe("PATCH /api/me", () => {
       providerImage: null,
       isAdmin: false,
       simEnabled: false,
+      simClockOffsetMs: 0,
       // Served from the injected Clock (arch D13), never a raw `new Date()` —
       // pinned to the fixture instant so a regression to real time fails here.
       now: FIXED_NOW.toISOString(),

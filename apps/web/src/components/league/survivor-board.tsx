@@ -64,6 +64,22 @@ function SurvivorBoardSkeleton() {
   );
 }
 
+/**
+ * The board's one-line summary. A concluded season names its ending in the
+ * singular when one member won it (FB-29): "everyone still standing shares
+ * first place" is true of the co-winner case the spec allows (§End of League)
+ * and quietly wrong about the common one, and the row pills beside it already
+ * say "Winner" vs "Co-winner" off the same count.
+ */
+function boardSummary(board: SurvivorStandingsResponse | undefined): string {
+  if (!board?.concluded) {
+    return "Who's still alive, the teams they've used, and every pick that has kicked off.";
+  }
+  return board.members.filter((member) => member.isWinner).length === 1
+    ? "The season is over — one member outlasted the rest."
+    : "The season is over — everyone still standing shares first place.";
+}
+
 export function SurvivorBoard({ leagueId }: { leagueId: string }) {
   const standings = useSurvivorStandings(leagueId);
 
@@ -71,11 +87,7 @@ export function SurvivorBoard({ leagueId }: { leagueId: string }) {
     <Card data-testid="survivor-board">
       <CardHeader>
         <CardTitle>Survivor board</CardTitle>
-        <CardDescription>
-          {standings.data?.concluded
-            ? "The season is over — everyone still standing shares first place."
-            : "Who's still alive, the teams they've used, and every pick that has kicked off."}
-        </CardDescription>
+        <CardDescription>{boardSummary(standings.data)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <QueryState
@@ -117,12 +129,19 @@ function BoardRows({ board }: { board: SurvivorStandingsResponse }) {
   // Survivors first, then the eliminated in reverse order of going out — how far
   // someone got is the board's own subject, and the server's member order (the
   // roster's) buries the three people still in among nine who aren't.
+  //
+  // The viewer leads their own group (FB-29's round, owner's call): in a full
+  // league, finding your own row otherwise means scanning. This deliberately
+  // overrides the elimination ordering for one row — the viewer's position no
+  // longer states how far they got — which costs nothing, because their row
+  // carries "Out in <week>" in words either way.
   const eliminationOrder = (member: SurvivorStandingsMember) =>
     member.eliminatedWeekId === null ? -1 : (weekOrder.get(member.eliminatedWeekId) ?? -1);
   const rows = [...board.members].sort((a, b) => {
     const aliveA = a.status === SURVIVOR_MEMBER_STATUS.ALIVE;
     const aliveB = b.status === SURVIVOR_MEMBER_STATUS.ALIVE;
     if (aliveA !== aliveB) return aliveA ? -1 : 1;
+    if (a.isViewer !== b.isViewer) return a.isViewer ? -1 : 1;
     return eliminationOrder(b) - eliminationOrder(a);
   });
 

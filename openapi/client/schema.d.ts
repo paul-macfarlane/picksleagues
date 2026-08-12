@@ -291,7 +291,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Browse public, joinable leagues with optional name search */
+        /** Browse public, joinable leagues with optional name search and mode filter */
         get: operations["discoverLeagues"];
         put?: never;
         post?: never;
@@ -745,6 +745,7 @@ export interface components {
             providerImage: string | null;
             isAdmin: boolean;
             simEnabled: boolean;
+            simClockOffsetMs: number;
             /** Format: date-time */
             now: string;
         };
@@ -892,6 +893,7 @@ export interface components {
             myRole: components["schemas"]["MemberRole"];
             /** Format: date-time */
             startsAt: string | null;
+            currentWeekLabel: string | null;
             renewable: boolean;
             survivorPickStatus: components["schemas"]["NullableSurvivorPickStatus"];
             pickemPickStatus: components["schemas"]["NullablePickemPickStatus"];
@@ -942,16 +944,26 @@ export interface components {
         };
         DiscoveryResponse: {
             leagues: components["schemas"]["DiscoveryLeague"][];
+            page: number;
+            pageSize: number;
+            total: number;
+            totalPages: number;
         };
         DiscoveryLeague: {
             id: string;
             name: components["schemas"]["LeagueName"];
             mode: components["schemas"]["LeagueMode"];
             memberCount: number;
+            maxMembers: number;
             seasonYear: number;
             /** Format: date-time */
             startsAt: string | null;
+            pickemSettings: components["schemas"]["NullableDiscoveryPickemSettings"];
         };
+        NullableDiscoveryPickemSettings: {
+            pickType: components["schemas"]["PickType"];
+            picksPerWeek: number;
+        } | null;
         WeekSlateResponse: {
             weekId: string;
             weekType: components["schemas"]["WeekType"];
@@ -2780,6 +2792,8 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                mode?: components["schemas"]["LeagueMode"];
+                page?: number;
             };
             header?: never;
             path?: never;

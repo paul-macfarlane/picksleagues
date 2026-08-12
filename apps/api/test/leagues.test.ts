@@ -544,6 +544,46 @@ describe("GET /api/leagues", () => {
     return (await res.json()) as { leagues: Array<Record<string, unknown>> };
   }
 
+  // FB-28: the dashboard card describes a started league by where it is, and
+  // it can only do that if the server names the week — the card has no week
+  // list to derive one from, and a second derivation could disagree with the
+  // pick screen it links to.
+  describe("currentWeekLabel", () => {
+    it("names the week the league is on", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertLeague(db, {
+        seasonId,
+        name: "Mine",
+        members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+
+      // Both harness clocks sit inside week 1's bounds, before and after its
+      // kickoff — the label is the week, not the kickoff.
+      expect((await readMyLeagues(cookie)).leagues[0]).toMatchObject({
+        currentWeekLabel: "Week 1",
+      });
+      expect((await readMyLeagues(cookie, appAfterKickoff)).leagues[0]).toMatchObject({
+        currentWeekLabel: "Week 1",
+      });
+    });
+
+    it("is null when the season holds no weeks to name", async () => {
+      const { seasonId } = await seedSeason(db, { year: 2026, weeks: [] });
+      const { user, cookie } = await createAuthenticatedUser(auth);
+      await insertLeague(db, {
+        seasonId,
+        name: "Unscheduled",
+        members: [{ userId: user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+
+      expect((await readMyLeagues(cookie)).leagues[0]).toMatchObject({
+        currentWeekLabel: null,
+        startsAt: null,
+      });
+    });
+  });
+
   describe("survivorPickStatus", () => {
     async function insertSurvivorLeagueFor(seasonId: string, userId: string, name: string) {
       const league = await insertLeague(db, {

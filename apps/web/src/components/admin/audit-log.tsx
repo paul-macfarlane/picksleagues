@@ -7,7 +7,7 @@ import {
 } from "@picksleagues/schemas";
 import { useAdminAudit } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -185,24 +185,14 @@ function AuditPager({
       <p className="text-xs text-muted-foreground">
         {shown === 0 ? `Showing none of ${total}` : `Showing ${offset + 1}–${last} of ${total}`}
       </p>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={offset === 0}
-          onClick={() => onOffsetChange(Math.max(0, offset - limit))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={last >= total}
-          onClick={() => onOffsetChange(offset + limit)}
-        >
-          Next
-        </Button>
-      </div>
+      {/* Offsets translated to pages at the boundary rather than in the pager:
+          this view's URL contract is an offset, and the shared control counts
+          pages so both lists page identically. */}
+      <Pagination
+        page={Math.floor(offset / limit) + 1}
+        totalPages={Math.max(1, Math.ceil(total / limit))}
+        onPageChange={(page) => onOffsetChange((page - 1) * limit)}
+      />
     </div>
   );
 }

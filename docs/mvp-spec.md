@@ -85,7 +85,11 @@ Once a league starts: membership and settings are frozen except cosmetics, commi
 A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. Eliminated players (Survivor mode) retain identical visibility rights to active players.
 
 ### Public Discovery
-A browse page listing public leagues that have not passed their join cutoff, with **search by league name**. Each entry shows: name, game mode, member count, start week (or tournament year), and a join button. No filters, categories, or recommendations.
+A browse page listing public leagues that have not passed their join cutoff and are not already full, with **search by league name** and a **filter by game mode**. Each entry shows: name, game mode (given visual prominence — it is the attribute that decides whether a member wants the league at all), member count against the cap and the spots remaining, start week (or tournament year), the mode's member-facing settings summary, and a join button.
+
+The settings summary is per mode and is a *chosen* subset, never the stored settings: Pick'em shows pick type and picks per week — the two settings that decide what the league asks of a member each week — and Survivor shows none, having no member-facing configurable setting. A member must be able to tell what they are signing up for before they join.
+
+Entries are ordered by **remaining space, fullest first** (creation order as the tiebreak), so a league close to playing fills before an empty one, and are served **10 per page**. No categories or recommendations — the two filters run over data the list already carries, and nothing here is editorial. (ADR-0037.)
 
 ---
 
@@ -234,8 +238,8 @@ When brackets tie on points: closest **absolute difference** between the Champio
 
 ## Screens (MVP inventory)
 
-- **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked); create + discover entry points
-- **Discovery** — public league browse + name search
+- **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked), each card naming when the league starts or, once it has, the week it is on; the create and browse entry points sit together here, since getting into a league is one job with two answers
+- **Discovery** — public league browse, name search, and mode filter (ADR-0037)
 - **League home** — standings (primary view: season standings for Pick'em (ADR-0035 — weekly boards live on the League Picks screen), the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
 - **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff

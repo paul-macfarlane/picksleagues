@@ -56,6 +56,9 @@
           "simEnabled": {
             "type": "boolean"
           },
+          "simClockOffsetMs": {
+            "type": "integer"
+          },
           "now": {
             "type": "string",
             "format": "date-time"
@@ -71,6 +74,7 @@
           "providerImage",
           "isAdmin",
           "simEnabled",
+          "simClockOffsetMs",
           "now"
         ]
       },
@@ -646,6 +650,12 @@
             ],
             "format": "date-time"
           },
+          "currentWeekLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "renewable": {
             "type": "boolean"
           },
@@ -666,6 +676,7 @@
           "maxMembers",
           "myRole",
           "startsAt",
+          "currentWeekLabel",
           "renewable",
           "survivorPickStatus",
           "pickemPickStatus"
@@ -865,10 +876,26 @@
             "items": {
               "$ref": "#/components/schemas/DiscoveryLeague"
             }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
           }
         },
         "required": [
-          "leagues"
+          "leagues",
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
         ]
       },
       "DiscoveryLeague": {
@@ -886,6 +913,9 @@
           "memberCount": {
             "type": "integer"
           },
+          "maxMembers": {
+            "type": "integer"
+          },
           "seasonYear": {
             "type": "integer"
           },
@@ -895,6 +925,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "pickemSettings": {
+            "$ref": "#/components/schemas/NullableDiscoveryPickemSettings"
           }
         },
         "required": [
@@ -902,8 +935,28 @@
           "name",
           "mode",
           "memberCount",
+          "maxMembers",
           "seasonYear",
-          "startsAt"
+          "startsAt",
+          "pickemSettings"
+        ]
+      },
+      "NullableDiscoveryPickemSettings": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pickType",
+          "picksPerWeek"
         ]
       },
       "WeekSlateResponse": {
@@ -4666,7 +4719,7 @@
     "/api/discovery": {
       "get": {
         "operationId": "discoverLeagues",
-        "summary": "Browse public, joinable leagues with optional name search",
+        "summary": "Browse public, joinable leagues with optional name search and mode filter",
         "parameters": [
           {
             "schema": {
@@ -4675,6 +4728,24 @@
             },
             "required": false,
             "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/LeagueMode"
+            },
+            "required": false,
+            "name": "mode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
             "in": "query"
           }
         ],

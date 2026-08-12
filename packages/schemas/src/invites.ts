@@ -67,9 +67,14 @@ export const JOIN_BLOCKED_REASON_MESSAGES: Record<JoinBlockedReason, string> = {
 };
 
 /**
- * The subset of league fields a prospective member may see before joining —
- * mirrors what a public discovery entry shows (spec §Public Discovery), never
- * the member list.
+ * The subset of league fields a prospective member may see before joining,
+ * never the member list.
+ *
+ * No longer identical to a public discovery entry: ADR-0037 gave discovery a
+ * per-mode settings summary and a capacity reading that this shape does not
+ * carry. An invitee is arguably as blind as a browser and may want the same
+ * summary — that would be a deliberate change here, not a drift to be tidied
+ * back into a mirror.
  */
 export const JoinPreviewResponseSchema = z
   .object({

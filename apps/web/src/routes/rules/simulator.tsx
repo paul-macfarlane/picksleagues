@@ -79,7 +79,8 @@ function SimulatorGuide() {
           </li>
           <li>
             <strong>Advance past kickoffs, then sync scores</strong> — games go final and picks
-            grade as the scores land.
+            grade as the scores land. &quot;Jump to a kickoff slot&quot; lands on one of the
+            week&apos;s own kickoff waves, which saves nudging by the hour to reach the late games.
           </li>
         </ul>
         <p>
@@ -94,6 +95,12 @@ function SimulatorGuide() {
           The simulator only exists on test environments. Production never registers it — real
           leagues always run on the real clock and real NFL data. The simulator controls themselves
           are visible only to an admin, under <strong>Simulator</strong> in the top navigation.
+        </p>
+        <p>
+          Everyone on a test environment sees a <strong>Simulated time</strong> banner in the header
+          whenever the clock is shifted — every kickoff, deadline, and lock on screen is computed
+          against that instant, not against your device&apos;s clock, so it is the time to trust
+          while testing.
         </p>
       </section>
     </StaticPage>

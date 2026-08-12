@@ -52,6 +52,24 @@ export const MeResponseSchema = z
     // actual gate, this only hides the UI.
     simEnabled: z.boolean(),
     /**
+     * How far the simulated clock is shifted from real time, in milliseconds —
+     * 0 in every environment without the simulator, and in one sitting at real
+     * time.
+     *
+     * Here so a **non-admin** tester can be told that "now" isn't real (FB-38).
+     * `GET /api/sim/state` answers this for operators, but it is admin-only and
+     * unregistered when the simulator is off (ADR-0011/ADR-0014) — a gate that
+     * must not be loosened for a banner. This discloses nothing that `now`
+     * above doesn't already: a browser can subtract its own clock and get the
+     * same number. What it adds is the server's authority over the comparison,
+     * so the indicator can't be triggered by a member's laptop being ten
+     * minutes fast.
+     *
+     * Deliberately not the active scenario: which data source is loaded is
+     * operator surface, and this is the clock.
+     */
+    simClockOffsetMs: z.number().int(),
+    /**
      * The application's current time, read from the injected `Clock` (arch
      * D13) — **not** a profile field, and here on purpose.
      *
