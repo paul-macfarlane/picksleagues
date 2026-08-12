@@ -9,12 +9,13 @@ import {
 } from "@picksleagues/schemas";
 import { useSurvivorStandings } from "@/api/survivor";
 import { useAppNow } from "@/lib/app-clock";
+import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { gameStateLabel, survivorPickGrade, survivorRevivalStillPossible } from "@/lib/game";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PickOutcomeBadge } from "@/components/league/pick-outcome";
+import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
 import { QueryState } from "@/components/query-state";
 import { StatusPill } from "@/components/status-pill";
 import { TeamLogo } from "@/components/team-logo";
@@ -314,27 +315,33 @@ function CurrentWeekPick({
       // the two homes (row level vs history) the board gave it.
       data-week={pick?.weekId}
       data-team={team?.abbreviation}
-      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-muted/40 p-2 text-xs"
-    >
-      <span className="font-medium text-muted-foreground">This week</span>
-      {team && pick ? (
-        <>
-          <span className="flex items-center gap-1.5 font-medium text-foreground">
-            <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
-            {team.abbreviation}
-          </span>
-          {pick.game && (
-            <span className="text-muted-foreground">
-              {gameStateLabel(gameStateInput(pick.game, teams), now)}
-            </span>
-          )}
-          {grade && <PickOutcomeBadge outcome={grade} />}
-        </>
-      ) : pick ? (
-        <span className="text-muted-foreground">In — hidden until kickoff</span>
-      ) : (
-        <span className="text-muted-foreground">No pick in yet</span>
+      // Same frame and outcome rule as every other pick row in the app (FB-42),
+      // so this week's pick and the history entries below read as one list
+      // rather than two designs.
+      className={cn(
+        "flex flex-col gap-1 rounded-md border-l-2 bg-muted/40 py-2 pr-2 pl-2.5 text-sm",
+        pickOutcomeAccentClassName(grade),
       )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex items-center gap-1.5 font-medium text-foreground">
+          <span className="text-xs font-medium text-muted-foreground">This week</span>
+          {team && (
+            <>
+              <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
+              {team.abbreviation}
+            </>
+          )}
+        </span>
+        {grade && <PickOutcomeBadge outcome={grade} />}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {team && pick?.game
+          ? gameStateLabel(gameStateInput(pick.game, teams), now)
+          : pick
+            ? "In — hidden until kickoff"
+            : "No pick in yet"}
+      </p>
     </div>
   );
 }
@@ -404,6 +411,7 @@ function PickHistory({
   /** The week the row-level section already shows, or null to list everything. */
   excludeWeekId: string | null;
 }) {
+  const now = useAppNow();
   const picks = member.picks.filter((pick) => pick.weekId !== excludeWeekId);
   if (picks.length === 0) return null;
 
@@ -423,24 +431,40 @@ function PickHistory({
               data-testid="survivor-history-entry"
               data-week={pick.weekId}
               data-team={team?.abbreviation}
-              className="flex items-center justify-between gap-2 text-xs"
+              className={cn(
+                "flex flex-col gap-1 rounded-md border-l-2 bg-muted/40 py-2 pr-2 pl-2.5 text-sm",
+                pickOutcomeAccentClassName(grade),
+              )}
             >
-              <span className="text-muted-foreground">{weekLabels.get(pick.weekId)}</span>
-              <span className="flex items-center gap-1.5">
-                {team && (
-                  <TeamLogo
-                    logoLightUrl={team.logoLightUrl}
-                    logoDarkUrl={team.logoDarkUrl}
-                    size="sm"
-                  />
-                )}
-                <span className={team ? "font-medium text-foreground" : "text-muted-foreground"}>
-                  {/* A pick whose game hasn't kicked off is present but nameless
-                      — the league knows they're in, not who they took. */}
-                  {team ? team.abbreviation : "Hidden until kickoff"}
+              <div className="flex items-start justify-between gap-2">
+                <span className="flex items-center gap-1.5 font-medium text-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {weekLabels.get(pick.weekId)}
+                  </span>
+                  {team && (
+                    <>
+                      <TeamLogo
+                        logoLightUrl={team.logoLightUrl}
+                        logoDarkUrl={team.logoDarkUrl}
+                        size="sm"
+                      />
+                      {team.abbreviation}
+                    </>
+                  )}
                 </span>
                 {grade && <PickOutcomeBadge outcome={grade} />}
-              </span>
+              </div>
+              {/* The score, which this row used to omit while the "This week"
+                  block above it showed one — the same pick reading differently
+                  depending on which of its two homes you found it in (FB-43).
+                  A withheld pick still names nothing: its game would narrow it
+                  to two teams (spec §Pick Visibility), which is why the server
+                  sends no game block for one. */}
+              <p className="text-xs text-muted-foreground">
+                {team && pick.game
+                  ? gameStateLabel(gameStateInput(pick.game, teams), now)
+                  : "Hidden until kickoff"}
+              </p>
             </li>
           );
         })}

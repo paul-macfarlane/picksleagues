@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { JOIN_BLOCKED_REASON, JOIN_BLOCKED_REASON_MESSAGES } from "@picksleagues/schemas";
 import { useJoinPreview } from "@/api/invites";
@@ -5,6 +6,7 @@ import { useJoinByCode } from "@/api/members";
 import { authClient } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { leagueModeLabel } from "@/lib/league";
+import { AppHeader } from "@/components/app-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingRegion } from "@/components/loading";
@@ -29,6 +31,26 @@ export const Route = createFileRoute("/join/$code")({
   component: JoinByCode,
 });
 
+/**
+ * The page's shell (FB-44). It wears the real `AppHeader` because `beforeLoad`
+ * above guarantees exactly the case `StaticPage` already gives one to: a
+ * signed-in member with a claimed username. Without it the invite card was the
+ * only page in the app with no way out of it but its own button.
+ *
+ * The card still centres in what the header leaves — this page's three states
+ * are full-viewport centred cards, which is the stated deviation from the
+ * QueryState rule below, and `flex-1` is what keeps that true under a header
+ * instead of pushing the card off the bottom.
+ */
+function InvitePage({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-svh flex-col">
+      <AppHeader />
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-6">{children}</main>
+    </div>
+  );
+}
+
 function JoinByCode() {
   const { code } = Route.useParams();
 
@@ -41,16 +63,16 @@ function JoinByCode() {
   });
 
   // Stated deviation from the QueryState rule: this page's three states are
-  // full-viewport centered cards (it renders outside the authed shell with no
-  // page column), and QueryState's section-shaped pending/error/empty would
-  // uncenter them — each state keeps its own <main> instead.
+  // centred cards rather than a page column (the invite is the whole page, not
+  // a section of one), and QueryState's section-shaped pending/error/empty
+  // would uncentre them — each state returns its own `InvitePage` instead.
   if (preview.isPending) {
     return (
-      <main className="flex min-h-svh flex-col items-center justify-center gap-2 p-6">
+      <InvitePage>
         <LoadingRegion label="Loading invite" className="w-full max-w-sm">
           <Skeleton className="h-56 w-full" />
         </LoadingRegion>
-      </main>
+      </InvitePage>
     );
   }
 
@@ -59,18 +81,18 @@ function JoinByCode() {
 
   if (preview.isError) {
     return (
-      <main className="flex min-h-svh flex-col items-center justify-center gap-3 p-6">
+      <InvitePage>
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this invite.</p>
         <Button variant="outline" onClick={() => preview.refetch()}>
           Retry
         </Button>
-      </main>
+      </InvitePage>
     );
   }
 
   if (!preview.data) {
     return (
-      <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
+      <InvitePage>
         <Card className="w-full max-w-sm">
           <CardHeader className="items-center text-center">
             <CardTitle>Invite not found</CardTitle>
@@ -85,14 +107,14 @@ function JoinByCode() {
             </Link>
           </CardContent>
         </Card>
-      </main>
+      </InvitePage>
     );
   }
 
   const { league, joinable, reason } = preview.data;
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
+    <InvitePage>
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <CardTitle>{league.name}</CardTitle>
@@ -168,6 +190,6 @@ function JoinByCode() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </InvitePage>
   );
 }
