@@ -46,3 +46,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0034](0034-march-madness-standard-doubling-only.md) | March Madness: standard doubling only; seed corrections handled by hand | Accepted |
 | [0035](0035-league-home-shows-season-standings-only.md) | League home shows season standings only for Pick'em; weekly boards live on League Picks | Accepted |
 | [0036](0036-pick-window-current-week-plus-one.md) | Picks are windowed to the current week, plus the next once resolved | Accepted |
+| [0037](0037-discovery-is-filtered-sorted-and-paged.md) | Discovery gains a settings summary, a mode filter, fullest-first ordering, and paging | Accepted |

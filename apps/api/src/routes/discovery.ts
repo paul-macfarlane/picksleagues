@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { DiscoveryResponseSchema } from "@picksleagues/schemas";
+import { DiscoveryResponseSchema, LeagueModeSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
@@ -11,8 +11,17 @@ const getDiscovery = createRoute({
   method: "get",
   path: "/discovery",
   operationId: "discoverLeagues",
-  summary: "Browse public, joinable leagues with optional name search",
-  request: { query: z.object({ q: z.string().max(50).optional() }) },
+  summary: "Browse public, joinable leagues with optional name search and mode filter",
+  request: {
+    query: z.object({
+      q: z.string().max(50).optional(),
+      mode: LeagueModeSchema.optional(),
+      // Coerced because a query string carries digits as text; the service
+      // clamps a page past the end rather than 400ing on it, since a stale
+      // page number is a normal consequence of a list that changes underneath.
+      page: z.coerce.number().int().min(1).default(1),
+    }),
+  },
   responses: {
     200: {
       description: "Public, active leagues that haven't passed their join cutoff",
@@ -35,10 +44,9 @@ export function discoveryRoutes(deps: AppDeps) {
     const db = c.get("db");
     const clock = c.get("clock");
     const sessionUser = c.get("sessionUser");
-    const { q } = c.req.valid("query");
+    const { q, mode, page } = c.req.valid("query");
 
-    const leagues = await discoverLeagues(db, clock, sessionUser.id, q);
-    return c.json({ leagues }, 200);
+    return c.json(await discoverLeagues(db, clock, sessionUser.id, { query: q, mode, page }), 200);
   });
 
   return app;
