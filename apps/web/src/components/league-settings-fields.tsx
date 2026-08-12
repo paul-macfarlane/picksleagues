@@ -6,6 +6,7 @@ import {
   type NflSeasonRange,
   type PickType,
 } from "@picksleagues/schemas";
+import { pickTypeLabel } from "@/lib/league";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { NumberField } from "@/components/number-field";
@@ -32,9 +33,9 @@ export const VISIBILITY_OPTIONS: { value: LeagueVisibility; label: string; descr
   ];
 
 export const PICK_TYPE_OPTIONS: { value: PickType; label: string }[] = [
-  { value: PICK_TYPE.STRAIGHT_UP, label: "Straight Up" },
-  { value: PICK_TYPE.AGAINST_THE_SPREAD, label: "Against the Spread" },
-];
+  PICK_TYPE.STRAIGHT_UP,
+  PICK_TYPE.AGAINST_THE_SPREAD,
+].map((value) => ({ value, label: pickTypeLabel(value) }));
 
 /**
  * Shared radio-group wiring: a legend, then one Radio + Label pair per

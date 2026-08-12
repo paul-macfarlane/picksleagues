@@ -173,6 +173,19 @@ export const LeagueSummarySchema = z
     maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     startsAt: z.iso.datetime().nullable(),
+    /**
+     * The label of the week the league is on right now ("Week 5", "Wild Card"),
+     * server-resolved so the card names the same week the pick screen it links
+     * to does. Null for a mode with no season range and before a season's weeks
+     * are ingested.
+     *
+     * Carried alongside `startsAt` rather than replacing it because the card
+     * needs both: a league that hasn't started is described by when it will,
+     * and one that has is described by where it is — a card still announcing a
+     * start date the season is months past is what this field exists to fix
+     * (FB-28).
+     */
+    currentWeekLabel: z.string().nullable(),
     // See LeagueResponse.renewable — drives the dashboard "New season available"
     // badge without an extra per-league fetch.
     renewable: z.boolean(),

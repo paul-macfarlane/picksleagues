@@ -9,8 +9,8 @@ import {
   type SurvivorPickStatus,
 } from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
-import { formatDateTime } from "@/lib/format";
-import { leagueModeLabel } from "@/lib/league";
+import { useAppNow } from "@/lib/app-clock";
+import { leagueModeLabel, leagueTimingLine } from "@/lib/league";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardGridSkeleton } from "@/components/loading";
@@ -21,13 +21,25 @@ export const Route = createFileRoute("/_authed/")({
   component: Dashboard,
 });
 
+/**
+ * Both ways into a league sit together (FB-40, owner's call): creating one and
+ * finding one are the same job with two answers, and separating them left
+ * joining reachable only from a header word most members never read — nearly
+ * everyone arrives by invite link, so browsing is the rare path that has to be
+ * findable exactly where a member notices they have nowhere to play.
+ */
 function DashboardHeader() {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <h1 className="text-2xl font-semibold text-foreground">Your leagues</h1>
-      <Link to="/leagues/new" className={buttonVariants({ size: "lg" })}>
-        Create league
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to="/discovery" className={buttonVariants({ variant: "outline", size: "lg" })}>
+          Browse public leagues
+        </Link>
+        <Link to="/leagues/new" className={buttonVariants({ size: "lg" })}>
+          Create league
+        </Link>
+      </div>
     </div>
   );
 }
@@ -100,6 +112,7 @@ function Dashboard() {
 
 function LeagueCard({ league }: { league: LeagueSummary }) {
   const glance = pickStatusGlance(league);
+  const now = useAppNow();
   return (
     <Card className="relative h-full transition-colors hover:ring-ring/50">
       <CardHeader>
@@ -137,7 +150,7 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
               <StatusPill tone="neutral">New season — waiting on a commissioner</StatusPill>
             ))}
         </div>
-        <p>{league.startsAt ? `Starts ${formatDateTime(league.startsAt)}` : "Start date TBD"}</p>
+        <p>{leagueTimingLine(league, now)}</p>
         {glance ? (
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={glance.tone} data-testid={glance.testId} data-status={glance.status}>

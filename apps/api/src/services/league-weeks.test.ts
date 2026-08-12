@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "@picksleagues/core";
-import { resolveCurrentWeekId, resolveWeekWindowPosition } from "./league-weeks";
+import { LEAGUE_MODE, NFL_REGULAR_SEASON_RANGE, PICK_TYPE, WEEK_TYPE } from "@picksleagues/schemas";
+import {
+  resolveCurrentWeekId,
+  resolveCurrentWeekLabel,
+  resolveWeekWindowPosition,
+} from "./league-weeks";
+
+// The stored Pick'em settings shape, of which only the week range matters here.
+const DEFAULT_RANGE = {
+  ...NFL_REGULAR_SEASON_RANGE,
+  pickType: PICK_TYPE.STRAIGHT_UP,
+  picksPerWeek: 5,
+};
 
 /**
  * Boundary instants for the current-week and pick-window derivations
@@ -59,5 +71,63 @@ describe("resolveWeekWindowPosition", () => {
     expect(next).toEqual({ position: "next", currentWeekId: "w2" });
     // w3 is current under the fallback; there is no w4 for "next" to reach.
     expect(resolveWeekWindowPosition(WEEKS, at(t0 + 30 * day), "w3").position).toBe("current");
+  });
+});
+
+describe("resolveCurrentWeekLabel", () => {
+  // The same three weeks, given the season identity the range clip needs. Weeks
+  // 1–3 of the regular season, so a league ending at week 2 must not name w3.
+  const LABELLED = WEEKS.map((week, index) => ({
+    ...week,
+    weekType: WEEK_TYPE.REGULAR,
+    weekNumber: index + 1,
+    label: `Week ${index + 1}`,
+  }));
+
+  const settingsFor = (endWeekNumber: number) => ({
+    ...DEFAULT_RANGE,
+    endWeek: { type: WEEK_TYPE.REGULAR, number: endWeekNumber },
+  });
+
+  it("names the week the league is currently on", () => {
+    expect(
+      resolveCurrentWeekLabel(
+        LABELLED,
+        { mode: LEAGUE_MODE.PICKEM, settings: settingsFor(18) },
+        at(t0 + 10 * day),
+      ),
+    ).toBe("Week 2");
+  });
+
+  it("clips to the weeks the league plays, so a finished range names its own last week", () => {
+    // Now sits inside week 3, which this league doesn't play — the answer is
+    // its last in-range week, not the calendar's current one.
+    expect(
+      resolveCurrentWeekLabel(
+        LABELLED,
+        { mode: LEAGUE_MODE.PICKEM, settings: settingsFor(2) },
+        at(t0 + 16 * day),
+      ),
+    ).toBe("Week 2");
+  });
+
+  it("is null for a mode with no season range", () => {
+    expect(
+      resolveCurrentWeekLabel(
+        LABELLED,
+        { mode: LEAGUE_MODE.MARCH_MADNESS, settings: {} },
+        at(t0 + 10 * day),
+      ),
+    ).toBeNull();
+  });
+
+  it("is null before a season's weeks are ingested", () => {
+    expect(
+      resolveCurrentWeekLabel(
+        [],
+        { mode: LEAGUE_MODE.SURVIVOR, settings: settingsFor(18) },
+        at(t0 + 10 * day),
+      ),
+    ).toBeNull();
   });
 });

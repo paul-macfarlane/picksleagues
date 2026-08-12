@@ -2,11 +2,14 @@ import {
   canPerformLeagueAction,
   LEAGUE_MODE,
   MEMBER_ROLE,
+  PICK_TYPE,
   type LeagueAction,
   type LeagueMode,
   type LeagueResponse,
   type MemberRole,
+  type PickType,
 } from "@picksleagues/schemas";
+import { formatDateTime } from "@/lib/format";
 
 // One home for the mode→human-label mapping (engineering rule on derived
 // display values) — consumed by the create-league mode picker, the invite
@@ -19,6 +22,17 @@ const LEAGUE_MODE_LABELS: Record<LeagueMode, string> = {
 
 export function leagueModeLabel(mode: LeagueMode): string {
   return LEAGUE_MODE_LABELS[mode];
+}
+
+// One home for the pickType→human-label mapping, consumed by the settings
+// fieldsets and the discovery card's pre-join settings summary.
+const PICK_TYPE_LABELS: Record<PickType, string> = {
+  [PICK_TYPE.STRAIGHT_UP]: "Straight Up",
+  [PICK_TYPE.AGAINST_THE_SPREAD]: "Against the Spread",
+};
+
+export function pickTypeLabel(pickType: PickType): string {
+  return PICK_TYPE_LABELS[pickType];
 }
 
 // One home for the role→human-label mapping, consumed by the league home
@@ -58,6 +72,33 @@ export function leagueModeRulesPath(mode: LeagueMode): string | null {
  */
 export function leagueHasStarted(league: LeagueResponse, now: Date): boolean {
   return league.startsAt !== null && now.getTime() >= new Date(league.startsAt).getTime();
+}
+
+/**
+ * The one timing line a league surface prints (dashboard card, league header).
+ * A league that hasn't kicked off is described by when it will; one that has is
+ * described by where it is, because a card still announcing a start date the
+ * season is a month past is the tense bug this fixes (FB-28).
+ *
+ * `now` must come from `useAppNow()`, never a local `Date`: the sighting was a
+ * card reading "Starts 9/4/25" at a simulated 10/2, and a browser-clock
+ * comparison would be wrong in exactly the environment that surfaced it. Same
+ * `>=`-is-started boundary as `leagueHasStarted`, so no two lines on one screen
+ * can disagree about whether a league is under way.
+ *
+ * `currentWeekLabel` is absent on surfaces whose DTO doesn't carry one, and
+ * null when a season's weeks aren't ingested; both fall back to the past-tense
+ * start date rather than an empty line.
+ */
+export function leagueTimingLine(
+  league: { startsAt: string | null; currentWeekLabel?: string | null },
+  now: Date,
+): string {
+  if (league.startsAt === null) return "Start date TBD";
+  if (now.getTime() < new Date(league.startsAt).getTime()) {
+    return `Starts ${formatDateTime(league.startsAt)}`;
+  }
+  return league.currentWeekLabel ?? `Started ${formatDateTime(league.startsAt)}`;
 }
 
 /**
