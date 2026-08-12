@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && pnpm prerender",
+    "prerender": "vite build --config prerender/vite.config.ts && node prerender/dist/entry.js",
     "typecheck": "tsc -b",
     "preview": "vite preview"
   },
@@ -13,6 +14,7 @@
     "@base-ui/react": "^1.6.0",
     "@fontsource-variable/archivo": "^5.3.0",
     "@fontsource-variable/geist": "^5.2.9",
+    "@picksleagues/html-shell": "workspace:*",
     "@picksleagues/openapi": "workspace:*",
     "@picksleagues/schemas": "workspace:*",
     "@picksleagues/scoring": "workspace:*",

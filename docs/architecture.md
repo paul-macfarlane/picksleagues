@@ -100,6 +100,8 @@ ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status
 
 Next.js would consolidate hosting and give SSR for free, and route handlers *can* serve a mobile client. But server actions and RSC data flows couple data access to the React tree, working against the API-first constraint — you end up maintaining a parallel "real" API for mobile anyway. Picks Leagues is a logged-in app with no SEO surface, so SSR buys nothing. A pure SPA against an explicit API keeps one contract for all clients. (Also matches stated preference.)
 
+**Amended by ADR-0039:** "no SEO surface" was wrong about the pages that exist to be read *before* signing in — the splash, the legal pages, and the rules guides. Serving them as an empty `<div id="root">` got the app's Google OAuth branding rejected ("your home page does not explain the purpose of your app"), since the reviewer never runs the SPA. Those routes are now prerendered to static HTML at build time (`apps/web/prerender`); the SPA-plus-API shape is unchanged, and no request-time rendering was added.
+
 ### D2. API language: TypeScript over Go
 
 **Alternatives:** Go (Chi/Echo, single binary) · TypeScript ✅
@@ -192,11 +194,14 @@ Direct edits create a fight between admin and ingestion. A separate table is rel
 picks-leagues/
 ├── apps/
 │   ├── web/                # Vite SPA (includes static rules-guide content)
+│   │   └── prerender/      # Build-time static render of the public routes (ADR-0039)
 │   └── api/                # Hono app, deployed as Vercel Functions (routes, jobs, sim)
 ├── packages/
 │   ├── schemas/            # Zod schemas: API DTOs + league settings per game mode
 │   ├── db/                 # Drizzle schema, migrations, query helpers
 │   ├── scoring/            # Pure scoring/settlement functions per game mode
+│   ├── html-shell/         # Rewrites of the built index.html, shared by the
+│   │                       #   invite unfurl (ADR-0038) and the prerender (ADR-0039)
 │   └── core/               # Clock service, GameDataProvider interface,
 │                           #   EspnProvider, SimulatedProvider, env config
 └── openapi/                # Generated spec (committed) + generated web client

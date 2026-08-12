@@ -7,23 +7,12 @@
  * build time, so an invite unfurled as the generic app pitch. This module
  * rewrites those four tags in that same shell — the document is byte-identical
  * apart from them, so a human following the link boots the very same SPA.
+ *
+ * No `canonical`: an invite URL names a private league and must stay out of
+ * every index, so these documents deliberately keep the shell's `og:url`.
  */
 
-const ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-};
-
-/**
- * Escapes for a double-quoted attribute value. A league name is member-authored
- * text going into `content="…"`, so an unescaped quote would end the attribute
- * and everything after it would be parsed as markup.
- */
-function escapeAttribute(value: string): string {
-  return value.replace(/[&<>"]/g, (char) => ESCAPES[char] ?? char);
-}
+import { escapeAttribute } from "@picksleagues/html-shell";
 
 export interface InviteOgMeta {
   title: string;
@@ -40,38 +29,6 @@ export const GENERIC_INVITE_OG: InviteOgMeta = {
   title: "You're invited to a league · Picks Leagues",
   description: "Join your friends' NFL pick'em or survivor league on Picks Leagues.",
 };
-
-/**
- * Replaces a whole `<meta>` tag, matched by the attribute that identifies it
- * rather than by the tag's exact text.
- *
- * **Matched across the whole tag on purpose.** The shell this runs against is
- * the *built* `index.html`, and the build reformats long tags onto several
- * lines — a pattern written for the source file's one-line spelling matches
- * nothing there and leaves the tag untouched, which is a failure with no
- * symptom short of pasting a link into a real thread.
- */
-function replaceMeta(html: string, attr: "name" | "property", key: string, content: string) {
-  return html.replace(
-    new RegExp(`<meta\\s[^>]*${attr}="${key}"[^>]*>`),
-    `<meta ${attr}="${key}" content="${content}" />`,
-  );
-}
-
-/**
- * Swaps the shell's four descriptive tags for this invite's. Anchored on the
- * attribute names `apps/web/index.html` uses — renaming one there silently
- * stops its substitution, which is why `invite-og.test.ts` asserts the old text
- * is gone rather than that the function ran.
- */
-export function renderInviteShell(shell: string, meta: InviteOgMeta): string {
-  const title = escapeAttribute(meta.title);
-  const description = escapeAttribute(meta.description);
-  const withTitle = shell.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
-  const withDescription = replaceMeta(withTitle, "name", "description", description);
-  const withOgTitle = replaceMeta(withDescription, "property", "og:title", title);
-  return replaceMeta(withOgTitle, "property", "og:description", description);
-}
 
 /**
  * The minimal document served when the built shell isn't on disk beside the
