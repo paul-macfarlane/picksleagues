@@ -47,6 +47,15 @@ function Discovery() {
   // request per character — so it holds a draft until submit; the select and
   // the pager write straight to the URL.
   const [draftQuery, setDraftQuery] = useState(submittedQuery);
+  // …but the URL can change without this box: a Back out of a search has to
+  // take the words out of it too, or the input claims a filter the results
+  // aren't under. Tracked against the last applied query rather than assigned
+  // in an effect, so no render ever paints the two disagreeing.
+  const [appliedQuery, setAppliedQuery] = useState(submittedQuery);
+  if (submittedQuery !== appliedQuery) {
+    setAppliedQuery(submittedQuery);
+    setDraftQuery(submittedQuery);
+  }
 
   const discovery = useDiscovery({ q: submittedQuery, mode: search.mode ?? null, page });
 

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
  * lists a member can visit in the same session.
  */
 
-/** Which page buttons a pager shows, with `null` marking a truncated run. */
+// Which page buttons a pager shows, with `null` marking a truncated run.
 function pageItems(page: number, totalPages: number): (number | null)[] {
   // Every page fits before truncation earns its place; at friends scale this is
   // nearly always the branch taken.
