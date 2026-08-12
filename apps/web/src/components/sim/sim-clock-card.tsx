@@ -6,7 +6,7 @@ import {
   type SimClockAnchor,
   type SimStateResponse,
 } from "@picksleagues/schemas";
-import { useAdminSeasons } from "@/api/admin";
+import { useAdminGames, useAdminSeasons } from "@/api/admin";
 import { useAdjustSimClock } from "@/api/sim";
 import { formatDateTime, toLocalDateTimeInputValue } from "@/lib/format";
 import { LabeledDateTimeField } from "@/components/labeled-date-time-field";
@@ -23,6 +23,9 @@ const WEEK_MS = 7 * DAY_MS;
 // The fixed steps an operator nudges the clock by — a const table rather
 // than five inline `mutate` calls so each button's label and ms stay paired.
 const CLOCK_STEPS: { label: string; ms: number }[] = [
+  // Symmetric on purpose (FB-31): every forward step has its inverse, so an
+  // overshoot is undone by the button beside the one that caused it.
+  { label: "−1 week", ms: -WEEK_MS },
   { label: "−1 day", ms: -DAY_MS },
   { label: "−1 hour", ms: -HOUR_MS },
   { label: "+1 hour", ms: HOUR_MS },
@@ -76,6 +79,85 @@ function StatusItem({
   );
 }
 
+/**
+ * Jump straight to one of the selected week's kickoff windows (FB-31) — the
+ * Sunday 1pm wave, the late games, the night game — instead of nudging by hours
+ * and overshooting.
+ *
+ * The slots are **derived from the week's own games**, never a table of ET
+ * times. A hardcoded 1:00pm is wrong for an international kickoff, a
+ * Thursday/Saturday slate, or a holiday window, and it would offer the operator
+ * an instant no game occupies. Reading the games instead means the list is
+ * exactly the slate that exists — and it reads `effectiveKickoffAt`, so an
+ * admin's kickoff override moves the slot with it (arch D15).
+ *
+ * Lands *on* the kickoff, which is the instant those games lock (`kickoff <=
+ * now`, arch D11) and the state an operator jumping to a slate wants to be in.
+ */
+function KickoffSlotRow({
+  weekId,
+  pending,
+  onJump,
+}: {
+  weekId: string | undefined;
+  pending: boolean;
+  onJump: (input: { kind: typeof SIM_CLOCK_ADJUSTMENT_KIND.INSTANT; instant: string }) => void;
+}) {
+  const games = useAdminGames(weekId);
+  const [slot, setSlot] = useState<string>();
+
+  // Distinct kickoff instants with how many games each starts — the count is
+  // what tells a 12-game wave from a lone night game at a glance.
+  const slots = [
+    ...(games.data?.games ?? [])
+      .reduce(
+        (acc, game) =>
+          acc.set(game.effectiveKickoffAt, (acc.get(game.effectiveKickoffAt) ?? 0) + 1),
+        new Map<string, number>(),
+      )
+      .entries(),
+  ].sort(([a], [b]) => a.localeCompare(b));
+
+  // Never trusted from local state: changing the week (or an environment reset)
+  // leaves a selection that names an instant this week doesn't have.
+  const selected = slots.find(([instant]) => instant === slot)?.[0] ?? slots[0]?.[0];
+
+  return (
+    <SimControlRow
+      title="Jump to a kickoff slot"
+      description="Lands the clock exactly on one of the selected week's kickoffs, locking that wave of games."
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <LabeledSelect
+            id="sim-clock-kickoff"
+            label="Kickoff"
+            value={selected ?? null}
+            onValueChange={setSlot}
+            options={slots.map(([instant, count]) => ({
+              value: instant,
+              label: `${formatDateTime(instant)} · ${count} game${count === 1 ? "" : "s"}`,
+            }))}
+          />
+        </div>
+        <Button
+          disabled={!selected || pending}
+          onClick={() =>
+            selected && onJump({ kind: SIM_CLOCK_ADJUSTMENT_KIND.INSTANT, instant: selected })
+          }
+        >
+          Jump to kickoff
+        </Button>
+      </div>
+      {!games.isPending && slots.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No games synced for the selected week — run the schedule sync job first.
+        </p>
+      )}
+    </SimControlRow>
+  );
+}
+
 export function SimClockCard({ state }: { state: SimStateResponse }) {
   const adjust = useAdjustSimClock();
   const seasons = useAdminSeasons(SPORT.NFL);
@@ -84,11 +166,25 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
   const [seasonId, setSeasonId] = useState<string>();
   const [weekId, setWeekId] = useState<string>();
   const [anchor, setAnchor] = useState<SimClockAnchor>(SIM_CLOCK_ANCHOR.BEFORE_FIRST_KICKOFF);
-  // Seeded once from the clock at mount — re-seeding on every 15s poll
-  // (api/sim.ts) would clobber whatever instant the operator is mid-typing.
+  // Tracks the clock instead of freezing at mount (FB-32): the control is
+  // "start from now and adjust", and a field still showing where the clock was
+  // three jumps ago is a stale default the operator has to notice.
+  //
+  // Re-seeded only while it still holds what it was last seeded with, which is
+  // the anti-clobber property the mount-only seed was protecting: once the
+  // operator types (or picks) anything, the 15s poll (api/sim.ts) leaves it
+  // alone. After a successful Set the clock becomes the value in the field, so
+  // the two agree again and tracking resumes.
   const [instantValue, setInstantValue] = useState(() =>
     toLocalDateTimeInputValue(state.clock.now),
   );
+  const [seededFrom, setSeededFrom] = useState(state.clock.now);
+  if (state.clock.now !== seededFrom) {
+    setSeededFrom(state.clock.now);
+    if (instantValue === toLocalDateTimeInputValue(seededFrom)) {
+      setInstantValue(toLocalDateTimeInputValue(state.clock.now));
+    }
+  }
 
   // A week identifies its own season, so a selection needs only `weekId`;
   // `seasonId` alone covers "season chosen, no week yet" — the same
@@ -241,6 +337,8 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
             </Button>
           </div>
         </SimControlRow>
+
+        <KickoffSlotRow weekId={effectiveWeekId} pending={instantPending} onJump={adjust.mutate} />
 
         <SimControlRow
           title="Set an exact instant"

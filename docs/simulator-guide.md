@@ -72,8 +72,10 @@ those ahead of time rather than discovering them at kickoff.
 where the simulator is enabled). Four sections:
 
 - **Clock** — simulated now, real now, the offset, and the active scenario.
-  Controls: step buttons (±1h / ±1d / +1w), jump to a week anchor, set an exact
-  instant, and back to real time (which leaves the scenario loaded).
+  Controls: step buttons (±1h / ±1d / ±1w), jump to a week anchor, jump to a
+  kickoff slot, set an exact instant, and back to real time (which leaves the
+  scenario loaded). The instant field tracks the clock until you edit it, so it
+  always opens on "now" rather than wherever the clock was when the page loaded.
 - **Scenarios** — the canned edge-case library, any imported seasons, and the
   replay importer. Loading re-anchors the clock to the scenario's start.
 - **Fixtures** — one week at a time, showing each fixture's terminal truth beside
@@ -84,6 +86,22 @@ where the simulator is enabled). Four sections:
 A banner in the header shows simulated time and the active scenario on *every*
 page, so you cannot forget which clock you are on. It stays silent at a zero
 offset with no scenario, where the environment behaves exactly like a real one.
+
+**Non-admin testers see it too**, minus the scenario and the link — a tester
+reading lock states and deadlines is reading them against the simulated instant,
+and the shell has to say so. Their half is driven by `/me` (`simClockOffsetMs`),
+not by `/api/sim/state`, which stays admin-only and unregistered where the
+simulator is off.
+
+### Kickoff slots
+
+"Jump to a kickoff slot" lists the *selected week's own* distinct kickoffs with
+how many games each starts, and lands the clock exactly on one — the Sunday
+early wave, the late games, the night game. Derived from the week's fixtures
+rather than a table of ET times, so it is right for a Thursday, Saturday,
+international, or holiday slate, and it reads the effective kickoff, so an
+override moves the slot with it. Landing *on* a kickoff locks that wave
+(`kickoff <= now`); the games still need a score sync to have scores.
 
 ### Week anchors
 

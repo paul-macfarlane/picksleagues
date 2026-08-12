@@ -9,7 +9,7 @@ import {
   UpdateMeRequestSchema,
   type MeResponse,
 } from "@picksleagues/schemas";
-import type { users } from "@picksleagues/db";
+import { getSimState, type Db, type users } from "@picksleagues/db";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
@@ -25,7 +25,7 @@ import {
 
 function serializeMe(
   user: typeof users.$inferSelect,
-  capabilities: { simEnabled: boolean },
+  capabilities: { simEnabled: boolean; simClockOffsetMs: number },
   now: Date,
 ): MeResponse {
   return {
@@ -141,7 +141,17 @@ export function meRoutes(deps: AppDeps) {
   // Whether the simulator exists here at all (ADR-0011): the real gate is that
   // `/api/sim/*` is not registered when it doesn't, so this only tells the SPA
   // whether to render sim surfaces — it grants nothing.
-  const capabilities = { simEnabled: deps.env ? isSimEnabled(deps.env) : false };
+  const simEnabled = deps.env ? isSimEnabled(deps.env) : false;
+
+  // `simEnabled` plus how far the clock is shifted (FB-38) — the second is what
+  // lets a non-admin's banner say "now isn't real" without reaching for the
+  // admin-only sim state route. Read per response, not once at startup: the
+  // offset changes whenever an operator moves the clock, and it costs a query
+  // only where the simulator exists at all.
+  const readCapabilities = async (db: Db) => ({
+    simEnabled,
+    simClockOffsetMs: simEnabled ? (await getSimState(db)).offsetMs : 0,
+  });
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");
@@ -160,7 +170,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(user, capabilities, clock.now()), 200);
+    return c.json(serializeMe(user, await readCapabilities(db), clock.now()), 200);
   });
 
   app.openapi(updateMe, async (c) => {
@@ -184,7 +194,7 @@ export function meRoutes(deps: AppDeps) {
       );
     }
 
-    return c.json(serializeMe(result.user, capabilities, clock.now()), 200);
+    return c.json(serializeMe(result.user, await readCapabilities(db), clock.now()), 200);
   });
 
   app.openapi(getDeletionBlockers, async (c) => {
