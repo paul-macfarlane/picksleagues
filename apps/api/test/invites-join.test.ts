@@ -291,6 +291,65 @@ describe("GET /api/join/:code (preview)", () => {
   });
 });
 
+describe("GET /api/invite-preview/:code (link unfurl, ADR-0038)", () => {
+  function getPreviewHtml(code: string, on: App = app) {
+    // Deliberately no cookie: a link-preview bot has no session, and that this
+    // route answers without one is the whole feature.
+    return on.request(`/api/invite-preview/${code}`, { method: "GET" });
+  }
+
+  it("names the league and its capacity, to no session at all", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({
+      name: "Sunday Crew",
+      maxMembers: 10,
+      visibility: LEAGUE_VISIBILITY.PRIVATE,
+    });
+    const code = await createCode(commissioner.cookie, league.id);
+
+    const res = await getPreviewHtml(code);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("You're invited to Sunday Crew");
+    expect(html).toContain("NFL Pick'em");
+    expect(html).toContain("1 of 10 members");
+    expect(html).toContain("9 spots left");
+  });
+
+  it("says the league is closed once it is full, rather than inviting into it", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({
+      name: "Full House",
+      maxMembers: 2,
+    });
+    const code = await createCode(commissioner.cookie, league.id);
+    await fillLeague(league.id, 1);
+
+    const html = await (await getPreviewHtml(code)).text();
+    expect(html).toContain("no longer taking members");
+    expect(html).not.toContain("spots left");
+  });
+
+  it("says the same generic thing for a revoked code as for one that never existed", async () => {
+    const { commissioner, league } = await seedLeagueWithCommissioner({ name: "Secret Club" });
+    const code = await createCode(commissioner.cookie, league.id);
+    await db
+      .update(leagueInvites)
+      .set({ revokedAt: PRE_START_NOW })
+      .where(eq(leagueInvites.code, code));
+
+    const revoked = await (await getPreviewHtml(code)).text();
+    const unknown = await (await getPreviewHtml("does-not-exist")).text();
+
+    // The league's name is the thing a revoked link must stop disclosing, and
+    // the two answers must be indistinguishable — otherwise the unfurl reports
+    // whether a code was ever real.
+    expect(revoked).not.toContain("Secret Club");
+    expect(revoked).toContain("You're invited to a league");
+    expect(unknown).toContain("You're invited to a league");
+    expect((await getPreviewHtml("does-not-exist")).status).toBe(200);
+  });
+});
+
 describe("POST /api/join/:code", () => {
   it("joins the league and increments the invite's use count", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner();

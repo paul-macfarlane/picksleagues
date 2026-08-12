@@ -12,7 +12,24 @@ const env = loadEnv();
 // HTTP-method exports; a default export gets the legacy (req, res) calling
 // convention and its returned Response is silently dropped — every API call
 // hangs and the SPA white-screens on its session fetch.
-const handler = handle(createApp(createRuntimeDeps(env)));
+const app = handle(createApp(createRuntimeDeps(env)));
+
+// `/join/<code>` is routed to this function so a pasted invite link unfurls
+// with the league's name (ADR-0038), but the app is mounted under `/api` and a
+// preview bot asks for the public path. Normalised here rather than with a
+// `dest` rewrite in the routing config: the platform's contract about which
+// path a function is handed on a rewrite is one this repo can't test locally,
+// and getting it wrong would serve every invite link a 404 in production only.
+// Doing it in our own handler makes the mapping true whichever path arrives.
+const INVITE_PATH = /^\/join\/([^/?#]+)\/?$/;
+
+const handler = (request: Request): Response | Promise<Response> => {
+  const url = new URL(request.url);
+  const code = INVITE_PATH.exec(url.pathname)?.[1];
+  if (!code) return app(request);
+  url.pathname = `/api/invite-preview/${code}`;
+  return app(new Request(url, request));
+};
 
 export const GET = handler;
 export const POST = handler;
