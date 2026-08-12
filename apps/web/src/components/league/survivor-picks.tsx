@@ -94,6 +94,10 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
   // the sheet and the glance cannot disagree about who won.
   const won =
     concluded && season.data?.members.find((member) => member.isViewer)?.isWinner === true;
+  // Whether the viewer shares the win, asked of the same winner set `won` is —
+  // a sole winner told they are "one of the members left standing" is the app
+  // hedging away the one outcome the season exists to produce (FB-29).
+  const soleWinner = won && season.data?.members.filter((member) => member.isWinner).length === 1;
 
   return (
     <QueryState
@@ -116,7 +120,7 @@ export function SurvivorPicks({ leagueId, weekId }: { leagueId: string; weekId: 
         picks.data &&
         viewer &&
         (won || (concluded && !viewer.eliminated) ? (
-          <SeasonOverWeek slate={slate.data} pick={viewer.pick} won={won} />
+          <SeasonOverWeek slate={slate.data} pick={viewer.pick} won={won} soleWinner={soleWinner} />
         ) : viewer.eliminated ? (
           <EliminatedWeek slate={slate.data} pick={viewer.pick} />
         ) : !picks.data.pickWindowOpen ? (
@@ -169,19 +173,23 @@ function SeasonOverWeek({
   slate,
   pick,
   won,
+  soleWinner,
 }: {
   slate: WeekSlateResponse;
   pick: SurvivorPick | null;
   won: boolean;
+  soleWinner: boolean;
 }) {
   return (
     <Card data-testid="survivor-season-over" data-won={won ? "true" : "false"}>
       <CardHeader>
-        <CardTitle>{won ? "You made it" : "Season over"}</CardTitle>
+        <CardTitle>{soleWinner ? "You won" : won ? "You made it" : "Season over"}</CardTitle>
         <CardDescription>
-          {won
-            ? "This season is decided and you're one of the members left standing, so there are no more picks to make."
-            : "This league's season is over, so there are no more picks to make."}
+          {soleWinner
+            ? "You're the last member standing — this season is yours."
+            : won
+              ? "This season is decided and you're one of the members left standing, so there are no more picks to make."
+              : "This league's season is over, so there are no more picks to make."}
         </CardDescription>
       </CardHeader>
       <PickedGame slate={slate} pick={pick} />

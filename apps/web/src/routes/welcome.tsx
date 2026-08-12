@@ -61,7 +61,7 @@ function Welcome() {
           <BrandMark className="size-20" />
           <h1 className="text-4xl font-bold text-foreground sm:text-5xl">Picks Leagues</h1>
           <p className="max-w-md text-lg text-muted-foreground">
-            Sports pick&apos;em leagues with friends. Create a league, invite your crew, and settle
+            Season-long sports leagues with friends. Create one, invite your crew, and settle
             bragging rights on the scoreboard.
           </p>
           <Link to="/sign-in" className={cn(buttonVariants({ size: "lg" }), "px-8")}>

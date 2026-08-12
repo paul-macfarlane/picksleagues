@@ -274,6 +274,12 @@ export function spreadSourceCredit(
 export function spreadLabel(spread: number | null, side: PickemPickSide): string | null {
   if (spread === null) return null;
   const value = side === PICKEM_PICK_SIDE.HOME ? spread : -spread;
+  // A pick'em line reads as a word, not a number: "+0"/"-0" (and the bare "0"
+  // this used to print) invite a reader to look for a favorite that isn't
+  // there. Sportsbooks write "PK" here, which is unusable inside a product
+  // whose game mode is named Pick'em — "Even" says the same thing without the
+  // collision. Both sides get the same word, since neither is giving points.
+  if (value === 0) return "Even";
   return value > 0 ? `+${value}` : `${value}`;
 }
 
