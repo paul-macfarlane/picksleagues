@@ -70,7 +70,11 @@ function ordinal(rank: number): string {
   return `${rank}${suffix}`;
 }
 
-function differentialLabel(record: GameStatsTeamRecord): string {
+function differentialLabel(record: GameStatsTeamRecord): string | null {
+  // Null at zero games like the per-game averages — a differential of "0" for
+  // a team that has played nothing states a fact the data doesn't hold
+  // (ADR-0040: omit, never fabricate).
+  if (record.gamesPlayed === 0) return null;
   const diff = record.pointsFor - record.pointsAgainst;
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
@@ -190,7 +194,14 @@ function MatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
             record && !sharedSeasonYear
               ? `${team.abbreviation} (${record.seasonYear})`
               : team.abbreviation;
-          const statsUpdatedAt = home?.updatedAt ?? away?.updatedAt ?? null;
+          // The OLDER of the two blocks' stamps: one caption dates both
+          // columns, and when the per-team fallback serves different seasons
+          // their rows can have been written at different instants — claiming
+          // the newer one would overstate the staler column's freshness.
+          const statsStamps = [home?.updatedAt, away?.updatedAt].filter(
+            (stamp): stamp is string => stamp !== undefined,
+          );
+          const statsUpdatedAt = statsStamps.length > 0 ? statsStamps.sort()[0]! : null;
           const injuriesFor = (side: GameStatsTeamContext) =>
             advanced ? side.injuries : side.injuries.filter(isKeyInjury);
 

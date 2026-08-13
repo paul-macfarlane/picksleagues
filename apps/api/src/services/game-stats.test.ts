@@ -52,4 +52,15 @@ describe("scoringRank", () => {
     expect(scoringRank(rows, "D", "offense")).toBeNull();
     expect(scoringRank(rows, "missing", "offense")).toBeNull();
   });
+
+  it("is null while fewer than half the league has played — '1st' of a two-team pool is not a league rank", () => {
+    const earlyWeek = [
+      row("A", 1, 30, 10),
+      row("B", 1, 20, 30),
+      row("C", 0, 0, 0),
+      row("D", 0, 0, 0),
+      row("E", 0, 0, 0),
+    ];
+    expect(scoringRank(earlyWeek, "A", "offense")).toBeNull();
+  });
 });

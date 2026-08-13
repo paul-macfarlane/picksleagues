@@ -30,6 +30,13 @@ function gamesPlayed(row: StatsRow): number {
 /**
  * Competition ranking ("1224": tied teams share a rank, the next rank skips)
  * over the teams that have played. Exported for its unit tests; pure.
+ *
+ * Null unless at least half the season's teams have played: the UI presents
+ * the ordinal as a league rank, and on the Friday after week 1's Thursday
+ * game the eligible pool is two teams — "1st" there states something far
+ * stronger than the data holds (ADR-0040: omit, never fabricate). Half is a
+ * legibility floor, not a statistics claim; by any ordinary week every team
+ * has played and the guard is invisible.
  */
 export function scoringRank(
   rows: StatsRow[],
@@ -37,6 +44,7 @@ export function scoringRank(
   side: "offense" | "defense",
 ): number | null {
   const eligible = rows.filter((row) => gamesPlayed(row) > 0);
+  if (eligible.length < Math.ceil(rows.length / 2)) return null;
   const mine = eligible.find((row) => row.teamId === teamId);
   if (!mine) return null;
   const value = (row: StatsRow) =>

@@ -193,9 +193,12 @@ const FPI_MAX = 95;
 export function deriveFpiWinPct(spread: number | null, side: "home" | "away"): number | null {
   if (spread === null) return null;
   // Negative spread = home favored, so the home probability rises as it drops.
-  const homePct = Math.min(FPI_MAX, Math.max(FPI_MIN, 50 - spread * FPI_POINTS_PER_PCT));
-  const pct = side === "home" ? homePct : 100 - homePct;
-  return Math.round(pct * 10) / 10;
+  // Rounded once, on the home side, and the away side complements the rounded
+  // value — rounding each side independently can sum to 100.1, and a pair
+  // that doesn't add up reads as a bug on the one surface it appears.
+  const homePct =
+    Math.round(Math.min(FPI_MAX, Math.max(FPI_MIN, 50 - spread * FPI_POINTS_PER_PCT)) * 10) / 10;
+  return side === "home" ? homePct : Math.round((100 - homePct) * 10) / 10;
 }
 
 // Fictional-name pools for mocked injuries. Deliberately name-shaped (the UI
@@ -203,8 +206,45 @@ export function deriveFpiWinPct(spread: number | null, side: "home" | "away"): n
 // roster, so a simulated screenshot never claims a real athlete is hurt — the
 // concern SIMULATED_SPREAD_SOURCE accepts for the book name is *not* accepted
 // for a person.
-const INJURY_FIRST_NAMES = ["Alex", "Jordan", "Casey", "Riley", "Morgan", "Taylor", "Drew"];
-const INJURY_LAST_NAMES = ["Simmons", "Fielder", "Granger", "Hollis", "Marsh", "Bennett", "Cole"];
+// Pools sized so cross-team repeats are rare: 16×16 = 256 combinations over
+// ~64 mocked entries league-wide — the earlier 7×7 pools put the same name on
+// both sides of one matchup, which read as a data bug in the demo.
+const INJURY_FIRST_NAMES = [
+  "Alex",
+  "Jordan",
+  "Casey",
+  "Riley",
+  "Morgan",
+  "Taylor",
+  "Drew",
+  "Quinn",
+  "Rowan",
+  "Ellis",
+  "Marlon",
+  "Devon",
+  "Corey",
+  "Reese",
+  "Lane",
+  "Avery",
+];
+const INJURY_LAST_NAMES = [
+  "Simmons",
+  "Fielder",
+  "Granger",
+  "Hollis",
+  "Marsh",
+  "Bennett",
+  "Cole",
+  "Vance",
+  "Whitaker",
+  "Dobbs",
+  "Ferris",
+  "Lockhart",
+  "Mercer",
+  "Ostrand",
+  "Pruitt",
+  "Radley",
+];
 const INJURY_POSITIONS = ["QB", "RB", "WR", "TE", "CB", "S", "LB"];
 const INJURY_STATUSES = ["Out", "Doubtful", "Questionable"];
 const INJURY_TYPES = ["Ankle", "Hamstring", "Knee", "Shoulder", "Concussion"];

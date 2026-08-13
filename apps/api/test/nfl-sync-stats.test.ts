@@ -163,6 +163,18 @@ describe("syncNflStats", () => {
     expect(provider.recordFetches).toHaveLength(0);
   });
 
+  it("skips loudly on an explicitly requested week that isn't synced, before writing anything", async () => {
+    await seedSchedule();
+    provider.recordsByYear.set(SEASON_YEAR, [record("hom-id", SEASON_YEAR, { wins: 1 })]);
+
+    const details = await syncNflStats(db, statsClock, provider, { weekNumber: 9 });
+
+    expect(details).toEqual({ skipped: true, reason: "week_not_synced" });
+    // The skip resolves before the team-stats write — a backfill aimed at a
+    // week that doesn't exist must not half-run.
+    expect(await statsRows(SEASON_YEAR)).toEqual([]);
+  });
+
   it("upserts team season records and per-game context for unstarted games only", async () => {
     await seedSchedule();
     provider.recordsByYear.set(SEASON_YEAR, [

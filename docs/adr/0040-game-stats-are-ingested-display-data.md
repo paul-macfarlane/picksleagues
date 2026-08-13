@@ -61,7 +61,11 @@ small basic tier by default, the full set one deliberate action away.
   `SimulatedProvider` computes records and points from its fixtures' terminal
   scores clipped to the simulated clock, so replayed stats agree with the
   replayed season; injuries are deterministic synthetic entries, since real
-  ones are unobtainable (fact 2). Like synthesized spreads, sim-only.
+  ones are unobtainable (fact 2). Like synthesized spreads, sim-only. One
+  accepted gap: a scenario carries exactly one season, so the week-1
+  prior-season fallback is unexercisable under the simulator — a sim week-1
+  sheet shows honest zeros/dashes where production will show last season
+  (docs/simulator-guide.md records it beside the synthesized-spreads note).
 - **Tiered surface as product contract:** basic = record, streak, PPG/OPG,
   key injuries (statuses other than Questionable); advanced = ranks,
   home/road splits, point differential, last five, ATS, full injury report,

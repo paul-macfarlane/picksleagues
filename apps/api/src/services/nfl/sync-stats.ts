@@ -60,6 +60,23 @@ export async function syncNflStats(
     return { skipped: true, reason: JOB_SKIP_REASON.SEASON_NOT_SYNCED };
   }
 
+  // Weeks resolve before anything writes: an explicitly requested week that
+  // isn't synced must skip loudly (sync-odds' rule — a backfill of one week
+  // must never quietly report "ok" having touched another, or nothing), and
+  // a skip after the team-stats write would bury counters the run earned.
+  // An explicit week defaults its type to REGULAR — a bare week number is the
+  // regular-season case; postseason narrowing must name `weekType`.
+  const targetWeeks = await resolveTargetWeeks(
+    db,
+    season.id,
+    now,
+    opts?.weekNumber,
+    opts?.weekType ?? WEEK_TYPE.REGULAR,
+  );
+  if (opts?.weekNumber !== undefined && targetWeeks.length === 0) {
+    return { skipped: true, reason: JOB_SKIP_REASON.WEEK_NOT_SYNCED };
+  }
+
   const records = await provider.fetchNflTeamSeasonRecords(seasonYear);
   const teamStatsUpdated = await upsertTeamSeasonStats(db, records, now);
 
@@ -74,16 +91,6 @@ export async function syncNflStats(
     priorSeasonTeamStatsUpdated = await upsertTeamSeasonStats(db, priorRecords, now);
   }
 
-  // An explicit week defaults its type to REGULAR — a bare week number is the
-  // regular-season case; postseason narrowing must name `weekType`.
-  const targetWeeks = await resolveTargetWeeks(
-    db,
-    season.id,
-    now,
-    opts?.weekNumber,
-    opts?.weekType ?? WEEK_TYPE.REGULAR,
-  );
-
   let unstartedGames = 0;
   let contextsUpdated = 0;
   let contextsMissing = 0;
@@ -94,10 +101,10 @@ export async function syncNflStats(
     contextsMissing += counts.contextsMissing;
   }
 
-  // Team stats are season-wide work that already happened, so a season with
-  // no upcoming week (its games all played) still reports `ok` — the
-  // week-window counters just read zero, unlike sync-odds, whose whole job is
-  // the window.
+  // On the *derived* path, a season with no upcoming week (its games all
+  // played) still reports `ok` — team stats are season-wide work that already
+  // happened, and the week-window counters just read zero. Only an explicit
+  // week miss skips (above), matching sync-odds.
   return {
     seasonYear,
     teamStatsUpdated,
