@@ -6,24 +6,21 @@ import type {
   ProviderTeam,
   ProviderTeamSeasonRecord,
 } from "@picksleagues/core";
-import type { WeekType } from "@picksleagues/schemas";
 
 /**
  * Empty-world default for every `GameDataProvider` method, so a test fake
  * overrides only the surface it exercises — before this, every new interface
  * method broke seven per-file fakes at once (the STAT epic's two additions
- * were the third time).
+ * were the third time). Methods declare no parameters (an override adds the
+ * ones it reads): fewer params is assignable, and an unused arg here is a
+ * lint error.
  */
 export class BaseFakeProvider implements GameDataProvider {
   async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
     return { seasonYear, weeks: [] };
   }
 
-  async fetchNflWeekGames(
-    _seasonYear: number,
-    _weekType: WeekType,
-    _weekNumber: number,
-  ): Promise<ProviderGame[]> {
+  async fetchNflWeekGames(): Promise<ProviderGame[]> {
     return [];
   }
 
@@ -31,11 +28,11 @@ export class BaseFakeProvider implements GameDataProvider {
     return [];
   }
 
-  async fetchNflTeamSeasonRecords(_seasonYear: number): Promise<ProviderTeamSeasonRecord[]> {
+  async fetchNflTeamSeasonRecords(): Promise<ProviderTeamSeasonRecord[]> {
     return [];
   }
 
-  async fetchNflGameStatContext(_providerGameId: string): Promise<ProviderGameStatContext | null> {
+  async fetchNflGameStatContext(): Promise<ProviderGameStatContext | null> {
     return null;
   }
 }

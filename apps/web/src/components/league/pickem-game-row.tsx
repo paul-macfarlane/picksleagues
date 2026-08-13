@@ -20,6 +20,7 @@ import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GameStatePill } from "@/components/league/game-state";
+import { MatchupStats } from "@/components/league/matchup-stats-sheet";
 import {
   PickOutcomeBadge,
   PickOutcomeIcon,
@@ -181,7 +182,10 @@ export function SheetGameRow({
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Matchup game={game} />
+        <div className="flex items-center gap-1">
+          <Matchup game={game} />
+          <MatchupStats game={game} />
+        </div>
         {selectedSide !== undefined && <StatusPill tone="accent">Picked</StatusPill>}
         {noLineYet && <StatusPill>No line yet</StatusPill>}
       </div>
@@ -254,7 +258,10 @@ export function SubmittedPickRow({
       className={cn(ROW_CLASS_NAME, rowState === "picked" && "border-primary bg-primary/5")}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Matchup game={game} />
+        <div className="flex items-center gap-1">
+          <Matchup game={game} />
+          <MatchupStats game={game} />
+        </div>
         {/* One badge, most-informative-wins, and the chain is total because
             each state strictly implies the next: a settled pick takes the slot
             from "Locked" (every settled pick is locked, so the lock is implied

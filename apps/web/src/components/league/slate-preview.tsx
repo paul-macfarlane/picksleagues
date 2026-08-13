@@ -1,6 +1,7 @@
 import type { WeekSlateResponse } from "@picksleagues/schemas";
 import { gameStateLabel } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
+import { MatchupStats } from "@/components/league/matchup-stats-sheet";
 import { TeamLogo } from "@/components/team-logo";
 
 /**
@@ -23,24 +24,29 @@ export function SlatePreview({ slate }: { slate: WeekSlateResponse }) {
           data-testid="slate-preview-row"
           className="flex flex-col gap-1 rounded-lg border border-border p-3"
         >
-          <p
-            className="flex items-center gap-1.5 text-sm font-medium text-foreground"
-            title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-          >
-            <TeamLogo
-              logoLightUrl={game.awayTeam.logoLightUrl}
-              logoDarkUrl={game.awayTeam.logoDarkUrl}
-              size="sm"
-            />
-            {game.awayTeam.abbreviation}
-            <span className="text-muted-foreground">@</span>
-            <TeamLogo
-              logoLightUrl={game.homeTeam.logoLightUrl}
-              logoDarkUrl={game.homeTeam.logoDarkUrl}
-              size="sm"
-            />
-            {game.homeTeam.abbreviation}
-          </p>
+          <div className="flex items-center gap-1">
+            <p
+              className="flex items-center gap-1.5 text-sm font-medium text-foreground"
+              title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
+            >
+              <TeamLogo
+                logoLightUrl={game.awayTeam.logoLightUrl}
+                logoDarkUrl={game.awayTeam.logoDarkUrl}
+                size="sm"
+              />
+              {game.awayTeam.abbreviation}
+              <span className="text-muted-foreground">@</span>
+              <TeamLogo
+                logoLightUrl={game.homeTeam.logoLightUrl}
+                logoDarkUrl={game.homeTeam.logoDarkUrl}
+                size="sm"
+              />
+              {game.homeTeam.abbreviation}
+            </p>
+            {/* Scouting ahead is the whole reason this read-only slate exists
+                (FB-20) — the matchup sheet is the same public data. */}
+            <MatchupStats game={game} />
+          </div>
           {/* Kickoff phrased against the app clock, which under the simulator
               is months away from the browser's. */}
           <p className="text-xs text-muted-foreground">{gameStateLabel(game, now)}</p>

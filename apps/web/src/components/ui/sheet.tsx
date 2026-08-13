@@ -29,27 +29,40 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
   );
 }
 
-// Only the left-side drawer (mobile nav) is wired up — a side prop / variant
-// table would be dead code until a second consumer needs another edge.
+// Two edges are wired up: the left drawer (mobile nav) and the bottom sheet
+// (matchup stats). `bottom` caps its height and scrolls internally, and on
+// wider screens narrows to a centered panel rather than a full-width slab.
+const SHEET_SIDE_CLASS_NAME = {
+  left: "inset-y-0 left-0 h-full w-3/4 max-w-xs data-open:slide-in-from-left data-closed:slide-out-to-left",
+  bottom:
+    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full overflow-y-auto rounded-t-xl sm:max-w-lg data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+} as const;
+
 function SheetContent({
   className,
   children,
+  side = "left",
+  closeLabel = "Close navigation",
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+}: React.ComponentProps<typeof DialogPrimitive.Popup> & {
+  side?: keyof typeof SHEET_SIDE_CLASS_NAME;
+  closeLabel?: string;
+}) {
   return (
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex h-full w-3/4 max-w-xs flex-col gap-4 bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left",
+          "fixed z-50 flex flex-col gap-4 bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-closed:animate-out",
+          SHEET_SIDE_CLASS_NAME[side],
           className,
         )}
         {...props}
       >
         {children}
         <SheetClose
-          aria-label="Close navigation"
+          aria-label={closeLabel}
           className="absolute top-3 right-3 rounded-md p-1 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <XIcon className="size-4" />
