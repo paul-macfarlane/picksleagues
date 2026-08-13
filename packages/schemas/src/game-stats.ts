@@ -100,6 +100,20 @@ export const GameStatsTeamContextSchema = z
 
 export type GameStatsTeamContext = z.infer<typeof GameStatsTeamContextSchema>;
 
+type MutuallyAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/**
+ * Compile-time tie between the storage payload and its wire twin: the next
+ * additive context field that lands on `TeamGameContextSchema` without its
+ * wire counterpart flips this to `false` and fails the build — otherwise the
+ * sync would persist data the API silently never serves, with every check
+ * (types, contract:check) staying green.
+ */
+export const GAME_STATS_WIRE_COVERS_STORAGE: MutuallyAssignable<
+  TeamGameContext,
+  GameStatsTeamContext
+> = true;
+
 /**
  * One team's season record block. `seasonYear` names the season the numbers
  * describe — until the current season has games it is the *prior* year

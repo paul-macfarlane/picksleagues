@@ -36,21 +36,21 @@ describe("scoringRank", () => {
   ];
 
   it("ranks offense by points scored per game, descending", () => {
-    expect(scoringRank(rows, "A", "offense")).toBe(1);
+    expect(scoringRank(rows, "A", "offense", 4)).toBe(1);
     // B and C both average 25 — competition ranking shares the rank.
-    expect(scoringRank(rows, "B", "offense")).toBe(2);
-    expect(scoringRank(rows, "C", "offense")).toBe(2);
+    expect(scoringRank(rows, "B", "offense", 4)).toBe(2);
+    expect(scoringRank(rows, "C", "offense", 4)).toBe(2);
   });
 
   it("ranks defense by points allowed per game, ascending", () => {
-    expect(scoringRank(rows, "A", "defense")).toBe(1);
-    expect(scoringRank(rows, "B", "defense")).toBe(2);
-    expect(scoringRank(rows, "C", "defense")).toBe(3);
+    expect(scoringRank(rows, "A", "defense", 4)).toBe(1);
+    expect(scoringRank(rows, "B", "defense", 4)).toBe(2);
+    expect(scoringRank(rows, "C", "defense", 4)).toBe(3);
   });
 
   it("is null for a team with no games — unplayed teams neither rank nor dilute the pool", () => {
-    expect(scoringRank(rows, "D", "offense")).toBeNull();
-    expect(scoringRank(rows, "missing", "offense")).toBeNull();
+    expect(scoringRank(rows, "D", "offense", 4)).toBeNull();
+    expect(scoringRank(rows, "missing", "offense", 4)).toBeNull();
   });
 
   it("is null while fewer than half the league has played — '1st' of a two-team pool is not a league rank", () => {
@@ -61,6 +61,17 @@ describe("scoringRank", () => {
       row("D", 0, 0, 0),
       row("E", 0, 0, 0),
     ];
-    expect(scoringRank(earlyWeek, "A", "offense")).toBeNull();
+    expect(scoringRank(earlyWeek, "A", "offense", 5)).toBeNull();
+  });
+});
+
+describe("scoringRank league-size denominator", () => {
+  it("a partially ingested pool cannot pass its own shrunken bar", () => {
+    // Only 2 of a 32-team league have rows at all — both played, but "1st"
+    // of that pool is not a league rank.
+    const partial = [row("A", 1, 30, 10), row("B", 1, 20, 30)];
+    expect(scoringRank(partial, "A", "offense", 32)).toBeNull();
+    // The same pool IS the whole league in a 2-team world (integration seeds).
+    expect(scoringRank(partial, "A", "offense", 2)).toBe(1);
   });
 });

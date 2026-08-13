@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, gameStatContext, sportSeasons, teams, teamSeasonStats } from "@picksleagues/db";
 import {
@@ -80,13 +80,18 @@ export async function syncNflStats(
   const records = await provider.fetchNflTeamSeasonRecords(seasonYear);
   const teamStatsUpdated = await upsertTeamSeasonStats(db, records, now);
 
-  // The fallback window: no team has a completed game yet (an unpublished
-  // season's empty response lands here too).
+  // The fallback window, gated per team to match the read path's per-team
+  // fallback (services/game-stats.ts): the prior season is needed while ANY
+  // team still has no completed game — a league-wide "has the season started"
+  // gate stranded a cold environment whose first-ever sync ran after the
+  // season's first final (current rows existed, prior rows never ingested,
+  // and every unplayed team served 0-0 for the opening week). An unpublished
+  // season's empty response lands here too.
   let priorSeasonTeamStatsUpdated = 0;
-  const currentSeasonHasGames = records.some(
-    (record) => record.wins + record.losses + record.ties > 0,
-  );
-  if (!currentSeasonHasGames) {
+  const anyTeamWithoutGames =
+    records.length === 0 ||
+    records.some((record) => record.wins + record.losses + record.ties === 0);
+  if (anyTeamWithoutGames) {
     const priorRecords = await provider.fetchNflTeamSeasonRecords(seasonYear - 1);
     priorSeasonTeamStatsUpdated = await upsertTeamSeasonStats(db, priorRecords, now);
   }
@@ -145,7 +150,7 @@ async function upsertTeamSeasonStats(
     .where(eq(teamSeasonStats.seasonYear, seasonYear!));
   const existingByTeamId = new Map(existingRows.map((row) => [row.teamId, row]));
 
-  let written = 0;
+  const changedRows: (typeof teamSeasonStats.$inferInsert)[] = [];
   for (const record of records) {
     // A provider team we haven't synced is not reference data this job may
     // create (ADR-0010: schedule-sync owns teams) — skipped, healed by the
@@ -176,16 +181,43 @@ async function upsertTeamSeasonStats(
       continue;
     }
 
-    await db
-      .insert(teamSeasonStats)
-      .values({ teamId, seasonYear: record.seasonYear, ...values, createdAt: now, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [teamSeasonStats.teamId, teamSeasonStats.seasonYear],
-        set: { ...values, updatedAt: now },
-      });
-    written += 1;
+    changedRows.push({
+      teamId,
+      seasonYear: record.seasonYear,
+      ...values,
+      createdAt: now,
+      updatedAt: now,
+    });
   }
-  return written;
+
+  if (changedRows.length === 0) return 0;
+  // One multi-row statement rather than a write per team: the skip-unchanged
+  // compare already ran in memory, and 32 serialized round trips (64 in the
+  // fallback window) were pure latency — a pattern the next mode's sync would
+  // copy at 350+ teams. `excluded.*` carries each row's own values through
+  // the conflict path.
+  await db
+    .insert(teamSeasonStats)
+    .values(changedRows)
+    .onConflictDoUpdate({
+      target: [teamSeasonStats.teamId, teamSeasonStats.seasonYear],
+      set: {
+        wins: sql`excluded.wins`,
+        losses: sql`excluded.losses`,
+        ties: sql`excluded.ties`,
+        homeWins: sql`excluded.home_wins`,
+        homeLosses: sql`excluded.home_losses`,
+        homeTies: sql`excluded.home_ties`,
+        roadWins: sql`excluded.road_wins`,
+        roadLosses: sql`excluded.road_losses`,
+        roadTies: sql`excluded.road_ties`,
+        streak: sql`excluded.streak`,
+        pointsFor: sql`excluded.points_for`,
+        pointsAgainst: sql`excluded.points_against`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+  return changedRows.length;
 }
 
 /** Refreshes matchup context for one week's unstarted games, reporting what it touched. */
@@ -224,12 +256,29 @@ async function refreshWeekGameContexts(
     );
   const existingByGameId = new Map(existingRows.map((row) => [row.gameId, row]));
 
+  // Bounded fan-out rather than one-at-a-time: the per-game summary reads are
+  // independent, and ~32 serialized round trips put the whole job's runtime
+  // at the mercy of a slow ESPN week. Bounded (not all-at-once) so a full
+  // slate never opens 32 concurrent connections against an unofficial API.
+  // All reads happen outside any transaction (engineering rules: never hold a
+  // transaction open across a network call).
+  const CONTEXT_FETCH_CONCURRENCY = 8;
+  const contextByGameId = new Map<
+    string,
+    Awaited<ReturnType<typeof provider.fetchNflGameStatContext>>
+  >();
+  for (let i = 0; i < unstartedGames.length; i += CONTEXT_FETCH_CONCURRENCY) {
+    const batch = unstartedGames.slice(i, i + CONTEXT_FETCH_CONCURRENCY);
+    const contexts = await Promise.all(
+      batch.map((game) => provider.fetchNflGameStatContext(game.providerGameId)),
+    );
+    batch.forEach((game, index) => contextByGameId.set(game.id, contexts[index] ?? null));
+  }
+
   let contextsUpdated = 0;
   let contextsMissing = 0;
   for (const game of unstartedGames) {
-    // Network read outside any transaction (engineering rules: never hold a
-    // transaction open across a network call).
-    const context = await provider.fetchNflGameStatContext(game.providerGameId);
+    const context = contextByGameId.get(game.id);
     if (!context) {
       contextsMissing += 1;
       continue;

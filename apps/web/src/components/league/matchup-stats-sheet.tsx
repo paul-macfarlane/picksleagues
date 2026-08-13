@@ -151,11 +151,12 @@ function InjuryList({ team, entries }: { team: SlateTeam; entries: InjuryReportE
         <p className="text-xs text-muted-foreground">None reported.</p>
       ) : (
         <ul className="flex flex-col gap-0.5">
-          {entries.map((entry) => (
-            <li
-              key={`${entry.athleteName}-${entry.status}`}
-              className="text-xs text-muted-foreground"
-            >
+          {/* Index keys are safe here — the list is a served snapshot, never
+              reordered client-side — where a name+status key collides the
+              moment one athlete carries two same-status injuries and React
+              silently drops a line from the report. */}
+          {entries.map((entry, index) => (
+            <li key={index} className="text-xs text-muted-foreground">
               {injuryLine(entry)}
             </li>
           ))}
@@ -366,8 +367,17 @@ export function MatchupStats({ game }: { game: SlateGame }) {
     storeTier(next);
   };
 
+  const onOpenChange = (nextOpen: boolean) => {
+    // Re-seed from storage on every open: each game row mounts its own
+    // instance at page render, so without this a toggle in one game's sheet
+    // wouldn't reach its siblings until a full remount — a persisted
+    // preference that randomly doesn't stick.
+    if (nextOpen) setTier(readStoredTier());
+    setOpen(nextOpen);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger
         render={
           <Button
@@ -417,7 +427,12 @@ export function MatchupStats({ game }: { game: SlateGame }) {
           ))}
         </div>
 
-        {open && <MatchupStatsBody game={game} tier={tier} />}
+        {/* The scroll region lives here, not on the popup, so the close
+            button and the header/toggle stay visible however long the
+            advanced tier gets (see SHEET_SIDE_CLASS_NAME's bottom entry). */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {open && <MatchupStatsBody game={game} tier={tier} />}
+        </div>
       </SheetContent>
     </Sheet>
   );

@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   games,
@@ -31,20 +31,23 @@ function gamesPlayed(row: StatsRow): number {
  * Competition ranking ("1224": tied teams share a rank, the next rank skips)
  * over the teams that have played. Exported for its unit tests; pure.
  *
- * Null unless at least half the season's teams have played: the UI presents
- * the ordinal as a league rank, and on the Friday after week 1's Thursday
- * game the eligible pool is two teams — "1st" there states something far
- * stronger than the data holds (ADR-0040: omit, never fabricate). Half is a
- * legibility floor, not a statistics claim; by any ordinary week every team
- * has played and the guard is invisible.
+ * Null unless at least half the *league* has played: the UI presents the
+ * ordinal as a league rank, and on the Friday after week 1's Thursday game
+ * the eligible pool is two teams — "1st" there states something far stronger
+ * than the data holds (ADR-0040: omit, never fabricate). The floor divides by
+ * `leagueSize` (the sport's team count), never by the rows stored for the
+ * season — a partially ingested pool would otherwise pass its own shrunken
+ * bar. Half is a legibility floor, not a statistics claim; by any ordinary
+ * week every team has played and the guard is invisible.
  */
 export function scoringRank(
   rows: StatsRow[],
   teamId: string,
   side: "offense" | "defense",
+  leagueSize: number,
 ): number | null {
   const eligible = rows.filter((row) => gamesPlayed(row) > 0);
-  if (eligible.length < Math.ceil(rows.length / 2)) return null;
+  if (leagueSize === 0 || eligible.length < Math.ceil(leagueSize / 2)) return null;
   const mine = eligible.find((row) => row.teamId === teamId);
   if (!mine) return null;
   const value = (row: StatsRow) =>
@@ -60,7 +63,11 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function serializeRecord(row: StatsRow, seasonRows: StatsRow[]): GameStatsTeamRecord {
+function serializeRecord(
+  row: StatsRow,
+  seasonRows: StatsRow[],
+  leagueSize: number,
+): GameStatsTeamRecord {
   const played = gamesPlayed(row);
   return {
     seasonYear: row.seasonYear,
@@ -79,8 +86,8 @@ function serializeRecord(row: StatsRow, seasonRows: StatsRow[]): GameStatsTeamRe
     gamesPlayed: played,
     avgPointsFor: played > 0 ? round1(row.pointsFor / played) : null,
     avgPointsAgainst: played > 0 ? round1(row.pointsAgainst / played) : null,
-    scoringOffenseRank: scoringRank(seasonRows, row.teamId, "offense"),
-    scoringDefenseRank: scoringRank(seasonRows, row.teamId, "defense"),
+    scoringOffenseRank: scoringRank(seasonRows, row.teamId, "offense", leagueSize),
+    scoringDefenseRank: scoringRank(seasonRows, row.teamId, "defense", leagueSize),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -110,6 +117,14 @@ export async function getGameStats(db: Db, gameId: string): Promise<GameStatsRes
     .from(teamSeasonStats)
     .innerJoin(teams, eq(teamSeasonStats.teamId, teams.id))
     .where(and(eq(teams.sport, game.sport), inArray(teamSeasonStats.seasonYear, candidateYears)));
+  // The rank guard's denominator: the sport's real team count, never the rows
+  // stored for a season — a partially ingested pool must not pass its own
+  // shrunken bar (see `scoringRank`).
+  const [leagueSizeRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(teams)
+    .where(eq(teams.sport, game.sport));
+  const leagueSize = leagueSizeRow?.count ?? 0;
   const rowsByYear = new Map<number, StatsRow[]>();
   for (const { stats } of statRows) {
     const bucket = rowsByYear.get(stats.seasonYear) ?? [];
@@ -128,7 +143,7 @@ export async function getGameStats(db: Db, gameId: string): Promise<GameStatsRes
     const useCurrent = current && (gamesPlayed(current) > 0 || !prior);
     const chosen = useCurrent ? current : (prior ?? current);
     if (!chosen) return null;
-    return serializeRecord(chosen, chosen === current ? currentRows : priorRows);
+    return serializeRecord(chosen, chosen === current ? currentRows : priorRows, leagueSize);
   };
 
   const [contextRow] = await db

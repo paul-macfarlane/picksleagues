@@ -30,12 +30,16 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
 }
 
 // Two edges are wired up: the left drawer (mobile nav) and the bottom sheet
-// (matchup stats). `bottom` caps its height and scrolls internally, and on
-// wider screens narrows to a centered panel rather than a full-width slab.
+// (matchup stats). `bottom` caps its height and on wider screens narrows to a
+// centered panel rather than a full-width slab. It deliberately does NOT
+// scroll itself: the popup is where the absolutely-positioned close button
+// lives, and a scrolling popup carries that button — the only named dismiss
+// control — off-screen with the content. The call site owns an inner
+// `overflow-y-auto` region instead, so the close (and any header) stay put.
 const SHEET_SIDE_CLASS_NAME = {
   left: "inset-y-0 left-0 h-full w-3/4 max-w-xs data-open:slide-in-from-left data-closed:slide-out-to-left",
   bottom:
-    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full overflow-y-auto rounded-t-xl sm:max-w-lg data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full rounded-t-xl sm:max-w-lg data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
 } as const;
 
 function SheetContent({

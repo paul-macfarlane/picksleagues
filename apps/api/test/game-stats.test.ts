@@ -1,21 +1,19 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games } from "@picksleagues/db";
-import {
-  FixedClock,
-  type ProviderGame,
-  type ProviderGameStatContext,
-  type ProviderSeasonStructure,
-  type ProviderTeamSeasonRecord,
-} from "@picksleagues/core";
+import { FixedClock } from "@picksleagues/core";
 import { WEEK_TYPE, type GameStatsResponse, type WeekType } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflStats } from "../src/services/nfl/sync-stats";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
-import { BaseFakeProvider } from "./setup/fake-provider";
-import { providerGame, providerWeek } from "./setup/provider-fixtures";
+import { StatsFakeProvider } from "./setup/fake-provider";
+import {
+  providerGame,
+  providerTeamSeasonRecord as record,
+  providerWeek,
+} from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
@@ -29,39 +27,8 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
   return `${weekType}:${weekNumber}`;
 }
 
-class FakeProvider extends BaseFakeProvider {
-  structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
-  gamesByWeek = new Map<string, ProviderGame[]>();
-  recordsByYear = new Map<number, ProviderTeamSeasonRecord[]>();
-  contextByGameId = new Map<string, ProviderGameStatContext>();
-
-  override async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
-    return this.structure;
-  }
-
-  override async fetchNflWeekGames(
-    _seasonYear: number,
-    weekType: WeekType,
-    weekNumber: number,
-  ): Promise<ProviderGame[]> {
-    return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
-  }
-
-  override async fetchNflTeamSeasonRecords(
-    seasonYear: number,
-  ): Promise<ProviderTeamSeasonRecord[]> {
-    return this.recordsByYear.get(seasonYear) ?? [];
-  }
-
-  override async fetchNflGameStatContext(
-    providerGameId: string,
-  ): Promise<ProviderGameStatContext | null> {
-    return this.contextByGameId.get(providerGameId) ?? null;
-  }
-}
-
 const db = createDb(getTestDatabaseUrl());
-const provider = new FakeProvider();
+const provider = new StatsFakeProvider();
 const auth = createAuth({ env: makeTestEnv(), db });
 const app = createApp({
   auth,
@@ -70,30 +37,6 @@ const app = createApp({
   clock: async () => nowClock,
   provider: async () => provider,
 });
-
-function record(
-  providerTeamId: string,
-  seasonYear: number,
-  overrides?: Partial<ProviderTeamSeasonRecord>,
-): ProviderTeamSeasonRecord {
-  return {
-    providerTeamId,
-    seasonYear,
-    wins: 0,
-    losses: 0,
-    ties: 0,
-    homeWins: 0,
-    homeLosses: 0,
-    homeTies: 0,
-    roadWins: 0,
-    roadLosses: 0,
-    roadTies: 0,
-    streak: 0,
-    pointsFor: 0,
-    pointsAgainst: 0,
-    ...overrides,
-  };
-}
 
 /** Seeds the schedule (one unstarted week-1 game) and runs the stats sync. */
 async function seedAll() {
