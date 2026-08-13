@@ -1,12 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
-import {
-  FixedClock,
-  type GameDataProvider,
-  type ProviderGame,
-  type ProviderSeasonStructure,
-  type ProviderTeam,
-} from "@picksleagues/core";
+import { FixedClock } from "@picksleagues/core";
 import {
   GAME_STATUS,
   SPORT,
@@ -16,6 +10,7 @@ import {
   type AdminTeamsResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { BaseFakeProvider } from "./setup/fake-provider";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
@@ -28,17 +23,7 @@ const FIXED_NOW = new Date("2026-09-12T00:00:00.000Z");
 const SEEDED_AT = new Date("2026-09-01T00:00:00.000Z");
 
 /** Never called — no route under test touches the provider. */
-class FakeProvider implements GameDataProvider {
-  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
-    return { seasonYear: 2026, weeks: [] };
-  }
-  async fetchNflWeekGames(): Promise<ProviderGame[]> {
-    return [];
-  }
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
-    return [];
-  }
-}
+class FakeProvider extends BaseFakeProvider {}
 
 const db = createDb(getTestDatabaseUrl());
 const auth = createAuth({ env: makeTestEnv(), db });

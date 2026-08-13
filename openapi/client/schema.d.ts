@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/nfl/sync-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh team season records and per-game matchup context (ADR-0040) */
+        post: operations["runNflSyncStats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/settle-sweep": {
         parameters: {
             query?: never;
@@ -1157,7 +1174,7 @@ export interface components {
             teamId: string;
         };
         /** @enum {string} */
-        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
+        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores" | "sync-stats";
         AdminTeamsResponse: {
             teams: components["schemas"]["AdminTeam"][];
         };
@@ -1793,6 +1810,57 @@ export interface operations {
         };
     };
     runNflSyncScores: {
+        parameters: {
+            query?: {
+                season?: number;
+                week?: number;
+                weekType?: components["schemas"]["WeekType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description A supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or wrong x-job-secret header */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    runNflSyncStats: {
         parameters: {
             query?: {
                 season?: number;

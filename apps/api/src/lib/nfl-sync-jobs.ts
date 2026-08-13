@@ -14,6 +14,7 @@ import {
 import { syncNflSchedule } from "../services/nfl/sync-schedule";
 import { syncNflOdds } from "../services/nfl/sync-odds";
 import { syncNflScores } from "../services/nfl/sync-scores";
+import { syncNflStats } from "../services/nfl/sync-stats";
 
 /**
  * Optional overrides for the manual/simulator/admin trigger path — cron fires
@@ -53,6 +54,7 @@ export const NFL_SYNC_JOBS: Record<
   [NFL_SYNC_JOB.SYNC_SCHEDULE]: { jobName: "nfl-sync-schedule", run: syncNflSchedule },
   [NFL_SYNC_JOB.SYNC_ODDS]: { jobName: "nfl-sync-odds", run: syncNflOdds },
   [NFL_SYNC_JOB.SYNC_SCORES]: { jobName: "nfl-sync-scores", run: syncNflScores },
+  [NFL_SYNC_JOB.SYNC_STATS]: { jobName: "nfl-sync-stats", run: syncNflStats },
 };
 
 /**

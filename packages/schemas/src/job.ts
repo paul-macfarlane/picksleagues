@@ -41,6 +41,7 @@ export const NFL_SYNC_JOB = {
   SYNC_SCHEDULE: "sync-schedule",
   SYNC_ODDS: "sync-odds",
   SYNC_SCORES: "sync-scores",
+  SYNC_STATS: "sync-stats",
 } as const;
 
 export type NflSyncJob = (typeof NFL_SYNC_JOB)[keyof typeof NFL_SYNC_JOB];

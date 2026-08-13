@@ -3,10 +3,8 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games, sportSeasons, weeks } from "@picksleagues/db";
 import {
   FixedClock,
-  type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
-  type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
 import {
@@ -17,6 +15,7 @@ import {
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { BaseFakeProvider } from "./setup/fake-provider";
 import { resolveGameOverrides } from "../src/services/games";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
@@ -39,24 +38,20 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
   return `${weekType}:${weekNumber}`;
 }
 
-class FakeProvider implements GameDataProvider {
+class FakeProvider extends BaseFakeProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
   gamesByWeek = new Map<string, ProviderGame[]>();
 
-  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
+  override async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
     return this.structure;
   }
 
-  async fetchNflWeekGames(
+  override async fetchNflWeekGames(
     _seasonYear: number,
     weekType: WeekType,
     weekNumber: number,
   ): Promise<ProviderGame[]> {
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
-  }
-
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
-    return [];
   }
 }
 
