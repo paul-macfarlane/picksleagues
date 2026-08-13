@@ -21,24 +21,24 @@ default surface shows a small basic tier, and the full advanced tier sits one
 deliberate action away — the goal is help without overwhelm, so the wall of
 numbers is never what a member lands on.
 
-- [~] **STAT-1** — Data model + ADR: tables for per-team season stats/records
+- [x] **STAT-1** — Data model + ADR: tables for per-team season stats/records
   and per-game context (injuries, predictor), written by ingestion like all
   provider data; decide the week-1 prior-season fallback shape here since it
   decides what the tables key on. Includes the spec/architecture amendment for
   the new surface (locked at v0.3). Ref: arch §Domain Model, D6–D7. _(deps: none)_
-- [ ] **STAT-2** — Extend `GameDataProvider` + `EspnProvider` with the stat
+- [x] **STAT-2** — Extend `GameDataProvider` + `EspnProvider` with the stat
   fetches (team season stats + records, game context incl. injuries); ESPN
   shapes stay contained in the adapter. _(deps: STAT-1)_
-- [ ] **STAT-3** — `SimulatedProvider` + sim fixtures serve the same surface:
+- [x] **STAT-3** — `SimulatedProvider` + sim fixtures serve the same surface:
   synthesized team stats, mocked injuries (owner, 2026-08-12), so sim-driven
   verification and e2e can exercise everything downstream. _(deps: STAT-2)_
-- [ ] **STAT-4** — Idempotent sync job(s) under `/api/jobs/nfl/*` ingesting
+- [x] **STAT-4** — Idempotent sync job(s) under `/api/jobs/nfl/*` ingesting
   stats, records, and injuries on a daily-ish cadence; cron registration and
   runbook entry per ADR-0007 / `docs/runbooks/jobs.md`. _(deps: STAT-2)_
-- [ ] **STAT-5** — Read endpoint serving a game's matchup stats from our
+- [x] **STAT-5** — Read endpoint serving a game's matchup stats from our
   tables. Genuinely mode-agnostic (Survivor consumes it unchanged), so the
   generic name is earned. _(deps: STAT-4)_
-- [ ] **STAT-6** — Pick-surface UI: matchup stats reachable from the Pick'em
+- [x] **STAT-6** — Pick-surface UI: matchup stats reachable from the Pick'em
   and Survivor game rows — basic tier by default, advanced tier one action
   away; stats carry a last-updated stamp (never a real-time claim); mobile-first.
   Which stats land in which tier is this task's clarify-phase decision.

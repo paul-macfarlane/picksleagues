@@ -6,21 +6,29 @@ import type {
   ProviderTeam,
   ProviderTeamSeasonRecord,
 } from "@picksleagues/core";
+import type { WeekType } from "@picksleagues/schemas";
 
 /**
  * Empty-world default for every `GameDataProvider` method, so a test fake
  * overrides only the surface it exercises — before this, every new interface
  * method broke seven per-file fakes at once (the STAT epic's two additions
- * were the third time). Methods declare no parameters (an override adds the
- * ones it reads): fewer params is assignable, and an unused arg here is a
- * lint error.
+ * were the third time). Methods keep the interface's full parameter lists
+ * (a zero-arg base would reject every override that declares them), so the
+ * deliberately ignored ones carry inline lint waivers.
  */
 export class BaseFakeProvider implements GameDataProvider {
   async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
     return { seasonYear, weeks: [] };
   }
 
-  async fetchNflWeekGames(): Promise<ProviderGame[]> {
+  async fetchNflWeekGames(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
+    _seasonYear: number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
+    _weekType: WeekType,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
+    _weekNumber: number,
+  ): Promise<ProviderGame[]> {
     return [];
   }
 
@@ -28,11 +36,17 @@ export class BaseFakeProvider implements GameDataProvider {
     return [];
   }
 
-  async fetchNflTeamSeasonRecords(): Promise<ProviderTeamSeasonRecord[]> {
+  async fetchNflTeamSeasonRecords(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
+    _seasonYear: number,
+  ): Promise<ProviderTeamSeasonRecord[]> {
     return [];
   }
 
-  async fetchNflGameStatContext(): Promise<ProviderGameStatContext | null> {
+  async fetchNflGameStatContext(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
+    _providerGameId: string,
+  ): Promise<ProviderGameStatContext | null> {
     return null;
   }
 }
