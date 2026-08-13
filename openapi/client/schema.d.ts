@@ -352,6 +352,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/games/{gameId}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One game's matchup stats: team records plus injuries/FPI/form context (ADR-0040) */
+        get: operations["getGameStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues/{leagueId}/pickem/pick-summary": {
         parameters: {
             query?: never;
@@ -1034,6 +1051,60 @@ export interface components {
             /** Format: date-time */
             endsAt: string;
             gameCount: number;
+        };
+        GameStatsResponse: {
+            gameId: string;
+            home: components["schemas"]["NullableGameStatsTeamRecord"];
+            away: components["schemas"]["NullableGameStatsTeamRecord"];
+            context: components["schemas"]["NullableGameStatsContext"];
+        };
+        NullableGameStatsTeamRecord: {
+            seasonYear: number;
+            wins: number;
+            losses: number;
+            ties: number;
+            homeWins: number;
+            homeLosses: number;
+            homeTies: number;
+            roadWins: number;
+            roadLosses: number;
+            roadTies: number;
+            streak: number;
+            pointsFor: number;
+            pointsAgainst: number;
+            gamesPlayed: number;
+            avgPointsFor: number | null;
+            avgPointsAgainst: number | null;
+            scoringOffenseRank: number | null;
+            scoringDefenseRank: number | null;
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        NullableGameStatsContext: {
+            home: components["schemas"]["GameStatsTeamContext"];
+            away: components["schemas"]["GameStatsTeamContext"];
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        GameStatsTeamContext: {
+            injuries: components["schemas"]["InjuryReportEntry"][];
+            fpiWinPct: number | null;
+            atsSummary: string | null;
+            lastFive: components["schemas"]["LastFiveGame"][];
+        };
+        InjuryReportEntry: {
+            athleteName: string;
+            position: string | null;
+            status: string;
+            injuryType: string | null;
+        };
+        LastFiveGame: {
+            /** @enum {string} */
+            result: "W" | "L" | "T";
+            opponentAbbr: string;
+            teamScore: number;
+            opponentScore: number;
+            atHome: boolean;
         };
         PickemPickSummary: {
             pickCount: number;
@@ -2986,6 +3057,55 @@ export interface operations {
                 };
             };
             /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getGameStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-team season records (prior season while the current has no games) and matchup context; blocks are null where ingestion has nothing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameStatsResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
             404: {
                 headers: {
                     [name: string]: unknown;

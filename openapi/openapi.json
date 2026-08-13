@@ -1190,6 +1190,247 @@
           "gameCount"
         ]
       },
+      "GameStatsResponse": {
+        "type": "object",
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "home": {
+            "$ref": "#/components/schemas/NullableGameStatsTeamRecord"
+          },
+          "away": {
+            "$ref": "#/components/schemas/NullableGameStatsTeamRecord"
+          },
+          "context": {
+            "$ref": "#/components/schemas/NullableGameStatsContext"
+          }
+        },
+        "required": [
+          "gameId",
+          "home",
+          "away",
+          "context"
+        ]
+      },
+      "NullableGameStatsTeamRecord": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "seasonYear": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer"
+          },
+          "losses": {
+            "type": "integer"
+          },
+          "ties": {
+            "type": "integer"
+          },
+          "homeWins": {
+            "type": "integer"
+          },
+          "homeLosses": {
+            "type": "integer"
+          },
+          "homeTies": {
+            "type": "integer"
+          },
+          "roadWins": {
+            "type": "integer"
+          },
+          "roadLosses": {
+            "type": "integer"
+          },
+          "roadTies": {
+            "type": "integer"
+          },
+          "streak": {
+            "type": "integer"
+          },
+          "pointsFor": {
+            "type": "integer"
+          },
+          "pointsAgainst": {
+            "type": "integer"
+          },
+          "gamesPlayed": {
+            "type": "integer"
+          },
+          "avgPointsFor": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "avgPointsAgainst": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "scoringOffenseRank": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "scoringDefenseRank": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "seasonYear",
+          "wins",
+          "losses",
+          "ties",
+          "homeWins",
+          "homeLosses",
+          "homeTies",
+          "roadWins",
+          "roadLosses",
+          "roadTies",
+          "streak",
+          "pointsFor",
+          "pointsAgainst",
+          "gamesPlayed",
+          "avgPointsFor",
+          "avgPointsAgainst",
+          "scoringOffenseRank",
+          "scoringDefenseRank",
+          "updatedAt"
+        ]
+      },
+      "NullableGameStatsContext": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "home": {
+            "$ref": "#/components/schemas/GameStatsTeamContext"
+          },
+          "away": {
+            "$ref": "#/components/schemas/GameStatsTeamContext"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "home",
+          "away",
+          "updatedAt"
+        ]
+      },
+      "GameStatsTeamContext": {
+        "type": "object",
+        "properties": {
+          "injuries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InjuryReportEntry"
+            }
+          },
+          "fpiWinPct": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "atsSummary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastFive": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LastFiveGame"
+            }
+          }
+        },
+        "required": [
+          "injuries",
+          "fpiWinPct",
+          "atsSummary",
+          "lastFive"
+        ]
+      },
+      "InjuryReportEntry": {
+        "type": "object",
+        "properties": {
+          "athleteName": {
+            "type": "string"
+          },
+          "position": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "injuryType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "athleteName",
+          "position",
+          "status",
+          "injuryType"
+        ]
+      },
+      "LastFiveGame": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "W",
+              "L",
+              "T"
+            ]
+          },
+          "opponentAbbr": {
+            "type": "string"
+          },
+          "teamScore": {
+            "type": "integer"
+          },
+          "opponentScore": {
+            "type": "integer"
+          },
+          "atHome": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "result",
+          "opponentAbbr",
+          "teamScore",
+          "opponentScore",
+          "atHome"
+        ]
+      },
       "PickemPickSummary": {
         "type": "object",
         "properties": {
@@ -4969,6 +5210,65 @@
           },
           "404": {
             "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/games/{gameId}/stats": {
+      "get": {
+        "operationId": "getGameStats",
+        "summary": "One game's matchup stats: team records plus injuries/FPI/form context (ADR-0040)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-team season records (prior season while the current has no games) and matchup context; blocks are null where ingestion has nothing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameStatsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such game",
             "content": {
               "application/json": {
                 "schema": {
