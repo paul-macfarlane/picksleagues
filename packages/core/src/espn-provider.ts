@@ -1,15 +1,29 @@
 import { z } from "zod";
-import { GAME_STATUS, type GameStatus, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  LastGameResultSchema,
+  type GameStatus,
+  type LastFiveGame,
+  type TeamGameContext,
+  WEEK_TYPE,
+  type WeekType,
+} from "@picksleagues/schemas";
 import type {
   GameDataProvider,
   ProviderGame,
+  ProviderGameStatContext,
   ProviderSeasonStructure,
   ProviderTeam,
+  ProviderTeamSeasonRecord,
   ProviderWeek,
 } from "./game-data-provider";
 
 const DEFAULT_SITE_API_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports";
 const DEFAULT_CORE_API_BASE_URL = "https://sports.core.api.espn.com/v2/sports";
+// The bulk standings live under `/apis/v2`, not `/apis/site/v2` — a third path
+// root on the same host, so it gets its own base rather than string surgery on
+// the site one.
+const DEFAULT_STANDINGS_API_BASE_URL = "https://site.api.espn.com/apis/v2/sports";
 
 // ESPN season-type ids: 2 = regular season (weeks 1–18), 3 = postseason
 // (weeks 1–5, of which week 4 "Pro Bowl" is excluded below).
@@ -318,6 +332,212 @@ function mapCompetitionToGame(
   };
 }
 
+// --- Bulk standings (team season records, ADR-0040) ---
+
+const StandingsStatSchema = z.looseObject({
+  // `type` is the stable lowercase key ("wins", "pointsfor", "home"); `name`
+  // is display casing that has no reason to be trusted.
+  type: z.string(),
+  value: z.number().nullable().optional(),
+  summary: z.string().nullable().optional(),
+});
+
+const StandingsEntrySchema = z.looseObject({
+  team: z.looseObject({ id: z.string() }),
+  stats: z.array(StandingsStatSchema),
+});
+
+const StandingsSchema = z.looseObject({
+  season: z.looseObject({ year: z.number() }),
+  // One child per conference at the default grouping level; the split is
+  // irrelevant here, so entries are simply flattened.
+  children: z.array(
+    z.looseObject({
+      standings: z.looseObject({ entries: z.array(StandingsEntrySchema) }),
+    }),
+  ),
+});
+
+type StandingsStats = z.infer<typeof StandingsEntrySchema>["stats"];
+
+/**
+ * Strict by design: a season with no games yet still carries every one of
+ * these stats as a real zero (verified against the live endpoint for the
+ * unplayed 2026 season, 2026-08-12), so a missing stat is a provider-contract
+ * break that must fail the sync loudly (ADR-0007), never read as 0.
+ */
+function statValueStrict(stats: StandingsStats, type: string, context: string): number {
+  const stat = stats.find((entry) => entry.type === type);
+  if (!stat || typeof stat.value !== "number" || !Number.isFinite(stat.value)) {
+    throw new Error(`EspnProvider: standings stat "${type}" missing or non-numeric for ${context}`);
+  }
+  return Math.round(stat.value);
+}
+
+/** Parses a "W-L" / "W-L-T" record summary ("6-3", "8-8-1"); throws on any other shape. */
+function parseRecordSummary(
+  stats: StandingsStats,
+  type: string,
+  context: string,
+): { wins: number; losses: number; ties: number } {
+  const summary = stats.find((entry) => entry.type === type)?.summary;
+  const match = summary?.match(/^(\d+)-(\d+)(?:-(\d+))?$/);
+  if (!summary || !match) {
+    throw new Error(
+      `EspnProvider: standings record "${type}" missing or unparseable ("${summary ?? ""}") for ${context}`,
+    );
+  }
+  return {
+    wins: parseInt(match[1]!, 10),
+    losses: parseInt(match[2]!, 10),
+    ties: match[3] !== undefined ? parseInt(match[3], 10) : 0,
+  };
+}
+
+function mapStandingsEntry(
+  entry: z.infer<typeof StandingsEntrySchema>,
+  seasonYear: number,
+): ProviderTeamSeasonRecord {
+  const context = `team ${entry.team.id} season ${seasonYear}`;
+  const home = parseRecordSummary(entry.stats, "home", context);
+  const road = parseRecordSummary(entry.stats, "road", context);
+  return {
+    providerTeamId: entry.team.id,
+    seasonYear,
+    wins: statValueStrict(entry.stats, "wins", context),
+    losses: statValueStrict(entry.stats, "losses", context),
+    ties: statValueStrict(entry.stats, "ties", context),
+    homeWins: home.wins,
+    homeLosses: home.losses,
+    homeTies: home.ties,
+    roadWins: road.wins,
+    roadLosses: road.losses,
+    roadTies: road.ties,
+    streak: statValueStrict(entry.stats, "streak", context),
+    pointsFor: statValueStrict(entry.stats, "pointsfor", context),
+    pointsAgainst: statValueStrict(entry.stats, "pointsagainst", context),
+  };
+}
+
+// --- Game summary (matchup context, ADR-0040) ---
+
+const SummaryTeamRefSchema = z.looseObject({ id: z.string() });
+
+const SummaryInjuryEntrySchema = z.looseObject({
+  status: z.string(),
+  athlete: z.looseObject({
+    displayName: z.string(),
+    position: z.looseObject({ abbreviation: z.string() }).optional(),
+  }),
+  details: z.looseObject({ type: z.string() }).optional(),
+});
+
+const SummaryLastFiveEventSchema = z.looseObject({
+  atVs: z.string().optional(),
+  gameResult: z.string().optional(),
+  score: z.string().optional(),
+  opponent: z.looseObject({ abbreviation: z.string().optional() }).optional(),
+});
+
+const SummarySchema = z.looseObject({
+  header: z.looseObject({
+    competitions: z
+      .array(
+        z.looseObject({
+          competitors: z.array(z.looseObject({ homeAway: z.string(), team: SummaryTeamRefSchema })),
+        }),
+      )
+      .min(1),
+  }),
+  injuries: z
+    .array(
+      z.looseObject({ team: SummaryTeamRefSchema, injuries: z.array(SummaryInjuryEntrySchema) }),
+    )
+    .optional(),
+  predictor: z
+    .looseObject({
+      homeTeam: z.looseObject({ gameProjection: z.string().optional() }).optional(),
+      awayTeam: z.looseObject({ gameProjection: z.string().optional() }).optional(),
+    })
+    .optional(),
+  againstTheSpread: z
+    .array(
+      z.looseObject({
+        team: SummaryTeamRefSchema,
+        records: z.array(z.looseObject({ summary: z.string().optional() })).optional(),
+      }),
+    )
+    .optional(),
+  lastFiveGames: z
+    .array(
+      z.looseObject({
+        team: SummaryTeamRefSchema,
+        events: z.array(SummaryLastFiveEventSchema).optional(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * Lenient by design, the opposite of the standings parser and for the same
+ * end: every field here is optional garnish on the matchup sheet, so a
+ * malformed entry drops silently rather than failing the sync that also
+ * carries the injuries. The strict/lenient split follows what breaks: a
+ * standings break corrupts records the basic tier states as fact; a summary
+ * quirk loses one advanced-tier line.
+ */
+function mapLastFiveEvent(event: z.infer<typeof SummaryLastFiveEventSchema>): LastFiveGame[] {
+  const result = LastGameResultSchema.safeParse(event.gameResult);
+  const scoreMatch = event.score?.match(/^(\d+)-(\d+)$/);
+  const opponentAbbr = event.opponent?.abbreviation;
+  if (!result.success || !scoreMatch || !opponentAbbr) {
+    return [];
+  }
+  return [
+    {
+      result: result.data,
+      opponentAbbr,
+      // ESPN's score string puts this team's points first regardless of venue
+      // (verified against W/L flags on the live endpoint, 2026-08-12).
+      teamScore: parseInt(scoreMatch[1]!, 10),
+      opponentScore: parseInt(scoreMatch[2]!, 10),
+      // ESPN writes "@" for away and "vs" for home; anything unrecognized
+      // reads as home, which only mislabels a venue badge.
+      atHome: event.atVs !== "@",
+    },
+  ];
+}
+
+function parseGameProjection(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
+}
+
+function mapSummaryTeamContext(
+  summary: z.infer<typeof SummarySchema>,
+  teamId: string,
+  fpiWinPct: number | null,
+): TeamGameContext {
+  const injuries = summary.injuries?.find((entry) => entry.team.id === teamId)?.injuries ?? [];
+  const atsRecords = summary.againstTheSpread?.find((entry) => entry.team.id === teamId)?.records;
+  const lastFiveEvents =
+    summary.lastFiveGames?.find((entry) => entry.team.id === teamId)?.events ?? [];
+  return {
+    injuries: injuries.map((entry) => ({
+      athleteName: entry.athlete.displayName,
+      position: entry.athlete.position?.abbreviation ?? null,
+      status: entry.status,
+      injuryType: entry.details?.type ?? null,
+    })),
+    fpiWinPct,
+    // First record is the overall ATS line; empty until the season has ATS
+    // data, which serves as null rather than a fabricated "0-0".
+    atsSummary: atsRecords?.[0]?.summary ?? null,
+    lastFive: lastFiveEvents.flatMap(mapLastFiveEvent),
+  };
+}
+
 /**
  * ESPN unofficial API adapter (arch D6). Contains ESPN's response shapes
  * entirely — every method returns domain types from `game-data-provider.ts`.
@@ -326,15 +546,18 @@ export class EspnProvider implements GameDataProvider {
   readonly #fetchImpl: typeof fetch;
   readonly #siteApiBaseUrl: string;
   readonly #coreApiBaseUrl: string;
+  readonly #standingsApiBaseUrl: string;
 
   constructor(options?: {
     fetchImpl?: typeof fetch;
     siteApiBaseUrl?: string;
     coreApiBaseUrl?: string;
+    standingsApiBaseUrl?: string;
   }) {
     this.#fetchImpl = options?.fetchImpl ?? globalThis.fetch;
     this.#siteApiBaseUrl = options?.siteApiBaseUrl ?? DEFAULT_SITE_API_BASE_URL;
     this.#coreApiBaseUrl = options?.coreApiBaseUrl ?? DEFAULT_CORE_API_BASE_URL;
+    this.#standingsApiBaseUrl = options?.standingsApiBaseUrl ?? DEFAULT_STANDINGS_API_BASE_URL;
   }
 
   async #fetchJson(url: string): Promise<unknown> {
@@ -467,5 +690,62 @@ export class EspnProvider implements GameDataProvider {
     return listing.sports.flatMap((sport) =>
       sport.leagues.flatMap((league) => league.teams.map(mapTeamListItem)),
     );
+  }
+
+  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderTeamSeasonRecord[]> {
+    // One bulk request for all 32 teams — season-parameterized, and last
+    // season keeps serving its final numbers, which is what makes the week-1
+    // prior-season fallback (ADR-0040) a plain re-read rather than an archive.
+    const url = `${this.#standingsApiBaseUrl}/football/nfl/standings?season=${seasonYear}`;
+    const json = await this.#fetchJsonOrNotFound(url);
+    if (json === null) {
+      return [];
+    }
+    const standings = StandingsSchema.parse(json);
+    // ESPN answers an unknown season with its latest one rather than a 404 —
+    // a mismatched year means "not published", not data (ADR-0009's shape);
+    // trusting it would stamp one season's records onto another's rows.
+    if (standings.season.year !== seasonYear) {
+      return [];
+    }
+    return standings.children.flatMap((child) =>
+      child.standings.entries.map((entry) => mapStandingsEntry(entry, seasonYear)),
+    );
+  }
+
+  async fetchNflGameStatContext(providerGameId: string): Promise<ProviderGameStatContext | null> {
+    const url = `${this.#siteApiBaseUrl}/football/nfl/summary?event=${providerGameId}`;
+    // An event ESPN can't answer for is "nothing to show", never a sync
+    // failure — context is garnish on games we already have from the
+    // scoreboard.
+    const json = await this.#fetchJsonOrNotFound(url);
+    if (json === null) {
+      return null;
+    }
+    const summary = SummarySchema.parse(json);
+    const [competition] = summary.header.competitions;
+    if (!competition) {
+      throw new Error(`EspnProvider: summary for event ${providerGameId} has no competitions`);
+    }
+    const homeId = competition.competitors.find((c) => c.homeAway === "home")?.team.id;
+    const awayId = competition.competitors.find((c) => c.homeAway === "away")?.team.id;
+    if (!homeId || !awayId) {
+      throw new Error(
+        `EspnProvider: summary for event ${providerGameId} is missing a home or away competitor`,
+      );
+    }
+    return {
+      providerGameId,
+      home: mapSummaryTeamContext(
+        summary,
+        homeId,
+        parseGameProjection(summary.predictor?.homeTeam?.gameProjection),
+      ),
+      away: mapSummaryTeamContext(
+        summary,
+        awayId,
+        parseGameProjection(summary.predictor?.awayTeam?.gameProjection),
+      ),
+    };
   }
 }

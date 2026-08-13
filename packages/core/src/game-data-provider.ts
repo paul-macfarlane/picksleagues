@@ -1,4 +1,4 @@
-import { type GameStatus, type WeekType } from "@picksleagues/schemas";
+import { type GameStatus, type TeamGameContext, type WeekType } from "@picksleagues/schemas";
 
 export type ProviderWeek = {
   weekType: WeekType;
@@ -80,6 +80,43 @@ export type ProviderTeam = {
 };
 
 /**
+ * One team's season record facts (ADR-0040) — provider truth only, no derived
+ * averages or ranks: those are computed at read from the stored rows, where
+ * they can never go stale against them.
+ */
+export type ProviderTeamSeasonRecord = {
+  providerTeamId: string;
+  seasonYear: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  homeWins: number;
+  homeLosses: number;
+  homeTies: number;
+  roadWins: number;
+  roadLosses: number;
+  roadTies: number;
+  // Signed count: +3 = won last three, -1 = lost last one, 0 = no games yet.
+  streak: number;
+  pointsFor: number;
+  pointsAgainst: number;
+};
+
+/**
+ * One game's matchup context (ADR-0040): each side's injuries, FPI win
+ * probability, ATS summary, and last-five form, in the domain shape the
+ * `game_stat_context` payload stores (`TeamGameContext`). Everything in it is
+ * point-in-time provider truth — injuries especially are **live-only** (a
+ * historical game answers with the teams' *current* report), which is why the
+ * simulator mocks them rather than replaying them.
+ */
+export type ProviderGameStatContext = {
+  providerGameId: string;
+  home: TeamGameContext;
+  away: TeamGameContext;
+};
+
+/**
  * Domain-facing sports data source. Implementations must contain their
  * provider's response shapes entirely — everything outside the adapter sees
  * only these domain types, so swapping providers touches one module
@@ -112,4 +149,18 @@ export interface GameDataProvider {
   // carry (location, logos). A provider team not yet in this listing (e.g. a
   // TBD playoff placeholder) simply never gets enriched.
   fetchNflTeams(): Promise<ProviderTeam[]>;
+  /**
+   * Every team's season record for `seasonYear` (ADR-0040). Empty for a season
+   * the provider hasn't published — same "not published, not an error" shape
+   * as `fetchNflSeasonStructure` (ADR-0009). A season with no games yet
+   * returns real all-zero records, which is how the read path knows to fall
+   * back to the prior season's rows.
+   */
+  fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderTeamSeasonRecord[]>;
+  /**
+   * Matchup context for one game (ADR-0040), or null when the provider has
+   * nothing for it. Point-in-time truth about *now*, meaningful only for games
+   * that haven't kicked off — callers must not treat it as historical.
+   */
+  fetchNflGameStatContext(providerGameId: string): Promise<ProviderGameStatContext | null>;
 }

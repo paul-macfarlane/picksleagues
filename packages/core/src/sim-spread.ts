@@ -25,9 +25,10 @@ const JITTER_POINTS = 7;
 /**
  * FNV-1a over the seed, mapped to [0, 1). Any stable string hash would do; the
  * requirement is only that it is pure and dependency-free — `Math.random` would
- * break re-import reproducibility.
+ * break re-import reproducibility. Shared with `sim-stats.ts`, whose mocked
+ * injuries carry the same determinism obligation (arch D14).
  */
-function seededUnitInterval(seed: string): number {
+export function seededUnitInterval(seed: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < seed.length; i += 1) {
     hash ^= seed.charCodeAt(i);

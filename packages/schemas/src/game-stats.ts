@@ -35,8 +35,9 @@ export type LastFiveGame = z.infer<typeof LastFiveGameSchema>;
 export const InjuryReportEntrySchema = z.object({
   athleteName: z.string(),
   // Position abbreviation ("WR", "S") — provider display text, not a const
-  // set: rosters carry positions we have no reason to enumerate.
-  position: z.string(),
+  // set: rosters carry positions we have no reason to enumerate. Null when the
+  // provider omits it rather than failing a whole sync over one athlete row.
+  position: z.string().nullable(),
   /**
    * Provider status text ("Out", "Questionable", "Doubtful", "Injured
    * Reserve", …) — free text like `spreadSource`, never a const set: ESPN's
