@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * Shared per-field Label + Input + error-<p> wiring for TanStack Form text
@@ -54,6 +55,57 @@ export function FormTextField({
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
         {...inputProps}
+      />
+      {hint && (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
+      {error !== undefined && (
+        <p id={errorId} className="text-sm text-destructive">
+          {fieldErrorMessage(error)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * `FormTextField`'s multi-line sibling — identical Label/error/hint a11y
+ * wiring around a `Textarea`, extracted for the same reason: per-field ARIA
+ * plumbing hand-rolled at call sites comes out slightly different every time.
+ */
+export function FormTextareaField({
+  field,
+  label,
+  id,
+  hint,
+  ...textareaProps
+}: {
+  field: AnyFieldApi;
+  label: string;
+  id?: string;
+  hint?: ReactNode;
+} & Omit<
+  ComponentProps<typeof Textarea>,
+  "id" | "value" | "onChange" | "aria-invalid" | "aria-describedby"
+>) {
+  const error = field.state.meta.errors[0] as unknown;
+  const fieldId = id ?? field.name;
+  const errorId = `${fieldId}-error`;
+  const hintId = `${fieldId}-hint`;
+  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={fieldId}>{label}</Label>
+      <Textarea
+        id={fieldId}
+        value={field.state.value}
+        onChange={(event) => field.handleChange(event.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy || undefined}
+        {...textareaProps}
       />
       {hint && (
         <p id={hintId} className="text-xs text-muted-foreground">
