@@ -259,11 +259,13 @@ games                       # provider id, week FK, home/away team FKs, kickoff_
                             #   current spread (latest only, ADR-0018),
                             #   override_* parallels for all of it, overridden_by/at
 nfl_team_season_stats       # per (team, season_year): W-L-T + home/road splits, signed streak,
-                            #   points for/against — provider facts only; PPG/ranks derived at
-                            #   read, no override_* (display-only — ADR-0040)
+                            #   points for/against — sync writes provider facts; PPG/ranks derived
+                            #   at read from resolved values; override_* parallels + overridden_by/at
+                            #   (ADR-0040 as amended by ADR-0041)
 nfl_game_stat_context       # per game: JSONB payload (injuries, FPI, ATS, last five) validated
                             #   by schema, additive evolution; updated_at is the as-of stamp
-                            #   (ADR-0040)
+                            #   (ADR-0040); sparse override_payload — present fields win per
+                            #   field at read + overridden_by/at (ADR-0041)
 
 pickem_picks                # league_member FK, game FK, side, spread_at_pick
 survivor_picks              # league_member FK, week FK, game FK, team (straight up, no
@@ -393,6 +395,10 @@ GET    /admin/teams                      ?sport= — read-only reference-data br
 GET    /admin/seasons                    ?sport= — seasons + weeks + per-week game counts
 GET    /admin/games                      ?weekId= — provider, override, and resolved values
 PUT    /admin/games/:id/override         set/clear overrides (admin role; audited)
+GET    /admin/nfl-stats                  ?season= — team season stats, all three layers (ADR-0041)
+PUT    /admin/nfl-stats/:id/override     three-state patch on record facts (audited)
+GET    /admin/nfl-stat-contexts          ?weekId= — per-game context, all three layers (ADR-0041)
+PUT    /admin/nfl-stat-contexts/:gameId/override  replace the sparse context override layer (audited)
 POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
 POST   /sim/*                            simulator (non-prod only, admin role; see Simulator section)
 GET    /openapi.json                     generated spec

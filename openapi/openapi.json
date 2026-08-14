@@ -2533,14 +2533,18 @@
         "type": "string",
         "enum": [
           "game_override",
-          "league_rebuild"
+          "league_rebuild",
+          "nfl_team_season_stats_override",
+          "nfl_game_stat_context_override"
         ]
       },
       "AdminAuditTargetTable": {
         "type": "string",
         "enum": [
           "games",
-          "league_seasons"
+          "league_seasons",
+          "nfl_team_season_stats",
+          "nfl_game_stat_context"
         ]
       },
       "GameOverrideResponse": {
@@ -2610,6 +2614,538 @@
             ],
             "minimum": 0,
             "maximum": 3600
+          }
+        }
+      },
+      "AdminNflTeamSeasonStatsResponse": {
+        "type": "object",
+        "properties": {
+          "seasonYears": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "seasonYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminNflTeamSeasonStats"
+            }
+          }
+        },
+        "required": [
+          "seasonYears",
+          "seasonYear",
+          "stats"
+        ]
+      },
+      "AdminNflTeamSeasonStats": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "team": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer"
+          },
+          "losses": {
+            "type": "integer"
+          },
+          "ties": {
+            "type": "integer"
+          },
+          "homeWins": {
+            "type": "integer"
+          },
+          "homeLosses": {
+            "type": "integer"
+          },
+          "homeTies": {
+            "type": "integer"
+          },
+          "roadWins": {
+            "type": "integer"
+          },
+          "roadLosses": {
+            "type": "integer"
+          },
+          "roadTies": {
+            "type": "integer"
+          },
+          "streak": {
+            "type": "integer"
+          },
+          "pointsFor": {
+            "type": "integer"
+          },
+          "pointsAgainst": {
+            "type": "integer"
+          },
+          "overrideWins": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideLosses": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideTies": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideHomeWins": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideHomeLosses": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideHomeTies": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideRoadWins": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideRoadLosses": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideRoadTies": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overrideStreak": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overridePointsFor": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overridePointsAgainst": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overriddenBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effectiveWins": {
+            "type": "integer"
+          },
+          "effectiveLosses": {
+            "type": "integer"
+          },
+          "effectiveTies": {
+            "type": "integer"
+          },
+          "effectiveHomeWins": {
+            "type": "integer"
+          },
+          "effectiveHomeLosses": {
+            "type": "integer"
+          },
+          "effectiveHomeTies": {
+            "type": "integer"
+          },
+          "effectiveRoadWins": {
+            "type": "integer"
+          },
+          "effectiveRoadLosses": {
+            "type": "integer"
+          },
+          "effectiveRoadTies": {
+            "type": "integer"
+          },
+          "effectiveStreak": {
+            "type": "integer"
+          },
+          "effectivePointsFor": {
+            "type": "integer"
+          },
+          "effectivePointsAgainst": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "team",
+          "seasonYear",
+          "wins",
+          "losses",
+          "ties",
+          "homeWins",
+          "homeLosses",
+          "homeTies",
+          "roadWins",
+          "roadLosses",
+          "roadTies",
+          "streak",
+          "pointsFor",
+          "pointsAgainst",
+          "overrideWins",
+          "overrideLosses",
+          "overrideTies",
+          "overrideHomeWins",
+          "overrideHomeLosses",
+          "overrideHomeTies",
+          "overrideRoadWins",
+          "overrideRoadLosses",
+          "overrideRoadTies",
+          "overrideStreak",
+          "overridePointsFor",
+          "overridePointsAgainst",
+          "overriddenBy",
+          "overriddenAt",
+          "effectiveWins",
+          "effectiveLosses",
+          "effectiveTies",
+          "effectiveHomeWins",
+          "effectiveHomeLosses",
+          "effectiveHomeTies",
+          "effectiveRoadWins",
+          "effectiveRoadLosses",
+          "effectiveRoadTies",
+          "effectiveStreak",
+          "effectivePointsFor",
+          "effectivePointsAgainst",
+          "updatedAt"
+        ]
+      },
+      "NflTeamSeasonStatsOverrideResponse": {
+        "type": "object",
+        "properties": {
+          "stats": {
+            "$ref": "#/components/schemas/AdminNflTeamSeasonStats"
+          }
+        },
+        "required": [
+          "stats"
+        ]
+      },
+      "NflTeamSeasonStatsOverrideRequest": {
+        "type": "object",
+        "properties": {
+          "wins": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "losses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "ties": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "homeWins": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "homeLosses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "homeTies": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "roadWins": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "roadLosses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "roadTies": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 30
+          },
+          "streak": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -30,
+            "maximum": 30
+          },
+          "pointsFor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "pointsAgainst": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000
+          }
+        }
+      },
+      "AdminNflGameStatContextsResponse": {
+        "type": "object",
+        "properties": {
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminNflGameStatContext"
+            }
+          }
+        },
+        "required": [
+          "games"
+        ]
+      },
+      "AdminNflGameStatContext": {
+        "type": "object",
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "homeTeam": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "awayTeam": {
+            "$ref": "#/components/schemas/AdminGameTeam"
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "context": {
+            "$ref": "#/components/schemas/NullableAdminNflGameStatContextBlock"
+          }
+        },
+        "required": [
+          "gameId",
+          "homeTeam",
+          "awayTeam",
+          "kickoffAt",
+          "context"
+        ]
+      },
+      "NullableAdminNflGameStatContextBlock": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "home": {
+                "$ref": "#/components/schemas/NflGameStatsTeamContext"
+              },
+              "away": {
+                "$ref": "#/components/schemas/NflGameStatsTeamContext"
+              }
+            },
+            "required": [
+              "home",
+              "away"
+            ]
+          },
+          "overridePayload": {
+            "$ref": "#/components/schemas/NullableNflGameStatContextOverridePayload"
+          },
+          "effective": {
+            "type": "object",
+            "properties": {
+              "home": {
+                "$ref": "#/components/schemas/NflGameStatsTeamContext"
+              },
+              "away": {
+                "$ref": "#/components/schemas/NflGameStatsTeamContext"
+              }
+            },
+            "required": [
+              "home",
+              "away"
+            ]
+          },
+          "overriddenBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "payload",
+          "overridePayload",
+          "effective",
+          "overriddenBy",
+          "overriddenAt",
+          "updatedAt"
+        ]
+      },
+      "NullableNflGameStatContextOverridePayload": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "home": {
+            "$ref": "#/components/schemas/NflTeamGameContextOverride"
+          },
+          "away": {
+            "$ref": "#/components/schemas/NflTeamGameContextOverride"
+          }
+        }
+      },
+      "NflTeamGameContextOverride": {
+        "type": "object",
+        "properties": {
+          "injuries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NflInjuryReportEntry"
+            },
+            "maxItems": 100
+          },
+          "fpiWinPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "atsSummary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "lastFive": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NflLastFiveGame"
+            },
+            "maxItems": 5
+          }
+        }
+      },
+      "NflGameStatContextOverrideResponse": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "$ref": "#/components/schemas/AdminNflGameStatContext"
+          }
+        },
+        "required": [
+          "game"
+        ]
+      },
+      "NflGameStatContextOverrideRequest": {
+        "type": "object",
+        "properties": {
+          "home": {
+            "$ref": "#/components/schemas/NflTeamGameContextOverride"
+          },
+          "away": {
+            "$ref": "#/components/schemas/NflTeamGameContextOverride"
           }
         }
       },
@@ -6511,6 +7047,321 @@
           },
           "409": {
             "description": "The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/nfl-stats": {
+      "get": {
+        "operationId": "listAdminNflStats",
+        "summary": "Browse a season's synced NFL team stats with provider, override, and resolved values",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every stored season year, the year served (defaulted to the newest stored), and that season's per-team rows ordered by abbreviation — a requested year with no rows is an empty list, not a fallback to a different season",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNflTeamSeasonStatsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/nfl-stats/{statsId}/override": {
+      "put": {
+        "operationId": "setAdminNflStatsOverride",
+        "summary": "Set or clear manual overrides on a team's season record facts",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "statsId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NflTeamSeasonStatsOverrideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The corrected row with provider, override, and resolved values — derived averages and ranks on the member surface follow the resolved facts (ADR-0041)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NflTeamSeasonStatsOverrideResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields supplied, or a field fails its range rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such stats row (team_season_stats_not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/nfl-stat-contexts": {
+      "get": {
+        "operationId": "listAdminNflStatContexts",
+        "summary": "Browse a week's per-game stat context with provider, override, and resolved payloads",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The week's games ordered by resolved kickoff, each with its stored context or null where the stats sync hasn't reached it — empty for an unknown week id, indistinguishable from a week with no games synced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNflGameStatContextsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request param failed its format rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/nfl-stat-contexts/{gameId}/override": {
+      "put": {
+        "operationId": "setAdminNflStatContextOverride",
+        "summary": "Replace a game's stat-context override layer",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NflGameStatContextOverrideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The game's context with provider, override, and resolved payloads. The body replaces the whole override layer (an absent field carries no override; an empty body clears the layer)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NflGameStatContextOverrideResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field fails its shape or range rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The game doesn't exist, or the stats sync hasn't written a context payload for it yet — there's nothing to correct until it does (game_stat_context_not_found)",
             "content": {
               "application/json": {
                 "schema": {

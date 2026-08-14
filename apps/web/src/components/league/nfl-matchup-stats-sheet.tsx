@@ -9,6 +9,14 @@ import type {
 } from "@picksleagues/schemas";
 import { useNflGameStats } from "@/api/nfl-game-stats";
 import { formatDateTime } from "@/lib/format";
+import { recordLabel, streakLabel } from "@/lib/nfl-stats";
+import {
+  advantageOf,
+  lastFiveWins,
+  StatRow,
+  winPct,
+  type AdvantageSide,
+} from "@/components/league/nfl-matchup-stat-row";
 import { cn } from "@/lib/utils";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
@@ -54,15 +62,6 @@ function storeTier(tier: Tier) {
   }
 }
 
-function recordLabel(wins: number, losses: number, ties: number): string {
-  return ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
-}
-
-function streakLabel(streak: number): string {
-  if (streak === 0) return "—";
-  return streak > 0 ? `W${streak}` : `L${-streak}`;
-}
-
 function ordinal(rank: number): string {
   const mod100 = rank % 100;
   if (mod100 >= 11 && mod100 <= 13) return `${rank}th`;
@@ -99,30 +98,6 @@ function injuryLine(entry: NflInjuryReportEntry): string {
   const position = entry.position ? ` (${entry.position})` : "";
   const type = entry.injuryType ? ` — ${entry.injuryType}` : "";
   return `${entry.athleteName}${position} · ${entry.status}${type}`;
-}
-
-/** One "away value | label | home value" line of the stat grid. */
-function StatRow({
-  label,
-  away,
-  home,
-  subLabel,
-}: {
-  label: string;
-  away: string;
-  home: string;
-  subLabel?: string;
-}) {
-  return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1.5">
-      <span className="text-sm font-medium tabular-nums">{away}</span>
-      <span className="text-center text-xs text-muted-foreground">
-        {label}
-        {subLabel && <span className="block text-[10px] text-muted-foreground/70">{subLabel}</span>}
-      </span>
-      <span className="text-right text-sm font-medium tabular-nums">{home}</span>
-    </div>
-  );
 }
 
 // "—" wherever a block or value is absent: a dash states "nothing ingested"
@@ -205,6 +180,18 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
           const statsUpdatedAt = statsStamps.length > 0 ? statsStamps.sort()[0]! : null;
           const injuriesFor = (side: NflGameStatsTeamContext) =>
             advanced ? side.injuries : side.injuries.filter(isKeyInjury);
+          // Edge marks on record-derived rows compare only within one season:
+          // when the week-1 fallback serves different seasons per side, a
+          // cross-season "edge" states more than the data holds — and ranks
+          // are each computed against their own season's pool besides
+          // (STAT-10).
+          const recordEdge = (
+            read: (record: NflGameStatsTeamRecord) => number | null,
+            direction: "higher" | "lower" = "higher",
+          ): AdvantageSide =>
+            sharedSeasonYear
+              ? advantageOf(away ? read(away) : null, home ? read(home) : null, direction)
+              : null;
 
           if (!home && !away && !context) {
             return (
@@ -248,21 +235,25 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                     label="Record"
                     away={stat(away, (r) => recordLabel(r.wins, r.losses, r.ties))}
                     home={stat(home, (r) => recordLabel(r.wins, r.losses, r.ties))}
+                    advantage={recordEdge((r) => winPct(r.wins, r.losses, r.ties))}
                   />
                   <StatRow
                     label="Streak"
                     away={stat(away, (r) => streakLabel(r.streak))}
                     home={stat(home, (r) => streakLabel(r.streak))}
+                    advantage={recordEdge((r) => r.streak)}
                   />
                   <StatRow
                     label="Points per game"
                     away={stat(away, (r) => r.avgPointsFor?.toFixed(1) ?? null)}
                     home={stat(home, (r) => r.avgPointsFor?.toFixed(1) ?? null)}
+                    advantage={recordEdge((r) => r.avgPointsFor)}
                   />
                   <StatRow
                     label="Points allowed per game"
                     away={stat(away, (r) => r.avgPointsAgainst?.toFixed(1) ?? null)}
                     home={stat(home, (r) => r.avgPointsAgainst?.toFixed(1) ?? null)}
+                    advantage={recordEdge((r) => r.avgPointsAgainst, "lower")}
                   />
                   {advanced && (
                     <>
@@ -274,6 +265,7 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                         home={stat(home, (r) =>
                           r.scoringOffenseRank ? ordinal(r.scoringOffenseRank) : null,
                         )}
+                        advantage={recordEdge((r) => r.scoringOffenseRank, "lower")}
                       />
                       <StatRow
                         label="Scoring defense"
@@ -283,28 +275,41 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                         home={stat(home, (r) =>
                           r.scoringDefenseRank ? ordinal(r.scoringDefenseRank) : null,
                         )}
+                        advantage={recordEdge((r) => r.scoringDefenseRank, "lower")}
                       />
                       <StatRow
                         label="Home record"
                         away={stat(away, (r) => recordLabel(r.homeWins, r.homeLosses, r.homeTies))}
                         home={stat(home, (r) => recordLabel(r.homeWins, r.homeLosses, r.homeTies))}
+                        advantage={recordEdge((r) => winPct(r.homeWins, r.homeLosses, r.homeTies))}
                       />
                       <StatRow
                         label="Road record"
                         away={stat(away, (r) => recordLabel(r.roadWins, r.roadLosses, r.roadTies))}
                         home={stat(home, (r) => recordLabel(r.roadWins, r.roadLosses, r.roadTies))}
+                        advantage={recordEdge((r) => winPct(r.roadWins, r.roadLosses, r.roadTies))}
                       />
                       <StatRow
                         label="Point differential"
                         away={stat(away, differentialLabel)}
                         home={stat(home, differentialLabel)}
+                        advantage={recordEdge((r) =>
+                          r.gamesPlayed === 0 ? null : r.pointsFor - r.pointsAgainst,
+                        )}
                       />
                       <StatRow
                         label="Last 5"
                         subLabel="most recent first"
                         away={contextStat(context?.away, lastFiveLabel)}
                         home={contextStat(context?.home, lastFiveLabel)}
+                        advantage={advantageOf(
+                          lastFiveWins(context?.away),
+                          lastFiveWins(context?.home),
+                        )}
                       />
+                      {/* ATS stays unmarked on purpose: it's a provider string
+                          we don't parse, and "better against the spread" is a
+                          judgment the sheet shouldn't render as fact (STAT-10). */}
                       <StatRow
                         label="Against the spread"
                         away={contextStat(context?.away, (c) => c.atsSummary)}
@@ -319,10 +324,21 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                         home={contextStat(context?.home, (c) =>
                           c.fpiWinPct !== null ? `${c.fpiWinPct.toFixed(1)}%` : null,
                         )}
+                        advantage={advantageOf(context?.away.fpiWinPct, context?.home.fpiWinPct)}
                       />
                     </>
                   )}
                 </div>
+
+                {(home || away) && (
+                  <p className="text-[10px] text-muted-foreground/70">
+                    <span
+                      aria-hidden="true"
+                      className="mr-1 inline-block size-1.5 rounded-full bg-primary"
+                    />
+                    marks the side with the edge in a category.
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-2">

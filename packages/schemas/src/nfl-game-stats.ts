@@ -84,6 +84,49 @@ export const NflGameStatContextPayloadSchema = z.object({
 
 export type NflGameStatContextPayload = z.infer<typeof NflGameStatContextPayloadSchema>;
 
+// Longest plausible ATS summary is "10-10-1"-shaped; the bound rejects a paste
+// of something that isn't a record summary at all.
+const MAX_ATS_SUMMARY_LENGTH = 20;
+// The provider serves exactly five; an override may hold fewer (correcting a
+// short early-season list) but never more than the surface renders.
+const MAX_LAST_FIVE = 5;
+// Far above any real report; rejects an accidental paste of a whole league's
+// injuries into one team's list.
+const MAX_INJURY_ENTRIES = 100;
+
+/**
+ * One team's *sparse* context override (ADR-0041): a present field wins over
+ * the provider's at read, an absent one falls through — the JSONB analogue of
+ * `override_*` column parallels. Sparseness is the point: correcting one wrong
+ * injury list must not freeze FPI/ATS/last-five at override-time values while
+ * the sync keeps refreshing them. Overriding a field *to empty* is expressible
+ * (`injuries: []` masks a report the provider got wrong); overriding a
+ * nullable scalar to null is deliberately not — hiding a provider value
+ * outright is not a correction this surface offers.
+ */
+export const NflTeamGameContextOverrideSchema = z
+  .object({
+    injuries: z.array(NflInjuryReportEntrySchema).max(MAX_INJURY_ENTRIES).optional(),
+    fpiWinPct: z.number().min(0).max(100).optional(),
+    atsSummary: z.string().min(1).max(MAX_ATS_SUMMARY_LENGTH).optional(),
+    lastFive: z.array(NflLastFiveGameSchema).max(MAX_LAST_FIVE).optional(),
+  })
+  .openapi("NflTeamGameContextOverride");
+
+export type NflTeamGameContextOverride = z.infer<typeof NflTeamGameContextOverrideSchema>;
+
+/** The stored shape of `nfl_game_stat_context.override_payload` (ADR-0041). */
+export const NflGameStatContextOverridePayloadSchema = z
+  .object({
+    home: NflTeamGameContextOverrideSchema.optional(),
+    away: NflTeamGameContextOverrideSchema.optional(),
+  })
+  .openapi("NflGameStatContextOverridePayload");
+
+export type NflGameStatContextOverridePayload = z.infer<
+  typeof NflGameStatContextOverridePayloadSchema
+>;
+
 // --- Wire DTOs for GET /games/{gameId}/stats (STAT-5) ---
 
 // The wire twin of `NflTeamGameContextSchema`. Registered separately because the

@@ -1,21 +1,18 @@
 import { useState } from "react";
-import { SPORT, type AdminGame } from "@picksleagues/schemas";
-import { useAdminGames, useAdminSeasons } from "@/api/admin";
+import { type AdminGame } from "@picksleagues/schemas";
+import { useAdminGames } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
 import { GameOverrideForm } from "@/components/admin/game-override-form";
+import { ResolvedField } from "@/components/admin/override-display";
+import {
+  seasonLabel,
+  useAdminSeasonWeekSelection,
+} from "@/components/admin/use-season-week-selection";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
-
-// `LabeledSelect` renders one label string for both the closed trigger and
-// the open list — a single source keeps a selected provisional season
-// readable as provisional even once the list closes, which is the exact
-// thing this browser exists to surface.
-function seasonLabel(season: { year: number; provisional: boolean }) {
-  return `${season.year}${season.provisional ? " (provisional)" : ""}`;
-}
 
 function isOverridden(game: AdminGame) {
   return (
@@ -46,17 +43,10 @@ export function GamesBrowser({
   onSeasonChange: (seasonId: string) => void;
   onWeekChange: (weekId: string) => void;
 }) {
-  const seasons = useAdminSeasons(SPORT.NFL);
-
-  const all = seasons.data?.seasons ?? [];
-  // A week identifies its own season, so an inbound link needs only `weekId`
-  // and `seasonId` is the fallback for "a season is chosen but no week yet"
-  // (which is also how a season with zero weeks stays selected).
-  const selectedSeason =
-    all.find((season) => season.weeks.some((week) => week.id === weekId)) ??
-    all.find((season) => season.id === seasonId) ??
-    all[0];
-  const effectiveWeekId = weekId ?? selectedSeason?.currentWeekId ?? selectedSeason?.weeks[0]?.id;
+  const { seasons, all, selectedSeason, effectiveWeekId } = useAdminSeasonWeekSelection(
+    seasonId,
+    weekId,
+  );
   const games = useAdminGames(effectiveWeekId);
 
   return (
@@ -133,25 +123,6 @@ export function GamesBrowser({
         </QueryState>
       </CardContent>
     </Card>
-  );
-}
-
-function ResolvedField({
-  label,
-  resolved,
-  provider,
-  showProvider,
-}: {
-  label: string;
-  resolved: string;
-  provider: string;
-  showProvider: boolean;
-}) {
-  return (
-    <span>
-      {label} {resolved}
-      {showProvider && <span className="text-muted-foreground"> · provider: {provider}</span>}
-    </span>
   );
 }
 

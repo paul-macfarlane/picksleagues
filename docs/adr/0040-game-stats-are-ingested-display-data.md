@@ -1,6 +1,6 @@
 # 0040. Game stats are ingested display data with a tiered surface
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [0041](0041-stats-overrides-outlive-resync.md) (the "no `override_*` parallels" decision below is superseded — both tables now carry an audited override layer)
 - **Date:** 2026-08-12
 - **Related:** architecture.md §External Data / D6–D7 / D10–D11, mvp-spec.md §Screens (amended here), backlog STAT-1…STAT-6
 
@@ -56,7 +56,9 @@ small basic tier by default, the full set one deliberate action away.
   settlement, locking, or visibility; the recourse for a bad value is the next
   sync run, and an audited correction path would be machinery with no failure
   to prevent (contrast arch D15, whose overrides exist because ingestion can
-  clobber corrections that *do* change outcomes).
+  clobber corrections that *do* change outcomes). *(Superseded by ADR-0041:
+  when the provider itself is wrong, every sync re-asserts the error, so
+  "the next sync" is no recourse at all.)*
 - **`season_year` is a bare integer, not a `sport_seasons` FK.** The week-1
   fallback serves last season's rows; a prior season's stats legitimately
   exist without that season ever being synced.

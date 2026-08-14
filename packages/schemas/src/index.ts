@@ -1,5 +1,6 @@
 export * from "./admin-audit";
 export * from "./admin-data";
+export * from "./admin-nfl-stats";
 export * from "./app-role";
 export * from "./discovery";
 export * from "./display-name";

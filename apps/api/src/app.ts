@@ -6,6 +6,7 @@ import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
 import { logError } from "./lib/logger";
 import { adminRoutes } from "./routes/admin";
+import { adminNflStatsRoutes } from "./routes/admin-nfl-stats";
 import { discoveryRoutes } from "./routes/discovery";
 import { gameRoutes } from "./routes/games";
 import { healthRoutes } from "./routes/health";
@@ -72,6 +73,7 @@ export function createApp(deps: AppDeps = {}) {
   // every env, unlike the sim routes; server-side auth gates it, not
   // non-registration (that's for simulator-only routes, per `isSimEnabled`).
   app.route("/", adminRoutes(deps));
+  app.route("/", adminNflStatsRoutes(deps));
 
   // The simulator is the one surface gated by *not existing* rather than by auth
   // (ADR-0011): where `isSimEnabled` is false — always in production, and

@@ -44,7 +44,7 @@ numbers is never what a member lands on.
   away; stats carry a last-updated stamp (never a real-time claim); mobile-first.
   Which stats land in which tier is this task's clarify-phase decision.
   _(deps: STAT-3, STAT-5)_
-- [ ] **STAT-7** — Admin stats surface + stat overrides (owner, 2026-08-13):
+- [~] **STAT-7** — Admin stats surface + stat overrides (owner, 2026-08-13):
   an admin browser over `nfl_team_season_stats` and `nfl_game_stat_context`
   (view what the syncs wrote, with as-of stamps), plus `override_*` machinery
   for both — record facts as column parallels, context as a shape decided at
@@ -60,6 +60,11 @@ numbers is never what a member lands on.
   browser home with STAT-7 but touches reference data every sport uses, so the
   precedence resolution lands where team identity is serialized, not in the
   stats read. Migration ⇒ evaluator mandatory. _(deps: STAT-7)_
+- [~] **STAT-10** — Advantage indicators (owner, 2026-08-13): the matchup
+  sheet's stat comparison marks which team holds the edge in each objectively
+  comparable category (record, streak, scoring, ranks — never ATS strings or
+  injury lists, where "better" is a judgment call). Pure presentation over
+  data already served; no new ingestion or contract change. _(deps: STAT-6)_
 - [ ] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
   matchup sheet's segmented control (Basic | Advanced | Results) showing both
   teams' season game logs side by side — opponent, W/L, score, week. Zero new

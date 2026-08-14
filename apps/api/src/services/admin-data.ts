@@ -8,6 +8,8 @@ import {
   games,
   leagueSeasons,
   leagues,
+  nflGameStatContext,
+  nflTeamSeasonStats,
   sportSeasons,
   teams,
   users,
@@ -281,6 +283,51 @@ async function resolveTargetLabels(
         // Away-first, matching how a matchup is named everywhere else in the
         // product, so the trail reads like the slate it corrected.
         `${game.awayAbbreviation} @ ${game.homeAbbreviation}`,
+      );
+    }
+  }
+
+  const statsIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.NFL_TEAM_SEASON_STATS);
+  if (statsIds.length > 0) {
+    const statsRows = await db
+      .select({
+        id: nflTeamSeasonStats.id,
+        abbreviation: teams.abbreviation,
+        seasonYear: nflTeamSeasonStats.seasonYear,
+      })
+      .from(nflTeamSeasonStats)
+      .innerJoin(teams, eq(teams.id, nflTeamSeasonStats.teamId))
+      .where(inArray(nflTeamSeasonStats.id, statsIds));
+    for (const stats of statsRows) {
+      // The year names which season's record was corrected — a team keeps one
+      // row per season, so the abbreviation alone is ambiguous.
+      labels.set(
+        targetKey(ADMIN_AUDIT_TARGET_TABLE.NFL_TEAM_SEASON_STATS, stats.id),
+        `${stats.abbreviation} ${stats.seasonYear}`,
+      );
+    }
+  }
+
+  const contextIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.NFL_GAME_STAT_CONTEXT);
+  if (contextIds.length > 0) {
+    const homeTeams = alias(teams, "context_home_teams");
+    const awayTeams = alias(teams, "context_away_teams");
+    const contextRows = await db
+      .select({
+        id: nflGameStatContext.id,
+        homeAbbreviation: homeTeams.abbreviation,
+        awayAbbreviation: awayTeams.abbreviation,
+      })
+      .from(nflGameStatContext)
+      .innerJoin(games, eq(games.id, nflGameStatContext.gameId))
+      .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
+      .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
+      .where(inArray(nflGameStatContext.id, contextIds));
+    for (const context of contextRows) {
+      labels.set(
+        targetKey(ADMIN_AUDIT_TARGET_TABLE.NFL_GAME_STAT_CONTEXT, context.id),
+        // Away-first like the games labels — the trail reads like the slate.
+        `${context.awayAbbreviation} @ ${context.homeAbbreviation}`,
       );
     }
   }

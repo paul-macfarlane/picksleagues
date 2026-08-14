@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { GAME_STATUS, type AdminGame } from "@picksleagues/schemas";
@@ -12,6 +11,7 @@ import {
   NO_STATUS_OVERRIDE,
   type GameOverrideStatusValue,
 } from "@/components/admin/game-override-patch";
+import { ProviderHint } from "@/components/admin/override-display";
 import { FormDateTimeField } from "@/components/form-date-time-field";
 import { FormTextField } from "@/components/form-field";
 import { LabeledSelect } from "@/components/labeled-select";
@@ -39,21 +39,6 @@ function periodHint(period: number | null): string {
 
 function clockHint(clockSeconds: number | null): string {
   return clockSeconds === null ? "no clock" : clockLabel(clockSeconds);
-}
-
-/**
- * Pairs a field with the provider value it sits on top of, because the two
- * questions an operator asks here are "what am I overriding?" and "what would
- * clearing this restore?" — and the answer to both is the provider column,
- * which the resolved display above the form deliberately hides.
- */
-function ProviderHint({ children, provider }: { children: ReactNode; provider: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      {children}
-      <p className="text-xs text-muted-foreground">Provider: {provider}</p>
-    </div>
-  );
 }
 
 export function GameOverrideForm({ game }: { game: AdminGame }) {
