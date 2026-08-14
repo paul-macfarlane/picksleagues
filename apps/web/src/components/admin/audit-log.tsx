@@ -30,6 +30,7 @@ const ACTION_LABEL: Record<AdminAuditAction, string> = {
   [ADMIN_AUDIT_ACTION.LEAGUE_REBUILD]: "League rebuild",
   [ADMIN_AUDIT_ACTION.NFL_TEAM_SEASON_STATS_OVERRIDE]: "Team stats override",
   [ADMIN_AUDIT_ACTION.NFL_GAME_STAT_CONTEXT_OVERRIDE]: "Stat context override",
+  [ADMIN_AUDIT_ACTION.TEAM_IDENTITY_OVERRIDE]: "Team identity override",
 };
 
 const TARGET_TABLE_LABEL: Record<AdminAuditTargetTable, string> = {
@@ -37,6 +38,7 @@ const TARGET_TABLE_LABEL: Record<AdminAuditTargetTable, string> = {
   [ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS]: "League season",
   [ADMIN_AUDIT_TARGET_TABLE.NFL_TEAM_SEASON_STATS]: "Team season stats",
   [ADMIN_AUDIT_TARGET_TABLE.NFL_GAME_STAT_CONTEXT]: "Game stat context",
+  [ADMIN_AUDIT_TARGET_TABLE.TEAMS]: "Team",
 };
 
 /**
