@@ -118,6 +118,7 @@ const SummaryLastFiveEventSchema = z.looseObject({
   atVs: z.string().optional(),
   gameResult: z.string().optional(),
   score: z.string().optional(),
+  gameDate: z.string().optional(),
   opponent: z.looseObject({ abbreviation: z.string().optional() }).optional(),
 });
 
@@ -168,7 +169,31 @@ const SummarySchema = z.looseObject({
  * standings break corrupts records the basic tier states as fact; a summary
  * quirk loses one advanced-tier line.
  */
+// UTC months (0-based) in which only NFL *preseason* football is played: the
+// Hall of Fame game and preseason run late July–August, the regular season
+// has never started before September, and the postseason ends mid-February —
+// so a July/August date identifies a preseason game. The date is the only
+// discriminator the payload offers: last-five events carry no season-type
+// field (verified live 2026-08-13, when a preseason win appeared in a
+// regular-season game's form line).
+const PRESEASON_ONLY_UTC_MONTHS = new Set([6, 7]);
+
+function isPreseasonDate(gameDate: string | undefined): boolean {
+  if (gameDate === undefined) return false;
+  const parsed = new Date(gameDate);
+  // Unparseable dates fall through to the field checks below rather than
+  // deciding season type — this predicate only answers what a date proves.
+  if (Number.isNaN(parsed.getTime())) return false;
+  return PRESEASON_ONLY_UTC_MONTHS.has(parsed.getUTCMonth());
+}
+
 function mapLastFiveEvent(event: z.infer<typeof SummaryLastFiveEventSchema>): NflLastFiveGame[] {
+  // Preseason games are not form (starters sit) and the app ingests no
+  // preseason surface anywhere else — dropped before the shape checks so a
+  // malformed preseason entry can't survive as anything (STAT-11).
+  if (isPreseasonDate(event.gameDate)) {
+    return [];
+  }
   const result = NflLastGameResultSchema.safeParse(event.gameResult);
   const scoreMatch = event.score?.match(/^(\d+)-(\d+)$/);
   const opponentAbbr = event.opponent?.abbreviation;

@@ -483,7 +483,13 @@ export class EspnProvider implements GameDataProvider {
     // One bulk request for all 32 teams — season-parameterized, and last
     // season keeps serving its final numbers, which is what makes the week-1
     // prior-season fallback (ADR-0040) a plain re-read rather than an archive.
-    const url = `${this.#standingsApiBaseUrl}/football/nfl/standings?season=${seasonYear}`;
+    // `seasontype=2` pins the *regular-season* standings: without it ESPN
+    // serves whichever phase is live, so an August sync ingests preseason
+    // records (verified live 2026-08-13 — a 1-0 preseason team came back as
+    // wins=1, points included) that the app would state as season fact
+    // (STAT-11). The prior-season read still answers with its regular-season
+    // finals under the same parameter.
+    const url = `${this.#standingsApiBaseUrl}/football/nfl/standings?season=${seasonYear}&seasontype=2`;
     const json = await this.#fetchJsonOrNotFound(url);
     if (json === null) {
       return [];

@@ -65,6 +65,14 @@ numbers is never what a member lands on.
   comparable category (record, streak, scoring, ranks — never ATS strings or
   injury lists, where "better" is a judgment call). Pure presentation over
   data already served; no new ingestion or contract change. _(deps: STAT-6)_
+- [x] **STAT-11** — Ignore preseason stats (owner, 2026-08-13): a live August
+  sync ingested preseason numbers — ESPN's standings serve whichever phase is
+  live unless pinned with `seasontype=2`, and the summary's last-five includes
+  preseason games with no season-type field (a July/August `gameDate` is the
+  only discriminator; regular season has never played those months). Scope
+  the standings request to regular season and drop preseason last-five
+  entries at the adapter; a re-run of `sync-stats` heals already-polluted
+  rows since provider values change. Verified live 2026-08-13. _(deps: STAT-4)_
 - [ ] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
   matchup sheet's segmented control (Basic | Advanced | Results) showing both
   teams' season game logs side by side — opponent, W/L, score, week. Zero new
