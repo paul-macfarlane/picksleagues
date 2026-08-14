@@ -241,7 +241,10 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                     label="Streak"
                     away={stat(away, (r) => streakLabel(r.streak))}
                     home={stat(home, (r) => streakLabel(r.streak))}
-                    advantage={recordEdge((r) => r.streak)}
+                    // Zero-games guard like every other record row: streak 0
+                    // means *no games*, and a dot beside a "—" would claim an
+                    // edge derived from absent data (STAT-10).
+                    advantage={recordEdge((r) => (r.gamesPlayed === 0 ? null : r.streak))}
                   />
                   <StatRow
                     label="Points per game"
@@ -302,10 +305,14 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                         subLabel="most recent first"
                         away={contextStat(context?.away, lastFiveLabel)}
                         home={contextStat(context?.home, lastFiveLabel)}
-                        advantage={advantageOf(
-                          lastFiveWins(context?.away),
-                          lastFiveWins(context?.home),
-                        )}
+                        // Comparable only at equal list lengths: 2-0 from two
+                        // games isn't beaten by 3-2 from five, so unequal
+                        // samples get no mark rather than a win-count race.
+                        advantage={
+                          context && context.away.lastFive.length === context.home.lastFive.length
+                            ? advantageOf(lastFiveWins(context.away), lastFiveWins(context.home))
+                            : null
+                        }
                       />
                       {/* ATS stays unmarked on purpose: it's a provider string
                           we don't parse, and "better against the spread" is a

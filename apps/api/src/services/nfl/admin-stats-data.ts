@@ -1,4 +1,4 @@
-import { asc, desc, eq, type SQL } from "drizzle-orm";
+import { asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import { games, nflGameStatContext, nflTeamSeasonStats, teams } from "@picksleagues/db";
@@ -140,7 +140,19 @@ function selectContextRows(db: Db, where: SQL | undefined) {
   return (
     db
       .select({
-        game: { id: games.id, kickoffAt: games.kickoffAt, providerGameId: games.providerGameId },
+        // The *resolved* kickoff (override ?? provider, arch D15): kickoff is
+        // orientation here, not an editable layer of this surface, and a bare
+        // provider instant would contradict the games browser after a kickoff
+        // correction. `mapWith` borrows the column's decoder — a bare SQL
+        // expression comes back as pg's raw string, not a Date. Wrapped in a
+        // fresh template first because `mapWith` mutates its receiver, and the
+        // shared constant must stay decoder-free for its ORDER BY/WHERE
+        // callers (the season-range idiom).
+        game: {
+          id: games.id,
+          kickoffAt: sql`${effectiveKickoffAtSql}`.mapWith(games.kickoffAt),
+          providerGameId: games.providerGameId,
+        },
         homeTeam: { id: homeTeams.id, abbreviation: homeTeams.abbreviation, name: homeTeams.name },
         awayTeam: { id: awayTeams.id, abbreviation: awayTeams.abbreviation, name: awayTeams.name },
         context: nflGameStatContext,

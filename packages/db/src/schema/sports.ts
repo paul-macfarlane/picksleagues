@@ -255,7 +255,11 @@ export const nflTeamSeasonStats = pgTable(
  * defaults at read — the league-settings pattern). `updated_at` is the as-of
  * instant the UI must show beside it: injuries move daily and this table
  * moves on the sync's schedule, so an unstamped report would read fresher
- * than it is (spec §UI conventions: never claim real-time freshness).
+ * than it is (spec §UI conventions: never claim real-time freshness). It is
+ * bumped by sync writes *and* override writes alike (ADR-0041, the `games`
+ * precedent), so it dates the row as the member surface serves it — a
+ * correction is a change to what the sheet shows, not a claim the provider
+ * refreshed.
  *
  * `override_payload` is the JSONB analogue of column parallels (ADR-0041): a
  * *sparse* per-team payload whose present fields win over the provider's at

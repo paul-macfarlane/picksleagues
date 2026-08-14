@@ -108,7 +108,9 @@ export const NflTeamGameContextOverrideSchema = z
   .object({
     injuries: z.array(NflInjuryReportEntrySchema).max(MAX_INJURY_ENTRIES).optional(),
     fpiWinPct: z.number().min(0).max(100).optional(),
-    atsSummary: z.string().min(1).max(MAX_ATS_SUMMARY_LENGTH).optional(),
+    // Trimmed before the min-length rule so a whitespace-only override is a
+    // 400, not a stored value the editor's own trim would silently drop.
+    atsSummary: z.string().trim().min(1).max(MAX_ATS_SUMMARY_LENGTH).optional(),
     lastFive: z.array(NflLastFiveGameSchema).max(MAX_LAST_FIVE).optional(),
   })
   .openapi("NflTeamGameContextOverride");
@@ -126,6 +128,25 @@ export const NflGameStatContextOverridePayloadSchema = z
 export type NflGameStatContextOverridePayload = z.infer<
   typeof NflGameStatContextOverridePayloadSchema
 >;
+
+/**
+ * Compile-time tie between the context payload and its override twin, the
+ * `NFL_GAME_STATS_WIRE_COVERS_STORAGE` idiom at key granularity (values
+ * legitimately differ — the override's are non-null and non-defaulted): the
+ * next additive context field that lands without an override counterpart
+ * flips this to `false` and fails the build — otherwise the field would be
+ * silently un-overridable with every check green (ADR-0041).
+ */
+type KeysMutuallyAssignable<A, B> = [keyof A] extends [keyof B]
+  ? [keyof B] extends [keyof A]
+    ? true
+    : false
+  : false;
+
+export const NFL_CONTEXT_OVERRIDE_COVERS_PAYLOAD: KeysMutuallyAssignable<
+  NflTeamGameContext,
+  NflTeamGameContextOverride
+> = true;
 
 // --- Wire DTOs for GET /games/{gameId}/stats (STAT-5) ---
 

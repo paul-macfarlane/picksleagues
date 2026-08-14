@@ -288,6 +288,33 @@ describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
     expect(body.home?.scoringOffenseRank).toBe(2);
   });
 
+  it("audit rows resolve human labels through the audit view", async () => {
+    const { gameId } = await seedAll();
+    const { cookie } = await adminCaller();
+    const awayId = await statsRowId(cookie, "AWY");
+    await putStatsOverride(cookie, awayId, { wins: 1 });
+    await putContextOverride(cookie, gameId, { home: { fpiWinPct: 50 } });
+
+    const res = await app.request("/api/admin/audit", { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const { entries } = (await res.json()) as {
+      entries: { action: string; targetLabel: string | null }[];
+    };
+    // The trail must read like the data it corrected, not like UUIDs.
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: ADMIN_AUDIT_ACTION.NFL_TEAM_SEASON_STATS_OVERRIDE,
+          targetLabel: `AWY ${SEASON_YEAR}`,
+        }),
+        expect.objectContaining({
+          action: ADMIN_AUDIT_ACTION.NFL_GAME_STAT_CONTEXT_OVERRIDE,
+          targetLabel: "AWY @ HOM",
+        }),
+      ]),
+    );
+  });
+
   it("writes the audit row in the same transaction, prior value = the override layer", async () => {
     await seedAll();
     const { cookie, userId } = await adminCaller();
@@ -429,6 +456,17 @@ describe("PUT /api/admin/nfl-stat-contexts/{gameId}/override", () => {
     const contextless = body.games.find((game) => game.context === null);
     const noContext = await putContextOverride(cookie, contextless!.gameId, {});
     expect(noContext.status).toBe(404);
+  });
+
+  it("400s an override-to-null scalar — hiding a provider value is not a correction (ADR-0041)", async () => {
+    const { gameId } = await seedAll();
+    const { cookie } = await adminCaller();
+    const res = await app.request(`/api/admin/nfl-stat-contexts/${gameId}/override`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ home: { fpiWinPct: null } }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it("a sparse override wins field-by-field on the member read; the rest keeps syncing", async () => {
