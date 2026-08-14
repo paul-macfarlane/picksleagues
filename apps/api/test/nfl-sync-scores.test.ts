@@ -3,14 +3,13 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games, sportSeasons } from "@picksleagues/db";
 import {
   FixedClock,
-  type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
-  type ProviderTeam,
   type ProviderWeek,
 } from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { BaseFakeProvider } from "./setup/fake-provider";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflScores } from "../src/services/nfl/sync-scores";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
@@ -35,26 +34,22 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
 }
 
 /** Mutable in-memory provider that records every fetchNflWeekGames call. */
-class FakeProvider implements GameDataProvider {
+class FakeProvider extends BaseFakeProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
   gamesByWeek = new Map<string, ProviderGame[]>();
   fetchCalls: Array<[number, WeekType, number]> = [];
 
-  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
+  override async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
     return this.structure;
   }
 
-  async fetchNflWeekGames(
+  override async fetchNflWeekGames(
     seasonYear: number,
     weekType: WeekType,
     weekNumber: number,
   ): Promise<ProviderGame[]> {
     this.fetchCalls.push([seasonYear, weekType, weekNumber]);
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
-  }
-
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
-    return [];
   }
 }
 

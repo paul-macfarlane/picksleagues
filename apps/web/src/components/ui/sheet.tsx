@@ -29,27 +29,47 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
   );
 }
 
-// Only the left-side drawer (mobile nav) is wired up — a side prop / variant
-// table would be dead code until a second consumer needs another edge.
+// Two edges are wired up: the left drawer (mobile nav) and the bottom sheet
+// (matchup stats). `bottom` is a thumb-reach idiom that only makes sense at
+// phone width — from `sm` up it becomes a centered dialog (`inset-0` +
+// `m-auto`, which centers without a transform the enter animation would
+// fight), because on a tall screen a bottom-anchored panel puts the content
+// a full glance below where the member is looking (owner, 2026-08-13).
+// Neither variant scrolls itself: the popup is where the absolutely-positioned
+// close button lives, and a scrolling popup carries that button — the only
+// named dismiss control — off-screen with the content. The call site owns an
+// inner `overflow-y-auto` region instead, so the close (and any header) stay put.
+const SHEET_SIDE_CLASS_NAME = {
+  left: "inset-y-0 left-0 h-full w-3/4 max-w-xs data-open:slide-in-from-left data-closed:slide-out-to-left",
+  bottom:
+    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full rounded-t-xl data-open:slide-in-from-bottom data-closed:slide-out-to-bottom sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg sm:rounded-xl sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95",
+} as const;
+
 function SheetContent({
   className,
   children,
+  side = "left",
+  closeLabel = "Close navigation",
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+}: React.ComponentProps<typeof DialogPrimitive.Popup> & {
+  side?: keyof typeof SHEET_SIDE_CLASS_NAME;
+  closeLabel?: string;
+}) {
   return (
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex h-full w-3/4 max-w-xs flex-col gap-4 bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left",
+          "fixed z-50 flex flex-col gap-4 bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-closed:animate-out",
+          SHEET_SIDE_CLASS_NAME[side],
           className,
         )}
         {...props}
       >
         {children}
         <SheetClose
-          aria-label="Close navigation"
+          aria-label={closeLabel}
           className="absolute top-3 right-3 rounded-md p-1 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <XIcon className="size-4" />

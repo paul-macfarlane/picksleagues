@@ -1,4 +1,9 @@
-import { type ProviderGame, type ProviderTeam, type ProviderWeek } from "@picksleagues/core";
+import {
+  type ProviderGame,
+  type ProviderTeam,
+  type ProviderNflTeamSeasonRecord,
+  type ProviderWeek,
+} from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 
 /** Shared across the NFL sync + sim integration suites — a fake provider week. */
@@ -46,6 +51,31 @@ export function providerGame(
     clockSeconds: null,
     spread: null,
     spreadSource: null,
+    ...overrides,
+  };
+}
+
+/** Shared across the stats suites — an all-zero team season record to override from. */
+export function providerNflTeamSeasonRecord(
+  providerTeamId: string,
+  seasonYear: number,
+  overrides?: Partial<ProviderNflTeamSeasonRecord>,
+): ProviderNflTeamSeasonRecord {
+  return {
+    providerTeamId,
+    seasonYear,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    homeWins: 0,
+    homeLosses: 0,
+    homeTies: 0,
+    roadWins: 0,
+    roadLosses: 0,
+    roadTies: 0,
+    streak: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
     ...overrides,
   };
 }

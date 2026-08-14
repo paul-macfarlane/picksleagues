@@ -7,6 +7,7 @@ import { zodValidationHook } from "./lib/default-hook";
 import { logError } from "./lib/logger";
 import { adminRoutes } from "./routes/admin";
 import { discoveryRoutes } from "./routes/discovery";
+import { gameRoutes } from "./routes/games";
 import { healthRoutes } from "./routes/health";
 import { jobRoutes } from "./routes/jobs";
 import { inviteRoutes } from "./routes/invites";
@@ -63,6 +64,7 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/", memberRoutes(deps));
   app.route("/", discoveryRoutes(deps));
   app.route("/", weekRoutes(deps));
+  app.route("/", gameRoutes(deps));
   app.route("/", pickemRoutes(deps));
   app.route("/", survivorRoutes(deps));
 

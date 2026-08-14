@@ -1,15 +1,22 @@
 import { z } from "zod";
 import { GAME_STATUS, type GameStatus, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
+import { parseGameStatContext, parseTeamSeasonRecords } from "./espn-provider-stats";
 import type {
   GameDataProvider,
   ProviderGame,
+  ProviderNflGameStatContext,
   ProviderSeasonStructure,
   ProviderTeam,
+  ProviderNflTeamSeasonRecord,
   ProviderWeek,
 } from "./game-data-provider";
 
 const DEFAULT_SITE_API_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports";
 const DEFAULT_CORE_API_BASE_URL = "https://sports.core.api.espn.com/v2/sports";
+// The bulk standings live under `/apis/v2`, not `/apis/site/v2` — a third path
+// root on the same host, so it gets its own base rather than string surgery on
+// the site one.
+const DEFAULT_STANDINGS_API_BASE_URL = "https://site.api.espn.com/apis/v2/sports";
 
 // ESPN season-type ids: 2 = regular season (weeks 1–18), 3 = postseason
 // (weeks 1–5, of which week 4 "Pro Bowl" is excluded below).
@@ -326,15 +333,18 @@ export class EspnProvider implements GameDataProvider {
   readonly #fetchImpl: typeof fetch;
   readonly #siteApiBaseUrl: string;
   readonly #coreApiBaseUrl: string;
+  readonly #standingsApiBaseUrl: string;
 
   constructor(options?: {
     fetchImpl?: typeof fetch;
     siteApiBaseUrl?: string;
     coreApiBaseUrl?: string;
+    standingsApiBaseUrl?: string;
   }) {
     this.#fetchImpl = options?.fetchImpl ?? globalThis.fetch;
     this.#siteApiBaseUrl = options?.siteApiBaseUrl ?? DEFAULT_SITE_API_BASE_URL;
     this.#coreApiBaseUrl = options?.coreApiBaseUrl ?? DEFAULT_CORE_API_BASE_URL;
+    this.#standingsApiBaseUrl = options?.standingsApiBaseUrl ?? DEFAULT_STANDINGS_API_BASE_URL;
   }
 
   async #fetchJson(url: string): Promise<unknown> {
@@ -467,5 +477,31 @@ export class EspnProvider implements GameDataProvider {
     return listing.sports.flatMap((sport) =>
       sport.leagues.flatMap((league) => league.teams.map(mapTeamListItem)),
     );
+  }
+
+  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderNflTeamSeasonRecord[]> {
+    // One bulk request for all 32 teams — season-parameterized, and last
+    // season keeps serving its final numbers, which is what makes the week-1
+    // prior-season fallback (ADR-0040) a plain re-read rather than an archive.
+    const url = `${this.#standingsApiBaseUrl}/football/nfl/standings?season=${seasonYear}`;
+    const json = await this.#fetchJsonOrNotFound(url);
+    if (json === null) {
+      return [];
+    }
+    return parseTeamSeasonRecords(json, seasonYear);
+  }
+
+  async fetchNflGameStatContext(
+    providerGameId: string,
+  ): Promise<ProviderNflGameStatContext | null> {
+    const url = `${this.#siteApiBaseUrl}/football/nfl/summary?event=${providerGameId}`;
+    // An event ESPN can't answer for is "nothing to show", never a sync
+    // failure — context is garnish on games we already have from the
+    // scoreboard.
+    const json = await this.#fetchJsonOrNotFound(url);
+    if (json === null) {
+      return null;
+    }
+    return parseGameStatContext(json, providerGameId);
   }
 }

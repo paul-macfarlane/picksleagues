@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/nfl/sync-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh team season records and per-game matchup context (ADR-0040) */
+        post: operations["runNflSyncStats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/settle-sweep": {
         parameters: {
             query?: never;
@@ -327,6 +344,23 @@ export interface paths {
         };
         /** The weeks this league plays, clipped to its configured start/end week */
         get: operations["listLeagueWeeks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/games/{gameId}/nfl-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One game's matchup stats: team records plus injuries/FPI/form context (ADR-0040) */
+        get: operations["getNflGameStats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1018,6 +1052,60 @@ export interface components {
             endsAt: string;
             gameCount: number;
         };
+        NflGameStatsResponse: {
+            gameId: string;
+            home: components["schemas"]["NullableNflGameStatsTeamRecord"];
+            away: components["schemas"]["NullableNflGameStatsTeamRecord"];
+            context: components["schemas"]["NullableNflGameStatsContext"];
+        };
+        NullableNflGameStatsTeamRecord: {
+            seasonYear: number;
+            wins: number;
+            losses: number;
+            ties: number;
+            homeWins: number;
+            homeLosses: number;
+            homeTies: number;
+            roadWins: number;
+            roadLosses: number;
+            roadTies: number;
+            streak: number;
+            pointsFor: number;
+            pointsAgainst: number;
+            gamesPlayed: number;
+            avgPointsFor: number | null;
+            avgPointsAgainst: number | null;
+            scoringOffenseRank: number | null;
+            scoringDefenseRank: number | null;
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        NullableNflGameStatsContext: {
+            home: components["schemas"]["NflGameStatsTeamContext"];
+            away: components["schemas"]["NflGameStatsTeamContext"];
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        NflGameStatsTeamContext: {
+            injuries: components["schemas"]["NflInjuryReportEntry"][];
+            fpiWinPct: number | null;
+            atsSummary: string | null;
+            lastFive: components["schemas"]["NflLastFiveGame"][];
+        };
+        NflInjuryReportEntry: {
+            athleteName: string;
+            position: string | null;
+            status: string;
+            injuryType: string | null;
+        };
+        NflLastFiveGame: {
+            /** @enum {string} */
+            result: "W" | "L" | "T";
+            opponentAbbr: string;
+            teamScore: number;
+            opponentScore: number;
+            atHome: boolean;
+        };
         PickemPickSummary: {
             pickCount: number;
             memberCount: number;
@@ -1157,7 +1245,7 @@ export interface components {
             teamId: string;
         };
         /** @enum {string} */
-        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
+        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores" | "sync-stats";
         AdminTeamsResponse: {
             teams: components["schemas"]["AdminTeam"][];
         };
@@ -1793,6 +1881,57 @@ export interface operations {
         };
     };
     runNflSyncScores: {
+        parameters: {
+            query?: {
+                season?: number;
+                week?: number;
+                weekType?: components["schemas"]["WeekType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description A supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or wrong x-job-secret header */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    runNflSyncStats: {
         parameters: {
             query?: {
                 season?: number;
@@ -2918,6 +3057,55 @@ export interface operations {
                 };
             };
             /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getNflGameStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-team season records (prior season while the current has no games) and matchup context; blocks are null where ingestion has nothing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NflGameStatsResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
             404: {
                 headers: {
                     [name: string]: unknown;

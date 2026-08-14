@@ -15,6 +15,7 @@ the cron scheduler alerts on).
 | `/api/jobs/nfl/sync-schedule`     | Upsert NFL season, weeks (regular + postseason, Pro Bowl excluded), games, kickoffs, statuses |
 | `/api/jobs/nfl/sync-odds`         | Idempotently update `games.spread` for unstarted games in the current week **and the week after it** (see §Why sync-odds covers two weeks) |
 | `/api/jobs/nfl/sync-scores`       | Refresh live/final scores + statuses; fast no-op when no games are active. **Settles the affected league-weeks** when a game goes final — scores and standings move together |
+| `/api/jobs/nfl/sync-stats`        | Refresh `nfl_team_season_stats` (one bulk standings read; also re-syncs the **prior** season while the current one has no completed games — the week-1 fallback, ADR-0040) and `nfl_game_stat_context` for unstarted games across the same two-week window sync-odds prices |
 | `/api/jobs/settle-sweep`          | Nightly reconciliation: recompute `pickem_pick_results` + `pickem_standings` for every active league season from stored results (arch D10) |
 
 Query params (all optional; defaults derive from the Clock and our own tables):
@@ -62,6 +63,7 @@ header `x-job-secret: <production JOB_SECRET>`.
 | `nfl-sync-schedule`| Daily 6am ET                        | `0 10 * * *`            | 10:00 UTC = 6am EDT; acceptable drift under EST           |
 | `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season. Covers two weeks per run — see below |
 | `nfl-sync-scores`  | Every 15 minutes                     | `*/15 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
+| `nfl-sync-stats`   | Daily 8am ET                        | `0 12 * * *`            | After the morning odds run; team records move overnight (game days) and injury reports move daily — the matchup sheet stamps its own as-of, so daily is honest (ADR-0040) |
 | `settle-sweep`     | Daily 3am ET                        | `0 7 * * *`             | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
 
 `settle-sweep` takes no query params — it derives its own scope (every active league

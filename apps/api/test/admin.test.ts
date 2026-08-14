@@ -1,14 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "@picksleagues/db";
-import {
-  FixedClock,
-  type GameDataProvider,
-  type ProviderGame,
-  type ProviderSeasonStructure,
-  type ProviderTeam,
-} from "@picksleagues/core";
+import { FixedClock } from "@picksleagues/core";
 import type { JobRunResponse } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { BaseFakeProvider } from "./setup/fake-provider";
 import { createAuth } from "../src/auth";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
@@ -19,17 +14,7 @@ const FIXED_NOW = new Date("2026-09-09T00:00:00.000Z");
 
 /** Never exercised by these tests — no games are seeded, so every sync job's
  * fast no-op path returns before touching the provider. */
-class FakeProvider implements GameDataProvider {
-  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
-    return { seasonYear: 2026, weeks: [] };
-  }
-  async fetchNflWeekGames(): Promise<ProviderGame[]> {
-    return [];
-  }
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
-    return [];
-  }
-}
+class FakeProvider extends BaseFakeProvider {}
 
 const db = createDb(getTestDatabaseUrl());
 const provider = new FakeProvider();

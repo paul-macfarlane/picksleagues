@@ -213,7 +213,7 @@ picks-leagues/
 
 ESPN's undocumented endpoints cover everything the MVP needs, free:
 
-- **NFL:** season/week structure, schedules with kickoff timestamps, live + final scores, and odds (spread from ESPN BET) via the scoreboard and odds endpoints
+- **NFL:** season/week structure, schedules with kickoff timestamps, live + final scores, and odds (spread from ESPN BET) via the scoreboard and odds endpoints; team records/streaks/points via the bulk standings endpoint (season-parameterized, so last season's finals stay served — the week-1 fallback), and per-game injuries, FPI projections, last-five form, and ATS via the event summary endpoint (ADR-0040). Injuries are **live-only** — a historical game's summary answers with the teams' *current* report — so simulator replay mocks them.
 - **NCAA MBB:** tournament bracket, seeds, regions, game results
 
 **Risk & mitigation:** unofficial means it can change without notice. Mitigations: (1) all external data is ingested into our own tables — the app never reads ESPN at request time, so an outage degrades ingestion, not the product; (2) a thin `providers/espn.ts` adapter isolates their API shapes behind our own domain types, so swapping providers touches one module; (3) ingestion failures alert via the cron scheduler — jobs return 500 and cron-job.org emails on failed requests (ADR-0007). The Odds API remains the identified odds fallback, implemented post-MVP only if needed.
@@ -229,6 +229,7 @@ All jobs are HTTP endpoints under `/api/jobs/*`, protected by a shared-secret he
 | `nfl-sync-schedule` | Daily 6am ET | Upsert NFL weeks (regular + postseason, Pro Bowl excluded — ADR-0007), games, kickoff times; pick up postponements and cancellations (pick impact derives from game state at settlement) |
 | `nfl-sync-odds` | 3×/day (in season) | Idempotently update the current spread on unstarted games |
 | `nfl-sync-scores` | **Every 5 min** | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
+| `nfl-sync-stats` | Daily (in season) | Idempotently upsert team season records (bulk standings, one request) and per-game matchup context (injuries, FPI, ATS, last five — one summary request per unstarted game in the pick window) for the matchup stats sheet (ADR-0040) |
 | `settle-sweep` | Daily 3am ET | Full reconciliation pass: recompute all active leagues from stored results; catches anything the incremental path missed (late stat corrections, overrides, missed syncs) |
 | `ncaamb-sync-bracket` | Every 5 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots |
 
@@ -257,6 +258,12 @@ games                       # provider id, week FK, home/away team FKs, kickoff_
                             #   final scores, live period + clock_seconds (DATA-8),
                             #   current spread (latest only, ADR-0018),
                             #   override_* parallels for all of it, overridden_by/at
+nfl_team_season_stats       # per (team, season_year): W-L-T + home/road splits, signed streak,
+                            #   points for/against — provider facts only; PPG/ranks derived at
+                            #   read, no override_* (display-only — ADR-0040)
+nfl_game_stat_context       # per game: JSONB payload (injuries, FPI, ATS, last five) validated
+                            #   by schema, additive evolution; updated_at is the as-of stamp
+                            #   (ADR-0040)
 
 pickem_picks                # league_member FK, game FK, side, spread_at_pick
 survivor_picks              # league_member FK, week FK, game FK, team (straight up, no

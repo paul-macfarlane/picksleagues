@@ -3,6 +3,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -11,7 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { GameStatus, Sport, WeekType } from "@picksleagues/schemas";
+import type { NflGameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 import { users } from "./auth";
 
 /**
@@ -178,3 +179,67 @@ export const games = pgTable(
     index("games_status_kickoff_idx").on(table.status, table.kickoffAt),
   ],
 );
+
+/**
+ * Per-team season record facts for the matchup stats surface (ADR-0040),
+ * written by the stats sync from the provider's bulk standings. Provider facts
+ * only: PPG/OPG averages and league ranks are derived at read from these rows,
+ * never stored — a stored rank is wrong from the moment any other team's row
+ * changes, the same staleness arch D11 rejects for lock flags. No `override_*`
+ * parallels: this is display-only data that never feeds settlement or locking,
+ * and the recourse for a bad value is the next sync, not a correction that
+ * must outlive one.
+ *
+ * `seasonYear` is a bare integer, deliberately not a `sport_seasons` FK: the
+ * week-1 fallback serves *last* season's rows (ADR-0040), and a prior season's
+ * stats legitimately exist without that season ever being synced here.
+ */
+export const nflTeamSeasonStats = pgTable(
+  "nfl_team_season_stats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "restrict" }),
+    seasonYear: integer("season_year").notNull(),
+    wins: integer("wins").notNull(),
+    losses: integer("losses").notNull(),
+    ties: integer("ties").notNull(),
+    homeWins: integer("home_wins").notNull(),
+    homeLosses: integer("home_losses").notNull(),
+    homeTies: integer("home_ties").notNull(),
+    roadWins: integer("road_wins").notNull(),
+    roadLosses: integer("road_losses").notNull(),
+    roadTies: integer("road_ties").notNull(),
+    // Signed count: +3 = won last three, -1 = lost last one, 0 = no games yet.
+    streak: integer("streak").notNull(),
+    pointsFor: integer("points_for").notNull(),
+    pointsAgainst: integer("points_against").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("nfl_team_season_stats_team_season_unique").on(table.teamId, table.seasonYear),
+  ],
+);
+
+/**
+ * Per-game matchup context (injuries, FPI, ATS, recent form — ADR-0040),
+ * written by the stats sync from the provider's game summary. One JSONB
+ * payload rather than discrete columns because this is an additively evolving
+ * display snapshot (validated by `NflGameStatContextPayloadSchema`, parsed with
+ * defaults at read — the league-settings pattern). `updated_at` is the as-of
+ * instant the UI must show beside it: injuries move daily and this table
+ * moves on the sync's schedule, so an unstamped report would read fresher
+ * than it is (spec §UI conventions: never claim real-time freshness).
+ */
+export const nflGameStatContext = pgTable("nfl_game_stat_context", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id")
+    .notNull()
+    .unique()
+    .references(() => games.id, { onDelete: "cascade" }),
+  payload: jsonb("payload").$type<NflGameStatContextPayload>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});

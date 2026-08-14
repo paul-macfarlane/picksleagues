@@ -6,3 +6,4 @@ export * from "./provider-resolver";
 export * from "./season";
 export * from "./sim-provider";
 export * from "./sim-spread";
+export * from "./sim-stats";

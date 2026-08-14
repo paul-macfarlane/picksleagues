@@ -222,9 +222,7 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
     <Card>
       <CardHeader>
         <CardTitle>Simulated clock</CardTitle>
-        <CardDescription>
-          What every &quot;now&quot; read in the app resolves to (arch D13).
-        </CardDescription>
+        <CardDescription>What every &quot;now&quot; read in the app resolves to.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">

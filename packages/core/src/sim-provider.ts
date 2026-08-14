@@ -9,10 +9,20 @@ import type { Clock } from "./clock";
 import type {
   GameDataProvider,
   ProviderGame,
+  ProviderNflGameStatContext,
   ProviderSeasonStructure,
   ProviderTeam,
+  ProviderNflTeamSeasonRecord,
   ProviderWeek,
 } from "./game-data-provider";
+import {
+  deriveAtsSummary,
+  deriveFpiWinPct,
+  deriveLastFive,
+  deriveTeamSeasonRecord,
+  simInjuries,
+  type SimCompletedGame,
+} from "./sim-stats";
 
 /**
  * The book the simulator reports behind its spreads. Deliberately the same name
@@ -253,4 +263,77 @@ export class SimulatedProvider implements GameDataProvider {
   async fetchNflTeams(): Promise<ProviderTeam[]> {
     return (await this.#fixtures()).teams;
   }
+
+  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderNflTeamSeasonRecord[]> {
+    const snapshot = await this.#fixtures();
+    if (snapshot.seasonYear !== seasonYear) {
+      return [];
+    }
+    // Derived from the games the simulated clock has completed (STAT-3,
+    // ADR-0040), so records advance week by week exactly as ESPN's would —
+    // and a scenario positioned before its first kickoff serves all-zero
+    // records, which is what routes the read path to its prior-season
+    // fallback in the sim too.
+    const completed = completedGamesAt(snapshot.games, this.#clock.now());
+    return snapshot.teams.map((team) => ({
+      providerTeamId: team.providerTeamId,
+      seasonYear,
+      ...deriveTeamSeasonRecord(team.providerTeamId, completed),
+    }));
+  }
+
+  async fetchNflGameStatContext(
+    providerGameId: string,
+  ): Promise<ProviderNflGameStatContext | null> {
+    const snapshot = await this.#fixtures();
+    const fixture = snapshot.games.find((game) => game.providerGameId === providerGameId);
+    if (!fixture) {
+      return null;
+    }
+    const completed = completedGamesAt(snapshot.games, this.#clock.now());
+    const teamContext = (side: "home" | "away") => {
+      const teamProviderId =
+        side === "home" ? fixture.homeTeamProviderId : fixture.awayTeamProviderId;
+      const teamAbbr = side === "home" ? fixture.homeTeamAbbr : fixture.awayTeamAbbr;
+      return {
+        // Mocked, never replayed — era-correct injury history does not exist
+        // at the provider (ADR-0040).
+        injuries: simInjuries(teamAbbr),
+        fpiWinPct: deriveFpiWinPct(fixture.spread, side),
+        atsSummary: deriveAtsSummary(teamProviderId, completed),
+        lastFive: deriveLastFive(teamProviderId, completed),
+      };
+    };
+    return { providerGameId, home: teamContext("home"), away: teamContext("away") };
+  }
+}
+
+/**
+ * The fixtures that are final at `now`, projected through the same
+ * `projectFixtureGame` every other provider read uses — one clock rule,
+ * not two (ADR-0012).
+ */
+function completedGamesAt(games: SimFixtureGameRow[], now: Date): SimCompletedGame[] {
+  return games.flatMap((fixture) => {
+    const projected = projectFixtureGame(fixture, now);
+    if (
+      projected.status !== GAME_STATUS.FINAL ||
+      projected.homeScore === null ||
+      projected.awayScore === null
+    ) {
+      return [];
+    }
+    return [
+      {
+        homeTeamProviderId: fixture.homeTeamProviderId,
+        awayTeamProviderId: fixture.awayTeamProviderId,
+        homeTeamAbbr: fixture.homeTeamAbbr,
+        awayTeamAbbr: fixture.awayTeamAbbr,
+        homeScore: projected.homeScore,
+        awayScore: projected.awayScore,
+        kickoffAt: fixture.kickoffAt,
+        spread: fixture.spread,
+      },
+    ];
+  });
 }

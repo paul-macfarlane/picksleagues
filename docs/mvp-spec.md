@@ -242,7 +242,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 - **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked), each card naming when the league starts or, once it has, the week it is on; the create and browse entry points sit together here, since getting into a league is one job with two answers
 - **Discovery** — public league browse, name search, and mode filter (ADR-0037)
 - **League home** — standings (primary view: season standings for Pick'em (ADR-0035 — weekly boards live on the League Picks screen), the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
-- **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM)
+- **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM); each NFL game row opens its **matchup stats sheet** (below)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
 
 Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "League Picks"). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
@@ -278,7 +278,9 @@ This is not a live feed and does not change the freshness model below: it is a d
 - A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a reading with no badge beside it to confirm it is worse than silence.
 - The number is the **same measurement the in-progress reading showed**, now taken over a final score — which is what lets the tense do the work: one sentence resolving, not a new one appearing. It states the size of the result this member just got on this pick, and nothing more: it is never summed, and standings are points alone.
 
-No standalone stats pages, head-to-head views, or historical archives.
+**Matchup stats sheet (ADR-0040).** Every NFL game row — pick entry in both modes, and the read-only slate preview — opens a per-game sheet of ingested stats, **tiered so help never becomes a wall of numbers**: the **basic** tier (default) shows each team's record, streak, points scored/allowed per game, and key injuries (statuses other than Questionable); the **advanced** tier, one explicit toggle away, adds league scoring ranks, home/road splits, point differential, last-five form, ATS record, the full injury report, and ESPN's FPI win probability — the one *prediction* on the surface, shown only here and always attributed to ESPN FPI. Stats carry the ingestion's "as of" stamp (freshness model below); until the current season has games, team stats fall back to last season's, labeled with the season they describe; whatever the provider hasn't published yet (early-season ATS, a missing injury report) is omitted, never faked.
+
+No standalone stats pages, head-to-head views, or historical archives — the matchup sheet is scoped to one game's pick decision, which is the carve-out ADR-0040 records, not a doorway to any of those.
 
 ## Data Freshness & Expectations
 
@@ -286,6 +288,7 @@ No standalone stats pages, head-to-head views, or historical archives.
 - The app is not real-time within those 5-minute windows — the UI shows a "last updated" timestamp and users refresh/reload to see the latest, with no live push.
 - Spreads refresh several times daily; the spread shown and accepted at pick time is the spread of record for that Pick'em pick. Survivor is straight up and stores no spread (ADR-0026).
 - Schedule changes (cancellations, postponements) are reflected by the next daily schedule sync; a cancelled game's picks show as pushes shortly after.
+- Team stats and injury reports (the matchup stats sheet) refresh **daily**; the sheet shows its own "as of" stamp rather than implying game-day freshness (ADR-0040).
 - A nightly reconciliation pass re-verifies all results and standings, so any late stat corrections are reflected by the next morning.
 
 ## Testing & Internal Tooling (non-production)

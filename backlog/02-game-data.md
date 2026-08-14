@@ -15,3 +15,13 @@ Sports data schema, the provider abstraction, ESPN ingestion, and the sync jobs.
 - [x] **DATA-9** — Unseeded playoff games must not be pickable. ESPN publishes each playoff round months ahead as real events whose competitors are a shared TBD placeholder (`team.id` `-1`/`-2` — the same pair across every game in the round) with placeholder kickoffs, so ingestion creates two junk `teams` rows that every unseeded game points at, and a postseason Pick'em league offers them as ordinary picks. A pick stores `side`, not a team, so seeding silently converts it into a pick on a team the member never chose — and submit-once (ADR-0018) leaves no way out. Decide where the boundary belongs (skip at ingestion vs. ingest and mark unpickable — the choice changes what `leagueStartAt` returns for a postseason league) and record it. Ref: spec §Game Mode 1 Core Rules, §Locking; arch §Domain Model. _(deps: none)_ _(needs-triage)_
 
 Post-review scope addition (owner feedback, ADR-0007): ingestion covers the NFL **postseason** as well as the regular season — `weeks.week_type` + `label`, Pro Bowl excluded; jobs/services/routes are NFL-named (`/api/jobs/nfl/*`, `services/nfl/`).
+
+- [ ] **DATA-10** — ESPN fetch timeout: the adapter's `#fetchJson` has no
+  request timeout, so one hung ESPN socket hangs the whole job until whatever
+  is outside gives up — observed as one or two cron-job.org timeout
+  notifications on `sync-odds` (owner, 2026-08-13; cron-job.org caps requests
+  at ~30s). The job itself is two HTTP calls, so this is a hang, not volume:
+  no async offload (a job that fails after returning 2xx can never trigger
+  cron alerting, ADR-0007) and nothing to batch. Fix: `AbortSignal.timeout`
+  (~15s) on every adapter request so a hang fails fast and loudly into cron
+  alerting, and the next idempotent run heals. _(deps: none)_
