@@ -17,6 +17,11 @@ const DEFAULT_CORE_API_BASE_URL = "https://sports.core.api.espn.com/v2/sports";
 // root on the same host, so it gets its own base rather than string surgery on
 // the site one.
 const DEFAULT_STANDINGS_API_BASE_URL = "https://site.api.espn.com/apis/v2/sports";
+// Half of cron-job.org's ~30s request cap: a job that fetches twice
+// sequentially can have both requests time out and still return its own 500
+// (DATA-10) — the scheduler killing the request instead would alert with no
+// job-side log to diagnose from.
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 // ESPN season-type ids: 2 = regular season (weeks 1–18), 3 = postseason
 // (weeks 1–5, of which week 4 "Pro Bowl" is excluded below).
@@ -334,21 +339,49 @@ export class EspnProvider implements GameDataProvider {
   readonly #siteApiBaseUrl: string;
   readonly #coreApiBaseUrl: string;
   readonly #standingsApiBaseUrl: string;
+  readonly #requestTimeoutMs: number;
 
   constructor(options?: {
     fetchImpl?: typeof fetch;
     siteApiBaseUrl?: string;
     coreApiBaseUrl?: string;
     standingsApiBaseUrl?: string;
+    requestTimeoutMs?: number;
   }) {
     this.#fetchImpl = options?.fetchImpl ?? globalThis.fetch;
     this.#siteApiBaseUrl = options?.siteApiBaseUrl ?? DEFAULT_SITE_API_BASE_URL;
     this.#coreApiBaseUrl = options?.coreApiBaseUrl ?? DEFAULT_CORE_API_BASE_URL;
     this.#standingsApiBaseUrl = options?.standingsApiBaseUrl ?? DEFAULT_STANDINGS_API_BASE_URL;
+    this.#requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+
+  /**
+   * Every ESPN request carries a local timeout so one hung socket fails the
+   * job fast and loudly into cron alerting (ADR-0007) instead of riding until
+   * the scheduler's ~30s request cap kills it as an anonymous timeout
+   * (DATA-10). The rethrow names the URL because the abort error doesn't, and
+   * the job's logged 500 is the only place the hang is ever diagnosed from.
+   */
+  async #fetchResponse(url: string): Promise<Response> {
+    try {
+      return await this.#fetchImpl(url, {
+        signal: AbortSignal.timeout(this.#requestTimeoutMs),
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError")
+      ) {
+        throw new Error(`EspnProvider: GET ${url} timed out after ${this.#requestTimeoutMs}ms`, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
   }
 
   async #fetchJson(url: string): Promise<unknown> {
-    const response = await this.#fetchImpl(url);
+    const response = await this.#fetchResponse(url);
     if (!response.ok) {
       throw new Error(`EspnProvider: GET ${url} failed with status ${response.status}`);
     }
@@ -363,7 +396,7 @@ export class EspnProvider implements GameDataProvider {
    * still throws: a genuine outage must still fail the job (arch D7/ADR-0007).
    */
   async #fetchJsonOrNotFound(url: string): Promise<unknown | null> {
-    const response = await this.#fetchImpl(url);
+    const response = await this.#fetchResponse(url);
     if (response.status === 404) {
       return null;
     }

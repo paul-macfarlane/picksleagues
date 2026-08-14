@@ -16,7 +16,7 @@ Sports data schema, the provider abstraction, ESPN ingestion, and the sync jobs.
 
 Post-review scope addition (owner feedback, ADR-0007): ingestion covers the NFL **postseason** as well as the regular season — `weeks.week_type` + `label`, Pro Bowl excluded; jobs/services/routes are NFL-named (`/api/jobs/nfl/*`, `services/nfl/`).
 
-- [ ] **DATA-10** — ESPN fetch timeout: the adapter's `#fetchJson` has no
+- [x] **DATA-10** — ESPN fetch timeout: the adapter's `#fetchJson` has no
   request timeout, so one hung ESPN socket hangs the whole job until whatever
   is outside gives up — observed as one or two cron-job.org timeout
   notifications on `sync-odds` (owner, 2026-08-13; cron-job.org caps requests
@@ -25,3 +25,13 @@ Post-review scope addition (owner feedback, ADR-0007): ingestion covers the NFL 
   cron alerting, ADR-0007) and nothing to batch. Fix: `AbortSignal.timeout`
   (~15s) on every adapter request so a hang fails fast and loudly into cron
   alerting, and the next idempotent run heals. _(deps: none)_
+- [ ] **DATA-11** — Daily-cron failure recovery (owner, 2026-08-14): alerting
+  exists (job 500 → cron-job.org failure email, ADR-0007) but recovery
+  doesn't — a failed daily run waits 24h for the next attempt, which is a day
+  of stale stats/schedule with nobody watching. Platform-first: configure
+  cron-job.org's per-job retry-on-failure for the dailies, and bump a daily
+  to 2–3×/day where staleness hurts (jobs are idempotent by rule, so extra
+  runs are no-op ingestion). In-app retry machinery only if the platform
+  can't cover it. Cadence table in `docs/runbooks/jobs.md` updates in the
+  same change; console steps are owner-run, runbook edits are the
+  deliverable here. _(deps: DATA-10)_

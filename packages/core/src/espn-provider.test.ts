@@ -1251,6 +1251,28 @@ describe("EspnProvider.fetchNflTeams", () => {
 
     await expect(provider.fetchNflTeams()).rejects.toThrow(/503/);
   });
+
+  it("times out a hung request, naming the URL and the timeout (DATA-10)", async () => {
+    // Mimics fetch's abort contract: never resolves, rejects with the
+    // signal's reason when it fires — which is exactly what a hung ESPN
+    // socket under AbortSignal.timeout does.
+    const hangingFetch = vi.fn(
+      (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    ) as unknown as typeof fetch;
+
+    const provider = new EspnProvider({
+      fetchImpl: hangingFetch,
+      siteApiBaseUrl: SITE_API_BASE_URL,
+      coreApiBaseUrl: CORE_API_BASE_URL,
+      standingsApiBaseUrl: STANDINGS_API_BASE_URL,
+      requestTimeoutMs: 10,
+    });
+
+    await expect(provider.fetchNflTeams()).rejects.toThrow(`GET ${teamsUrl} timed out after 10ms`);
+  });
 });
 
 // --- Team season records (ADR-0040) ---
