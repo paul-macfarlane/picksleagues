@@ -17,12 +17,14 @@ export function SlatePreview({ slate }: { slate: WeekSlateResponse }) {
   const now = useAppNow();
 
   return (
-    <ul className="flex flex-col gap-2">
+    // Two columns from `sm` up: a full-width card holding one line of text
+    // reads as a page of left-clustered slivers (owner, 2026-08-13).
+    <ul className="grid gap-2 sm:grid-cols-2">
       {slate.games.map((game) => (
         <li
           key={game.id}
           data-testid="slate-preview-row"
-          className="flex flex-col gap-1 rounded-lg border border-border p-3"
+          className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-border p-3"
         >
           <div className="flex items-center gap-1">
             <p
@@ -47,8 +49,10 @@ export function SlatePreview({ slate }: { slate: WeekSlateResponse }) {
                 (FB-20) — the matchup sheet is the same public data. */}
             <NflMatchupStats game={game} />
           </div>
-          {/* Kickoff phrased against the app clock, which under the simulator
-              is months away from the browser's. */}
+          {/* Kickoff on the card's right edge — the same header shape as the
+              game rows, whose right side carries state — phrased against the
+              app clock, which under the simulator is months away from the
+              browser's. */}
           <p className="text-xs text-muted-foreground">{gameStateLabel(game, now)}</p>
         </li>
       ))}
