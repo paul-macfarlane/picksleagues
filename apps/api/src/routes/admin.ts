@@ -10,6 +10,8 @@ import {
   GameOverrideResponseSchema,
   NflSyncJobSchema,
   SportSchema,
+  TeamIdentityOverrideRequestSchema,
+  TeamIdentityOverrideResponseSchema,
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
@@ -41,7 +43,7 @@ import {
   listTeams,
   listWeekGames,
 } from "../services/admin-data";
-import { setGameOverride } from "../services/admin-overrides";
+import { setGameOverride, setTeamIdentityOverride } from "../services/admin-overrides";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { rebuildLeagueSeason, settleSweep } from "../services/settlement";
 import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
@@ -118,6 +120,27 @@ const listAdminTeamsRoute = createRoute({
       content: { "application/json": { schema: AdminTeamsResponseSchema } },
     },
     ...browserResponses,
+  },
+});
+
+const setAdminTeamOverrideRoute = createRoute({
+  method: "put",
+  path: "/admin/teams/{teamId}/override",
+  operationId: "setAdminTeamOverride",
+  summary: "Set or clear a team's identity overrides (STAT-8, ADR-0042)",
+  request: {
+    params: z.object({ teamId: z.uuid() }),
+    body: { content: { "application/json": { schema: TeamIdentityOverrideRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        "The corrected team with provider, override, and resolved identity — every surface displaying the team serves the resolved values",
+      content: { "application/json": { schema: TeamIdentityOverrideResponseSchema } },
+    },
+    ...browserResponses,
+    400: errorResponse("No fields supplied, or a field fails its length or URL rule"),
+    404: errorResponse("No such team (team_not_found)"),
   },
 });
 
@@ -239,6 +262,7 @@ export function adminRoutes(deps: AppDeps) {
   // deps itself so its misconfiguration 500 keeps the JobRunResponse shape.
   for (const path of [
     "/admin/teams",
+    "/admin/teams/*",
     "/admin/seasons",
     "/admin/games",
     "/admin/games/*",
@@ -352,6 +376,24 @@ export function adminRoutes(deps: AppDeps) {
       }
     }
     return c.json({ game: result.game, resettled: result.resettled }, 200);
+  });
+
+  app.openapi(setAdminTeamOverrideRoute, async (c) => {
+    const { teamId } = c.req.valid("param");
+    const result = await setTeamIdentityOverride(
+      c.get("db"),
+      c.get("clock"),
+      c.get("sessionUser").id,
+      teamId,
+      c.req.valid("json"),
+    );
+    if (!result.ok) {
+      return c.json(
+        ErrorResponseSchema.parse({ error: result.reason, message: "Team not found." }),
+        404,
+      );
+    }
+    return c.json({ team: result.team }, 200);
   });
 
   return app;

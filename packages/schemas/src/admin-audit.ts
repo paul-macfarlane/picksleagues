@@ -15,6 +15,7 @@ export const ADMIN_AUDIT_ACTION = {
   LEAGUE_REBUILD: "league_rebuild",
   NFL_TEAM_SEASON_STATS_OVERRIDE: "nfl_team_season_stats_override",
   NFL_GAME_STAT_CONTEXT_OVERRIDE: "nfl_game_stat_context_override",
+  TEAM_IDENTITY_OVERRIDE: "team_identity_override",
 } as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTION)[keyof typeof ADMIN_AUDIT_ACTION];
@@ -32,6 +33,7 @@ export const ADMIN_AUDIT_TARGET_TABLE = {
   LEAGUE_SEASONS: "league_seasons",
   NFL_TEAM_SEASON_STATS: "nfl_team_season_stats",
   NFL_GAME_STAT_CONTEXT: "nfl_game_stat_context",
+  TEAMS: "teams",
 } as const;
 
 export type AdminAuditTargetTable =
