@@ -54,7 +54,7 @@ numbers is never what a member lands on.
   ADR-0040**, which deliberately shipped these tables override-free — the
   amendment records why the owner wants correction to outlive a re-sync even
   for display data. Migration ⇒ evaluator mandatory. _(deps: STAT-6)_
-- [ ] **STAT-8** — Team identity overrides (owner, 2026-08-13): `override_*`
+- [x] **STAT-8** — Team identity overrides (owner, 2026-08-13): `override_*`
   for team display fields (name, abbreviation, logos) on `teams`, corrected
   from an admin teams browser, audited like every override. Shares the admin
   browser home with STAT-7 but touches reference data every sport uses, so the

@@ -2206,6 +2206,73 @@
               "null"
             ]
           },
+          "overrideName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overrideAbbreviation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overrideLocation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overrideLogoLightUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overrideLogoDarkUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effectiveName": {
+            "type": "string"
+          },
+          "effectiveAbbreviation": {
+            "type": "string"
+          },
+          "effectiveLocation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effectiveLogoLightUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effectiveLogoDarkUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -2220,6 +2287,18 @@
           "location",
           "logoLightUrl",
           "logoDarkUrl",
+          "overrideName",
+          "overrideAbbreviation",
+          "overrideLocation",
+          "overrideLogoLightUrl",
+          "overrideLogoDarkUrl",
+          "overriddenBy",
+          "overriddenAt",
+          "effectiveName",
+          "effectiveAbbreviation",
+          "effectiveLocation",
+          "effectiveLogoLightUrl",
+          "effectiveLogoDarkUrl",
           "updatedAt"
         ]
       },
@@ -2633,7 +2712,8 @@
           "game_override",
           "league_rebuild",
           "nfl_team_season_stats_override",
-          "nfl_game_stat_context_override"
+          "nfl_game_stat_context_override",
+          "team_identity_override"
         ]
       },
       "AdminAuditTargetTable": {
@@ -2642,7 +2722,8 @@
           "games",
           "league_seasons",
           "nfl_team_season_stats",
-          "nfl_game_stat_context"
+          "nfl_game_stat_context",
+          "teams"
         ]
       },
       "GameOverrideResponse": {
@@ -2712,6 +2793,52 @@
             ],
             "minimum": 0,
             "maximum": 3600
+          }
+        }
+      },
+      "TeamIdentityOverrideResponse": {
+        "type": "object",
+        "properties": {
+          "team": {
+            "$ref": "#/components/schemas/AdminTeam"
+          }
+        },
+        "required": [
+          "team"
+        ]
+      },
+      "TeamIdentityOverrideRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "abbreviation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 10
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "logoLightUrl": {
+            "$ref": "#/components/schemas/NullableImageUrl"
+          },
+          "logoDarkUrl": {
+            "$ref": "#/components/schemas/NullableImageUrl"
           }
         }
       },
@@ -7204,6 +7331,94 @@
           },
           "409": {
             "description": "The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/teams/{teamId}/override": {
+      "put": {
+        "operationId": "setAdminTeamOverride",
+        "summary": "Set or clear a team's identity overrides (STAT-8, ADR-0042)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "teamId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamIdentityOverrideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The corrected team with provider, override, and resolved identity — every surface displaying the team serves the resolved values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamIdentityOverrideResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields supplied, or a field fails its length or URL rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is signed in but does not hold the admin role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such team (team_not_found)",
             "content": {
               "application/json": {
                 "schema": {

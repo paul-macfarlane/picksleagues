@@ -51,3 +51,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0039](0039-public-routes-are-prerendered-at-build.md) | Public routes are prerendered at build | Accepted |
 | [0040](0040-game-stats-are-ingested-display-data.md) | Game stats are ingested display data with a tiered surface | Accepted; amended by 0041 |
 | [0041](0041-stats-overrides-outlive-resync.md) | Stats tables carry override parallels after all | Accepted |
+| [0042](0042-team-identity-overrides.md) | Team identity gets override parallels, resolved in one serialization home | Accepted |

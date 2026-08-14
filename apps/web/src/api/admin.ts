@@ -8,7 +8,13 @@ import {
 import { toast } from "sonner";
 import { toastSuccess } from "@/lib/toast";
 import { ERROR_CODE, JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
-import type { GameOverrideRequest, JobSkipReason, NflSyncJob, Sport } from "@picksleagues/schemas";
+import type {
+  GameOverrideRequest,
+  JobSkipReason,
+  NflSyncJob,
+  Sport,
+  TeamIdentityOverrideRequest,
+} from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
@@ -235,6 +241,48 @@ export function useSetGameOverride() {
       // knowable client-side, so an enumerated key list here would be a list
       // that silently goes stale — and a stale standings board after a
       // correction is the SPA lying about the exact thing the correction fixed.
+      await queryClient.invalidateQueries();
+    },
+    onError: () => toast.error("Couldn't save that override — please try again."),
+  });
+}
+
+/**
+ * The team identity correction (STAT-8, ADR-0042). Variables carry the team id
+ * so a row scopes its pending state off `mutation.variables` (async-button
+ * standard).
+ */
+export function useSetTeamIdentityOverride() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      teamId,
+      override,
+    }: {
+      teamId: string;
+      override: TeamIdentityOverrideRequest;
+    }) => {
+      const { data, error, response } = await api.PUT("/api/admin/teams/{teamId}/override", {
+        params: { path: { teamId } },
+        body: override,
+      });
+      if (error) {
+        toastOnExpectedError(
+          error,
+          response,
+          (status, err) => status === 404 && err.error === ERROR_CODE.TEAM_NOT_FOUND,
+        );
+        return null;
+      }
+      return data;
+    },
+    onSuccess: async (data) => {
+      if (!data) return;
+      toastSuccess(`Saved identity override for ${data.team.effectiveAbbreviation}`);
+      // The whole cache, the game-override rationale: identity renders on
+      // every cached surface that names a team — slates, boards, picks,
+      // matchup stats, every admin browser — and that set isn't enumerable
+      // client-side without a key list that silently goes stale.
       await queryClient.invalidateQueries();
     },
     onError: () => toast.error("Couldn't save that override — please try again."),

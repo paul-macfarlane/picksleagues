@@ -1,6 +1,10 @@
-import { SPORT } from "@picksleagues/schemas";
+import { useState } from "react";
+import { SPORT, type AdminTeam } from "@picksleagues/schemas";
 import { useAdminTeams } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
+import { ResolvedField } from "@/components/admin/override-display";
+import { TeamIdentityOverrideForm } from "@/components/admin/team-identity-override-form";
+import { teamIdentityOverrideFormSeed } from "@/components/admin/team-identity-override-patch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
@@ -9,6 +13,8 @@ import { TeamLogo } from "@/components/team-logo";
 /**
  * NCAAMB teams arrive with the March Madness epic; only NFL data exists
  * today (ADM-4 spec) — no sport picker until there's a second sport to pick.
+ * Since STAT-8 (ADR-0042) the rows also carry the identity override editor:
+ * effective values lead, with the provider's beside any overridden field.
  */
 export function TeamsBrowser() {
   const teams = useAdminTeams(SPORT.NFL);
@@ -18,7 +24,8 @@ export function TeamsBrowser() {
       <CardHeader>
         <CardTitle>Teams</CardTitle>
         <CardDescription>
-          {teams.data ? `${teams.data.teams.length} synced` : "Synced NFL teams"}
+          {teams.data ? `${teams.data.teams.length} synced` : "Synced NFL teams"} · display fields
+          are correctable; identity keys are not
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -35,33 +42,99 @@ export function TeamsBrowser() {
         >
           <ul className="flex flex-col gap-2">
             {teams.data?.teams.map((team) => (
-              <li
-                key={team.id}
-                className="flex items-center gap-3 rounded-lg border border-border p-3"
-              >
-                <TeamLogo
-                  logoLightUrl={team.logoLightUrl}
-                  logoDarkUrl={team.logoDarkUrl}
-                  size="lg"
-                  placeholder
-                />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <p className="text-sm font-medium text-foreground">
-                    {team.abbreviation} — {team.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {team.location ?? "Location unknown"}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end text-xs text-muted-foreground">
-                  <p>{team.providerTeamId ?? "not provider-linked"}</p>
-                  <p>Updated {formatDateTime(team.updatedAt)}</p>
-                </div>
-              </li>
+              <TeamRow key={team.id} team={team} />
             ))}
           </ul>
         </QueryState>
       </CardContent>
     </Card>
+  );
+}
+
+function TeamRow({ team }: { team: AdminTeam }) {
+  const [editOpen, setEditOpen] = useState(false);
+
+  return (
+    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
+      <div className="flex items-center gap-3">
+        <TeamLogo
+          logoLightUrl={team.effectiveLogoLightUrl}
+          logoDarkUrl={team.effectiveLogoDarkUrl}
+          size="lg"
+          placeholder
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <p className="text-sm font-medium text-foreground">
+            {team.effectiveAbbreviation} — {team.effectiveName}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {team.effectiveLocation ?? "Location unknown"}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
+          {/* `overriddenAt` is set exactly while any override field is
+              (cleared with the last one, arch D15), so it stands in for
+              checking all five. */}
+          {team.overriddenAt !== null && (
+            <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-medium text-destructive">
+              Overridden
+            </span>
+          )}
+          <p>{team.providerTeamId ?? "not provider-linked"}</p>
+          <p>Updated {formatDateTime(team.updatedAt)}</p>
+        </div>
+      </div>
+
+      {team.overriddenAt !== null && (
+        <div className="flex flex-col gap-1 text-xs text-foreground">
+          <ResolvedField
+            label="Name"
+            resolved={team.effectiveName}
+            provider={team.name}
+            showProvider={team.overrideName !== null}
+          />
+          <ResolvedField
+            label="Abbreviation"
+            resolved={team.effectiveAbbreviation}
+            provider={team.abbreviation}
+            showProvider={team.overrideAbbreviation !== null}
+          />
+          <ResolvedField
+            label="Location"
+            resolved={team.effectiveLocation ?? "—"}
+            provider={team.location ?? "—"}
+            showProvider={team.overrideLocation !== null}
+          />
+          <ResolvedField
+            label="Logo (light)"
+            resolved={team.effectiveLogoLightUrl ?? "—"}
+            provider={team.logoLightUrl ?? "—"}
+            showProvider={team.overrideLogoLightUrl !== null}
+          />
+          <ResolvedField
+            label="Logo (dark)"
+            resolved={team.effectiveLogoDarkUrl ?? "—"}
+            provider={team.logoDarkUrl ?? "—"}
+            showProvider={team.overrideLogoDarkUrl !== null}
+          />
+        </div>
+      )}
+
+      {/* Same open/remount contract as the stats browser: never rendered
+          hidden, and the form re-seeds when its override values change
+          server-side (fingerprint key) so a save can't leave a stale diff
+          baseline in a still-open editor. */}
+      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
+        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
+          Edit override
+        </summary>
+        {editOpen && (
+          <TeamIdentityOverrideForm
+            key={JSON.stringify(teamIdentityOverrideFormSeed(team))}
+            team={team}
+          />
+        )}
+      </details>
+    </li>
   );
 }

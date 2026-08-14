@@ -10,7 +10,18 @@ import {
   type AdminNflTeamSeasonStatsResponse,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql } from "../games";
+import { effectiveTeamColumns } from "../teams";
 import { resolveNflGameStatContext, resolveNflTeamSeasonStatsOverrides } from "./game-stats";
+
+/**
+ * The browsers' team labels, in effective identity (ADR-0042) — orientation
+ * must match what the member surfaces call the team; the teams browser is
+ * where the identity layers themselves show.
+ */
+function adminTeamLabelColumns(source: Parameters<typeof effectiveTeamColumns>[0] = teams) {
+  const cols = effectiveTeamColumns(source);
+  return { id: cols.id, abbreviation: cols.abbreviation, name: cols.name };
+}
 
 /**
  * Queries behind the admin Stats browsers (STAT-7, ADR-0041) — read-only by
@@ -96,12 +107,12 @@ export async function listNflTeamSeasonStats(
   const rows = await db
     .select({
       stats: nflTeamSeasonStats,
-      team: { id: teams.id, abbreviation: teams.abbreviation, name: teams.name },
+      team: adminTeamLabelColumns(),
     })
     .from(nflTeamSeasonStats)
     .innerJoin(teams, eq(teams.id, nflTeamSeasonStats.teamId))
     .where(eq(nflTeamSeasonStats.seasonYear, seasonYear))
-    .orderBy(asc(teams.abbreviation));
+    .orderBy(asc(effectiveTeamColumns(teams).abbreviation));
 
   return {
     seasonYears,
@@ -121,7 +132,7 @@ export async function loadAdminNflTeamSeasonStats(
   const [row] = await db
     .select({
       stats: nflTeamSeasonStats,
-      team: { id: teams.id, abbreviation: teams.abbreviation, name: teams.name },
+      team: adminTeamLabelColumns(),
     })
     .from(nflTeamSeasonStats)
     .innerJoin(teams, eq(teams.id, nflTeamSeasonStats.teamId))
@@ -153,8 +164,8 @@ function selectContextRows(db: Db, where: SQL | undefined) {
           kickoffAt: sql`${effectiveKickoffAtSql}`.mapWith(games.kickoffAt),
           providerGameId: games.providerGameId,
         },
-        homeTeam: { id: homeTeams.id, abbreviation: homeTeams.abbreviation, name: homeTeams.name },
-        awayTeam: { id: awayTeams.id, abbreviation: awayTeams.abbreviation, name: awayTeams.name },
+        homeTeam: adminTeamLabelColumns(homeTeams),
+        awayTeam: adminTeamLabelColumns(awayTeams),
         context: nflGameStatContext,
       })
       .from(games)

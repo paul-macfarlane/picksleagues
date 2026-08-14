@@ -20,6 +20,7 @@ import {
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
 import { resolveGameOverrides } from "../games";
+import { effectiveTeamColumns } from "../teams";
 import { resolveCurrentWeekId } from "../league-weeks";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
@@ -298,16 +299,11 @@ export async function getSurvivorStandings(
  */
 async function loadTeams(db: Db, teamIds: readonly string[]): Promise<SlateTeam[]> {
   if (teamIds.length === 0) return [];
+  // Identity precedence resolved through its one home (ADR-0042).
+  const cols = effectiveTeamColumns(teams);
   return db
-    .select({
-      id: teams.id,
-      abbreviation: teams.abbreviation,
-      name: teams.name,
-      location: teams.location,
-      logoLightUrl: teams.logoLightUrl,
-      logoDarkUrl: teams.logoDarkUrl,
-    })
+    .select(cols)
     .from(teams)
     .where(inArray(teams.id, [...teamIds]))
-    .orderBy(asc(teams.abbreviation));
+    .orderBy(asc(cols.abbreviation));
 }
