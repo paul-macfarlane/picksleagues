@@ -1,5 +1,8 @@
 # Green CI is the merge gate to staging; the staging -> main promotion PR
 # re-runs this same suite (branch protection is configured in the GitHub UI).
+# No push trigger on main (FND-12): Vercel deploys on that same push, so a
+# post-merge run could only report after prod was already live — the
+# promotion PR has already run the identical suite on the identical tree.
 name: CI
 
 on:
@@ -7,7 +10,6 @@ on:
   push:
     branches:
       - staging
-      - main
 
 jobs:
   ci:
