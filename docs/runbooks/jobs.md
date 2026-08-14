@@ -2,7 +2,9 @@
 
 How the `/api/jobs/*` endpoints are configured, scheduled, and operated (arch §Background
 Jobs, D7; ADR-0007). Jobs are plain HTTP endpoints — idempotent, safe to re-run, safe to
-double-trigger, safe to fire manually.
+double-trigger, safe to fire manually. An operator-shaped restatement (what each job
+does, what a failure email means) ships in the app at `/admin/guide` (ADM-5) — a change
+here edits both or that page lies.
 
 ## Endpoints
 
