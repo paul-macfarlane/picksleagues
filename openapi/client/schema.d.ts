@@ -369,6 +369,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/games/{gameId}/nfl-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Both teams' season game logs for the matchup sheet's Results segment (STAT-9) */
+        get: operations["getNflGameResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues/{leagueId}/pickem/pick-summary": {
         parameters: {
             query?: never;
@@ -618,6 +635,23 @@ export interface paths {
         get?: never;
         /** Set or clear a game's manual overrides */
         put: operations["setAdminGameOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/teams/{teamId}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear a team's identity overrides (STAT-8, ADR-0042) */
+        put: operations["setAdminTeamOverride"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1174,6 +1208,27 @@ export interface components {
             opponentScore: number;
             atHome: boolean;
         };
+        NflGameResultsResponse: {
+            gameId: string;
+            home: components["schemas"]["NullableNflTeamGameLog"];
+            away: components["schemas"]["NullableNflTeamGameLog"];
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        NullableNflTeamGameLog: {
+            seasonYear: number;
+            entries: components["schemas"]["NflGameLogEntry"][];
+        } | null;
+        NflGameLogEntry: {
+            weekLabel: string;
+            opponentAbbr: string;
+            atHome: boolean;
+            final: boolean;
+            teamScore: number | null;
+            opponentScore: number | null;
+            /** @enum {string|null} */
+            result: "W" | "L" | "T" | null;
+        };
         PickemPickSummary: {
             pickCount: number;
             memberCount: number;
@@ -1326,6 +1381,19 @@ export interface components {
             location: string | null;
             logoLightUrl: string | null;
             logoDarkUrl: string | null;
+            overrideName: string | null;
+            overrideAbbreviation: string | null;
+            overrideLocation: string | null;
+            overrideLogoLightUrl: string | null;
+            overrideLogoDarkUrl: string | null;
+            overriddenBy: string | null;
+            /** Format: date-time */
+            overriddenAt: string | null;
+            effectiveName: string;
+            effectiveAbbreviation: string;
+            effectiveLocation: string | null;
+            effectiveLogoLightUrl: string | null;
+            effectiveLogoDarkUrl: string | null;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -1420,9 +1488,9 @@ export interface components {
             createdAt: string;
         };
         /** @enum {string} */
-        AdminAuditAction: "game_override" | "league_rebuild" | "nfl_team_season_stats_override" | "nfl_game_stat_context_override";
+        AdminAuditAction: "game_override" | "league_rebuild" | "nfl_team_season_stats_override" | "nfl_game_stat_context_override" | "team_identity_override";
         /** @enum {string} */
-        AdminAuditTargetTable: "games" | "league_seasons" | "nfl_team_season_stats" | "nfl_game_stat_context";
+        AdminAuditTargetTable: "games" | "league_seasons" | "nfl_team_season_stats" | "nfl_game_stat_context" | "teams";
         GameOverrideResponse: {
             game: components["schemas"]["AdminGame"];
             resettled: boolean;
@@ -1436,6 +1504,16 @@ export interface components {
             spread?: number | null;
             period?: number | null;
             clockSeconds?: number | null;
+        };
+        TeamIdentityOverrideResponse: {
+            team: components["schemas"]["AdminTeam"];
+        };
+        TeamIdentityOverrideRequest: {
+            name?: string | null;
+            abbreviation?: string | null;
+            location?: string | null;
+            logoLightUrl?: components["schemas"]["NullableImageUrl"];
+            logoDarkUrl?: components["schemas"]["NullableImageUrl"];
         };
         AdminNflTeamSeasonStatsResponse: {
             seasonYears: number[];
@@ -3305,6 +3383,55 @@ export interface operations {
             };
         };
     };
+    getNflGameResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-team season game logs from our games rows (prior season while the current has no started games); a block is null when a team has none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NflGameResultsResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getPickemPickSummary: {
         parameters: {
             query?: never;
@@ -4279,6 +4406,77 @@ export interface operations {
             };
             /** @description The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setAdminTeamOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TeamIdentityOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description The corrected team with provider, override, and resolved identity — every surface displaying the team serves the resolved values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamIdentityOverrideResponse"];
+                };
+            };
+            /** @description No fields supplied, or a field fails its length or URL rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such team (team_not_found) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

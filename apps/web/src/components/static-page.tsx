@@ -36,11 +36,23 @@ export function StaticPage({
           <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
           {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </header>
-        <div className="flex flex-col gap-6 text-sm leading-relaxed text-foreground [&_h2]:text-base [&_h2]:font-semibold [&_li]:mt-1 [&_section]:flex [&_section]:flex-col [&_section]:gap-2 [&_ul]:list-disc [&_ul]:pl-5">
-          {children}
-        </div>
+        <StaticProse>{children}</StaticProse>
       </main>
       <LegalFooter className="mx-auto w-full max-w-2xl px-4 sm:px-6" />
+    </div>
+  );
+}
+
+/**
+ * The prose typography for hand-authored guide content (`section`/`h2`/`ul`
+ * idiom) — one home so pages that carry it inside another shell (the admin
+ * guide lives under the admin tab bar, not StaticPage) can't drift from the
+ * public static pages.
+ */
+export function StaticProse({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-6 text-sm leading-relaxed text-foreground [&_h2]:text-base [&_h2]:font-semibold [&_li]:mt-1 [&_section]:flex [&_section]:flex-col [&_section]:gap-2 [&_ul]:list-disc [&_ul]:pl-5">
+      {children}
     </div>
   );
 }

@@ -54,7 +54,7 @@ numbers is never what a member lands on.
   ADR-0040**, which deliberately shipped these tables override-free — the
   amendment records why the owner wants correction to outlive a re-sync even
   for display data. Migration ⇒ evaluator mandatory. _(deps: STAT-6)_
-- [ ] **STAT-8** — Team identity overrides (owner, 2026-08-13): `override_*`
+- [x] **STAT-8** — Team identity overrides (owner, 2026-08-13): `override_*`
   for team display fields (name, abbreviation, logos) on `teams`, corrected
   from an admin teams browser, audited like every override. Shares the admin
   browser home with STAT-7 but touches reference data every sport uses, so the
@@ -73,8 +73,15 @@ numbers is never what a member lands on.
   the standings request to regular season and drop preseason last-five
   entries at the adapter; a re-run of `sync-stats` heals already-polluted
   rows since provider values change. Verified live 2026-08-13. _(deps: STAT-4)_
-- [ ] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
+- [x] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
   matchup sheet's segmented control (Basic | Advanced | Results) showing both
   teams' season game logs side by side — opponent, W/L, score, week. Zero new
   ingestion: served entirely from our `games` rows for the season. Mind the
   sheet's inner-scroll contract (close button stays put). _(deps: STAT-6)_
+- [ ] **STAT-12** — Stable matchup sheet/modal size (owner, 2026-08-14): the
+  container resizes as the member flips Basic | Advanced | Results, moving
+  the segmented control and close button mid-comparison — jarring precisely
+  because these tabs are peers flipped between rapidly, not pages visited
+  once. Fix the sheet/modal size and let content scroll inside it (the
+  inner-scroll contract STAT-9 minds already points this way). Pure
+  presentation; no contract change. _(deps: STAT-9, STAT-10)_

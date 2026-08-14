@@ -2,7 +2,9 @@
 
 How the `/api/jobs/*` endpoints are configured, scheduled, and operated (arch §Background
 Jobs, D7; ADR-0007). Jobs are plain HTTP endpoints — idempotent, safe to re-run, safe to
-double-trigger, safe to fire manually.
+double-trigger, safe to fire manually. An operator-shaped restatement (what each job
+does, what a failure email means) ships in the app at `/admin/guide` (ADM-5) — a change
+here edits both or that page lies.
 
 ## Endpoints
 
@@ -58,13 +60,20 @@ Staging/local runs are manual (below) or simulator-driven.
 For each job: create a cron job with the production URL, method `POST`, and a custom
 header `x-job-secret: <production JOB_SECRET>`.
 
+The "daily" jobs run **twice a day, ~12h apart** (DATA-11): cron-job.org has no
+per-execution retry (checked 2026-08-14 — its failure features are notification
+emails and auto-disable, see §Failure alerting & recovery), so the twin run *is*
+the retry. Jobs are idempotent by rule; the second run is a no-op when the first
+succeeded and the recovery when it didn't, capping staleness at ~12h instead of
+~24h with nobody watching.
+
 | Job                | Schedule                            | cron pattern (UTC)      | Notes                                                     |
 | ------------------ | ----------------------------------- | ----------------------- | --------------------------------------------------------- |
-| `nfl-sync-schedule`| Daily 6am ET                        | `0 10 * * *`            | 10:00 UTC = 6am EDT; acceptable drift under EST           |
+| `nfl-sync-schedule`| 2×/day, 6am/6pm ET                  | `0 10,22 * * *`         | 10:00 UTC = 6am EDT; acceptable drift under EST           |
 | `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season. Covers two weeks per run — see below |
 | `nfl-sync-scores`  | Every 15 minutes                     | `*/15 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
-| `nfl-sync-stats`   | Daily 8am ET                        | `0 12 * * *`            | After the morning odds run; team records move overnight (game days) and injury reports move daily — the matchup sheet stamps its own as-of, so daily is honest (ADR-0040) |
-| `settle-sweep`     | Daily 3am ET                        | `0 7 * * *`             | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
+| `nfl-sync-stats`   | 2×/day, 8am/8pm ET                  | `0 0,12 * * *`          | After the morning odds run; team records move overnight (game days) and injury reports move daily — the matchup sheet stamps its own as-of, so 2×/day is honest (ADR-0040) |
+| `settle-sweep`     | 2×/day, 3am/3pm ET                  | `0 7,19 * * *`          | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
 
 `settle-sweep` takes no query params — it derives its own scope (every active league
 season). It is a **safety net, not the main path**: `nfl-sync-scores` already settles a
@@ -99,10 +108,26 @@ narrow so a one-week backfill never rewrites a neighbour.
 Future jobs (`ncaamb-sync-bracket`, every 5 min on tournament days) follow the same
 pattern and get added here when their epics land.
 
-**Failure alerting:** enable cron-job.org's failure notifications (Settings → Notify on
+### Failure alerting & recovery
+
+**Alerting:** enable cron-job.org's failure notifications (Settings → Notify on
 failure) for each job. A failed run returns HTTP 500, which cron-job.org emails about —
 this is the alerting mechanism (ADR-0007); there is no in-app alerting. Repeated
 failures also show in the Vercel function logs as single-line JSON `job.failed` events.
+
+**Recovery is the next run, not a retry** (DATA-11): cron-job.org offers no
+per-execution retry, so recovery rides the schedule — ~15 minutes for
+`sync-scores`, ~5 hours worst-case for `sync-odds`, ~12 hours for the twice-daily
+jobs. Every job is idempotent, so a manual trigger (§Manual triggering, or the
+admin page's job buttons) is always a safe way to recover sooner; one failure
+email therefore never requires action — the thing to react to is *repeated*
+failures of the same job.
+
+**Auto-disable is the failure mode to know about:** cron-job.org disables a job
+after **>25 consecutive failures** and it stays off until re-enabled by hand in
+the console. At 15-minute cadence that is ~6 hours of a real outage — so enable
+the "notify when job is disabled" email too; a disabled `sync-scores` means
+scores and settlement stop moving until someone flips it back on.
 
 ## Manual triggering
 

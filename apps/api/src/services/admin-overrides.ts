@@ -1,18 +1,20 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { adminAudit, games } from "@picksleagues/db";
+import { adminAudit, games, teams } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
   ADMIN_AUDIT_TARGET_TABLE,
   ERROR_CODE,
   isStartedStatus,
+  type AdminTeam,
   type GameOverrideRequest,
   type GameOverrideResponse,
+  type TeamIdentityOverrideRequest,
 } from "@picksleagues/schemas";
 import { logError } from "../lib/logger";
 import { mergeOverrideField as merge } from "../lib/override-merge";
-import { loadAdminGame } from "./admin-data";
+import { loadAdminGame, loadAdminTeam } from "./admin-data";
 import { resolveGameOverrides, type ResolvedGame } from "./games";
 import { settlePicksForGames } from "./settlement";
 import { isLocked } from "./slate";
@@ -210,4 +212,83 @@ export async function setGameOverride(
     throw new Error(`setGameOverride: game ${gameId} vanished after a successful write`);
   }
   return { ok: true, game, resettled };
+}
+
+export type SetTeamIdentityOverrideResult =
+  { ok: true; team: AdminTeam } | { ok: false; reason: typeof ERROR_CODE.TEAM_NOT_FOUND };
+
+/**
+ * The correction path for team identity (STAT-8, ADR-0042): the `games`
+ * mechanics exactly — FOR UPDATE, three-state merge, audit in the same
+ * transaction — but with neither of that write's extra obligations. No lock
+ * guard and no settlement recompute, because identity is display data that
+ * feeds no outcome; and no sync clobber risk by construction, since ingestion
+ * writes only the provider columns (arch D15).
+ */
+export async function setTeamIdentityOverride(
+  db: Db,
+  clock: Clock,
+  adminUserId: string,
+  teamId: string,
+  request: TeamIdentityOverrideRequest,
+): Promise<SetTeamIdentityOverrideResult> {
+  const now = clock.now();
+
+  const outcome = await db.transaction(async (tx) => {
+    const [team] = await tx.select().from(teams).where(eq(teams.id, teamId)).for("update");
+    if (!team) return { ok: false as const, reason: ERROR_CODE.TEAM_NOT_FOUND };
+
+    const next = {
+      overrideName: merge(request.name, team.overrideName),
+      overrideAbbreviation: merge(request.abbreviation, team.overrideAbbreviation),
+      overrideLocation: merge(request.location, team.overrideLocation),
+      overrideLogoLightUrl: merge(request.logoLightUrl, team.overrideLogoLightUrl),
+      overrideLogoDarkUrl: merge(request.logoDarkUrl, team.overrideLogoDarkUrl),
+    };
+    const stillOverridden = Object.values(next).some((value) => value !== null);
+
+    await tx
+      .update(teams)
+      .set({
+        ...next,
+        // Cleared alongside the last override so a fully-cleared row is
+        // indistinguishable from one never corrected (arch D15); the history
+        // lives in `admin_audit`.
+        overriddenBy: stillOverridden ? adminUserId : null,
+        overriddenAt: stillOverridden ? now : null,
+        updatedAt: now,
+      })
+      .where(eq(teams.id, teamId));
+
+    // Same transaction as the write it describes (arch D15): only the override
+    // layer, since the provider columns are untouched here.
+    await tx.insert(adminAudit).values({
+      adminUserId,
+      action: ADMIN_AUDIT_ACTION.TEAM_IDENTITY_OVERRIDE,
+      targetTable: ADMIN_AUDIT_TARGET_TABLE.TEAMS,
+      targetId: teamId,
+      priorValue: {
+        overrideName: team.overrideName,
+        overrideAbbreviation: team.overrideAbbreviation,
+        overrideLocation: team.overrideLocation,
+        overrideLogoLightUrl: team.overrideLogoLightUrl,
+        overrideLogoDarkUrl: team.overrideLogoDarkUrl,
+        overriddenBy: team.overriddenBy,
+        overriddenAt: team.overriddenAt?.toISOString() ?? null,
+      },
+      createdAt: now,
+    });
+
+    return { ok: true as const };
+  });
+
+  if (!outcome.ok) return outcome;
+
+  const team = await loadAdminTeam(db, teamId);
+  if (!team) {
+    // Locked and updated moments ago; a miss means the row was deleted out
+    // from under us, which nothing in the app can do.
+    throw new Error(`setTeamIdentityOverride: team ${teamId} vanished after a successful write`);
+  }
+  return { ok: true, team };
 }

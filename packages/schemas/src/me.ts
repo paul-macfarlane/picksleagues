@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { DisplayNameSchema } from "./display-name";
-import { ImageUrlSchema } from "./image-url";
+import { NullableImageUrlSchema } from "./image-url";
 import { UsernameSchema } from "./username";
 
 // mvp-spec §Users & Identity: the authenticated caller's own profile.
@@ -9,10 +9,6 @@ import { UsernameSchema } from "./username";
 // `Username` node here would fold `null` into that shared component and widen
 // the (non-nullable) UpdateMeRequest contract too.
 const NullableUsernameSchema = UsernameSchema.nullable().openapi("NullableUsername");
-
-// Same registration rule as above: `null` folded into the shared `ImageUrl`
-// component would widen every other reference to it.
-const NullableImageUrlSchema = ImageUrlSchema.nullable().openapi("NullableImageUrl");
 
 export const MeResponseSchema = z
   .object({

@@ -20,6 +20,7 @@ import {
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
 import { resolveGameOverrides } from "../games";
+import { effectiveTeamColumns } from "../teams";
 import { resolveCurrentWeekId } from "../league-weeks";
 // Deep import by design: `serialize` is module-public so sibling domains can
 // cross-import it without going through the leagues barrel (see leagues/index.ts).
@@ -197,40 +198,48 @@ export async function getSurvivorStandings(
       own.map((pick) => [pick.id, isViewer || lockedByGame.get(pick.gameId) === true]),
     );
 
-    const history: SurvivorStandingsPick[] = own.map((pick) => {
-      const visible = revealed.get(pick.id) === true;
-      const gameRow = visible ? gamesById.get(pick.gameId) : undefined;
-      const game = gameRow ? resolveGameOverrides(gameRow) : null;
-      if (visible) {
-        disclosedTeamIds.add(pick.teamId);
-        // Both sides of a revealed pick's game, so the shared lookup can label
-        // its score — the opponent may appear nowhere else in the response. A
-        // withheld pick discloses neither (its game alone narrows the hidden
-        // pick to two teams).
-        if (gameRow) {
-          disclosedTeamIds.add(gameRow.homeTeamId);
-          disclosedTeamIds.add(gameRow.awayTeamId);
+    // Serialized newest week first (owner, 2026-08-14): the history is purely
+    // retrospective — the current week's pick renders at row level, not here —
+    // and mid-season the entries a member opens it for are the recent ones.
+    // The matchup sheet's game logs and "Last 5" follow the same
+    // most-recent-first rule; `own` itself stays in season order because the
+    // consumed-team ledger below lists teams in the order they were burned.
+    const history: SurvivorStandingsPick[] = own
+      .map((pick) => {
+        const visible = revealed.get(pick.id) === true;
+        const gameRow = visible ? gamesById.get(pick.gameId) : undefined;
+        const game = gameRow ? resolveGameOverrides(gameRow) : null;
+        if (visible) {
+          disclosedTeamIds.add(pick.teamId);
+          // Both sides of a revealed pick's game, so the shared lookup can label
+          // its score — the opponent may appear nowhere else in the response. A
+          // withheld pick discloses neither (its game alone narrows the hidden
+          // pick to two teams).
+          if (gameRow) {
+            disclosedTeamIds.add(gameRow.homeTeamId);
+            disclosedTeamIds.add(gameRow.awayTeamId);
+          }
         }
-      }
-      return {
-        weekId: pick.weekId,
-        teamId: visible ? pick.teamId : null,
-        outcome: visible ? (outcomeByPickId.get(pick.id) ?? null) : null,
-        game:
-          game && gameRow
-            ? {
-                status: game.status,
-                kickoffAt: game.kickoffAt.toISOString(),
-                homeTeamId: gameRow.homeTeamId,
-                awayTeamId: gameRow.awayTeamId,
-                homeScore: game.homeScore,
-                awayScore: game.awayScore,
-                period: game.period,
-                clockSeconds: game.clockSeconds,
-              }
-            : null,
-      };
-    });
+        return {
+          weekId: pick.weekId,
+          teamId: visible ? pick.teamId : null,
+          outcome: visible ? (outcomeByPickId.get(pick.id) ?? null) : null,
+          game:
+            game && gameRow
+              ? {
+                  status: game.status,
+                  kickoffAt: game.kickoffAt.toISOString(),
+                  homeTeamId: gameRow.homeTeamId,
+                  awayTeamId: gameRow.awayTeamId,
+                  homeScore: game.homeScore,
+                  awayScore: game.awayScore,
+                  period: game.period,
+                  clockSeconds: game.clockSeconds,
+                }
+              : null,
+        };
+      })
+      .reverse();
 
     // A released pick is one a cancellation handed the team back for (spec
     // §Game Mode 2 — Cancelled game), so it never counts against the ledger.
@@ -290,16 +299,11 @@ export async function getSurvivorStandings(
  */
 async function loadTeams(db: Db, teamIds: readonly string[]): Promise<SlateTeam[]> {
   if (teamIds.length === 0) return [];
+  // Identity precedence resolved through its one home (ADR-0042).
+  const cols = effectiveTeamColumns(teams);
   return db
-    .select({
-      id: teams.id,
-      abbreviation: teams.abbreviation,
-      name: teams.name,
-      location: teams.location,
-      logoLightUrl: teams.logoLightUrl,
-      logoDarkUrl: teams.logoDarkUrl,
-    })
+    .select(cols)
     .from(teams)
     .where(inArray(teams.id, [...teamIds]))
-    .orderBy(asc(teams.abbreviation));
+    .orderBy(asc(cols.abbreviation));
 }

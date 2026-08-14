@@ -69,6 +69,7 @@ export const ERROR_CODE = {
   SPREAD_UNAVAILABLE: "spread_unavailable",
   OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
   TEAM_SEASON_STATS_NOT_FOUND: "team_season_stats_not_found",
+  TEAM_NOT_FOUND: "team_not_found",
   // Distinct from GAME_NOT_FOUND on purpose: the game exists but the stats
   // sync hasn't written a context payload for it, so there is nothing to
   // override yet — correction, never creation (ADR-0041).

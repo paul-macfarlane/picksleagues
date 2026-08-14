@@ -84,6 +84,19 @@ export const teams = pgTable(
     location: text("location"),
     logoLightUrl: text("logo_light_url"),
     logoDarkUrl: text("logo_dark_url"),
+    // Override parallels for the display fields (admin corrections only —
+    // never written by ingestion, arch D15 / ADR-0042). Display-layer only on
+    // purpose: `providerTeamId` and the bootstrap `abbreviation` uniqueness
+    // below key *identity*, and overrides must never touch what a sync matches
+    // rows on — which is why `override_abbreviation` sits outside both unique
+    // constraints.
+    overrideName: text("override_name"),
+    overrideAbbreviation: text("override_abbreviation"),
+    overrideLocation: text("override_location"),
+    overrideLogoLightUrl: text("override_logo_light_url"),
+    overrideLogoDarkUrl: text("override_logo_dark_url"),
+    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
+    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

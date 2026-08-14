@@ -13,3 +13,11 @@ Monorepo scaffold, environments, auth, the Clock service, the OpenAPI contract p
 - [x] **FND-9** — _(runbook written; console provisioning blocked on human — see docs/runbooks/environments.md)_ Environments: Vercel project (`main`→Production, fixed-alias `staging` branch deploy), Neon `staging` branch + primary, per-env Google/Discord OAuth apps with registered redirect URIs, per-scope env vars. Write `docs/runbooks/environments.md`. Arch §Environments, D12. _(deps: FND-4)_
 - [x] **FND-10** — Safety hook prompting on destructive commands (`git push` to staging/main, Vercel prod deploys, drizzle-kit against non-local DB, job/sim calls against non-local hosts). Done as harness setup: `.claude/hooks/guard-destructive.sh` + `PreToolUse` in `.claude/settings.json`. _(deps: none)_
 - [x] **FND-11** — Auth UI: sign-in page (Google, Discord buttons), session menu with sign-out, auth-aware routing shell in the SPA. _(deps: FND-4, FND-5)_
+- [x] **FND-12** — Drop `main` from `ci.yml`'s push trigger (owner, 2026-08-14):
+  Vercel's git integration deploys on that same push, so the run races the
+  deploy and can only report after prod is already live — while the
+  staging → main promotion PR has already run the identical suite on the
+  identical tree under branch protection. A post-deploy red is noise that
+  looks like signal. Keep the `staging` push trigger and `migrate.yml`
+  untouched — migrations on main-push are the real prod migration path
+  (ADR-0003). _(deps: none)_

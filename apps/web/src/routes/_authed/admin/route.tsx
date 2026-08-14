@@ -43,7 +43,9 @@ function AdminLayout() {
     // message, and never redirects (a redirect would confirm the route exists).
     return (
       <main className="flex flex-1 flex-col items-center justify-center py-8">
-        <p className="text-sm text-muted-foreground">Page not found.</p>
+        <p data-testid="page-not-found" className="text-sm text-muted-foreground">
+          Page not found.
+        </p>
       </main>
     );
   }
@@ -69,6 +71,9 @@ function AdminLayout() {
         </Link>
         <Link to="/admin/audit" {...tabLinkProps}>
           Audit
+        </Link>
+        <Link to="/admin/guide" {...tabLinkProps}>
+          Guide
         </Link>
       </TabNav>
       <Outlet />

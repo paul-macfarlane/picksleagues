@@ -27,6 +27,7 @@ import { Route as RulesSurvivorRouteImport } from './routes/rules/survivor'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
 import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
+import { Route as AuthedAdminGuideRouteImport } from './routes/_authed/admin/guide'
 import { Route as AuthedAdminSeasonsRouteImport } from './routes/_authed/admin/seasons'
 import { Route as AuthedAdminStatsRouteImport } from './routes/_authed/admin/stats'
 import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
@@ -131,6 +132,11 @@ const AuthedAdminGamesRoute = AuthedAdminGamesRouteImport.update({
   path: '/games',
   getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
+const AuthedAdminGuideRoute = AuthedAdminGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
 const AuthedAdminSeasonsRoute = AuthedAdminSeasonsRouteImport.update({
   id: '/seasons',
   path: '/seasons',
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
+  '/admin/guide': typeof AuthedAdminGuideRoute
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/stats': typeof AuthedAdminStatsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
+  '/admin/guide': typeof AuthedAdminGuideRoute
   '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/stats': typeof AuthedAdminStatsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/_authed/admin/audit': typeof AuthedAdminAuditRoute
   '/_authed/admin/games': typeof AuthedAdminGamesRoute
+  '/_authed/admin/guide': typeof AuthedAdminGuideRoute
   '/_authed/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/_authed/admin/stats': typeof AuthedAdminStatsRoute
   '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/leagues/$leagueId'
     | '/admin/audit'
     | '/admin/games'
+    | '/admin/guide'
     | '/admin/seasons'
     | '/admin/stats'
     | '/admin/teams'
@@ -356,6 +366,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/audit'
     | '/admin/games'
+    | '/admin/guide'
     | '/admin/seasons'
     | '/admin/stats'
     | '/admin/teams'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/_authed/leagues/$leagueId'
     | '/_authed/admin/audit'
     | '/_authed/admin/games'
+    | '/_authed/admin/guide'
     | '/_authed/admin/seasons'
     | '/_authed/admin/stats'
     | '/_authed/admin/teams'
@@ -547,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminGamesRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
+    '/_authed/admin/guide': {
+      id: '/_authed/admin/guide'
+      path: '/guide'
+      fullPath: '/admin/guide'
+      preLoaderRoute: typeof AuthedAdminGuideRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
     '/_authed/admin/seasons': {
       id: '/_authed/admin/seasons'
       path: '/seasons'
@@ -651,6 +670,7 @@ declare module '@tanstack/react-router' {
 interface AuthedAdminRouteRouteChildren {
   AuthedAdminAuditRoute: typeof AuthedAdminAuditRoute
   AuthedAdminGamesRoute: typeof AuthedAdminGamesRoute
+  AuthedAdminGuideRoute: typeof AuthedAdminGuideRoute
   AuthedAdminSeasonsRoute: typeof AuthedAdminSeasonsRoute
   AuthedAdminStatsRoute: typeof AuthedAdminStatsRoute
   AuthedAdminTeamsRoute: typeof AuthedAdminTeamsRoute
@@ -660,6 +680,7 @@ interface AuthedAdminRouteRouteChildren {
 const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
   AuthedAdminAuditRoute: AuthedAdminAuditRoute,
   AuthedAdminGamesRoute: AuthedAdminGamesRoute,
+  AuthedAdminGuideRoute: AuthedAdminGuideRoute,
   AuthedAdminSeasonsRoute: AuthedAdminSeasonsRoute,
   AuthedAdminStatsRoute: AuthedAdminStatsRoute,
   AuthedAdminTeamsRoute: AuthedAdminTeamsRoute,
