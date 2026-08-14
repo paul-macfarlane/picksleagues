@@ -73,7 +73,7 @@ numbers is never what a member lands on.
   the standings request to regular season and drop preseason last-five
   entries at the adapter; a re-run of `sync-stats` heals already-polluted
   rows since provider values change. Verified live 2026-08-13. _(deps: STAT-4)_
-- [ ] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
+- [x] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
   matchup sheet's segmented control (Basic | Advanced | Results) showing both
   teams' season game logs side by side — opponent, W/L, score, week. Zero new
   ingestion: served entirely from our `games` rows for the season. Mind the
