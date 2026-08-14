@@ -1,4 +1,4 @@
-import { type GameStatus, type TeamGameContext, type WeekType } from "@picksleagues/schemas";
+import { type GameStatus, type NflTeamGameContext, type WeekType } from "@picksleagues/schemas";
 
 export type ProviderWeek = {
   weekType: WeekType;
@@ -84,7 +84,7 @@ export type ProviderTeam = {
  * averages or ranks: those are computed at read from the stored rows, where
  * they can never go stale against them.
  */
-export type ProviderTeamSeasonRecord = {
+export type ProviderNflTeamSeasonRecord = {
   providerTeamId: string;
   seasonYear: number;
   wins: number;
@@ -105,15 +105,15 @@ export type ProviderTeamSeasonRecord = {
 /**
  * One game's matchup context (ADR-0040): each side's injuries, FPI win
  * probability, ATS summary, and last-five form, in the domain shape the
- * `game_stat_context` payload stores (`TeamGameContext`). Everything in it is
+ * `nfl_game_stat_context` payload stores (`NflTeamGameContext`). Everything in it is
  * point-in-time provider truth — injuries especially are **live-only** (a
  * historical game answers with the teams' *current* report), which is why the
  * simulator mocks them rather than replaying them.
  */
-export type ProviderGameStatContext = {
+export type ProviderNflGameStatContext = {
   providerGameId: string;
-  home: TeamGameContext;
-  away: TeamGameContext;
+  home: NflTeamGameContext;
+  away: NflTeamGameContext;
 };
 
 /**
@@ -156,11 +156,11 @@ export interface GameDataProvider {
    * returns real all-zero records, which is how the read path knows to fall
    * back to the prior season's rows.
    */
-  fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderTeamSeasonRecord[]>;
+  fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderNflTeamSeasonRecord[]>;
   /**
    * Matchup context for one game (ADR-0040), or null when the provider has
    * nothing for it. Point-in-time truth about *now*, meaningful only for games
    * that haven't kicked off — callers must not treat it as historical.
    */
-  fetchNflGameStatContext(providerGameId: string): Promise<ProviderGameStatContext | null>;
+  fetchNflGameStatContext(providerGameId: string): Promise<ProviderNflGameStatContext | null>;
 }

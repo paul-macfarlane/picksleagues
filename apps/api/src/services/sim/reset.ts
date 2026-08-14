@@ -16,7 +16,7 @@ import {
   sportSeasons,
   survivorPicks,
   survivorState,
-  teamSeasonStats,
+  nflTeamSeasonStats,
   weeks,
 } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
@@ -139,13 +139,13 @@ async function deleteLeagueOwnedData(
  */
 async function deleteIngestedSportsData(tx: Db): Promise<Record<string, number>> {
   return {
-    // game_stat_context cascades from games; team_season_stats does not (it
+    // nfl_game_stat_context cascades from games; nfl_team_season_stats does not (it
     // FKs the *kept* teams reference rows), so it is deleted explicitly —
     // records that survived a reset would defeat the prior-season fallback
     // (gamesPlayed > 0 on a stale row reads as current-season fact) and, on a
     // different-season re-import, could serve a wrong world's numbers no sync
     // ever heals (ADR-0040).
-    team_season_stats: await deleteAndCount(tx, teamSeasonStats),
+    nfl_team_season_stats: await deleteAndCount(tx, nflTeamSeasonStats),
     games: await deleteAndCount(tx, games),
     weeks: await deleteAndCount(tx, weeks),
     sport_seasons: await deleteAndCount(tx, sportSeasons),

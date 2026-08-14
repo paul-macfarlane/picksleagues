@@ -17,7 +17,7 @@ import {
   survivorPickResults,
   survivorPicks,
   survivorState,
-  teamSeasonStats,
+  nflTeamSeasonStats,
   teams,
   users,
   weeks,
@@ -43,11 +43,11 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(leagueMembers);
   await db.delete(leagueSeasons);
   await db.delete(leagues);
-  // game_stat_context cascades from games; team_season_stats RESTRICTs teams.
+  // nfl_game_stat_context cascades from games; nfl_team_season_stats RESTRICTs teams.
   await db.delete(games);
   await db.delete(weeks);
   await db.delete(sportSeasons);
-  await db.delete(teamSeasonStats);
+  await db.delete(nflTeamSeasonStats);
   await db.delete(teams);
   // Before users: the actor FK is RESTRICT, so a leaked audit row blocks every
   // later file's user cleanup.

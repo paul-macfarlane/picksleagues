@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, games } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
-import { WEEK_TYPE, type GameStatsResponse, type WeekType } from "@picksleagues/schemas";
+import { WEEK_TYPE, type NflGameStatsResponse, type WeekType } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
@@ -11,7 +11,7 @@ import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { StatsFakeProvider } from "./setup/fake-provider";
 import {
   providerGame,
-  providerTeamSeasonRecord as record,
+  providerNflTeamSeasonRecord as record,
   providerWeek,
 } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
@@ -66,7 +66,7 @@ async function seedAll() {
 }
 
 async function getStats(gameId: string, cookie?: string) {
-  return app.request(`/api/games/${gameId}/stats`, {
+  return app.request(`/api/games/${gameId}/nfl-stats`, {
     headers: cookie ? { cookie } : {},
   });
 }
@@ -83,7 +83,7 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("GET /api/games/{gameId}/stats", () => {
+describe("GET /api/games/{gameId}/nfl-stats", () => {
   it("401s with no session", async () => {
     const res = await getStats("00000000-0000-4000-8000-000000000000");
     expect(res.status).toBe(401);
@@ -130,7 +130,7 @@ describe("GET /api/games/{gameId}/stats", () => {
 
     const res = await getStats(gameId, cookie);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as GameStatsResponse;
+    const body = (await res.json()) as NflGameStatsResponse;
 
     expect(body.home).toMatchObject({
       seasonYear: SEASON_YEAR,
@@ -182,7 +182,7 @@ describe("GET /api/games/{gameId}/stats", () => {
     const { cookie } = await createAuthenticatedUser(auth);
 
     const res = await getStats(gameId, cookie);
-    const body = (await res.json()) as GameStatsResponse;
+    const body = (await res.json()) as NflGameStatsResponse;
 
     // Home has prior-season numbers, labeled with the season they describe.
     expect(body.home).toMatchObject({ seasonYear: SEASON_YEAR - 1, wins: 11, streak: -1 });

@@ -1,10 +1,10 @@
 import { z } from "zod";
 import {
-  LastGameResultSchema,
-  type LastFiveGame,
-  type TeamGameContext,
+  NflLastGameResultSchema,
+  type NflLastFiveGame,
+  type NflTeamGameContext,
 } from "@picksleagues/schemas";
-import type { ProviderGameStatContext, ProviderTeamSeasonRecord } from "./game-data-provider";
+import type { ProviderNflGameStatContext, ProviderNflTeamSeasonRecord } from "./game-data-provider";
 
 /**
  * ESPN's matchup-stats response shapes (ADR-0040): the bulk standings that
@@ -79,7 +79,7 @@ function parseRecordSummary(
 function mapStandingsEntry(
   entry: z.infer<typeof StandingsEntrySchema>,
   seasonYear: number,
-): ProviderTeamSeasonRecord {
+): ProviderNflTeamSeasonRecord {
   const context = `team ${entry.team.id} season ${seasonYear}`;
   const home = parseRecordSummary(entry.stats, "home", context);
   const road = parseRecordSummary(entry.stats, "road", context);
@@ -168,8 +168,8 @@ const SummarySchema = z.looseObject({
  * standings break corrupts records the basic tier states as fact; a summary
  * quirk loses one advanced-tier line.
  */
-function mapLastFiveEvent(event: z.infer<typeof SummaryLastFiveEventSchema>): LastFiveGame[] {
-  const result = LastGameResultSchema.safeParse(event.gameResult);
+function mapLastFiveEvent(event: z.infer<typeof SummaryLastFiveEventSchema>): NflLastFiveGame[] {
+  const result = NflLastGameResultSchema.safeParse(event.gameResult);
   const scoreMatch = event.score?.match(/^(\d+)-(\d+)$/);
   const opponentAbbr = event.opponent?.abbreviation;
   if (!result.success || !scoreMatch || !opponentAbbr) {
@@ -200,7 +200,7 @@ function mapSummaryTeamContext(
   summary: z.infer<typeof SummarySchema>,
   teamId: string,
   fpiWinPct: number | null,
-): TeamGameContext {
+): NflTeamGameContext {
   const injuries = summary.injuries?.find((entry) => entry.team.id === teamId)?.injuries ?? [];
   const atsRecords = summary.againstTheSpread?.find((entry) => entry.team.id === teamId)?.records;
   const lastFiveEvents =
@@ -230,7 +230,7 @@ function mapSummaryTeamContext(
 export function parseTeamSeasonRecords(
   json: unknown,
   requestedSeasonYear: number,
-): ProviderTeamSeasonRecord[] {
+): ProviderNflTeamSeasonRecord[] {
   const standings = StandingsSchema.parse(json);
   if (standings.season.year !== requestedSeasonYear) {
     return [];
@@ -244,7 +244,7 @@ export function parseTeamSeasonRecords(
 export function parseGameStatContext(
   json: unknown,
   providerGameId: string,
-): ProviderGameStatContext {
+): ProviderNflGameStatContext {
   const summary = SummarySchema.parse(json);
   const [competition] = summary.header.competitions;
   if (!competition) {

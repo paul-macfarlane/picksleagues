@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, gameStatContext, games, teamSeasonStats, teams } from "@picksleagues/db";
-import { FixedClock, type ProviderGameStatContext } from "@picksleagues/core";
+import { createDb, nflGameStatContext, games, nflTeamSeasonStats, teams } from "@picksleagues/db";
+import { FixedClock, type ProviderNflGameStatContext } from "@picksleagues/core";
 import { SPORT, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { StatsFakeProvider } from "./setup/fake-provider";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflStats } from "../src/services/nfl/sync-stats";
 import {
   providerGame,
-  providerTeamSeasonRecord as record,
+  providerNflTeamSeasonRecord as record,
   providerWeek,
 } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
@@ -32,7 +32,7 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
 const db = createDb(getTestDatabaseUrl());
 const provider = new StatsFakeProvider();
 
-function context(providerGameId: string, marker: string): ProviderGameStatContext {
+function context(providerGameId: string, marker: string): ProviderNflGameStatContext {
   return {
     providerGameId,
     home: {
@@ -75,13 +75,13 @@ async function statsRows(seasonYear: number) {
   return db
     .select({
       abbreviation: teams.abbreviation,
-      wins: teamSeasonStats.wins,
-      streak: teamSeasonStats.streak,
-      updatedAt: teamSeasonStats.updatedAt,
+      wins: nflTeamSeasonStats.wins,
+      streak: nflTeamSeasonStats.streak,
+      updatedAt: nflTeamSeasonStats.updatedAt,
     })
-    .from(teamSeasonStats)
-    .innerJoin(teams, eq(teamSeasonStats.teamId, teams.id))
-    .where(eq(teamSeasonStats.seasonYear, seasonYear));
+    .from(nflTeamSeasonStats)
+    .innerJoin(teams, eq(nflTeamSeasonStats.teamId, teams.id))
+    .where(eq(nflTeamSeasonStats.seasonYear, seasonYear));
 }
 
 beforeEach(async () => {
@@ -142,8 +142,8 @@ describe("syncNflStats", () => {
     // Only the unstarted game got context — g1 kicked off, its sheet keeps
     // whatever was last synced pregame (here: nothing).
     const contexts = await db
-      .select({ gameId: gameStatContext.gameId, payload: gameStatContext.payload })
-      .from(gameStatContext);
+      .select({ gameId: nflGameStatContext.gameId, payload: nflGameStatContext.payload })
+      .from(nflGameStatContext);
     expect(contexts).toHaveLength(1);
     const [g2] = await db
       .select({ id: games.id })
@@ -208,8 +208,8 @@ describe("syncNflStats", () => {
     expect(details).toMatchObject({ teamStatsUpdated: 1 });
     const allRows = await db
       .select({ sport: teams.sport })
-      .from(teamSeasonStats)
-      .innerJoin(teams, eq(teamSeasonStats.teamId, teams.id));
+      .from(nflTeamSeasonStats)
+      .innerJoin(teams, eq(nflTeamSeasonStats.teamId, teams.id));
     expect(allRows).toHaveLength(1);
     expect(allRows[0]!.sport).toBe(SPORT.NFL);
   });

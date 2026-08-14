@@ -4,10 +4,10 @@ import { parseGameStatContext, parseTeamSeasonRecords } from "./espn-provider-st
 import type {
   GameDataProvider,
   ProviderGame,
-  ProviderGameStatContext,
+  ProviderNflGameStatContext,
   ProviderSeasonStructure,
   ProviderTeam,
-  ProviderTeamSeasonRecord,
+  ProviderNflTeamSeasonRecord,
   ProviderWeek,
 } from "./game-data-provider";
 
@@ -479,7 +479,7 @@ export class EspnProvider implements GameDataProvider {
     );
   }
 
-  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderTeamSeasonRecord[]> {
+  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderNflTeamSeasonRecord[]> {
     // One bulk request for all 32 teams — season-parameterized, and last
     // season keeps serving its final numbers, which is what makes the week-1
     // prior-season fallback (ADR-0040) a plain re-read rather than an archive.
@@ -491,7 +491,9 @@ export class EspnProvider implements GameDataProvider {
     return parseTeamSeasonRecords(json, seasonYear);
   }
 
-  async fetchNflGameStatContext(providerGameId: string): Promise<ProviderGameStatContext | null> {
+  async fetchNflGameStatContext(
+    providerGameId: string,
+  ): Promise<ProviderNflGameStatContext | null> {
     const url = `${this.#siteApiBaseUrl}/football/nfl/summary?event=${providerGameId}`;
     // An event ESPN can't answer for is "nothing to show", never a sync
     // failure — context is garnish on games we already have from the

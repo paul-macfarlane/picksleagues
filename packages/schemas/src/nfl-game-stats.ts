@@ -6,23 +6,23 @@ import { z } from "@hono/zod-openapi";
  * (injuries, FPI, ATS, recent form) stored as JSONB validated by the schemas
  * here. The payload evolves additively like league settings (engineering rules
  * §Data): a new field ships with a `.default()` so previously stored payloads
- * still parse, and read paths parse through `GameStatContextPayloadSchema` so
+ * still parse, and read paths parse through `NflGameStatContextPayloadSchema` so
  * defaults materialize instead of being trusted to exist.
  */
 
-export const LAST_GAME_RESULT = {
+export const NFL_LAST_GAME_RESULT = {
   WIN: "W",
   LOSS: "L",
   TIE: "T",
 } as const;
 
-export type LastGameResult = (typeof LAST_GAME_RESULT)[keyof typeof LAST_GAME_RESULT];
+export type NflLastGameResult = (typeof NFL_LAST_GAME_RESULT)[keyof typeof NFL_LAST_GAME_RESULT];
 
-export const LastGameResultSchema = z.enum(LAST_GAME_RESULT);
+export const NflLastGameResultSchema = z.enum(NFL_LAST_GAME_RESULT);
 
-export const LastFiveGameSchema = z
+export const NflLastFiveGameSchema = z
   .object({
-    result: LastGameResultSchema,
+    result: NflLastGameResultSchema,
     opponentAbbr: z.string(),
     // This team's points first, regardless of venue — normalized from the
     // provider's display string at the adapter, never re-parsed downstream.
@@ -30,11 +30,11 @@ export const LastFiveGameSchema = z
     opponentScore: z.number().int(),
     atHome: z.boolean(),
   })
-  .openapi("LastFiveGame");
+  .openapi("NflLastFiveGame");
 
-export type LastFiveGame = z.infer<typeof LastFiveGameSchema>;
+export type NflLastFiveGame = z.infer<typeof NflLastFiveGameSchema>;
 
-export const InjuryReportEntrySchema = z
+export const NflInjuryReportEntrySchema = z
   .object({
     athleteName: z.string(),
     // Position abbreviation ("WR", "S") — provider display text, not a const
@@ -53,12 +53,12 @@ export const InjuryReportEntrySchema = z
     // Body part / type ("Ankle", "Undisclosed") — null when the provider omits it.
     injuryType: z.string().nullable(),
   })
-  .openapi("InjuryReportEntry");
+  .openapi("NflInjuryReportEntry");
 
-export type InjuryReportEntry = z.infer<typeof InjuryReportEntrySchema>;
+export type NflInjuryReportEntry = z.infer<typeof NflInjuryReportEntrySchema>;
 
-export const TeamGameContextSchema = z.object({
-  injuries: z.array(InjuryReportEntrySchema).default([]),
+export const NflTeamGameContextSchema = z.object({
+  injuries: z.array(NflInjuryReportEntrySchema).default([]),
   /**
    * ESPN FPI pregame win probability, 0–100. An external *prediction*, not a
    * stat — the UI shows it only in the advanced tier, attributed to ESPN FPI
@@ -72,46 +72,46 @@ export const TeamGameContextSchema = z.object({
    * the first weeks; the prior-season fallback does not cover it).
    */
   atsSummary: z.string().nullable().default(null),
-  lastFive: z.array(LastFiveGameSchema).default([]),
+  lastFive: z.array(NflLastFiveGameSchema).default([]),
 });
 
-export type TeamGameContext = z.infer<typeof TeamGameContextSchema>;
+export type NflTeamGameContext = z.infer<typeof NflTeamGameContextSchema>;
 
-export const GameStatContextPayloadSchema = z.object({
-  home: TeamGameContextSchema,
-  away: TeamGameContextSchema,
+export const NflGameStatContextPayloadSchema = z.object({
+  home: NflTeamGameContextSchema,
+  away: NflTeamGameContextSchema,
 });
 
-export type GameStatContextPayload = z.infer<typeof GameStatContextPayloadSchema>;
+export type NflGameStatContextPayload = z.infer<typeof NflGameStatContextPayloadSchema>;
 
 // --- Wire DTOs for GET /games/{gameId}/stats (STAT-5) ---
 
-// The wire twin of `TeamGameContextSchema`. Registered separately because the
+// The wire twin of `NflTeamGameContextSchema`. Registered separately because the
 // storage schema's `.default()`s exist for additive payload evolution, while
 // the wire promises fields that are always present.
-export const GameStatsTeamContextSchema = z
+export const NflGameStatsTeamContextSchema = z
   .object({
-    injuries: z.array(InjuryReportEntrySchema),
+    injuries: z.array(NflInjuryReportEntrySchema),
     fpiWinPct: z.number().nullable(),
     atsSummary: z.string().nullable(),
-    lastFive: z.array(LastFiveGameSchema),
+    lastFive: z.array(NflLastFiveGameSchema),
   })
-  .openapi("GameStatsTeamContext");
+  .openapi("NflGameStatsTeamContext");
 
-export type GameStatsTeamContext = z.infer<typeof GameStatsTeamContextSchema>;
+export type NflGameStatsTeamContext = z.infer<typeof NflGameStatsTeamContextSchema>;
 
 type MutuallyAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 /**
  * Compile-time tie between the storage payload and its wire twin: the next
- * additive context field that lands on `TeamGameContextSchema` without its
+ * additive context field that lands on `NflTeamGameContextSchema` without its
  * wire counterpart flips this to `false` and fails the build — otherwise the
  * sync would persist data the API silently never serves, with every check
  * (types, contract:check) staying green.
  */
-export const GAME_STATS_WIRE_COVERS_STORAGE: MutuallyAssignable<
-  TeamGameContext,
-  GameStatsTeamContext
+export const NFL_GAME_STATS_WIRE_COVERS_STORAGE: MutuallyAssignable<
+  NflTeamGameContext,
+  NflGameStatsTeamContext
 > = true;
 
 /**
@@ -122,7 +122,7 @@ export const GAME_STATS_WIRE_COVERS_STORAGE: MutuallyAssignable<
  * stored rows; ranks are null when no team has played (nothing to rank), and
  * per-game averages are null at zero games rather than a fabricated 0.
  */
-export const GameStatsTeamRecordSchema = z
+export const NflGameStatsTeamRecordSchema = z
   .object({
     seasonYear: z.number().int(),
     wins: z.number().int(),
@@ -149,28 +149,28 @@ export const GameStatsTeamRecordSchema = z
     // it — stats move on the sync's schedule, not the game's).
     updatedAt: z.iso.datetime(),
   })
-  .openapi("GameStatsTeamRecord");
+  .openapi("NflGameStatsTeamRecord");
 
-export type GameStatsTeamRecord = z.infer<typeof GameStatsTeamRecordSchema>;
+export type NflGameStatsTeamRecord = z.infer<typeof NflGameStatsTeamRecordSchema>;
 
 // Registered under its own name — `.nullable()` on an already-registered node
 // folds null into the shared component (see `NullableUsername`, me.ts).
-const NullableGameStatsTeamRecordSchema = GameStatsTeamRecordSchema.nullable().openapi(
-  "NullableGameStatsTeamRecord",
+const NullableNflGameStatsTeamRecordSchema = NflGameStatsTeamRecordSchema.nullable().openapi(
+  "NullableNflGameStatsTeamRecord",
 );
 
-export const GameStatsContextSchema = z
+export const NflGameStatsContextSchema = z
   .object({
-    home: GameStatsTeamContextSchema,
-    away: GameStatsTeamContextSchema,
+    home: NflGameStatsTeamContextSchema,
+    away: NflGameStatsTeamContextSchema,
     updatedAt: z.iso.datetime(),
   })
-  .openapi("GameStatsContext");
+  .openapi("NflGameStatsContext");
 
-export type GameStatsContext = z.infer<typeof GameStatsContextSchema>;
+export type NflGameStatsContext = z.infer<typeof NflGameStatsContextSchema>;
 
-const NullableGameStatsContextSchema = GameStatsContextSchema.nullable().openapi(
-  "NullableGameStatsContext",
+const NullableNflGameStatsContextSchema = NflGameStatsContextSchema.nullable().openapi(
+  "NullableNflGameStatsContext",
 );
 
 /**
@@ -180,13 +180,13 @@ const NullableGameStatsContextSchema = GameStatsContextSchema.nullable().openapi
  * (neither current nor prior season), `context` null means the stats sync has
  * not reached this game.
  */
-export const GameStatsResponseSchema = z
+export const NflGameStatsResponseSchema = z
   .object({
     gameId: z.string(),
-    home: NullableGameStatsTeamRecordSchema,
-    away: NullableGameStatsTeamRecordSchema,
-    context: NullableGameStatsContextSchema,
+    home: NullableNflGameStatsTeamRecordSchema,
+    away: NullableNflGameStatsTeamRecordSchema,
+    context: NullableNflGameStatsContextSchema,
   })
-  .openapi("GameStatsResponse");
+  .openapi("NflGameStatsResponse");
 
-export type GameStatsResponse = z.infer<typeof GameStatsResponseSchema>;
+export type NflGameStatsResponse = z.infer<typeof NflGameStatsResponseSchema>;

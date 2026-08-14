@@ -352,7 +352,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/games/{gameId}/stats": {
+    "/api/games/{gameId}/nfl-stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -360,7 +360,7 @@ export interface paths {
             cookie?: never;
         };
         /** One game's matchup stats: team records plus injuries/FPI/form context (ADR-0040) */
-        get: operations["getGameStats"];
+        get: operations["getNflGameStats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1052,13 +1052,13 @@ export interface components {
             endsAt: string;
             gameCount: number;
         };
-        GameStatsResponse: {
+        NflGameStatsResponse: {
             gameId: string;
-            home: components["schemas"]["NullableGameStatsTeamRecord"];
-            away: components["schemas"]["NullableGameStatsTeamRecord"];
-            context: components["schemas"]["NullableGameStatsContext"];
+            home: components["schemas"]["NullableNflGameStatsTeamRecord"];
+            away: components["schemas"]["NullableNflGameStatsTeamRecord"];
+            context: components["schemas"]["NullableNflGameStatsContext"];
         };
-        NullableGameStatsTeamRecord: {
+        NullableNflGameStatsTeamRecord: {
             seasonYear: number;
             wins: number;
             losses: number;
@@ -1080,25 +1080,25 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         } | null;
-        NullableGameStatsContext: {
-            home: components["schemas"]["GameStatsTeamContext"];
-            away: components["schemas"]["GameStatsTeamContext"];
+        NullableNflGameStatsContext: {
+            home: components["schemas"]["NflGameStatsTeamContext"];
+            away: components["schemas"]["NflGameStatsTeamContext"];
             /** Format: date-time */
             updatedAt: string;
         } | null;
-        GameStatsTeamContext: {
-            injuries: components["schemas"]["InjuryReportEntry"][];
+        NflGameStatsTeamContext: {
+            injuries: components["schemas"]["NflInjuryReportEntry"][];
             fpiWinPct: number | null;
             atsSummary: string | null;
-            lastFive: components["schemas"]["LastFiveGame"][];
+            lastFive: components["schemas"]["NflLastFiveGame"][];
         };
-        InjuryReportEntry: {
+        NflInjuryReportEntry: {
             athleteName: string;
             position: string | null;
             status: string;
             injuryType: string | null;
         };
-        LastFiveGame: {
+        NflLastFiveGame: {
             /** @enum {string} */
             result: "W" | "L" | "T";
             opponentAbbr: string;
@@ -3076,7 +3076,7 @@ export interface operations {
             };
         };
     };
-    getGameStats: {
+    getNflGameStats: {
         parameters: {
             query?: never;
             header?: never;
@@ -3093,7 +3093,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GameStatsResponse"];
+                    "application/json": components["schemas"]["NflGameStatsResponse"];
                 };
             };
             /** @description No valid session */

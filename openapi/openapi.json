@@ -1190,20 +1190,20 @@
           "gameCount"
         ]
       },
-      "GameStatsResponse": {
+      "NflGameStatsResponse": {
         "type": "object",
         "properties": {
           "gameId": {
             "type": "string"
           },
           "home": {
-            "$ref": "#/components/schemas/NullableGameStatsTeamRecord"
+            "$ref": "#/components/schemas/NullableNflGameStatsTeamRecord"
           },
           "away": {
-            "$ref": "#/components/schemas/NullableGameStatsTeamRecord"
+            "$ref": "#/components/schemas/NullableNflGameStatsTeamRecord"
           },
           "context": {
-            "$ref": "#/components/schemas/NullableGameStatsContext"
+            "$ref": "#/components/schemas/NullableNflGameStatsContext"
           }
         },
         "required": [
@@ -1213,7 +1213,7 @@
           "context"
         ]
       },
-      "NullableGameStatsTeamRecord": {
+      "NullableNflGameStatsTeamRecord": {
         "type": [
           "object",
           "null"
@@ -1312,17 +1312,17 @@
           "updatedAt"
         ]
       },
-      "NullableGameStatsContext": {
+      "NullableNflGameStatsContext": {
         "type": [
           "object",
           "null"
         ],
         "properties": {
           "home": {
-            "$ref": "#/components/schemas/GameStatsTeamContext"
+            "$ref": "#/components/schemas/NflGameStatsTeamContext"
           },
           "away": {
-            "$ref": "#/components/schemas/GameStatsTeamContext"
+            "$ref": "#/components/schemas/NflGameStatsTeamContext"
           },
           "updatedAt": {
             "type": "string",
@@ -1335,13 +1335,13 @@
           "updatedAt"
         ]
       },
-      "GameStatsTeamContext": {
+      "NflGameStatsTeamContext": {
         "type": "object",
         "properties": {
           "injuries": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/InjuryReportEntry"
+              "$ref": "#/components/schemas/NflInjuryReportEntry"
             }
           },
           "fpiWinPct": {
@@ -1359,7 +1359,7 @@
           "lastFive": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/LastFiveGame"
+              "$ref": "#/components/schemas/NflLastFiveGame"
             }
           }
         },
@@ -1370,7 +1370,7 @@
           "lastFive"
         ]
       },
-      "InjuryReportEntry": {
+      "NflInjuryReportEntry": {
         "type": "object",
         "properties": {
           "athleteName": {
@@ -1399,7 +1399,7 @@
           "injuryType"
         ]
       },
-      "LastFiveGame": {
+      "NflLastFiveGame": {
         "type": "object",
         "properties": {
           "result": {
@@ -5231,9 +5231,9 @@
         }
       }
     },
-    "/api/games/{gameId}/stats": {
+    "/api/games/{gameId}/nfl-stats": {
       "get": {
-        "operationId": "getGameStats",
+        "operationId": "getNflGameStats",
         "summary": "One game's matchup stats: team records plus injuries/FPI/form context (ADR-0040)",
         "parameters": [
           {
@@ -5252,7 +5252,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GameStatsResponse"
+                  "$ref": "#/components/schemas/NflGameStatsResponse"
                 }
               }
             }

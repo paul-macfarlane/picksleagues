@@ -12,7 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { GameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
+import type { NflGameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 import { users } from "./auth";
 
 /**
@@ -194,8 +194,8 @@ export const games = pgTable(
  * week-1 fallback serves *last* season's rows (ADR-0040), and a prior season's
  * stats legitimately exist without that season ever being synced here.
  */
-export const teamSeasonStats = pgTable(
-  "team_season_stats",
+export const nflTeamSeasonStats = pgTable(
+  "nfl_team_season_stats",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     teamId: uuid("team_id")
@@ -218,26 +218,28 @@ export const teamSeasonStats = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [unique("team_season_stats_team_season_unique").on(table.teamId, table.seasonYear)],
+  (table) => [
+    unique("nfl_team_season_stats_team_season_unique").on(table.teamId, table.seasonYear),
+  ],
 );
 
 /**
  * Per-game matchup context (injuries, FPI, ATS, recent form — ADR-0040),
  * written by the stats sync from the provider's game summary. One JSONB
  * payload rather than discrete columns because this is an additively evolving
- * display snapshot (validated by `GameStatContextPayloadSchema`, parsed with
+ * display snapshot (validated by `NflGameStatContextPayloadSchema`, parsed with
  * defaults at read — the league-settings pattern). `updated_at` is the as-of
  * instant the UI must show beside it: injuries move daily and this table
  * moves on the sync's schedule, so an unstamped report would read fresher
  * than it is (spec §UI conventions: never claim real-time freshness).
  */
-export const gameStatContext = pgTable("game_stat_context", {
+export const nflGameStatContext = pgTable("nfl_game_stat_context", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id")
     .notNull()
     .unique()
     .references(() => games.id, { onDelete: "cascade" }),
-  payload: jsonb("payload").$type<GameStatContextPayload>().notNull(),
+  payload: jsonb("payload").$type<NflGameStatContextPayload>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });

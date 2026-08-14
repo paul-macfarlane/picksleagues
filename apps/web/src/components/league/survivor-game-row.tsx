@@ -9,7 +9,7 @@ import { gameStateLabel, survivorProvisionalOutcome } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MatchupStats } from "@/components/league/matchup-stats-sheet";
+import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import {
   PickOutcomeBadge,
   PickOutcomeIcon,
@@ -151,7 +151,7 @@ export function SurvivorGameRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <MatchupLine game={game} />
-          <MatchupStats game={game} />
+          <NflMatchupStats game={game} />
         </div>
         {/* One pill, most-informative-wins: "Your pick" is the fact the member
             came here for, and the state line below already carries the game's
@@ -306,7 +306,7 @@ export function SurvivorPickedGameRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <MatchupLine game={game} />
-          <MatchupStats game={game} />
+          <NflMatchupStats game={game} />
         </div>
         {/* One pill, most-informative-wins: a graded pick — settled or derived
             — takes the slot from "Your pick", which by then is both implied and

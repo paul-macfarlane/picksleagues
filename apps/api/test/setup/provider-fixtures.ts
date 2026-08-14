@@ -1,7 +1,7 @@
 import {
   type ProviderGame,
   type ProviderTeam,
-  type ProviderTeamSeasonRecord,
+  type ProviderNflTeamSeasonRecord,
   type ProviderWeek,
 } from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
@@ -56,11 +56,11 @@ export function providerGame(
 }
 
 /** Shared across the stats suites — an all-zero team season record to override from. */
-export function providerTeamSeasonRecord(
+export function providerNflTeamSeasonRecord(
   providerTeamId: string,
   seasonYear: number,
-  overrides?: Partial<ProviderTeamSeasonRecord>,
-): ProviderTeamSeasonRecord {
+  overrides?: Partial<ProviderNflTeamSeasonRecord>,
+): ProviderNflTeamSeasonRecord {
   return {
     providerTeamId,
     seasonYear,

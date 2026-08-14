@@ -20,7 +20,7 @@ import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GameStatePill } from "@/components/league/game-state";
-import { MatchupStats } from "@/components/league/matchup-stats-sheet";
+import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import {
   PickOutcomeBadge,
   PickOutcomeIcon,
@@ -184,7 +184,7 @@ export function SheetGameRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <Matchup game={game} />
-          <MatchupStats game={game} />
+          <NflMatchupStats game={game} />
         </div>
         {selectedSide !== undefined && <StatusPill tone="accent">Picked</StatusPill>}
         {noLineYet && <StatusPill>No line yet</StatusPill>}
@@ -260,7 +260,7 @@ export function SubmittedPickRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <Matchup game={game} />
-          <MatchupStats game={game} />
+          <NflMatchupStats game={game} />
         </div>
         {/* One badge, most-informative-wins, and the chain is total because
             each state strictly implies the next: a settled pick takes the slot

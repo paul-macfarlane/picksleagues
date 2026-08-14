@@ -1,7 +1,7 @@
 import type { WeekSlateResponse } from "@picksleagues/schemas";
 import { gameStateLabel } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
-import { MatchupStats } from "@/components/league/matchup-stats-sheet";
+import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import { TeamLogo } from "@/components/team-logo";
 
 /**
@@ -45,7 +45,7 @@ export function SlatePreview({ slate }: { slate: WeekSlateResponse }) {
             </p>
             {/* Scouting ahead is the whole reason this read-only slate exists
                 (FB-20) — the matchup sheet is the same public data. */}
-            <MatchupStats game={game} />
+            <NflMatchupStats game={game} />
           </div>
           {/* Kickoff phrased against the app clock, which under the simulator
               is months away from the browser's. */}

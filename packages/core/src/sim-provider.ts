@@ -9,10 +9,10 @@ import type { Clock } from "./clock";
 import type {
   GameDataProvider,
   ProviderGame,
-  ProviderGameStatContext,
+  ProviderNflGameStatContext,
   ProviderSeasonStructure,
   ProviderTeam,
-  ProviderTeamSeasonRecord,
+  ProviderNflTeamSeasonRecord,
   ProviderWeek,
 } from "./game-data-provider";
 import {
@@ -264,7 +264,7 @@ export class SimulatedProvider implements GameDataProvider {
     return (await this.#fixtures()).teams;
   }
 
-  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderTeamSeasonRecord[]> {
+  async fetchNflTeamSeasonRecords(seasonYear: number): Promise<ProviderNflTeamSeasonRecord[]> {
     const snapshot = await this.#fixtures();
     if (snapshot.seasonYear !== seasonYear) {
       return [];
@@ -282,7 +282,9 @@ export class SimulatedProvider implements GameDataProvider {
     }));
   }
 
-  async fetchNflGameStatContext(providerGameId: string): Promise<ProviderGameStatContext | null> {
+  async fetchNflGameStatContext(
+    providerGameId: string,
+  ): Promise<ProviderNflGameStatContext | null> {
     const snapshot = await this.#fixtures();
     const fixture = snapshot.games.find((game) => game.providerGameId === providerGameId);
     if (!fixture) {

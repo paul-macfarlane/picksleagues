@@ -34,14 +34,20 @@ small basic tier by default, the full set one deliberate action away.
 
 ## Decision
 
-- **Two tables, one new sync job.** `team_season_stats` holds per-team,
+- **Two tables, one new sync job.** `nfl_team_season_stats` holds per-team,
   per-season record facts (W-L-T, home/road splits, signed streak, points
-  for/against) keyed `(team_id, season_year)`; `game_stat_context` holds one
+  for/against) keyed `(team_id, season_year)`; `nfl_game_stat_context` holds one
   JSONB payload per game (injuries, FPI win probabilities, ATS summaries,
-  last-five form) validated by `GameStatContextPayloadSchema` and evolving
+  last-five form) validated by `NflGameStatContextPayloadSchema` and evolving
   additively, the league-settings pattern. `sync-stats` ingests both: one bulk
   standings request per season targeted, one summary request per unstarted
   game in the same anchor-plus-following week window sync-odds prices.
+- **Every stats surface is NFL-named** — `nfl_*` tables, `Nfl*` schemas and
+  OpenAPI components, `GET /games/{gameId}/nfl-stats` — because the shapes are
+  the sport's, not the app's: another sport's season record has no ties and
+  its matchup context carries different stats, so per engineering §naming the
+  next sport adds symmetric surfaces of its own rather than bending these
+  (owner, 2026-08-13).
 - **Provider facts only; derivations at read.** PPG/OPG averages and league
   ranks are computed at read time from the stored rows (32 rows is not a
   query worth denormalizing for) — a stored rank goes stale the moment any

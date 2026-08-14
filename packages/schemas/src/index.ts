@@ -4,7 +4,7 @@ export * from "./app-role";
 export * from "./discovery";
 export * from "./display-name";
 export * from "./error";
-export * from "./game-stats";
+export * from "./nfl-game-stats";
 export * from "./game-status";
 export * from "./health";
 export * from "./image-url";

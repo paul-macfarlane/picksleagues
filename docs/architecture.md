@@ -258,10 +258,10 @@ games                       # provider id, week FK, home/away team FKs, kickoff_
                             #   final scores, live period + clock_seconds (DATA-8),
                             #   current spread (latest only, ADR-0018),
                             #   override_* parallels for all of it, overridden_by/at
-team_season_stats           # per (team, season_year): W-L-T + home/road splits, signed streak,
+nfl_team_season_stats       # per (team, season_year): W-L-T + home/road splits, signed streak,
                             #   points for/against — provider facts only; PPG/ranks derived at
                             #   read, no override_* (display-only — ADR-0040)
-game_stat_context           # per game: JSONB payload (injuries, FPI, ATS, last five) validated
+nfl_game_stat_context       # per game: JSONB payload (injuries, FPI, ATS, last five) validated
                             #   by schema, additive evolution; updated_at is the as-of stamp
                             #   (ADR-0040)
 

@@ -1,5 +1,5 @@
 {
-  "id": "cc9c4cb2-04ef-4969-a62b-3c5649009078",
+  "id": "429a277b-7267-439c-ba6b-df6f28b1210e",
   "prevId": "6faed0c1-1583-42ce-a068-410cf11ac977",
   "version": "7",
   "dialect": "postgresql",
@@ -1884,72 +1884,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.game_stat_context": {
-      "name": "game_stat_context",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "game_id": {
-          "name": "game_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "game_stat_context_game_id_games_id_fk": {
-          "name": "game_stat_context_game_id_games_id_fk",
-          "tableFrom": "game_stat_context",
-          "tableTo": "games",
-          "columnsFrom": [
-            "game_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "game_stat_context_game_id_unique": {
-          "name": "game_stat_context_game_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "game_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.games": {
       "name": "games",
       "schema": "",
@@ -2206,8 +2140,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.sport_seasons": {
-      "name": "sport_seasons",
+    "public.nfl_game_stat_context": {
+      "name": "nfl_game_stat_context",
       "schema": "",
       "columns": {
         "id": {
@@ -2217,24 +2151,17 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "sport": {
-          "name": "sport",
-          "type": "text",
+        "game_id": {
+          "name": "game_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "year": {
-          "name": "year",
-          "type": "integer",
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "provisional": {
-          "name": "provisional",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -2250,15 +2177,28 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "nfl_game_stat_context_game_id_games_id_fk": {
+          "name": "nfl_game_stat_context_game_id_games_id_fk",
+          "tableFrom": "nfl_game_stat_context",
+          "tableTo": "games",
+          "columnsFrom": [
+            "game_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "sport_seasons_sport_year_unique": {
-          "name": "sport_seasons_sport_year_unique",
+        "nfl_game_stat_context_game_id_unique": {
+          "name": "nfl_game_stat_context_game_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "sport",
-            "year"
+            "game_id"
           ]
         }
       },
@@ -2266,8 +2206,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.team_season_stats": {
-      "name": "team_season_stats",
+    "public.nfl_team_season_stats": {
+      "name": "nfl_team_season_stats",
       "schema": "",
       "columns": {
         "id": {
@@ -2376,9 +2316,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "team_season_stats_team_id_teams_id_fk": {
-          "name": "team_season_stats_team_id_teams_id_fk",
-          "tableFrom": "team_season_stats",
+        "nfl_team_season_stats_team_id_teams_id_fk": {
+          "name": "nfl_team_season_stats_team_id_teams_id_fk",
+          "tableFrom": "nfl_team_season_stats",
           "tableTo": "teams",
           "columnsFrom": [
             "team_id"
@@ -2392,12 +2332,72 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "team_season_stats_team_season_unique": {
-          "name": "team_season_stats_team_season_unique",
+        "nfl_team_season_stats_team_season_unique": {
+          "name": "nfl_team_season_stats_team_season_unique",
           "nullsNotDistinct": false,
           "columns": [
             "team_id",
             "season_year"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sport_seasons": {
+      "name": "sport_seasons",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "sport": {
+          "name": "sport",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provisional": {
+          "name": "provisional",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sport_seasons_sport_year_unique": {
+          "name": "sport_seasons_sport_year_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sport",
+            "year"
           ]
         }
       },

@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { ChartColumnIcon } from "lucide-react";
 import type {
-  GameStatsTeamContext,
-  GameStatsTeamRecord,
-  InjuryReportEntry,
+  NflGameStatsTeamContext,
+  NflGameStatsTeamRecord,
+  NflInjuryReportEntry,
   SlateGame,
   SlateTeam,
 } from "@picksleagues/schemas";
-import { useGameStats } from "@/api/game-stats";
+import { useNflGameStats } from "@/api/nfl-game-stats";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { LoadingRegion } from "@/components/loading";
@@ -30,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  * or dashed, never faked.
  */
 
-const TIER_STORAGE_KEY = "matchup-stats-tier";
+const TIER_STORAGE_KEY = "nfl-matchup-stats-tier";
 
 type Tier = "basic" | "advanced";
 
@@ -70,7 +70,7 @@ function ordinal(rank: number): string {
   return `${rank}${suffix}`;
 }
 
-function differentialLabel(record: GameStatsTeamRecord): string | null {
+function differentialLabel(record: NflGameStatsTeamRecord): string | null {
   // Null at zero games like the per-game averages — a differential of "0" for
   // a team that has played nothing states a fact the data doesn't hold
   // (ADR-0040: omit, never fabricate).
@@ -79,7 +79,7 @@ function differentialLabel(record: GameStatsTeamRecord): string | null {
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
 
-function lastFiveLabel(context: GameStatsTeamContext): string {
+function lastFiveLabel(context: NflGameStatsTeamContext): string {
   if (context.lastFive.length === 0) return "—";
   // Newest first, as served — "W-W-L" reads left-to-right as "most recent
   // game first", matching how streaks are talked about.
@@ -91,11 +91,11 @@ function lastFiveLabel(context: GameStatsTeamContext): string {
  * injury. Deliberately inverted from a status allowlist so an unknown status
  * ESPN mints tomorrow over-warns (shows in basic) rather than hiding an Out.
  */
-function isKeyInjury(entry: InjuryReportEntry): boolean {
+function isKeyInjury(entry: NflInjuryReportEntry): boolean {
   return entry.status.toLowerCase() !== "questionable";
 }
 
-function injuryLine(entry: InjuryReportEntry): string {
+function injuryLine(entry: NflInjuryReportEntry): string {
   const position = entry.position ? ` (${entry.position})` : "";
   const type = entry.injuryType ? ` — ${entry.injuryType}` : "";
   return `${entry.athleteName}${position} · ${entry.status}${type}`;
@@ -128,22 +128,22 @@ function StatRow({
 // "—" wherever a block or value is absent: a dash states "nothing ingested"
 // where a fabricated 0 would state a fact (ADR-0040).
 function stat(
-  record: GameStatsTeamRecord | null,
-  read: (record: GameStatsTeamRecord) => string | null,
+  record: NflGameStatsTeamRecord | null,
+  read: (record: NflGameStatsTeamRecord) => string | null,
 ): string {
   if (!record) return "—";
   return read(record) ?? "—";
 }
 
 function contextStat(
-  context: GameStatsTeamContext | undefined,
-  read: (context: GameStatsTeamContext) => string | null,
+  context: NflGameStatsTeamContext | undefined,
+  read: (context: NflGameStatsTeamContext) => string | null,
 ): string {
   if (!context) return "—";
   return read(context) ?? "—";
 }
 
-function InjuryList({ team, entries }: { team: SlateTeam; entries: InjuryReportEntry[] }) {
+function InjuryList({ team, entries }: { team: SlateTeam; entries: NflInjuryReportEntry[] }) {
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-medium text-foreground">{team.abbreviation}</p>
@@ -166,8 +166,8 @@ function InjuryList({ team, entries }: { team: SlateTeam; entries: InjuryReportE
   );
 }
 
-function MatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
-  const statsQuery = useGameStats(game.id);
+function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
+  const statsQuery = useNflGameStats(game.id);
   const advanced = tier === "advanced";
 
   return (
@@ -191,7 +191,7 @@ function MatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
           // fallback serves last season's, ADR-0040) — one caption when the
           // sides agree, per-column years in the header when they don't.
           const sharedSeasonYear = home && away && home.seasonYear === away.seasonYear;
-          const columnLabel = (team: SlateTeam, record: GameStatsTeamRecord | null) =>
+          const columnLabel = (team: SlateTeam, record: NflGameStatsTeamRecord | null) =>
             record && !sharedSeasonYear
               ? `${team.abbreviation} (${record.seasonYear})`
               : team.abbreviation;
@@ -203,7 +203,7 @@ function MatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
             (stamp): stamp is string => stamp !== undefined,
           );
           const statsUpdatedAt = statsStamps.length > 0 ? statsStamps.sort()[0]! : null;
-          const injuriesFor = (side: GameStatsTeamContext) =>
+          const injuriesFor = (side: NflGameStatsTeamContext) =>
             advanced ? side.injuries : side.injuries.filter(isKeyInjury);
 
           if (!home && !away && !context) {
@@ -215,7 +215,7 @@ function MatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
           }
 
           return (
-            <div className="flex flex-col gap-4" data-testid="matchup-stats-body">
+            <div className="flex flex-col gap-4" data-testid="nfl-matchup-stats-body">
               <div className="flex flex-col gap-1">
                 {(home || away) && (
                   <p className="text-xs text-muted-foreground">
@@ -357,7 +357,7 @@ function MatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
  * element. The query is keyed off `open`, so a 16-game slate fetches only the
  * matchups a member actually opens.
  */
-export function MatchupStats({ game }: { game: SlateGame }) {
+export function NflMatchupStats({ game }: { game: SlateGame }) {
   const [open, setOpen] = useState(false);
   const [tier, setTier] = useState<Tier>(readStoredTier);
   const matchupName = `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`;
@@ -385,7 +385,7 @@ export function MatchupStats({ game }: { game: SlateGame }) {
             variant="ghost"
             size="icon"
             aria-label={`Matchup stats: ${matchupName}`}
-            data-testid="matchup-stats-trigger"
+            data-testid="nfl-matchup-stats-trigger"
             className="size-7 text-muted-foreground hover:text-foreground"
           />
         }
@@ -395,7 +395,7 @@ export function MatchupStats({ game }: { game: SlateGame }) {
       <SheetContent
         side="bottom"
         closeLabel="Close matchup stats"
-        data-testid="matchup-stats-sheet"
+        data-testid="nfl-matchup-stats-sheet"
       >
         <SheetHeader>
           <SheetTitle>{matchupName}</SheetTitle>
@@ -431,7 +431,7 @@ export function MatchupStats({ game }: { game: SlateGame }) {
             button and the header/toggle stay visible however long the
             advanced tier gets (see SHEET_SIDE_CLASS_NAME's bottom entry). */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {open && <MatchupStatsBody game={game} tier={tier} />}
+          {open && <NflMatchupStatsBody game={game} tier={tier} />}
         </div>
       </SheetContent>
     </Sheet>

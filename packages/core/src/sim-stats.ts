@@ -1,8 +1,8 @@
 import {
-  LAST_GAME_RESULT,
-  type InjuryReportEntry,
-  type LastFiveGame,
-  type LastGameResult,
+  NFL_LAST_GAME_RESULT,
+  type NflInjuryReportEntry,
+  type NflLastFiveGame,
+  type NflLastGameResult,
 } from "@picksleagues/schemas";
 import { seededUnitInterval } from "./sim-spread";
 
@@ -34,7 +34,7 @@ export type SimCompletedGame = {
 };
 
 type TeamGameView = {
-  result: LastGameResult;
+  result: NflLastGameResult;
   opponentAbbr: string;
   teamScore: number;
   opponentScore: number;
@@ -58,10 +58,10 @@ function teamGames(teamProviderId: string, completed: SimCompletedGame[]): TeamG
       return {
         result:
           teamScore > opponentScore
-            ? LAST_GAME_RESULT.WIN
+            ? NFL_LAST_GAME_RESULT.WIN
             : teamScore < opponentScore
-              ? LAST_GAME_RESULT.LOSS
-              : LAST_GAME_RESULT.TIE,
+              ? NFL_LAST_GAME_RESULT.LOSS
+              : NFL_LAST_GAME_RESULT.TIE,
         opponentAbbr: atHome ? game.awayTeamAbbr : game.homeTeamAbbr,
         teamScore,
         opponentScore,
@@ -109,11 +109,11 @@ export function deriveTeamSeasonRecord(
   for (const game of games) {
     record.pointsFor += game.teamScore;
     record.pointsAgainst += game.opponentScore;
-    if (game.result === LAST_GAME_RESULT.WIN) {
+    if (game.result === NFL_LAST_GAME_RESULT.WIN) {
       record.wins += 1;
       if (game.atHome) record.homeWins += 1;
       else record.roadWins += 1;
-    } else if (game.result === LAST_GAME_RESULT.LOSS) {
+    } else if (game.result === NFL_LAST_GAME_RESULT.LOSS) {
       record.losses += 1;
       if (game.atHome) record.homeLosses += 1;
       else record.roadLosses += 1;
@@ -126,12 +126,12 @@ export function deriveTeamSeasonRecord(
   // Signed consecutive-result count from the most recent game backwards,
   // matching the standings feed's convention; a tie carries no streak.
   const latest = games[games.length - 1];
-  if (latest && latest.result !== LAST_GAME_RESULT.TIE) {
+  if (latest && latest.result !== NFL_LAST_GAME_RESULT.TIE) {
     let streak = 0;
     for (let i = games.length - 1; i >= 0 && games[i]!.result === latest.result; i -= 1) {
       streak += 1;
     }
-    record.streak = latest.result === LAST_GAME_RESULT.WIN ? streak : -streak;
+    record.streak = latest.result === NFL_LAST_GAME_RESULT.WIN ? streak : -streak;
   }
   return record;
 }
@@ -165,7 +165,7 @@ export function deriveAtsSummary(
 export function deriveLastFive(
   teamProviderId: string,
   completed: SimCompletedGame[],
-): LastFiveGame[] {
+): NflLastFiveGame[] {
   return teamGames(teamProviderId, completed)
     .slice(-5)
     .reverse()
@@ -260,7 +260,7 @@ function pick<T>(pool: T[], seed: string): T {
  * basic-tier "key injuries", Questionable is advanced-only) so both tiers of
  * the sheet always have something to exercise.
  */
-export function simInjuries(teamAbbr: string): InjuryReportEntry[] {
+export function simInjuries(teamAbbr: string): NflInjuryReportEntry[] {
   const count = 1 + Math.floor(seededUnitInterval(`${teamAbbr}:count`) * 3);
   return Array.from({ length: count }, (_, index) => {
     const seed = `${teamAbbr}:${index}`;

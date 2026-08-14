@@ -2,26 +2,26 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import {
   games,
-  gameStatContext,
+  nflGameStatContext,
   sportSeasons,
   teams,
-  teamSeasonStats,
+  nflTeamSeasonStats,
   weeks,
 } from "@picksleagues/db";
 import {
-  GameStatContextPayloadSchema,
-  type GameStatsResponse,
-  type GameStatsTeamRecord,
+  NflGameStatContextPayloadSchema,
+  type NflGameStatsResponse,
+  type NflGameStatsTeamRecord,
 } from "@picksleagues/schemas";
 
 /**
- * The matchup stats read (STAT-5, ADR-0040): serves `team_season_stats` +
- * `game_stat_context` for one game, entirely from our tables. Deliberately
+ * The matchup stats read (STAT-5, ADR-0040): serves `nfl_team_season_stats` +
+ * `nfl_game_stat_context` for one game, entirely from our tables. Deliberately
  * clockless — nothing here derives from "now"; freshness is stated by the
  * stored `updated_at` stamps the response carries.
  */
 
-type StatsRow = typeof teamSeasonStats.$inferSelect;
+type StatsRow = typeof nflTeamSeasonStats.$inferSelect;
 
 function gamesPlayed(row: StatsRow): number {
   return row.wins + row.losses + row.ties;
@@ -67,7 +67,7 @@ function serializeRecord(
   row: StatsRow,
   seasonRows: StatsRow[],
   leagueSize: number,
-): GameStatsTeamRecord {
+): NflGameStatsTeamRecord {
   const played = gamesPlayed(row);
   return {
     seasonYear: row.seasonYear,
@@ -92,7 +92,10 @@ function serializeRecord(
   };
 }
 
-export async function getGameStats(db: Db, gameId: string): Promise<GameStatsResponse | null> {
+export async function getNflGameStats(
+  db: Db,
+  gameId: string,
+): Promise<NflGameStatsResponse | null> {
   const [game] = await db
     .select({
       id: games.id,
@@ -113,10 +116,12 @@ export async function getGameStats(db: Db, gameId: string): Promise<GameStatsRes
   // pool anyway. Sport-scoped so a future second sport can't pollute the pool.
   const candidateYears = [game.seasonYear, game.seasonYear - 1];
   const statRows = await db
-    .select({ stats: teamSeasonStats })
-    .from(teamSeasonStats)
-    .innerJoin(teams, eq(teamSeasonStats.teamId, teams.id))
-    .where(and(eq(teams.sport, game.sport), inArray(teamSeasonStats.seasonYear, candidateYears)));
+    .select({ stats: nflTeamSeasonStats })
+    .from(nflTeamSeasonStats)
+    .innerJoin(teams, eq(nflTeamSeasonStats.teamId, teams.id))
+    .where(
+      and(eq(teams.sport, game.sport), inArray(nflTeamSeasonStats.seasonYear, candidateYears)),
+    );
   // The rank guard's denominator: the sport's real team count, never the rows
   // stored for a season — a partially ingested pool must not pass its own
   // shrunken bar (see `scoringRank`).
@@ -132,7 +137,7 @@ export async function getGameStats(db: Db, gameId: string): Promise<GameStatsRes
     rowsByYear.set(stats.seasonYear, bucket);
   }
 
-  const teamBlock = (teamId: string): GameStatsTeamRecord | null => {
+  const teamBlock = (teamId: string): NflGameStatsTeamRecord | null => {
     const currentRows = rowsByYear.get(game.seasonYear) ?? [];
     const priorRows = rowsByYear.get(game.seasonYear - 1) ?? [];
     const current = currentRows.find((row) => row.teamId === teamId);
@@ -148,11 +153,11 @@ export async function getGameStats(db: Db, gameId: string): Promise<GameStatsRes
 
   const [contextRow] = await db
     .select()
-    .from(gameStatContext)
-    .where(eq(gameStatContext.gameId, gameId));
+    .from(nflGameStatContext)
+    .where(eq(nflGameStatContext.gameId, gameId));
   // Parsed through the schema so additive payload evolution materializes its
   // defaults (engineering rules §Data — the league-settings pattern).
-  const payload = contextRow ? GameStatContextPayloadSchema.parse(contextRow.payload) : null;
+  const payload = contextRow ? NflGameStatContextPayloadSchema.parse(contextRow.payload) : null;
 
   return {
     gameId: game.id,

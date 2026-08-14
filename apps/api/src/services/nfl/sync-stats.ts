@@ -1,15 +1,21 @@
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { games, gameStatContext, sportSeasons, teams, teamSeasonStats } from "@picksleagues/db";
+import {
+  games,
+  nflGameStatContext,
+  sportSeasons,
+  teams,
+  nflTeamSeasonStats,
+} from "@picksleagues/db";
 import {
   type Clock,
   type GameDataProvider,
-  type ProviderTeamSeasonRecord,
+  type ProviderNflTeamSeasonRecord,
   nflSeasonYearFor,
 } from "@picksleagues/core";
 import {
-  GameStatContextPayloadSchema,
+  NflGameStatContextPayloadSchema,
   JOB_SKIP_REASON,
   SPORT,
   UNSTARTED_GAME_STATUSES,
@@ -81,7 +87,7 @@ export async function syncNflStats(
   const teamStatsUpdated = await upsertTeamSeasonStats(db, records, now);
 
   // The fallback window, gated per team to match the read path's per-team
-  // fallback (services/game-stats.ts): the prior season is needed while ANY
+  // fallback (services/nfl/game-stats.ts): the prior season is needed while ANY
   // team still has no completed game — a league-wide "has the season started"
   // gate stranded a cold environment whose first-ever sync ran after the
   // season's first final (current rows existed, prior rows never ingested,
@@ -128,7 +134,7 @@ export async function syncNflStats(
  */
 async function upsertTeamSeasonStats(
   db: Db,
-  records: ProviderTeamSeasonRecord[],
+  records: ProviderNflTeamSeasonRecord[],
   now: Date,
 ): Promise<number> {
   if (records.length === 0) return 0;
@@ -146,11 +152,11 @@ async function upsertTeamSeasonStats(
 
   const existingRows = await db
     .select()
-    .from(teamSeasonStats)
-    .where(eq(teamSeasonStats.seasonYear, seasonYear!));
+    .from(nflTeamSeasonStats)
+    .where(eq(nflTeamSeasonStats.seasonYear, seasonYear!));
   const existingByTeamId = new Map(existingRows.map((row) => [row.teamId, row]));
 
-  const changedRows: (typeof teamSeasonStats.$inferInsert)[] = [];
+  const changedRows: (typeof nflTeamSeasonStats.$inferInsert)[] = [];
   for (const record of records) {
     // A provider team we haven't synced is not reference data this job may
     // create (ADR-0010: schedule-sync owns teams) — skipped, healed by the
@@ -197,10 +203,10 @@ async function upsertTeamSeasonStats(
   // copy at 350+ teams. `excluded.*` carries each row's own values through
   // the conflict path.
   await db
-    .insert(teamSeasonStats)
+    .insert(nflTeamSeasonStats)
     .values(changedRows)
     .onConflictDoUpdate({
-      target: [teamSeasonStats.teamId, teamSeasonStats.seasonYear],
+      target: [nflTeamSeasonStats.teamId, nflTeamSeasonStats.seasonYear],
       set: {
         wins: sql`excluded.wins`,
         losses: sql`excluded.losses`,
@@ -247,10 +253,10 @@ async function refreshWeekGameContexts(
 
   const existingRows = await db
     .select()
-    .from(gameStatContext)
+    .from(nflGameStatContext)
     .where(
       inArray(
-        gameStatContext.gameId,
+        nflGameStatContext.gameId,
         unstartedGames.map((game) => game.id),
       ),
     );
@@ -285,7 +291,7 @@ async function refreshWeekGameContexts(
     }
     // Parsed (not just cast) so a provider-shaped bug lands here as a loud
     // sync failure, never as an unparseable stored payload a read trips over.
-    const payload = GameStatContextPayloadSchema.parse({
+    const payload = NflGameStatContextPayloadSchema.parse({
       home: context.home,
       away: context.away,
     });
@@ -299,10 +305,10 @@ async function refreshWeekGameContexts(
     }
 
     await db
-      .insert(gameStatContext)
+      .insert(nflGameStatContext)
       .values({ gameId: game.id, payload, createdAt: now, updatedAt: now })
       .onConflictDoUpdate({
-        target: gameStatContext.gameId,
+        target: nflGameStatContext.gameId,
         set: { payload, updatedAt: now },
       });
     contextsUpdated += 1;

@@ -1,11 +1,12 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
-// The matchup stats read (STAT-6, ADR-0040) — mode-agnostic like api/weeks.ts:
-// every NFL mode's game rows open the same sheet over the same endpoint.
+// The matchup stats read (STAT-6, ADR-0040) — shared by every NFL mode's game
+// rows, NFL-qualified because the stat shapes are the sport's, not the app's
+// (engineering rules §naming).
 
-export function gameStatsQueryKey(gameId: string | undefined) {
-  return ["game-stats", gameId];
+export function nflGameStatsQueryKey(gameId: string | undefined) {
+  return ["nfl-game-stats", gameId];
 }
 
 /**
@@ -16,13 +17,13 @@ export function gameStatsQueryKey(gameId: string | undefined) {
  * reopening a sheet from refetching data that cannot have changed — the
  * response's own `updatedAt` stamps carry freshness, not the fetch.
  */
-export function useGameStats(gameId: string | undefined) {
+export function useNflGameStats(gameId: string | undefined) {
   return useQuery({
-    queryKey: gameStatsQueryKey(gameId),
+    queryKey: nflGameStatsQueryKey(gameId),
     staleTime: 5 * 60 * 1000,
     queryFn: gameId
       ? async () => {
-          const { data, error } = await api.GET("/api/games/{gameId}/stats", {
+          const { data, error } = await api.GET("/api/games/{gameId}/nfl-stats", {
             params: { path: { gameId } },
           });
           if (error) throw error;

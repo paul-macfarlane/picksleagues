@@ -15,7 +15,7 @@ the cron scheduler alerts on).
 | `/api/jobs/nfl/sync-schedule`     | Upsert NFL season, weeks (regular + postseason, Pro Bowl excluded), games, kickoffs, statuses |
 | `/api/jobs/nfl/sync-odds`         | Idempotently update `games.spread` for unstarted games in the current week **and the week after it** (see §Why sync-odds covers two weeks) |
 | `/api/jobs/nfl/sync-scores`       | Refresh live/final scores + statuses; fast no-op when no games are active. **Settles the affected league-weeks** when a game goes final — scores and standings move together |
-| `/api/jobs/nfl/sync-stats`        | Refresh `team_season_stats` (one bulk standings read; also re-syncs the **prior** season while the current one has no completed games — the week-1 fallback, ADR-0040) and `game_stat_context` for unstarted games across the same two-week window sync-odds prices |
+| `/api/jobs/nfl/sync-stats`        | Refresh `nfl_team_season_stats` (one bulk standings read; also re-syncs the **prior** season while the current one has no completed games — the week-1 fallback, ADR-0040) and `nfl_game_stat_context` for unstarted games across the same two-week window sync-odds prices |
 | `/api/jobs/settle-sweep`          | Nightly reconciliation: recompute `pickem_pick_results` + `pickem_standings` for every active league season from stored results (arch D10) |
 
 Query params (all optional; defaults derive from the Clock and our own tables):

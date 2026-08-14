@@ -1,10 +1,10 @@
 import type {
   GameDataProvider,
   ProviderGame,
-  ProviderGameStatContext,
+  ProviderNflGameStatContext,
   ProviderSeasonStructure,
   ProviderTeam,
-  ProviderTeamSeasonRecord,
+  ProviderNflTeamSeasonRecord,
 } from "@picksleagues/core";
 import type { WeekType } from "@picksleagues/schemas";
 
@@ -39,14 +39,14 @@ export class BaseFakeProvider implements GameDataProvider {
   async fetchNflTeamSeasonRecords(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
     _seasonYear: number,
-  ): Promise<ProviderTeamSeasonRecord[]> {
+  ): Promise<ProviderNflTeamSeasonRecord[]> {
     return [];
   }
 
   async fetchNflGameStatContext(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature kept for overrides; the empty-world default ignores it
     _providerGameId: string,
-  ): Promise<ProviderGameStatContext | null> {
+  ): Promise<ProviderNflGameStatContext | null> {
     return null;
   }
 }
@@ -61,8 +61,8 @@ export class BaseFakeProvider implements GameDataProvider {
 export class StatsFakeProvider extends BaseFakeProvider {
   structure: ProviderSeasonStructure = { seasonYear: 0, weeks: [] };
   gamesByWeek = new Map<string, ProviderGame[]>();
-  recordsByYear = new Map<number, ProviderTeamSeasonRecord[]>();
-  contextByGameId = new Map<string, ProviderGameStatContext>();
+  recordsByYear = new Map<number, ProviderNflTeamSeasonRecord[]>();
+  contextByGameId = new Map<string, ProviderNflGameStatContext>();
   recordFetches: number[] = [];
 
   static weekKey(weekType: WeekType, weekNumber: number): string {
@@ -83,14 +83,14 @@ export class StatsFakeProvider extends BaseFakeProvider {
 
   override async fetchNflTeamSeasonRecords(
     seasonYear: number,
-  ): Promise<ProviderTeamSeasonRecord[]> {
+  ): Promise<ProviderNflTeamSeasonRecord[]> {
     this.recordFetches.push(seasonYear);
     return this.recordsByYear.get(seasonYear) ?? [];
   }
 
   override async fetchNflGameStatContext(
     providerGameId: string,
-  ): Promise<ProviderGameStatContext | null> {
+  ): Promise<ProviderNflGameStatContext | null> {
     return this.contextByGameId.get(providerGameId) ?? null;
   }
 }
