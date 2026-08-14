@@ -237,6 +237,69 @@ const NullableNflGameStatsContextSchema = NflGameStatsContextSchema.nullable().o
   "NullableNflGameStatsContext",
 );
 
+// --- Wire DTOs for GET /games/{gameId}/nfl-results (STAT-9) ---
+
+/**
+ * One game in a team's season log, from that team's perspective. `final`
+ * false means the game is in progress — its score is live and `result` is
+ * null because the outcome isn't knowable yet. Scores stay nullable rather
+ * than defaulting to 0: a started game whose score the sync hasn't observed
+ * yet renders as a dash, never as a fabricated 0–0 (ADR-0040).
+ */
+export const NflGameLogEntrySchema = z
+  .object({
+    // Provider display label ("Week 5", "Wild Card") — the weeks table stores
+    // it precisely so postseason rounds never render off a bare number.
+    weekLabel: z.string(),
+    opponentAbbr: z.string(),
+    atHome: z.boolean(),
+    final: z.boolean(),
+    teamScore: z.number().int().nullable(),
+    opponentScore: z.number().int().nullable(),
+    result: NflLastGameResultSchema.nullable(),
+  })
+  .openapi("NflGameLogEntry");
+
+export type NflGameLogEntry = z.infer<typeof NflGameLogEntrySchema>;
+
+/**
+ * One team's season game log, newest game first. `seasonYear` names the season
+ * served — until the current season has started games it is the *prior* year
+ * (the ADR-0040 read-time fallback, mirrored from the record block), and the
+ * client labels the column with it rather than guessing. Never empty: a team
+ * with no started games in either season is a null block on the response.
+ */
+export const NflTeamGameLogSchema = z
+  .object({
+    seasonYear: z.number().int(),
+    entries: z.array(NflGameLogEntrySchema),
+  })
+  .openapi("NflTeamGameLog");
+
+export type NflTeamGameLog = z.infer<typeof NflTeamGameLogSchema>;
+
+const NullableNflTeamGameLogSchema =
+  NflTeamGameLogSchema.nullable().openapi("NullableNflTeamGameLog");
+
+/**
+ * Both teams' season game logs for the matchup sheet's Results segment
+ * (STAT-9) — served entirely from our `games` rows, zero new ingestion.
+ * `updatedAt` is the newest write among the served rows: final scores are
+ * immutable so the stamp's real job is dating any live score on display
+ * (spec §UI conventions: never claim real-time freshness). Null when no rows
+ * were served at all.
+ */
+export const NflGameResultsResponseSchema = z
+  .object({
+    gameId: z.string(),
+    home: NullableNflTeamGameLogSchema,
+    away: NullableNflTeamGameLogSchema,
+    updatedAt: z.iso.datetime().nullable(),
+  })
+  .openapi("NflGameResultsResponse");
+
+export type NflGameResultsResponse = z.infer<typeof NflGameResultsResponseSchema>;
+
 /**
  * Everything the matchup stats sheet renders for one game. Each block is null
  * when ingestion has nothing for it — the client omits, never fabricates
