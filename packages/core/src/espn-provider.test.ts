@@ -1302,7 +1302,10 @@ function standingsBody(
   };
 }
 
-const STANDINGS_URL = `${STANDINGS_API_BASE_URL}/football/nfl/standings?season=2025`;
+// `seasontype=2` is part of the contract under test: without it ESPN serves
+// whichever phase is live, and an August sync ingests preseason records
+// (STAT-11).
+const STANDINGS_URL = `${STANDINGS_API_BASE_URL}/football/nfl/standings?season=2025&seasontype=2`;
 
 describe("EspnProvider.fetchNflTeamSeasonRecords", () => {
   it("flattens conferences and maps values, record splits, and signed streaks", async () => {
@@ -1434,11 +1437,32 @@ function summaryBody(overrides?: Record<string, unknown>) {
       {
         team: { id: "21" },
         events: [
-          { atVs: "@", gameResult: "W", score: "27-10", opponent: { abbreviation: "CAR" } },
-          { atVs: "vs", gameResult: "L", score: "13-20", opponent: { abbreviation: "SF" } },
+          {
+            atVs: "@",
+            gameResult: "W",
+            score: "27-10",
+            gameDate: "2025-12-28T18:00Z",
+            opponent: { abbreviation: "CAR" },
+          },
+          {
+            atVs: "vs",
+            gameResult: "L",
+            score: "13-20",
+            gameDate: "2026-01-04T18:00Z",
+            opponent: { abbreviation: "SF" },
+          },
           // Unrecognized result and unparseable score each drop the entry alone.
           { atVs: "vs", gameResult: "PPD", score: "0-0", opponent: { abbreviation: "X" } },
           { atVs: "@", gameResult: "W", score: "OT 27-10", opponent: { abbreviation: "Y" } },
+          // An August date is a *preseason* game (STAT-11): well-formed, but
+          // never form — dropped by date, the payload's only discriminator.
+          {
+            atVs: "vs",
+            gameResult: "W",
+            score: "28-9",
+            gameDate: "2026-08-13T23:00Z",
+            opponent: { abbreviation: "GB" },
+          },
         ],
       },
     ],
