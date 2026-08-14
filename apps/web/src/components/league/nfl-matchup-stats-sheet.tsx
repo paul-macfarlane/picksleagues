@@ -18,6 +18,7 @@ import {
   type AdvantageSide,
 } from "@/components/league/nfl-matchup-stat-row";
 import { cn } from "@/lib/utils";
+import { NflMatchupResultsBody } from "@/components/league/nfl-matchup-results";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
@@ -33,30 +34,39 @@ import { Skeleton } from "@/components/ui/skeleton";
  * **advanced** — one explicit toggle away — adds ranks, splits, differential,
  * form, ATS, the full injury report, and ESPN FPI, the sheet's one
  * *prediction*, which stays out of the default surface so the app doesn't
- * anchor every member on ESPN's number. Everything renders from ingested
- * data with its own as-of stamps; whatever ingestion doesn't have is omitted
- * or dashed, never faked.
+ * anchor every member on ESPN's number. A third segment, **results** (STAT-9),
+ * swaps the stat rows for both teams' season game logs. Everything renders
+ * from ingested data with its own as-of stamps; whatever ingestion doesn't
+ * have is omitted or dashed, never faked.
  */
 
-const TIER_STORAGE_KEY = "nfl-matchup-stats-tier";
+// Pre-STAT-9 name kept on purpose: renaming the key would silently reset
+// every member's stored preference for a label-only cleanup.
+const SEGMENT_STORAGE_KEY = "nfl-matchup-stats-tier";
 
-type Tier = "basic" | "advanced";
+const SEGMENTS = ["basic", "advanced", "results"] as const;
 
-// localStorage, not server state: which tier a member last used is a device
+type Segment = (typeof SEGMENTS)[number];
+
+// The stats body renders only the two stat tiers; Results is its own body.
+type Tier = Exclude<Segment, "results">;
+
+// localStorage, not server state: which segment a member last used is a device
 // preference, and it must survive closing the sheet without a write path.
 // Guarded reads/writes — storage access throws in some private modes, and a
 // stats sheet must never take the pick screen down with it.
-function readStoredTier(): Tier {
+function readStoredSegment(): Segment {
   try {
-    return localStorage.getItem(TIER_STORAGE_KEY) === "advanced" ? "advanced" : "basic";
+    const stored = localStorage.getItem(SEGMENT_STORAGE_KEY);
+    return SEGMENTS.find((segment) => segment === stored) ?? "basic";
   } catch {
     return "basic";
   }
 }
 
-function storeTier(tier: Tier) {
+function storeSegment(segment: Segment) {
   try {
-    localStorage.setItem(TIER_STORAGE_KEY, tier);
+    localStorage.setItem(SEGMENT_STORAGE_KEY, segment);
   } catch {
     // Preference simply doesn't persist.
   }
@@ -382,12 +392,12 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
  */
 export function NflMatchupStats({ game }: { game: SlateGame }) {
   const [open, setOpen] = useState(false);
-  const [tier, setTier] = useState<Tier>(readStoredTier);
+  const [segment, setSegment] = useState<Segment>(readStoredSegment);
   const matchupName = `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`;
 
-  const selectTier = (next: Tier) => {
-    setTier(next);
-    storeTier(next);
+  const selectSegment = (next: Segment) => {
+    setSegment(next);
+    storeSegment(next);
   };
 
   const onOpenChange = (nextOpen: boolean) => {
@@ -395,7 +405,7 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
     // instance at page render, so without this a toggle in one game's sheet
     // wouldn't reach its siblings until a full remount — a persisted
     // preference that randomly doesn't stick.
-    if (nextOpen) setTier(readStoredTier());
+    if (nextOpen) setSegment(readStoredSegment());
     setOpen(nextOpen);
   };
 
@@ -433,23 +443,23 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
           <SheetTitle>{matchupName}</SheetTitle>
         </SheetHeader>
 
-        {/* Segmented tier toggle — aria-pressed carries the state, and the
+        {/* Segmented control — aria-pressed carries the state, and the
             label never changes width (engineering rules §async buttons apply
-            the same cursor-stability logic to any toggle pair). */}
+            the same cursor-stability logic to any toggle set). */}
         <div
           className="flex gap-1 self-start rounded-lg bg-muted p-1"
           role="group"
-          aria-label="Stats detail level"
+          aria-label="Matchup view"
         >
-          {(["basic", "advanced"] as const).map((option) => (
+          {SEGMENTS.map((option) => (
             <button
               key={option}
               type="button"
-              aria-pressed={tier === option}
-              onClick={() => selectTier(option)}
+              aria-pressed={segment === option}
+              onClick={() => selectSegment(option)}
               className={cn(
                 "rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors",
-                tier === option
+                segment === option
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
@@ -463,7 +473,12 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
             button and the header/toggle stay visible however long the
             advanced tier gets (see SHEET_SIDE_CLASS_NAME's bottom entry). */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {open && <NflMatchupStatsBody game={game} tier={tier} />}
+          {open &&
+            (segment === "results" ? (
+              <NflMatchupResultsBody game={game} />
+            ) : (
+              <NflMatchupStatsBody game={game} tier={segment} />
+            ))}
         </div>
       </SheetContent>
     </Sheet>

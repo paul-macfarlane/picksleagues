@@ -369,6 +369,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/games/{gameId}/nfl-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Both teams' season game logs for the matchup sheet's Results segment (STAT-9) */
+        get: operations["getNflGameResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leagues/{leagueId}/pickem/pick-summary": {
         parameters: {
             query?: never;
@@ -1173,6 +1190,27 @@ export interface components {
             teamScore: number;
             opponentScore: number;
             atHome: boolean;
+        };
+        NflGameResultsResponse: {
+            gameId: string;
+            home: components["schemas"]["NullableNflTeamGameLog"];
+            away: components["schemas"]["NullableNflTeamGameLog"];
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        NullableNflTeamGameLog: {
+            seasonYear: number;
+            entries: components["schemas"]["NflGameLogEntry"][];
+        } | null;
+        NflGameLogEntry: {
+            weekLabel: string;
+            opponentAbbr: string;
+            atHome: boolean;
+            final: boolean;
+            teamScore: number | null;
+            opponentScore: number | null;
+            /** @enum {string|null} */
+            result: "W" | "L" | "T" | null;
         };
         PickemPickSummary: {
             pickCount: number;
@@ -3274,6 +3312,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NflGameStatsResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getNflGameResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-team season game logs from our games rows (prior season while the current has no started games); a block is null when a team has none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NflGameResultsResponse"];
                 };
             };
             /** @description No valid session */
