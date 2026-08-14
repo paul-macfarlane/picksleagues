@@ -122,7 +122,6 @@ export function NflMatchupResultsBody({ game }: { game: SlateGame }) {
             <div className="flex flex-col gap-2" data-testid="nfl-matchup-results-body">
               <p className="text-xs text-muted-foreground">
                 {sharedSeasonYear && home ? `${home.seasonYear} season results` : "Season results"}
-                <span className="text-muted-foreground/70"> · most recent first</span>
                 {updatedAt && ` · updated ${formatDateTime(updatedAt)}`}
               </p>
               <div className="grid grid-cols-2 gap-3">
