@@ -4,6 +4,7 @@ import { EspnProvider } from "./espn-provider";
 
 const SITE_API_BASE_URL = "https://site.example.com/sports";
 const CORE_API_BASE_URL = "https://core.example.com/sports";
+const STANDINGS_API_BASE_URL = "https://standings.example.com/sports";
 
 function jsonResponse(body: unknown, init?: { status?: number }): Response {
   return new Response(JSON.stringify(body), {
@@ -29,6 +30,7 @@ function makeProvider(fetchImpl: typeof fetch): EspnProvider {
     fetchImpl,
     siteApiBaseUrl: SITE_API_BASE_URL,
     coreApiBaseUrl: CORE_API_BASE_URL,
+    standingsApiBaseUrl: STANDINGS_API_BASE_URL,
   });
 }
 
@@ -1248,5 +1250,288 @@ describe("EspnProvider.fetchNflTeams", () => {
     const provider = makeProvider(fetchImpl);
 
     await expect(provider.fetchNflTeams()).rejects.toThrow(/503/);
+  });
+});
+
+// --- Team season records (ADR-0040) ---
+
+/** The real endpoint's stat vocabulary, zeros-included — mirrors the live shape verified 2026-08-12. */
+function standingsStats(overrides?: {
+  wins?: number;
+  losses?: number;
+  ties?: number;
+  streak?: number;
+  pointsFor?: number;
+  pointsAgainst?: number;
+  home?: string;
+  road?: string;
+  omit?: string[];
+}) {
+  const stats = [
+    { name: "wins", type: "wins", value: overrides?.wins ?? 0, displayValue: "w" },
+    { name: "losses", type: "losses", value: overrides?.losses ?? 0, displayValue: "l" },
+    { name: "ties", type: "ties", value: overrides?.ties ?? 0, displayValue: "t" },
+    { name: "streak", type: "streak", value: overrides?.streak ?? 0, displayValue: "-" },
+    { name: "pointsFor", type: "pointsfor", value: overrides?.pointsFor ?? 0, displayValue: "0" },
+    {
+      name: "pointsAgainst",
+      type: "pointsagainst",
+      value: overrides?.pointsAgainst ?? 0,
+      displayValue: "0",
+    },
+    { name: "overall", type: "total", value: null, summary: "0-0", displayValue: "0-0" },
+    { name: "Home", type: "home", value: null, summary: overrides?.home ?? "0-0" },
+    { name: "Road", type: "road", value: null, summary: overrides?.road ?? "0-0" },
+    // Extra stats ESPN sends but we don't consume — proves passthrough.
+    { name: "playoffSeed", type: "playoffseed", value: 2, displayValue: "2" },
+    { name: "clincher", type: "clincher", value: 0, displayValue: "z" },
+  ];
+  const omitted = new Set(overrides?.omit ?? []);
+  return stats.filter((stat) => !omitted.has(stat.type));
+}
+
+function standingsBody(
+  seasonYear: number,
+  entries: { teamId: string; stats: ReturnType<typeof standingsStats> }[][],
+) {
+  return {
+    season: { year: seasonYear },
+    children: entries.map((conference) => ({
+      standings: { entries: conference.map((e) => ({ team: { id: e.teamId }, stats: e.stats })) },
+    })),
+  };
+}
+
+// `seasontype=2` is part of the contract under test: without it ESPN serves
+// whichever phase is live, and an August sync ingests preseason records
+// (STAT-11).
+const STANDINGS_URL = `${STANDINGS_API_BASE_URL}/football/nfl/standings?season=2025&seasontype=2`;
+
+describe("EspnProvider.fetchNflTeamSeasonRecords", () => {
+  it("flattens conferences and maps values, record splits, and signed streaks", async () => {
+    const fetchImpl = stubFetch({
+      [STANDINGS_URL]: jsonResponse(
+        standingsBody(2025, [
+          [
+            {
+              teamId: "21",
+              stats: standingsStats({
+                wins: 11,
+                losses: 6,
+                streak: -1,
+                pointsFor: 379,
+                pointsAgainst: 325,
+                home: "6-3",
+                road: "5-3",
+              }),
+            },
+          ],
+          [{ teamId: "17", stats: standingsStats({ wins: 14, losses: 3, home: "6-2-1" }) }],
+        ]),
+      ),
+    });
+
+    const records = await makeProvider(fetchImpl).fetchNflTeamSeasonRecords(2025);
+
+    expect(records).toHaveLength(2);
+    expect(records[0]).toEqual({
+      providerTeamId: "21",
+      seasonYear: 2025,
+      wins: 11,
+      losses: 6,
+      ties: 0,
+      homeWins: 6,
+      homeLosses: 3,
+      homeTies: 0,
+      roadWins: 5,
+      roadLosses: 3,
+      roadTies: 0,
+      streak: -1,
+      pointsFor: 379,
+      pointsAgainst: 325,
+    });
+    // A "W-L-T" summary parses its third segment; a "W-L" one defaults ties to 0.
+    expect(records[1]).toMatchObject({ providerTeamId: "17", homeTies: 1, roadTies: 0 });
+  });
+
+  it("returns [] when ESPN answers with a different season than requested", async () => {
+    const fetchImpl = stubFetch({
+      [STANDINGS_URL]: jsonResponse(
+        standingsBody(2026, [[{ teamId: "21", stats: standingsStats() }]]),
+      ),
+    });
+
+    await expect(makeProvider(fetchImpl).fetchNflTeamSeasonRecords(2025)).resolves.toEqual([]);
+  });
+
+  it("returns [] on a 404 (season not published)", async () => {
+    const fetchImpl = stubFetch({ [STANDINGS_URL]: jsonResponse({}, { status: 404 }) });
+
+    await expect(makeProvider(fetchImpl).fetchNflTeamSeasonRecords(2025)).resolves.toEqual([]);
+  });
+
+  it("throws when a required stat is missing — a contract break, never a silent 0", async () => {
+    const fetchImpl = stubFetch({
+      [STANDINGS_URL]: jsonResponse(
+        standingsBody(2025, [[{ teamId: "21", stats: standingsStats({ omit: ["wins"] }) }]]),
+      ),
+    });
+
+    await expect(makeProvider(fetchImpl).fetchNflTeamSeasonRecords(2025)).rejects.toThrow(/wins/);
+  });
+
+  it("throws on an unparseable record summary", async () => {
+    const fetchImpl = stubFetch({
+      [STANDINGS_URL]: jsonResponse(
+        standingsBody(2025, [[{ teamId: "21", stats: standingsStats({ home: "6–3" }) }]]),
+      ),
+    });
+
+    await expect(makeProvider(fetchImpl).fetchNflTeamSeasonRecords(2025)).rejects.toThrow(/home/);
+  });
+});
+
+// --- Game stat context (ADR-0040) ---
+
+const SUMMARY_URL = `${SITE_API_BASE_URL}/football/nfl/summary?event=401`;
+
+function summaryBody(overrides?: Record<string, unknown>) {
+  return {
+    header: {
+      competitions: [
+        {
+          competitors: [
+            { homeAway: "home", team: { id: "21" } },
+            { homeAway: "away", team: { id: "6" } },
+          ],
+        },
+      ],
+    },
+    injuries: [
+      {
+        team: { id: "21" },
+        injuries: [
+          {
+            status: "Out",
+            athlete: { displayName: "A. Safety", position: { abbreviation: "S" } },
+            details: { type: "Ankle" },
+          },
+          {
+            // No position, no details — both fall back to null, never fail the sync.
+            status: "Questionable",
+            athlete: { displayName: "B. Receiver" },
+          },
+        ],
+      },
+      { team: { id: "6" }, injuries: [] },
+    ],
+    predictor: {
+      homeTeam: { gameProjection: "62.9" },
+      awayTeam: { gameProjection: "36.9" },
+    },
+    againstTheSpread: [
+      { team: { id: "21" }, records: [{ summary: "8-9" }] },
+      { team: { id: "6" }, records: [] },
+    ],
+    lastFiveGames: [
+      {
+        team: { id: "21" },
+        events: [
+          {
+            atVs: "@",
+            gameResult: "W",
+            score: "27-10",
+            gameDate: "2025-12-28T18:00Z",
+            opponent: { abbreviation: "CAR" },
+          },
+          {
+            atVs: "vs",
+            gameResult: "L",
+            score: "13-20",
+            gameDate: "2026-01-04T18:00Z",
+            opponent: { abbreviation: "SF" },
+          },
+          // Unrecognized result and unparseable score each drop the entry alone.
+          { atVs: "vs", gameResult: "PPD", score: "0-0", opponent: { abbreviation: "X" } },
+          { atVs: "@", gameResult: "W", score: "OT 27-10", opponent: { abbreviation: "Y" } },
+          // An August date is a *preseason* game (STAT-11): well-formed, but
+          // never form — dropped by date, the payload's only discriminator.
+          {
+            atVs: "vs",
+            gameResult: "W",
+            score: "28-9",
+            gameDate: "2026-08-13T23:00Z",
+            opponent: { abbreviation: "GB" },
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("EspnProvider.fetchNflGameStatContext", () => {
+  it("maps injuries, FPI, ATS, and last-five onto home/away by team id", async () => {
+    const fetchImpl = stubFetch({ [SUMMARY_URL]: jsonResponse(summaryBody()) });
+
+    const context = await makeProvider(fetchImpl).fetchNflGameStatContext("401");
+
+    expect(context).toEqual({
+      providerGameId: "401",
+      home: {
+        injuries: [
+          { athleteName: "A. Safety", position: "S", status: "Out", injuryType: "Ankle" },
+          { athleteName: "B. Receiver", position: null, status: "Questionable", injuryType: null },
+        ],
+        fpiWinPct: 62.9,
+        atsSummary: "8-9",
+        lastFive: [
+          { result: "W", opponentAbbr: "CAR", teamScore: 27, opponentScore: 10, atHome: false },
+          { result: "L", opponentAbbr: "SF", teamScore: 13, opponentScore: 20, atHome: true },
+        ],
+      },
+      away: { injuries: [], fpiWinPct: 36.9, atsSummary: null, lastFive: [] },
+    });
+  });
+
+  it("serves nulls and empties when the summary has no context sections at all", async () => {
+    const fetchImpl = stubFetch({
+      [SUMMARY_URL]: jsonResponse(
+        summaryBody({
+          injuries: undefined,
+          predictor: undefined,
+          againstTheSpread: undefined,
+          lastFiveGames: undefined,
+        }),
+      ),
+    });
+
+    const context = await makeProvider(fetchImpl).fetchNflGameStatContext("401");
+
+    expect(context).toEqual({
+      providerGameId: "401",
+      home: { injuries: [], fpiWinPct: null, atsSummary: null, lastFive: [] },
+      away: { injuries: [], fpiWinPct: null, atsSummary: null, lastFive: [] },
+    });
+  });
+
+  it("returns null on a 404 — nothing to show, never a sync failure", async () => {
+    const fetchImpl = stubFetch({ [SUMMARY_URL]: jsonResponse({}, { status: 404 }) });
+
+    await expect(makeProvider(fetchImpl).fetchNflGameStatContext("401")).resolves.toBeNull();
+  });
+
+  it("throws when the header is missing a home or away competitor", async () => {
+    const fetchImpl = stubFetch({
+      [SUMMARY_URL]: jsonResponse(
+        summaryBody({
+          header: { competitions: [{ competitors: [{ homeAway: "home", team: { id: "21" } }] }] },
+        }),
+      ),
+    });
+
+    await expect(makeProvider(fetchImpl).fetchNflGameStatContext("401")).rejects.toThrow(
+      /missing a home or away competitor/,
+    );
   });
 });

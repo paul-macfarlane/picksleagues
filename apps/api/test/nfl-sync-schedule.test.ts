@@ -17,7 +17,6 @@ import {
 import {
   FixedClock,
   estimatedNflWeeks,
-  type GameDataProvider,
   type ProviderGame,
   type ProviderSeasonStructure,
   type ProviderTeam,
@@ -37,6 +36,7 @@ import {
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { BaseFakeProvider } from "./setup/fake-provider";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
 import { settlePicksForGames } from "../src/services/settlement";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
@@ -59,7 +59,7 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
 }
 
 /** Mutable in-memory provider — reshape `structure`/`gamesByWeek` between runs. */
-class FakeProvider implements GameDataProvider {
+class FakeProvider extends BaseFakeProvider {
   structure: ProviderSeasonStructure = { seasonYear: SEASON_YEAR, weeks: [] };
   gamesByWeek = new Map<string, ProviderGame[]>();
   // Per-season-year overrides, consulted only when set — everything above
@@ -74,11 +74,11 @@ class FakeProvider implements GameDataProvider {
   // unchanged — the enrichment tests below populate this.
   teams: ProviderTeam[] = [];
 
-  async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
+  override async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
     return this.structureByYear.get(seasonYear) ?? this.structure;
   }
 
-  async fetchNflWeekGames(
+  override async fetchNflWeekGames(
     seasonYear: number,
     weekType: WeekType,
     weekNumber: number,
@@ -90,7 +90,7 @@ class FakeProvider implements GameDataProvider {
     return this.gamesByWeek.get(weekKey(weekType, weekNumber)) ?? [];
   }
 
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
+  override async fetchNflTeams(): Promise<ProviderTeam[]> {
     return this.teams;
   }
 }

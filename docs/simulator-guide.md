@@ -118,7 +118,7 @@ week has nothing to anchor to.
 1. Reset → environment            load does NOT clear ingested data (FK RESTRICT
                                   from league_seasons blocks it), so reset first
 2. Scenarios → Load
-3. Admin → Jobs → Sync schedule   (+ Sync odds)
+3. Admin → Jobs → Sync schedule   (+ Sync odds, + Sync stats for the matchup sheets)
 4. Clock → jump to a week, anchor "before first kickoff"
 5. Create/join a league, make picks
 6. Clock → advance past kickoff → Admin → Jobs → Sync scores → observe
@@ -171,6 +171,16 @@ into fixtures.
 - Historical ESPN feeds strip odds, so **spreads are synthesized** deterministically
   from the provider game id (ADR-0011). They are stable across re-imports but they
   are not real market lines.
+- The matchup stats sheet's data is part-synthesized the same way (ADR-0040):
+  **injuries are mocked** (era-correct injury history doesn't exist at ESPN — a
+  historical game's summary answers with the teams' *current* report), with
+  deterministic fictional names; FPI derives from the spread; records, ATS, and
+  last-five derive from the fixtures' completed games, advancing as the clock
+  does. Two consequences worth knowing before they read as bugs: a scenario
+  carries exactly **one season**, so the week-1 prior-season fallback has
+  nothing to serve and early sheets legitimately show 0-0 records with dashes;
+  and league **ranks stay dashed until at least half the teams have played**,
+  since "1st" of a two-team pool isn't a league rank.
 - Re-importing is idempotent — same slug, same fixtures, same spreads.
 
 ## Seeing what it did

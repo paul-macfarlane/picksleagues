@@ -48,3 +48,6 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0036](0036-pick-window-current-week-plus-one.md) | Picks are windowed to the current week, plus the next once resolved | Accepted |
 | [0037](0037-discovery-is-filtered-sorted-and-paged.md) | Discovery gains a settings summary, a mode filter, fullest-first ordering, and paging | Accepted |
 | [0038](0038-invite-links-unfurl-with-the-league-name.md) | Invite links unfurl with the league's name, from a sessionless read | Accepted |
+| [0039](0039-public-routes-are-prerendered-at-build.md) | Public routes are prerendered at build | Accepted |
+| [0040](0040-game-stats-are-ingested-display-data.md) | Game stats are ingested display data with a tiered surface | Accepted; amended by 0041 |
+| [0041](0041-stats-overrides-outlive-resync.md) | Stats tables carry override parallels after all | Accepted |

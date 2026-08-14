@@ -57,6 +57,14 @@ const nflSyncRoutes = {
     request: { query: SyncQuerySchema },
     responses: jobResponses,
   }),
+  [NFL_SYNC_JOB.SYNC_STATS]: createRoute({
+    method: "post",
+    path: "/jobs/nfl/sync-stats",
+    operationId: "runNflSyncStats",
+    summary: "Refresh team season records and per-game matchup context (ADR-0040)",
+    request: { query: SyncQuerySchema },
+    responses: jobResponses,
+  }),
 } as const;
 
 /**

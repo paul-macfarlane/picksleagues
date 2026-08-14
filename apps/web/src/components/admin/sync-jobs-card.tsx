@@ -3,7 +3,7 @@ import { useRunNflSyncJob } from "@/api/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Row copy for the three manual sync triggers — kept here rather than in the
+// Row copy for the manual sync triggers — kept here rather than in the
 // api module since it's page display copy, not part of the mutation's shape.
 const NFL_SYNC_JOB_ROWS: { job: NflSyncJob; label: string; description: string }[] = [
   {
@@ -20,6 +20,11 @@ const NFL_SYNC_JOB_ROWS: { job: NflSyncJob; label: string; description: string }
     job: NFL_SYNC_JOB.SYNC_SCORES,
     label: "Sync scores",
     description: "Live and final scores.",
+  },
+  {
+    job: NFL_SYNC_JOB.SYNC_STATS,
+    label: "Sync stats",
+    description: "Team records and matchup context (injuries, form).",
   },
 ];
 

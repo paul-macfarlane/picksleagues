@@ -318,3 +318,107 @@ describe("SimulatedProvider", () => {
     await expect(makeProvider(at(0)).fetchNflTeams()).resolves.toEqual(snapshot.teams);
   });
 });
+
+// STAT-3 (ADR-0040): the sim's matchup stats derive from its own completed
+// games, so replayed stats always agree with the replayed scores. The pure
+// derivations are pinned in sim-stats.test.ts; these pin the provider wiring —
+// the season gate, the clock clip, and which team gets whose context.
+describe("SimulatedProvider matchup stats", () => {
+  const WEEK2_KICKOFF = new Date(KICKOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const statsSnapshot: SimFixtureSnapshot = {
+    seasonYear: 2026,
+    weeks: [],
+    games: [
+      // Completed once `now` passes kickoff + duration: PHI 24-17 over DAL at
+      // home, laying 3.5 — PHI covers.
+      fixture({ providerGameId: "played", weekNumber: 1 }),
+      fixture({
+        providerGameId: "upcoming",
+        weekNumber: 2,
+        kickoffAt: WEEK2_KICKOFF,
+        spread: -3.5,
+      }),
+    ],
+    teams: [
+      {
+        providerTeamId: "21",
+        abbreviation: "PHI",
+        name: "Eagles",
+        location: "Philadelphia",
+        logoLightUrl: null,
+        logoDarkUrl: null,
+      },
+      {
+        providerTeamId: "6",
+        abbreviation: "DAL",
+        name: "Cowboys",
+        location: "Dallas",
+        logoLightUrl: null,
+        logoDarkUrl: null,
+      },
+    ],
+  };
+  const betweenWeeks = at(SIM_GAME_DURATION_MS);
+
+  function makeStatsProvider(now: Date) {
+    return new SimulatedProvider(async () => statsSnapshot, new FixedClock(now));
+  }
+
+  it("derives season records from the games the clock has completed", async () => {
+    const records = await makeStatsProvider(betweenWeeks).fetchNflTeamSeasonRecords(2026);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        providerTeamId: "21",
+        seasonYear: 2026,
+        wins: 1,
+        losses: 0,
+        homeWins: 1,
+        streak: 1,
+        pointsFor: 24,
+        pointsAgainst: 17,
+      }),
+      expect.objectContaining({ providerTeamId: "6", losses: 1, roadLosses: 1, streak: -1 }),
+    ]);
+  });
+
+  it("serves all-zero records before any game completes — the fallback window's shape", async () => {
+    const records = await makeStatsProvider(at(-1000)).fetchNflTeamSeasonRecords(2026);
+    expect(records.every((record) => record.wins + record.losses + record.ties === 0)).toBe(true);
+  });
+
+  it("reports no records for a season the scenario does not cover", async () => {
+    await expect(makeStatsProvider(betweenWeeks).fetchNflTeamSeasonRecords(2024)).resolves.toEqual(
+      [],
+    );
+  });
+
+  it("assembles game context per side: mocked injuries, spread-derived FPI, ATS and form from completed games", async () => {
+    const context = await makeStatsProvider(betweenWeeks).fetchNflGameStatContext("upcoming");
+
+    expect(context?.providerGameId).toBe("upcoming");
+    // Injuries are mocked, deterministic, and never empty (STAT-3).
+    expect(context?.home.injuries.length).toBeGreaterThanOrEqual(1);
+    expect(context?.home.injuries).toEqual(
+      (await makeStatsProvider(betweenWeeks).fetchNflGameStatContext("upcoming"))?.home.injuries,
+    );
+    // Home lays 3.5 → 58.8 / 41.2, complementary.
+    expect(context?.home.fpiWinPct).toBe(58.8);
+    expect(context?.away.fpiWinPct).toBe(41.2);
+    // Week 1: PHI covered at home, DAL didn't — each side's own perspective.
+    expect(context?.home.atsSummary).toBe("1-0");
+    expect(context?.away.atsSummary).toBe("0-1");
+    expect(context?.home.lastFive).toEqual([
+      { result: "W", opponentAbbr: "DAL", teamScore: 24, opponentScore: 17, atHome: true },
+    ]);
+    expect(context?.away.lastFive).toEqual([
+      { result: "L", opponentAbbr: "PHI", teamScore: 17, opponentScore: 24, atHome: false },
+    ]);
+  });
+
+  it("is null for a game the scenario does not know", async () => {
+    await expect(
+      makeStatsProvider(betweenWeeks).fetchNflGameStatContext("no-such-game"),
+    ).resolves.toBeNull();
+  });
+});

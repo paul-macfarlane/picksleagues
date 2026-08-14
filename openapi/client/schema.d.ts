@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/nfl/sync-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh team season records and per-game matchup context (ADR-0040) */
+        post: operations["runNflSyncStats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/settle-sweep": {
         parameters: {
             query?: never;
@@ -327,6 +344,23 @@ export interface paths {
         };
         /** The weeks this league plays, clipped to its configured start/end week */
         get: operations["listLeagueWeeks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/games/{gameId}/nfl-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One game's matchup stats: team records plus injuries/FPI/form context (ADR-0040) */
+        get: operations["getNflGameStats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -584,6 +618,74 @@ export interface paths {
         get?: never;
         /** Set or clear a game's manual overrides */
         put: operations["setAdminGameOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/nfl-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse a season's synced NFL team stats with provider, override, and resolved values */
+        get: operations["listAdminNflStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/nfl-stats/{statsId}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear manual overrides on a team's season record facts */
+        put: operations["setAdminNflStatsOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/nfl-stat-contexts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse a week's per-game stat context with provider, override, and resolved payloads */
+        get: operations["listAdminNflStatContexts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/nfl-stat-contexts/{gameId}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a game's stat-context override layer */
+        put: operations["setAdminNflStatContextOverride"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1018,6 +1120,60 @@ export interface components {
             endsAt: string;
             gameCount: number;
         };
+        NflGameStatsResponse: {
+            gameId: string;
+            home: components["schemas"]["NullableNflGameStatsTeamRecord"];
+            away: components["schemas"]["NullableNflGameStatsTeamRecord"];
+            context: components["schemas"]["NullableNflGameStatsContext"];
+        };
+        NullableNflGameStatsTeamRecord: {
+            seasonYear: number;
+            wins: number;
+            losses: number;
+            ties: number;
+            homeWins: number;
+            homeLosses: number;
+            homeTies: number;
+            roadWins: number;
+            roadLosses: number;
+            roadTies: number;
+            streak: number;
+            pointsFor: number;
+            pointsAgainst: number;
+            gamesPlayed: number;
+            avgPointsFor: number | null;
+            avgPointsAgainst: number | null;
+            scoringOffenseRank: number | null;
+            scoringDefenseRank: number | null;
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        NullableNflGameStatsContext: {
+            home: components["schemas"]["NflGameStatsTeamContext"];
+            away: components["schemas"]["NflGameStatsTeamContext"];
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        NflGameStatsTeamContext: {
+            injuries: components["schemas"]["NflInjuryReportEntry"][];
+            fpiWinPct: number | null;
+            atsSummary: string | null;
+            lastFive: components["schemas"]["NflLastFiveGame"][];
+        };
+        NflInjuryReportEntry: {
+            athleteName: string;
+            position: string | null;
+            status: string;
+            injuryType: string | null;
+        };
+        NflLastFiveGame: {
+            /** @enum {string} */
+            result: "W" | "L" | "T";
+            opponentAbbr: string;
+            teamScore: number;
+            opponentScore: number;
+            atHome: boolean;
+        };
         PickemPickSummary: {
             pickCount: number;
             memberCount: number;
@@ -1157,7 +1313,7 @@ export interface components {
             teamId: string;
         };
         /** @enum {string} */
-        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores";
+        NflSyncJob: "sync-schedule" | "sync-odds" | "sync-scores" | "sync-stats";
         AdminTeamsResponse: {
             teams: components["schemas"]["AdminTeam"][];
         };
@@ -1264,9 +1420,9 @@ export interface components {
             createdAt: string;
         };
         /** @enum {string} */
-        AdminAuditAction: "game_override" | "league_rebuild";
+        AdminAuditAction: "game_override" | "league_rebuild" | "nfl_team_season_stats_override" | "nfl_game_stat_context_override";
         /** @enum {string} */
-        AdminAuditTargetTable: "games" | "league_seasons";
+        AdminAuditTargetTable: "games" | "league_seasons" | "nfl_team_season_stats" | "nfl_game_stat_context";
         GameOverrideResponse: {
             game: components["schemas"]["AdminGame"];
             resettled: boolean;
@@ -1280,6 +1436,118 @@ export interface components {
             spread?: number | null;
             period?: number | null;
             clockSeconds?: number | null;
+        };
+        AdminNflTeamSeasonStatsResponse: {
+            seasonYears: number[];
+            seasonYear: number | null;
+            stats: components["schemas"]["AdminNflTeamSeasonStats"][];
+        };
+        AdminNflTeamSeasonStats: {
+            id: string;
+            team: components["schemas"]["AdminGameTeam"];
+            seasonYear: number;
+            wins: number;
+            losses: number;
+            ties: number;
+            homeWins: number;
+            homeLosses: number;
+            homeTies: number;
+            roadWins: number;
+            roadLosses: number;
+            roadTies: number;
+            streak: number;
+            pointsFor: number;
+            pointsAgainst: number;
+            overrideWins: number | null;
+            overrideLosses: number | null;
+            overrideTies: number | null;
+            overrideHomeWins: number | null;
+            overrideHomeLosses: number | null;
+            overrideHomeTies: number | null;
+            overrideRoadWins: number | null;
+            overrideRoadLosses: number | null;
+            overrideRoadTies: number | null;
+            overrideStreak: number | null;
+            overridePointsFor: number | null;
+            overridePointsAgainst: number | null;
+            overriddenBy: string | null;
+            /** Format: date-time */
+            overriddenAt: string | null;
+            effectiveWins: number;
+            effectiveLosses: number;
+            effectiveTies: number;
+            effectiveHomeWins: number;
+            effectiveHomeLosses: number;
+            effectiveHomeTies: number;
+            effectiveRoadWins: number;
+            effectiveRoadLosses: number;
+            effectiveRoadTies: number;
+            effectiveStreak: number;
+            effectivePointsFor: number;
+            effectivePointsAgainst: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NflTeamSeasonStatsOverrideResponse: {
+            stats: components["schemas"]["AdminNflTeamSeasonStats"];
+        };
+        NflTeamSeasonStatsOverrideRequest: {
+            wins?: number | null;
+            losses?: number | null;
+            ties?: number | null;
+            homeWins?: number | null;
+            homeLosses?: number | null;
+            homeTies?: number | null;
+            roadWins?: number | null;
+            roadLosses?: number | null;
+            roadTies?: number | null;
+            streak?: number | null;
+            pointsFor?: number | null;
+            pointsAgainst?: number | null;
+        };
+        AdminNflGameStatContextsResponse: {
+            games: components["schemas"]["AdminNflGameStatContext"][];
+        };
+        AdminNflGameStatContext: {
+            gameId: string;
+            homeTeam: components["schemas"]["AdminGameTeam"];
+            awayTeam: components["schemas"]["AdminGameTeam"];
+            /** Format: date-time */
+            kickoffAt: string;
+            context: components["schemas"]["NullableAdminNflGameStatContextBlock"];
+        };
+        NullableAdminNflGameStatContextBlock: {
+            payload: {
+                home: components["schemas"]["NflGameStatsTeamContext"];
+                away: components["schemas"]["NflGameStatsTeamContext"];
+            };
+            overridePayload: components["schemas"]["NullableNflGameStatContextOverridePayload"];
+            effective: {
+                home: components["schemas"]["NflGameStatsTeamContext"];
+                away: components["schemas"]["NflGameStatsTeamContext"];
+            };
+            overriddenBy: string | null;
+            /** Format: date-time */
+            overriddenAt: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        } | null;
+        NullableNflGameStatContextOverridePayload: {
+            home?: components["schemas"]["NflTeamGameContextOverride"];
+            away?: components["schemas"]["NflTeamGameContextOverride"];
+        } | null;
+        NflTeamGameContextOverride: {
+            injuries?: components["schemas"]["NflInjuryReportEntry"][];
+            fpiWinPct?: number;
+            atsSummary?: string;
+            lastFive?: components["schemas"]["NflLastFiveGame"][];
+        };
+        NflGameStatContextOverrideResponse: {
+            game: components["schemas"]["AdminNflGameStatContext"];
+        };
+        NflGameStatContextOverrideRequest: {
+            home?: components["schemas"]["NflTeamGameContextOverride"];
+            away?: components["schemas"]["NflTeamGameContextOverride"];
         };
         SimStateResponse: {
             clock: components["schemas"]["SimClockState"];
@@ -1793,6 +2061,57 @@ export interface operations {
         };
     };
     runNflSyncScores: {
+        parameters: {
+            query?: {
+                season?: number;
+                week?: number;
+                weekType?: components["schemas"]["WeekType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job completed — counters in `details` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+            /** @description A supplied query param (season/week) fails its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or wrong x-job-secret header */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job failed, or a dependency is not configured — same envelope either way */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunResponse"];
+                };
+            };
+        };
+    };
+    runNflSyncStats: {
         parameters: {
             query?: {
                 season?: number;
@@ -2937,6 +3256,55 @@ export interface operations {
             };
         };
     };
+    getNflGameStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-team season records (prior season while the current has no games) and matchup context; blocks are null where ingestion has nothing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NflGameStatsResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such game */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getPickemPickSummary: {
         parameters: {
             query?: never;
@@ -3911,6 +4279,264 @@ export interface operations {
             };
             /** @description The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminNflStats: {
+        parameters: {
+            query?: {
+                season?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every stored season year, the year served (defaulted to the newest stored), and that season's per-team rows ordered by abbreviation — a requested year with no rows is an empty list, not a fallback to a different season */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNflTeamSeasonStatsResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setAdminNflStatsOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                statsId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NflTeamSeasonStatsOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description The corrected row with provider, override, and resolved values — derived averages and ranks on the member surface follow the resolved facts (ADR-0041) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NflTeamSeasonStatsOverrideResponse"];
+                };
+            };
+            /** @description No fields supplied, or a field fails its range rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such stats row (team_season_stats_not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminNflStatContexts: {
+        parameters: {
+            query: {
+                weekId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The week's games ordered by resolved kickoff, each with its stored context or null where the stats sync hasn't reached it — empty for an unknown week id, indistinguishable from a week with no games synced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNflGameStatContextsResponse"];
+                };
+            };
+            /** @description A request param failed its format rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setAdminNflStatContextOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NflGameStatContextOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description The game's context with provider, override, and resolved payloads. The body replaces the whole override layer (an absent field carries no override; an empty body clears the layer) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NflGameStatContextOverrideResponse"];
+                };
+            };
+            /** @description A field fails its shape or range rule */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is signed in but does not hold the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The game doesn't exist, or the stats sync hasn't written a context payload for it yet — there's nothing to correct until it does (game_stat_context_not_found) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

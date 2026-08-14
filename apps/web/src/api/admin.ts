@@ -12,10 +12,10 @@ import type { GameOverrideRequest, JobSkipReason, NflSyncJob, Sport } from "@pic
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
-// One home for the admin cache-key shape: every browser query below is
-// prefixed with this, so a single invalidation after a sync job covers all
-// four without the run-job hook restating the key literal.
-const ADMIN_QUERY_KEY_PREFIX = ["admin"];
+// One home for the admin cache-key shape: every admin browser query (here and
+// in api/admin-nfl-stats.ts) is prefixed with this, so a single invalidation
+// after a sync job covers them all without restating key literals.
+export const ADMIN_QUERY_KEY_PREFIX = ["admin"];
 
 // Wire slug → operator copy for a run that had nothing to do. A skip is a 200,
 // so without this the operator can't tell "nothing happened" from "work
@@ -184,8 +184,9 @@ export function useAdminAudit(offset: number) {
 }
 
 /**
- * The one write on the admin surface (ADM-2, arch §Manual Sports Data
- * Overrides). Variables carry the game id so a row scopes its pending state off
+ * The one write on this module's surface (ADM-2, arch §Manual Sports Data
+ * Overrides; the stats overrides live in api/admin-nfl-stats.ts). Variables
+ * carry the game id so a row scopes its pending state off
  * `mutation.variables` rather than disabling every row (async-button standard).
  */
 export function useSetGameOverride() {

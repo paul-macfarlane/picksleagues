@@ -15,6 +15,7 @@ import { createApp } from "../../src/app";
 import { createAuth } from "../../src/auth";
 import { readSimFixtureSnapshot } from "../../src/services/sim/fixtures";
 import { createAuthenticatedUser, grantAdmin } from "./auth-helpers";
+import { BaseFakeProvider } from "./fake-provider";
 import { providerWeek } from "./provider-fixtures";
 import { getTestDatabaseUrl } from "./test-database-url";
 import { makeTestEnv } from "./test-env";
@@ -32,16 +33,16 @@ export function yearWeekKey(seasonYear: number, weekType: WeekType, weekNumber: 
   return `${seasonYear}:${weekType}:${weekNumber}`;
 }
 
-export class FakeProvider implements GameDataProvider {
+export class FakeProvider extends BaseFakeProvider {
   structureByYear = new Map<number, ProviderSeasonStructure>();
   gamesByYearWeek = new Map<string, ProviderGame[]>();
   teams: ProviderTeam[] = [];
 
-  async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
+  override async fetchNflSeasonStructure(seasonYear: number): Promise<ProviderSeasonStructure> {
     return this.structureByYear.get(seasonYear) ?? { seasonYear, weeks: [] };
   }
 
-  async fetchNflWeekGames(
+  override async fetchNflWeekGames(
     seasonYear: number,
     weekType: WeekType,
     weekNumber: number,
@@ -49,7 +50,7 @@ export class FakeProvider implements GameDataProvider {
     return this.gamesByYearWeek.get(yearWeekKey(seasonYear, weekType, weekNumber)) ?? [];
   }
 
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
+  override async fetchNflTeams(): Promise<ProviderTeam[]> {
     return this.teams;
   }
 }

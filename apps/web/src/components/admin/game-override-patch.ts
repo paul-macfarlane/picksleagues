@@ -6,6 +6,7 @@ import {
 } from "@picksleagues/schemas";
 import { toLocalDateTimeInputValue } from "@/lib/format";
 import { clockLabel } from "@/lib/game";
+import { nullableToInput, toNullableNumber } from "@/components/admin/override-input";
 
 /**
  * The override editor's string↔wire conversion, kept pure and out of the
@@ -59,10 +60,6 @@ export function gameOverrideFormSeed(game: AdminGame): GameOverrideFormValues {
   };
 }
 
-function nullableToInput(value: number | null): string {
-  return value === null ? "" : String(value);
-}
-
 // Reuses the same `m:ss` formatting the state line renders live clocks with
 // (lib/game.ts), so an operator reading a box score never has to convert
 // seconds by hand, and the round trip through `parseClockInput` below is
@@ -86,16 +83,6 @@ function parseClockInput(raw: string): number | null {
   const seconds = Number(match[2]);
   if (seconds > 59) return NaN;
   return minutes * 60 + seconds;
-}
-
-// An empty field is an explicit clear — the wire schema makes every field
-// nullable precisely so "revert to provider truth" is expressible (arch D15:
-// "clear override is a null-out"). A non-empty non-number stays NaN so it
-// surfaces as a field error rather than being read as a clear (which is what
-// `Number("")`'s 0 would hide).
-function toNullableNumber(raw: string): number | null {
-  const trimmed = raw.trim();
-  return trimmed === "" ? null : Number(trimmed);
 }
 
 export function isGameOverrideFormDirty(

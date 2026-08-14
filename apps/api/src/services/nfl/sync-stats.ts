@@ -1,0 +1,320 @@
+import { isDeepStrictEqual } from "node:util";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import type { Db } from "@picksleagues/db";
+import {
+  games,
+  nflGameStatContext,
+  sportSeasons,
+  teams,
+  nflTeamSeasonStats,
+} from "@picksleagues/db";
+import {
+  type Clock,
+  type GameDataProvider,
+  type ProviderNflTeamSeasonRecord,
+  nflSeasonYearFor,
+} from "@picksleagues/core";
+import {
+  NflGameStatContextPayloadSchema,
+  JOB_SKIP_REASON,
+  SPORT,
+  UNSTARTED_GAME_STATUSES,
+  WEEK_TYPE,
+  type WeekType,
+} from "@picksleagues/schemas";
+import { resolveRecurringSyncSeasonYear } from "./season-lifecycle";
+import { resolveTargetWeeks } from "./target-weeks";
+
+/**
+ * Maintains the matchup-stats tables (ADR-0040): every team's season record
+ * for the current season (one bulk provider read), and each unstarted game's
+ * matchup context (injuries, FPI, ATS, last five — one provider read per
+ * game) across the same anchor-plus-following week window sync-odds prices,
+ * resolved by the shared `resolveTargetWeeks` so the two jobs can never
+ * target different weeks.
+ *
+ * While the current season has no completed games, the **prior** season's
+ * records are synced too — they are what the read path serves as the week-1
+ * fallback, and refreshing them exactly (and only) during the fallback window
+ * also heals a prior season whose final weeks this job never saw.
+ *
+ * Idempotent like its siblings: unchanged rows are skipped, so `updated_at`
+ * stays an honest as-of stamp (the UI shows it) and a re-run over unmoved
+ * data is a true no-op. Never creates seasons/weeks/games (schedule-sync owns
+ * reference data), and **never touches the `override_*` columns or
+ * `override_payload`** (ADR-0041): admin corrections live in that layer
+ * precisely so a re-sync can't clobber them (arch D15) — an override column
+ * appearing in an upsert `set` list below is a correction-destroying bug.
+ */
+export async function syncNflStats(
+  db: Db,
+  clock: Clock,
+  provider: GameDataProvider,
+  opts?: { seasonYear?: number; weekType?: WeekType; weekNumber?: number },
+): Promise<Record<string, string | number | boolean>> {
+  // One `now` per run: every comparison and every `updated_at` share one
+  // instant, reaching SQL as a bound parameter (arch D13).
+  const now = clock.now();
+  const seasonYear =
+    opts?.seasonYear ?? (await resolveRecurringSyncSeasonYear(db, nflSeasonYearFor(now), now));
+
+  const [season] = await db
+    .select({ id: sportSeasons.id })
+    .from(sportSeasons)
+    .where(and(eq(sportSeasons.sport, SPORT.NFL), eq(sportSeasons.year, seasonYear)));
+  if (!season) {
+    // Sync jobs never create reference data — schedule-sync owns season/week
+    // creation (feedback: recurring syncs query reference data, don't upsert it).
+    return { skipped: true, reason: JOB_SKIP_REASON.SEASON_NOT_SYNCED };
+  }
+
+  // Weeks resolve before anything writes: an explicitly requested week that
+  // isn't synced must skip loudly (sync-odds' rule — a backfill of one week
+  // must never quietly report "ok" having touched another, or nothing), and
+  // a skip after the team-stats write would bury counters the run earned.
+  // An explicit week defaults its type to REGULAR — a bare week number is the
+  // regular-season case; postseason narrowing must name `weekType`.
+  const targetWeeks = await resolveTargetWeeks(
+    db,
+    season.id,
+    now,
+    opts?.weekNumber,
+    opts?.weekType ?? WEEK_TYPE.REGULAR,
+  );
+  if (opts?.weekNumber !== undefined && targetWeeks.length === 0) {
+    return { skipped: true, reason: JOB_SKIP_REASON.WEEK_NOT_SYNCED };
+  }
+
+  const records = await provider.fetchNflTeamSeasonRecords(seasonYear);
+  const teamStatsUpdated = await upsertTeamSeasonStats(db, records, now);
+
+  // The fallback window, gated per team to match the read path's per-team
+  // fallback (services/nfl/game-stats.ts): the prior season is needed while ANY
+  // team still has no completed game — a league-wide "has the season started"
+  // gate stranded a cold environment whose first-ever sync ran after the
+  // season's first final (current rows existed, prior rows never ingested,
+  // and every unplayed team served 0-0 for the opening week). An unpublished
+  // season's empty response lands here too.
+  let priorSeasonTeamStatsUpdated = 0;
+  const anyTeamWithoutGames =
+    records.length === 0 ||
+    records.some((record) => record.wins + record.losses + record.ties === 0);
+  if (anyTeamWithoutGames) {
+    const priorRecords = await provider.fetchNflTeamSeasonRecords(seasonYear - 1);
+    priorSeasonTeamStatsUpdated = await upsertTeamSeasonStats(db, priorRecords, now);
+  }
+
+  let unstartedGames = 0;
+  let contextsUpdated = 0;
+  let contextsMissing = 0;
+  for (const week of targetWeeks) {
+    const counts = await refreshWeekGameContexts(db, provider, week.id, now);
+    unstartedGames += counts.unstartedGames;
+    contextsUpdated += counts.contextsUpdated;
+    contextsMissing += counts.contextsMissing;
+  }
+
+  // On the *derived* path, a season with no upcoming week (its games all
+  // played) still reports `ok` — team stats are season-wide work that already
+  // happened, and the week-window counters just read zero. Only an explicit
+  // week miss skips (above), matching sync-odds.
+  return {
+    seasonYear,
+    teamStatsUpdated,
+    priorSeasonTeamStatsUpdated,
+    weeksTargeted: targetWeeks.length,
+    unstartedGames,
+    contextsUpdated,
+    contextsMissing,
+  };
+}
+
+/**
+ * Upserts one season's team records, skipping rows whose stored facts already
+ * match — the skip is what keeps `updated_at` an as-of stamp rather than a
+ * last-run stamp. Returns the number of rows actually written.
+ */
+async function upsertTeamSeasonStats(
+  db: Db,
+  records: ProviderNflTeamSeasonRecord[],
+  now: Date,
+): Promise<number> {
+  if (records.length === 0) return 0;
+
+  const [seasonYear] = new Set(records.map((record) => record.seasonYear));
+  const nflTeams = await db
+    .select({ id: teams.id, providerTeamId: teams.providerTeamId })
+    .from(teams)
+    .where(eq(teams.sport, SPORT.NFL));
+  const teamIdByProviderId = new Map(
+    nflTeams
+      .filter((team) => team.providerTeamId !== null)
+      .map((team) => [team.providerTeamId!, team.id]),
+  );
+
+  const existingRows = await db
+    .select()
+    .from(nflTeamSeasonStats)
+    .where(eq(nflTeamSeasonStats.seasonYear, seasonYear!));
+  const existingByTeamId = new Map(existingRows.map((row) => [row.teamId, row]));
+
+  const changedRows: (typeof nflTeamSeasonStats.$inferInsert)[] = [];
+  for (const record of records) {
+    // A provider team we haven't synced is not reference data this job may
+    // create (ADR-0010: schedule-sync owns teams) — skipped, healed by the
+    // next run after a schedule sync lands it.
+    const teamId = teamIdByProviderId.get(record.providerTeamId);
+    if (!teamId) continue;
+
+    const values = {
+      wins: record.wins,
+      losses: record.losses,
+      ties: record.ties,
+      homeWins: record.homeWins,
+      homeLosses: record.homeLosses,
+      homeTies: record.homeTies,
+      roadWins: record.roadWins,
+      roadLosses: record.roadLosses,
+      roadTies: record.roadTies,
+      streak: record.streak,
+      pointsFor: record.pointsFor,
+      pointsAgainst: record.pointsAgainst,
+    };
+
+    const existing = existingByTeamId.get(teamId);
+    if (
+      existing &&
+      Object.entries(values).every(([key, value]) => existing[key as keyof typeof values] === value)
+    ) {
+      continue;
+    }
+
+    changedRows.push({
+      teamId,
+      seasonYear: record.seasonYear,
+      ...values,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (changedRows.length === 0) return 0;
+  // One multi-row statement rather than a write per team: the skip-unchanged
+  // compare already ran in memory, and 32 serialized round trips (64 in the
+  // fallback window) were pure latency — a pattern the next mode's sync would
+  // copy at 350+ teams. `excluded.*` carries each row's own values through
+  // the conflict path.
+  await db
+    .insert(nflTeamSeasonStats)
+    .values(changedRows)
+    .onConflictDoUpdate({
+      target: [nflTeamSeasonStats.teamId, nflTeamSeasonStats.seasonYear],
+      set: {
+        wins: sql`excluded.wins`,
+        losses: sql`excluded.losses`,
+        ties: sql`excluded.ties`,
+        homeWins: sql`excluded.home_wins`,
+        homeLosses: sql`excluded.home_losses`,
+        homeTies: sql`excluded.home_ties`,
+        roadWins: sql`excluded.road_wins`,
+        roadLosses: sql`excluded.road_losses`,
+        roadTies: sql`excluded.road_ties`,
+        streak: sql`excluded.streak`,
+        pointsFor: sql`excluded.points_for`,
+        pointsAgainst: sql`excluded.points_against`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+  return changedRows.length;
+}
+
+/** Refreshes matchup context for one week's unstarted games, reporting what it touched. */
+async function refreshWeekGameContexts(
+  db: Db,
+  provider: GameDataProvider,
+  weekId: string,
+  now: Date,
+): Promise<{ unstartedGames: number; contextsUpdated: number; contextsMissing: number }> {
+  // Unstarted only, the same filter sync-odds prices by: context is pregame
+  // decision data, and a kicked-off game keeps whatever was last synced — a
+  // sheet opened mid-game shows the pregame report with its honest as-of stamp.
+  const unstartedGames = await db
+    .select({ id: games.id, providerGameId: games.providerGameId })
+    .from(games)
+    .where(
+      and(
+        eq(games.weekId, weekId),
+        gt(games.kickoffAt, now),
+        inArray(games.status, [...UNSTARTED_GAME_STATUSES]),
+      ),
+    );
+
+  if (unstartedGames.length === 0) {
+    return { unstartedGames: 0, contextsUpdated: 0, contextsMissing: 0 };
+  }
+
+  const existingRows = await db
+    .select()
+    .from(nflGameStatContext)
+    .where(
+      inArray(
+        nflGameStatContext.gameId,
+        unstartedGames.map((game) => game.id),
+      ),
+    );
+  const existingByGameId = new Map(existingRows.map((row) => [row.gameId, row]));
+
+  // Bounded fan-out rather than one-at-a-time: the per-game summary reads are
+  // independent, and ~32 serialized round trips put the whole job's runtime
+  // at the mercy of a slow ESPN week. Bounded (not all-at-once) so a full
+  // slate never opens 32 concurrent connections against an unofficial API.
+  // All reads happen outside any transaction (engineering rules: never hold a
+  // transaction open across a network call).
+  const CONTEXT_FETCH_CONCURRENCY = 8;
+  const contextByGameId = new Map<
+    string,
+    Awaited<ReturnType<typeof provider.fetchNflGameStatContext>>
+  >();
+  for (let i = 0; i < unstartedGames.length; i += CONTEXT_FETCH_CONCURRENCY) {
+    const batch = unstartedGames.slice(i, i + CONTEXT_FETCH_CONCURRENCY);
+    const contexts = await Promise.all(
+      batch.map((game) => provider.fetchNflGameStatContext(game.providerGameId)),
+    );
+    batch.forEach((game, index) => contextByGameId.set(game.id, contexts[index] ?? null));
+  }
+
+  let contextsUpdated = 0;
+  let contextsMissing = 0;
+  for (const game of unstartedGames) {
+    const context = contextByGameId.get(game.id);
+    if (!context) {
+      contextsMissing += 1;
+      continue;
+    }
+    // Parsed (not just cast) so a provider-shaped bug lands here as a loud
+    // sync failure, never as an unparseable stored payload a read trips over.
+    const payload = NflGameStatContextPayloadSchema.parse({
+      home: context.home,
+      away: context.away,
+    });
+
+    const existing = existingByGameId.get(game.id);
+    // Deep equality, never a stringify compare — jsonb round-trips with its
+    // own key order, and an order-sensitive compare would rewrite (and
+    // restamp) every row every run.
+    if (existing && isDeepStrictEqual(existing.payload, payload)) {
+      continue;
+    }
+
+    await db
+      .insert(nflGameStatContext)
+      .values({ gameId: game.id, payload, createdAt: now, updatedAt: now })
+      .onConflictDoUpdate({
+        target: nflGameStatContext.gameId,
+        set: { payload, updatedAt: now },
+      });
+    contextsUpdated += 1;
+  }
+
+  return { unstartedGames: unstartedGames.length, contextsUpdated, contextsMissing };
+}

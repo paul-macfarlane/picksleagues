@@ -64,6 +64,9 @@ function AdminLayout() {
         <Link to="/admin/teams" {...tabLinkProps}>
           Teams
         </Link>
+        <Link to="/admin/stats" {...tabLinkProps}>
+          Stats
+        </Link>
         <Link to="/admin/audit" {...tabLinkProps}>
           Audit
         </Link>

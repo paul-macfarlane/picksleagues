@@ -68,6 +68,11 @@ export const ERROR_CODE = {
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
   OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
+  TEAM_SEASON_STATS_NOT_FOUND: "team_season_stats_not_found",
+  // Distinct from GAME_NOT_FOUND on purpose: the game exists but the stats
+  // sync hasn't written a context payload for it, so there is nothing to
+  // override yet — correction, never creation (ADR-0041).
+  GAME_STAT_CONTEXT_NOT_FOUND: "game_stat_context_not_found",
   // Survivor's three own refusals (spec §Game Mode 2). The rest of its
   // vocabulary — locking, spreads, week range, league mode — is the shared set
   // above; a mode-specific synonym for any of them would just make the same

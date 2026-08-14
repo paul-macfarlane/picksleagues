@@ -11,6 +11,7 @@ import {
   type GameOverrideResponse,
 } from "@picksleagues/schemas";
 import { logError } from "../lib/logger";
+import { mergeOverrideField as merge } from "../lib/override-merge";
 import { loadAdminGame } from "./admin-data";
 import { resolveGameOverrides, type ResolvedGame } from "./games";
 import { settlePicksForGames } from "./settlement";
@@ -28,11 +29,6 @@ export type SetGameOverrideResult =
   | ({ ok: true } & GameOverrideResponse)
   | { ok: false; reason: typeof ERROR_CODE.GAME_NOT_FOUND }
   | { ok: false; reason: typeof ERROR_CODE.OVERRIDE_UNLOCKS_GAME };
-
-/** Three-state merge: `undefined` leaves the stored override, `null` clears it. */
-function merge<T>(patch: T | null | undefined, stored: T | null): T | null {
-  return patch === undefined ? stored : patch;
-}
 
 export async function setGameOverride(
   db: Db,

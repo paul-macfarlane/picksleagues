@@ -1,13 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { adminAudit, createDb, games } from "@picksleagues/db";
-import {
-  FixedClock,
-  type GameDataProvider,
-  type ProviderGame,
-  type ProviderSeasonStructure,
-  type ProviderTeam,
-} from "@picksleagues/core";
+import { FixedClock, type ProviderGame, type ProviderSeasonStructure } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
   GAME_STATUS,
@@ -19,6 +13,7 @@ import {
   type WeekType,
 } from "@picksleagues/schemas";
 import { createApp } from "../src/app";
+import { BaseFakeProvider } from "./setup/fake-provider";
 import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { settlePicksForGames } from "../src/services/settlement";
@@ -54,22 +49,19 @@ const auth = createAuth({ env: makeTestEnv(), db });
 const clock = new FixedClock(NOW);
 
 /** Mutable in-memory provider — only the re-sync test drives it. */
-class FakeProvider implements GameDataProvider {
+class FakeProvider extends BaseFakeProvider {
   structure: ProviderSeasonStructure = { seasonYear: 2026, weeks: [] };
   gamesByWeek = new Map<string, ProviderGame[]>();
 
-  async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
+  override async fetchNflSeasonStructure(): Promise<ProviderSeasonStructure> {
     return this.structure;
   }
-  async fetchNflWeekGames(
+  override async fetchNflWeekGames(
     _seasonYear: number,
     weekType: WeekType,
     weekNumber: number,
   ): Promise<ProviderGame[]> {
     return this.gamesByWeek.get(`${weekType}:${weekNumber}`) ?? [];
-  }
-  async fetchNflTeams(): Promise<ProviderTeam[]> {
-    return [];
   }
 }
 
