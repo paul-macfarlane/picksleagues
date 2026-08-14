@@ -386,7 +386,11 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
         render={
           <Button
             type="button"
-            variant="ghost"
+            // `outline`, the league surfaces' small-secondary-action idiom
+            // (members-section, invite-panel) — the one ghost Button here was
+            // the inconsistency, and a border is the tap affordance hover
+            // can't provide on touch (owner, 2026-08-13).
+            variant="outline"
             size="sm"
             aria-label={`Matchup stats: ${matchupName}`}
             data-testid="nfl-matchup-stats-trigger"
