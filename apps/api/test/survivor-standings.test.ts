@@ -190,17 +190,27 @@ describe("GET /api/leagues/:leagueId/survivor/standings — visibility", () => {
     // game plays a *distinct* pair (seedSurvivorGame mints fresh teams per
     // week), so this also proves the withheld pick's two teams stay out of the
     // lookup entirely.
+    const leaguePickFor = (weekId: string) =>
+      memberEntry(league, memberA).picks.find((pick) => pick.weekId === weekId)!;
     expect(league.teams.map((team) => team.id).sort()).toEqual(
-      [week1.homeTeamId, memberEntry(league, memberA).picks[0]!.game!.awayTeamId].sort(),
+      [week1.homeTeamId, leaguePickFor(week1.weekId).game!.awayTeamId].sort(),
     );
     expect(memberEntry(own, memberA).consumedTeamIds).toEqual([week1.homeTeamId, week2.homeTeamId]);
     // The one place a game block escapes the kickoff gate: the viewer's own
     // pre-kickoff pick is revealed by ownership (FB-25), so their board carries
     // its game — and week 2's pair joins *their* lookup while staying out of
     // the league's above.
-    expect(memberEntry(own, memberA).picks[1]!.game).toMatchObject({
+    expect(
+      memberEntry(own, memberA).picks.find((pick) => pick.weekId === week2.weekId)!.game,
+    ).toMatchObject({
       homeTeamId: week2.homeTeamId,
     });
+    // The history itself is served newest week first — the record surfaces'
+    // most-recent-first rule.
+    expect(memberEntry(own, memberA).picks.map((pick) => pick.weekId)).toEqual([
+      week2.weekId,
+      week1.weekId,
+    ]);
     expect(own.teams.map((team) => team.id)).toContain(week2.homeTeamId);
     expect(league.teams.map((team) => team.id)).not.toContain(week2.homeTeamId);
   });

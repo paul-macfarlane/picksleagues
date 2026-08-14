@@ -237,7 +237,12 @@ export const SurvivorStandingsMemberSchema = z
      * gives no further tiebreaker (spec §End of League).
      */
     isWinner: z.boolean(),
-    /** In season order, and only for weeks this member actually picked. */
+    /**
+     * Newest week first, and only for weeks this member actually picked. The
+     * history is retrospective (the current week's pick renders at row level),
+     * so it follows the record surfaces' most-recent-first rule — the matchup
+     * sheet's game logs and "Last 5", not the slate's season order.
+     */
     picks: z.array(SurvivorStandingsPickSchema),
     /**
      * The teams this member may no longer pick (spec §Game Mode 2 — Team
