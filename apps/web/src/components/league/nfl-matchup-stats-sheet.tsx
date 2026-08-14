@@ -378,19 +378,24 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
+      {/* Visible "Stats" label, not an icon alone (owner, 2026-08-13): the
+          sheet is a feature nobody has seen yet, and an unlabelled glyph asks
+          members to guess it exists. The aria-label still carries the matchup
+          so screen readers hear which game's stats this opens. */}
       <SheetTrigger
         render={
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="sm"
             aria-label={`Matchup stats: ${matchupName}`}
             data-testid="nfl-matchup-stats-trigger"
-            className="size-7 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
           />
         }
       >
-        <ChartColumnIcon aria-hidden="true" className="size-4" />
+        <ChartColumnIcon aria-hidden="true" className="size-3.5" />
+        Stats
       </SheetTrigger>
       <SheetContent
         side="bottom"

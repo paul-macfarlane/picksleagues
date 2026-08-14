@@ -36,10 +36,32 @@ numbers is never what a member lands on.
   stats, records, and injuries on a daily-ish cadence; cron registration and
   runbook entry per ADR-0007 / `docs/runbooks/jobs.md`. _(deps: STAT-2)_
 - [x] **STAT-5** — Read endpoint serving a game's matchup stats from our
-  tables. Genuinely mode-agnostic (Survivor consumes it unchanged), so the
-  generic name is earned. _(deps: STAT-4)_
+  tables. Shared by every NFL mode, but NFL-*named* (`/games/{id}/nfl-stats`),
+  since the stat shapes are the sport's, not the app's (owner, 2026-08-13;
+  ADR-0040). _(deps: STAT-4)_
 - [x] **STAT-6** — Pick-surface UI: matchup stats reachable from the Pick'em
   and Survivor game rows — basic tier by default, advanced tier one action
   away; stats carry a last-updated stamp (never a real-time claim); mobile-first.
   Which stats land in which tier is this task's clarify-phase decision.
   _(deps: STAT-3, STAT-5)_
+- [ ] **STAT-7** — Admin stats surface + stat overrides (owner, 2026-08-13):
+  an admin browser over `nfl_team_season_stats` and `nfl_game_stat_context`
+  (view what the syncs wrote, with as-of stamps), plus `override_*` machinery
+  for both — record facts as column parallels, context as a shape decided at
+  task time (a JSONB payload doesn't parallel column-for-column). Precedence
+  `override_* ?? provider_*` resolved in the read serializer, every override
+  writing `admin_audit` in the same transaction (arch D15 pattern). **Amends
+  ADR-0040**, which deliberately shipped these tables override-free — the
+  amendment records why the owner wants correction to outlive a re-sync even
+  for display data. Migration ⇒ evaluator mandatory. _(deps: STAT-6)_
+- [ ] **STAT-8** — Team identity overrides (owner, 2026-08-13): `override_*`
+  for team display fields (name, abbreviation, logos) on `teams`, corrected
+  from an admin teams browser, audited like every override. Shares the admin
+  browser home with STAT-7 but touches reference data every sport uses, so the
+  precedence resolution lands where team identity is serialized, not in the
+  stats read. Migration ⇒ evaluator mandatory. _(deps: STAT-7)_
+- [ ] **STAT-9** — "Results" segment (owner, 2026-08-13): third option in the
+  matchup sheet's segmented control (Basic | Advanced | Results) showing both
+  teams' season game logs side by side — opponent, W/L, score, week. Zero new
+  ingestion: served entirely from our `games` rows for the season. Mind the
+  sheet's inner-scroll contract (close button stays put). _(deps: STAT-6)_

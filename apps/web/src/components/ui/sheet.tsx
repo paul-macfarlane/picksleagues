@@ -30,16 +30,19 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
 }
 
 // Two edges are wired up: the left drawer (mobile nav) and the bottom sheet
-// (matchup stats). `bottom` caps its height and on wider screens narrows to a
-// centered panel rather than a full-width slab. It deliberately does NOT
-// scroll itself: the popup is where the absolutely-positioned close button
-// lives, and a scrolling popup carries that button — the only named dismiss
-// control — off-screen with the content. The call site owns an inner
-// `overflow-y-auto` region instead, so the close (and any header) stay put.
+// (matchup stats). `bottom` is a thumb-reach idiom that only makes sense at
+// phone width — from `sm` up it becomes a centered dialog (`inset-0` +
+// `m-auto`, which centers without a transform the enter animation would
+// fight), because on a tall screen a bottom-anchored panel puts the content
+// a full glance below where the member is looking (owner, 2026-08-13).
+// Neither variant scrolls itself: the popup is where the absolutely-positioned
+// close button lives, and a scrolling popup carries that button — the only
+// named dismiss control — off-screen with the content. The call site owns an
+// inner `overflow-y-auto` region instead, so the close (and any header) stay put.
 const SHEET_SIDE_CLASS_NAME = {
   left: "inset-y-0 left-0 h-full w-3/4 max-w-xs data-open:slide-in-from-left data-closed:slide-out-to-left",
   bottom:
-    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full rounded-t-xl sm:max-w-lg data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full rounded-t-xl data-open:slide-in-from-bottom data-closed:slide-out-to-bottom sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg sm:rounded-xl sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95",
 } as const;
 
 function SheetContent({
