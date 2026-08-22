@@ -55,7 +55,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* `.light` alongside `:root` so a region can opt back into the light palette
+   inside a dark page, the way a `.dark` wrapper already opts into the dark
+   one by redeclaration below. The profile's avatar theme preview (ID-5) needs
+   both swatches at once; without a `.light` scope the light swatch would
+   inherit whatever theme the member is currently in. */
+:root,
+.light {
   /* LNCH-9 palette: warm (stone-cast) neutrals so the pigskin orange sits
      naturally, with the brand as the interactive spine — primary, ring, and
      active states. Primary is deeper than `--brand` (the mark's literal

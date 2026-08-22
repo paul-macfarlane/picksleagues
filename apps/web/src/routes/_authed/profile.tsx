@@ -15,6 +15,7 @@ import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAvatarPreview } from "@/lib/avatar-preview";
+import { AvatarThemePreview } from "@/components/avatar-theme-preview";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -246,6 +247,13 @@ function ProfileForm({
                 reads as "the preview is slow" when it actually means the URL
                 won't render for anyone. `role="status"` so it's announced,
                 since the preview itself is purely visual. */}
+            {/* Only while the URL is being changed: the header avatar already
+                shows the saved image in the current theme, and the question
+                the swatches answer — does this read on *both* grounds — is one
+                the member asks before saving, not after. */}
+            {draftImage.trim() !== (profile.imageOverride ?? "") && (
+              <AvatarThemePreview image={preview.src} displayName={profile.displayName} />
+            )}
             {preview.failed && (
               <p role="status" className="text-xs text-muted-foreground">
                 We couldn&apos;t load that image. Saving it will show your initials instead.
