@@ -26,10 +26,14 @@ function tile({ bg, ball, check, size, scale }) {
   </g></svg></body>`;
 }
 
-const any = { bg: DARK_BG, ball: BRAND, check: "#ffffff", scale: 0.62 };
-// Launchers crop maskable icons to a circle or squircle; the W3C safe zone is
-// the central 80%, so the mark stays well inside it.
-const maskable = { bg: BRAND, ball: "#ffffff", check: BRAND, scale: 0.58 };
+// One look everywhere: every tile is the dark ground with the orange ball, the
+// same composition as public/apple-touch-icon.png, so the app reads as one
+// icon whichever platform installs it. The maskable variant differs only in
+// scale — launchers crop it to a circle or squircle, and the W3C safe zone is
+// the central 80%, so the mark sits further in.
+const tileSpec = { bg: DARK_BG, ball: BRAND, check: "#ffffff" };
+const any = { ...tileSpec, scale: 0.62 };
+const maskable = { ...tileSpec, scale: 0.56 };
 const jobs = [
   ["icon-192.png", 192, any],
   ["icon-512.png", 512, any],
