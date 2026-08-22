@@ -9,6 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import {
+  PickSheetActionBar,
+  pickSheetActionBarClearanceClassName,
+} from "@/components/league/pick-sheet-action-bar";
 import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
 import { SlatePreview } from "@/components/league/slate-preview";
 import { SurvivorGameRow, SurvivorPickedGameRow } from "@/components/league/survivor-game-row";
@@ -334,7 +338,9 @@ function SurvivorPickSheet({
             the last row's controls when scrolled to the bottom — and is dropped
             with the bar, since the reserved gap reads as a broken layout with
             nothing in it. */}
-        <CardContent className={cn("flex flex-col gap-4", canPick && "pb-24")}>
+        <CardContent
+          className={cn("flex flex-col gap-4", canPick && pickSheetActionBarClearanceClassName)}
+        >
           {!frozen && openGames.length === 0 && !saved && (
             <p className="text-sm text-muted-foreground">You didn&apos;t make a pick this week.</p>
           )}
@@ -360,53 +366,47 @@ function SurvivorPickSheet({
         </CardContent>
       </Card>
 
-      {/* Fixed rather than CSS-sticky, and z-20, for the reasons
-          pickem-picks.tsx's bar states: Card's `overflow-hidden` breaks a sticky
-          descendant, and the app's layering puts the tab bar (30) and header
-          (40) above this. */}
       {canPick && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            {/* Named for what it reports — whether the sheet holds unsaved
-                changes — not "pick status", which is the dashboard glance's
-                claim about the week (ELM-6) and carries a machine value this
-                line has no equivalent of. */}
-            <p data-testid="survivor-pick-save-state" className="text-sm text-muted-foreground">
-              {/* A change away from a saved pick names both teams — the member
-                  asked to see what they'd be replacing without leaving the
-                  sheet (FB-18). */}
-              {heldTeam
-                ? changed
-                  ? savedTeam
-                    ? `${heldTeam.name} selected — replaces ${savedTeam.name} when saved`
-                    : `${heldTeam.name} selected — not saved yet`
-                  : `Your pick: ${heldTeam.name}`
-                : "No pick yet this week"}
-            </p>
-            {/* Disabled in place while the write is in flight, and the label
-                never changes — outcome feedback is the toast the mutation
-                raises. Nothing else on the sheet is disabled by it: the member
-                may keep choosing while it lands. */}
-            <div className="flex shrink-0 gap-2">
-              {/* Drops the unsaved selection, falling back to whatever the
-                  server has on record — the way out of a mis-tap before it's
-                  committed (FB-18). Gone once nothing is pending, because an
-                  Undo that undoes nothing is a broken promise. */}
-              {changed && (
-                <Button
-                  variant="outline"
-                  disabled={submit.isPending}
-                  onClick={() => setSelection(null)}
-                >
-                  Undo
-                </Button>
-              )}
-              <Button disabled={!changed || submit.isPending} onClick={handleSave}>
-                Save pick
+        <PickSheetActionBar>
+          {/* Named for what it reports — whether the sheet holds unsaved
+              changes — not "pick status", which is the dashboard glance's
+              claim about the week (ELM-6) and carries a machine value this
+              line has no equivalent of. */}
+          <p data-testid="survivor-pick-save-state" className="text-sm text-muted-foreground">
+            {/* A change away from a saved pick names both teams — the member
+                asked to see what they'd be replacing without leaving the
+                sheet (FB-18). */}
+            {heldTeam
+              ? changed
+                ? savedTeam
+                  ? `${heldTeam.name} selected — replaces ${savedTeam.name} when saved`
+                  : `${heldTeam.name} selected — not saved yet`
+                : `Your pick: ${heldTeam.name}`
+              : "No pick yet this week"}
+          </p>
+          {/* Disabled in place while the write is in flight, and the label
+              never changes — outcome feedback is the toast the mutation
+              raises. Nothing else on the sheet is disabled by it: the member
+              may keep choosing while it lands. */}
+          <div className="flex shrink-0 gap-2">
+            {/* Drops the unsaved selection, falling back to whatever the
+                server has on record — the way out of a mis-tap before it's
+                committed (FB-18). Gone once nothing is pending, because an
+                Undo that undoes nothing is a broken promise. */}
+            {changed && (
+              <Button
+                variant="outline"
+                disabled={submit.isPending}
+                onClick={() => setSelection(null)}
+              >
+                Undo
               </Button>
-            </div>
+            )}
+            <Button disabled={!changed || submit.isPending} onClick={handleSave}>
+              Save pick
+            </Button>
           </div>
-        </div>
+        </PickSheetActionBar>
       )}
     </>
   );

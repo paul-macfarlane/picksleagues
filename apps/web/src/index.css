@@ -151,6 +151,23 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Grows a control's tappable area to the 44pt minimum on touch screens
+   without changing its visible size (MOB-1): a pseudo-element inset
+   negatively by exactly the shortfall per axis, so a 32px icon button is hit
+   as 44px and one already 44px gains nothing. Coarse pointers only — a mouse
+   needs no slack, and the widened box would steal hover from neighbours.
+   Not for `absolute`-positioned controls: it claims `position: relative`. */
+@utility touch-hit {
+  @media (pointer: coarse) {
+    position: relative;
+    &::before {
+      content: "";
+      position: absolute;
+      inset: min(0px, calc((100% - 44px) / 2));
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -160,6 +177,27 @@
   }
   html {
     @apply font-sans;
+    /* Installed-app feel (MOB-1). Rubber-banding past the document's edge
+       drags the whole shell — including the sticky header — on iOS, which
+       is the single clearest "this is a website" tell. The grey tap flash is
+       the second; it's inherited, so one declaration covers every control. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Without this a tap waits ~300ms for a possible double-tap-to-zoom before
+     it fires, and a pick sheet that answers late reads as one that missed
+     the tap. `manipulation` keeps pinch-zoom, drops only the double-tap. */
+  a,
+  button,
+  summary,
+  label,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [role="menuitem"],
+  [role="tab"] {
+    touch-action: manipulation;
   }
   /* One home for the heading voice (LNCH-9) rather than a font-heading class
      sprinkled per file; components needing it on a non-heading element

@@ -27,15 +27,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
-const navLinkClassName = "outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+const navLinkClassName = "touch-hit outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 const navLinkInactiveProps = { className: "text-muted-foreground" };
 const navLinkActiveProps = {
   className: "text-foreground font-medium",
   "aria-current": "page" as const,
 };
+// Rows rather than `touch-hit`: in a stacked list the invisible expansion
+// would overlap the neighbour, so the row itself is the 44pt target.
 const drawerLinkClassName = cn(
   navLinkClassName,
-  "rounded-md px-2 py-1.5 hover:bg-muted hover:text-foreground",
+  "flex min-h-11 items-center rounded-md px-2 hover:bg-muted hover:text-foreground",
 );
 
 /**
@@ -82,12 +84,21 @@ export function AppHeader() {
           page content while staying under every overlay regardless of DOM order.
           Layering below this: TabNav sticks at z-30, and any page-level sticky
           element (e.g. the picks screen's action bar) must stay under that. */}
-      <header ref={headerRef} className="sticky top-0 z-40 border-b border-border bg-background">
+      <header
+        ref={headerRef}
+        // Safe-area padding (MOB-1): with viewport-fit=cover and a translucent
+        // status bar the header starts under the notch, and it is this
+        // background that tints the status bar. offsetHeight includes the
+        // padding, so the published --app-header-height already accounts for
+        // it. `select-none`: a long-press on nav chrome in the installed app
+        // otherwise opens the text-selection loupe.
+        className="sticky top-0 z-40 border-b border-border bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] select-none"
+      >
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-4">
             <Link
               to="/"
-              className="flex items-center gap-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="touch-hit flex items-center gap-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <BrandMark className="size-6" />
               Picks Leagues
@@ -164,7 +175,7 @@ function MobileNav() {
       >
         <MenuIcon aria-hidden="true" />
       </SheetTrigger>
-      <SheetContent>
+      <SheetContent className="select-none">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <BrandMark className="size-5" />
@@ -279,7 +290,7 @@ function SessionMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger aria-label="Open account menu">
+      <DropdownMenuTrigger aria-label="Open account menu" className="touch-hit rounded-full">
         <Avatar>
           <AvatarImage src={me.data?.image ?? undefined} alt="" />
           <AvatarFallback>{initials}</AvatarFallback>

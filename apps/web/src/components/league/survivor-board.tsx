@@ -417,7 +417,7 @@ function PickHistory({
 
   return (
     <details className="group">
-      <summary className="cursor-pointer list-none text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+      <summary className="touch-hit cursor-pointer list-none text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
         Pick history ({picks.length})
       </summary>
       <ul className="mt-2 flex flex-col gap-1.5">

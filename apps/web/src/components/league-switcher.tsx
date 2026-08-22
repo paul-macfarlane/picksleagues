@@ -46,7 +46,7 @@ export function LeagueSwitcher() {
         disabled={isLoading}
         aria-label="Switch league"
         className={cn(
-          "flex items-center gap-1 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:text-foreground",
+          "touch-hit flex items-center gap-1 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:text-foreground",
           isOnLeaguesSubtree && "font-medium text-foreground",
         )}
       >

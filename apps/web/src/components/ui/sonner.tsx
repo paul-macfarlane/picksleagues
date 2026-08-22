@@ -17,7 +17,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       // Top, not sonner's bottom-right default: at phone width the toast is
       // near-full-width along the bottom, which collides with any bottom-`fixed`
-      // action bar (league/pickem-picks.tsx's save bar, z-20) — including the
+      // action bar (league/pick-sheet-action-bar.tsx, z-20) — including the
       // failure toast whose own recovery instruction is "press Save again",
       // covered by the very toast telling you to press it. Sonner's toast
       // z-index (999999999) sits outside the app's own header(40)/tabs(30)/
@@ -43,12 +43,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // instead, so `offset` alone lands the toast 16px from the top — over the
       // header (z-40), at exactly the width this whole arrangement exists to
       // fix. Each side falls back to that 16px independently, so all four are
-      // restated here rather than just `top`.
+      // restated here rather than just `top`. The side/bottom ones add the
+      // safe-area insets (MOB-1): top needs none because the header's
+      // published height already includes its own inset padding.
       mobileOffset={{
         top: "calc(var(--app-header-height, 0px) + 1rem)",
-        right: "1rem",
-        bottom: "1rem",
-        left: "1rem",
+        right: "calc(1rem + env(safe-area-inset-right))",
+        bottom: "calc(1rem + env(safe-area-inset-bottom))",
+        left: "calc(1rem + env(safe-area-inset-left))",
       }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,

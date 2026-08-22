@@ -82,6 +82,9 @@ function SideButton({
       variant={held && !settled ? "default" : "outline"}
       aria-pressed={held}
       className={cn(
+        // The sheet's primary tap: a full 44pt row at phone width, where
+        // nearly every pick is made (MOB-1); desktop keeps the standard height.
+        "min-h-11 sm:min-h-0",
         // A held side spends most of its life disabled — a submitted week never
         // becomes editable again — so it lifts out of the standard disabled
         // dimming enough to stay readable against its outline sibling.

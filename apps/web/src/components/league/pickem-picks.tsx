@@ -28,6 +28,10 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import {
+  PickSheetActionBar,
+  pickSheetActionBarClearanceClassName,
+} from "@/components/league/pick-sheet-action-bar";
 import { PickSheetGuideLinks } from "@/components/league/pick-sheet-guide-links";
 import { SlatePreview } from "@/components/league/slate-preview";
 import { SheetGameRow, SubmittedPickRow } from "@/components/league/pickem-game-row";
@@ -322,7 +326,10 @@ function PickSheet({
             (verified at 375px) — and is dropped with the bar, since the
             reserved gap reads as a broken layout with nothing in it. */}
         <CardContent
-          className={cn("flex flex-col gap-4", openGames.length > 0 && !awaitingLines && "pb-24")}
+          className={cn(
+            "flex flex-col gap-4",
+            openGames.length > 0 && !awaitingLines && pickSheetActionBarClearanceClassName,
+          )}
         >
           {/* Reachable once the week has closed around a member who submitted
               nothing. Without it the card renders as an empty box, which reads
@@ -351,70 +358,55 @@ function PickSheet({
         </CardContent>
       </Card>
 
-      {/* Sticky action bar (feedback: submitting a 16-game slate shouldn't
-          require scrolling to the bottom to find the button). `fixed`, not CSS
-          `sticky` — Card sets `overflow-hidden` for its rounded corners, and any
-          ancestor with overflow other than visible clips/breaks a sticky
-          descendant, whereas `fixed` escapes ancestor layout entirely and
-          anchors straight to the viewport, which is exactly what we want since
-          the document is the app's only scroll container (no ancestor here sets
-          a transform/filter that would trap it). z-20 stays under the tab bar
-          (z-30) and header (z-40) per routes/_authed.tsx's layering comment, and
-          well under overlay portals (z-50). */}
       {openGames.length > 0 && !awaitingLines && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur">
-          {/* Stacks at phone width: the no-line explanation needs a line of its
-              own at 375px. Above `sm` there is room for the original single
-              line. */}
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex flex-col">
-              <p className="text-sm text-muted-foreground">
-                {pickProgressLabel(selections.size, required)}
+        <PickSheetActionBar>
+          <div className="flex flex-col">
+            <p className="text-sm text-muted-foreground">
+              {pickProgressLabel(selections.size, required)}
+            </p>
+            {/* Reconciles the count with the rows: the member can see more
+                games on screen than the target asks for, and this names the
+                difference. Deliberately not a warning — the sheet is
+                completable without them, so this reports a fact rather than an
+                obstacle. */}
+            {noLineCount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {noLineCount === 1
+                  ? "One game has no spread posted yet, so it isn't part of this week's set."
+                  : `${noLineCount} games have no spread posted yet, so they aren't part of this week's set.`}
               </p>
-              {/* Reconciles the count with the rows: the member can see more
-                  games on screen than the target asks for, and this names the
-                  difference. Deliberately not a warning — the sheet is
-                  completable without them, so this reports a fact rather than an
-                  obstacle. */}
-              {noLineCount > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {noLineCount === 1
-                    ? "One game has no spread posted yet, so it isn't part of this week's set."
-                    : `${noLineCount} games have no spread posted yet, so they aren't part of this week's set.`}
-                </p>
-              )}
-            </div>
-            <div className="flex shrink-0 items-center justify-end gap-2">
-              {/* The irreversibility confirmation ADR-0018 decision 1 requires,
-                  in the same AlertDialog idiom as the settings-reset warning.
-                  Async-button rule: disabled in place while pending, label never
-                  changes — outcome feedback is the toast the mutation raises. */}
-              <AlertDialog>
-                <AlertDialogTrigger render={<Button disabled={!complete || submit.isPending} />}>
-                  Submit picks
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {`Submit ${required} ${required === 1 ? "pick" : "picks"} for ${slate.label}?`}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {pickType === PICK_TYPE.AGAINST_THE_SPREAD
-                        ? "These picks are final for the week, at the spreads shown. Once they're in they can't be changed, replaced, or removed."
-                        : "These picks are final for the week. Once they're in they can't be changed, replaced, or removed."}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={submit.isPending}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction disabled={submit.isPending} onClick={handleSubmit}>
-                      Submit picks
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+            )}
           </div>
-        </div>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            {/* The irreversibility confirmation ADR-0018 decision 1 requires,
+                in the same AlertDialog idiom as the settings-reset warning.
+                Async-button rule: disabled in place while pending, label never
+                changes — outcome feedback is the toast the mutation raises. */}
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button disabled={!complete || submit.isPending} />}>
+                Submit picks
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {`Submit ${required} ${required === 1 ? "pick" : "picks"} for ${slate.label}?`}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {pickType === PICK_TYPE.AGAINST_THE_SPREAD
+                      ? "These picks are final for the week, at the spreads shown. Once they're in they can't be changed, replaced, or removed."
+                      : "These picks are final for the week. Once they're in they can't be changed, replaced, or removed."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={submit.isPending}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction disabled={submit.isPending} onClick={handleSubmit}>
+                    Submit picks
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </PickSheetActionBar>
       )}
     </>
   );
