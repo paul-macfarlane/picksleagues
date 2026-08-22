@@ -6,6 +6,9 @@ import { ThemeProvider } from "next-themes";
 import { ThemeColorSync } from "./components/theme-color-sync";
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
+// Side-effect import: the install-prompt listener must be armed before Chromium
+// fires `beforeinstallprompt`, which happens long before any route mounts.
+import "./lib/install-prompt";
 
 const queryClient = new QueryClient();
 const router = createRouter({ routeTree });

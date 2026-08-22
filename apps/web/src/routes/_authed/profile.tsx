@@ -16,6 +16,7 @@ import { QueryState } from "@/components/query-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAvatarPreview } from "@/lib/avatar-preview";
 import { AvatarThemePreview } from "@/components/avatar-theme-preview";
+import { InstallCard } from "@/components/install-card";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -288,6 +289,7 @@ function ProfileForm({
           </form>
         </CardContent>
       </Card>
+      <InstallCard />
       <DangerZone />
     </>
   );
