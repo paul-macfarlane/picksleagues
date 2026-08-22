@@ -39,10 +39,15 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
 // close button lives, and a scrolling popup carries that button — the only
 // named dismiss control — off-screen with the content. The call site owns an
 // inner `overflow-y-auto` region instead, so the close (and any header) stay put.
+// The bottom variant's height is *fixed*, not fit-to-content (STAT-12): its one
+// consumer flips between peer views of very different lengths, and a
+// content-sized popup moves the toggle and close button under the member's
+// thumb on every flip — short views show spare space inside a stable frame
+// instead.
 const SHEET_SIDE_CLASS_NAME = {
   left: "inset-y-0 left-0 h-full w-3/4 max-w-xs data-open:slide-in-from-left data-closed:slide-out-to-left",
   bottom:
-    "inset-x-0 bottom-0 mx-auto max-h-[85dvh] w-full rounded-t-xl data-open:slide-in-from-bottom data-closed:slide-out-to-bottom sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg sm:rounded-xl sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95",
+    "inset-x-0 bottom-0 mx-auto h-[85dvh] w-full rounded-t-xl data-open:slide-in-from-bottom data-closed:slide-out-to-bottom sm:inset-0 sm:m-auto sm:h-[min(40rem,85dvh)] sm:max-w-lg sm:rounded-xl sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95",
 } as const;
 
 function SheetContent({

@@ -78,7 +78,7 @@ numbers is never what a member lands on.
   teams' season game logs side by side — opponent, W/L, score, week. Zero new
   ingestion: served entirely from our `games` rows for the season. Mind the
   sheet's inner-scroll contract (close button stays put). _(deps: STAT-6)_
-- [ ] **STAT-12** — Stable matchup sheet/modal size (owner, 2026-08-14): the
+- [x] **STAT-12** — Stable matchup sheet/modal size (owner, 2026-08-14): the
   container resizes as the member flips Basic | Advanced | Results, moving
   the segmented control and close button mid-comparison — jarring precisely
   because these tabs are peers flipped between rapidly, not pages visited
