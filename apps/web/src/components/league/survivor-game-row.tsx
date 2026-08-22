@@ -105,6 +105,8 @@ function TeamButton({
       data-testid="survivor-team-pick"
       data-team={team.abbreviation}
       className={cn(
+        // 44pt at phone width, the same as Pick'em's side buttons (MOB-1).
+        "min-h-11 sm:min-h-0",
         // A held team spends the rest of the week disabled once its game kicks
         // off, so it lifts out of the standard disabled dimming enough to stay
         // readable beside its outline sibling (same treatment as Pick'em's held

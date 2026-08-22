@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // two-word tab ("League Picks") stacked into two lines and doubled the bar's
 // height instead of overflowing it. Every tab was one word until it wasn't.
 const tabLinkClassName =
-  "shrink-0 whitespace-nowrap border-b-2 border-transparent px-1 pb-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+  "touch-hit shrink-0 whitespace-nowrap border-b-2 border-transparent px-1 pb-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
 export const tabLinkProps = {
   className: tabLinkClassName,
@@ -35,7 +35,7 @@ export function TabNav({ label, children }: { label: string; children: ReactNode
       // elements (e.g. the picks screen's action bar) — keep those under z-30.
       // Scrolls rather than wraps: the admin bar is five tabs wide at phone
       // width, and a wrapped second row reads as a separate control.
-      className="sticky top-[var(--app-header-height,0px)] z-30 flex gap-4 overflow-x-auto border-b border-border bg-background text-sm"
+      className="sticky top-[var(--app-header-height,0px)] z-30 flex gap-4 overflow-x-auto border-b border-border bg-background text-sm select-none"
     >
       {children}
     </nav>

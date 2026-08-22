@@ -75,7 +75,9 @@ function SheetContent({
         {children}
         <SheetClose
           aria-label={closeLabel}
-          className="absolute top-3 right-3 rounded-md p-1 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          // 44pt via padding rather than `touch-hit`: that utility claims
+          // `position: relative`, and this control is absolutely placed.
+          className="absolute top-0.5 right-0.5 rounded-md p-3.5 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <XIcon className="size-4" />
         </SheetClose>

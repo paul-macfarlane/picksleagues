@@ -31,7 +31,7 @@ bars z-20 > content; overlays portal at z-50. The header publishes
 height the same way so the pick sheets' bottom padding and action bar offset
 against it rather than hardcoding.
 
-- [ ] **MOB-1** — Standalone-mode polish + touch targets. `viewport-fit=cover`
+- [x] **MOB-1** — Standalone-mode polish + touch targets. `viewport-fit=cover`
   on the viewport meta; `env(safe-area-inset-*)` padding on the header, every
   bottom-`fixed` bar (pick sheets), and the toaster's mobile offsets;
   `-webkit-tap-highlight-color: transparent` and `touch-action: manipulation`

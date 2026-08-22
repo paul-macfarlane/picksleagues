@@ -26,10 +26,21 @@ function pngSize(file: string) {
   return `${buf.readUInt32BE(16)}x${buf.readUInt32BE(20)}`;
 }
 
+const shell = readFileSync(path.resolve(import.meta.dirname, "../index.html"), "utf8");
+
 describe("web app manifest", () => {
   it("is linked from the shell every page boots from", () => {
-    const shell = readFileSync(path.resolve(import.meta.dirname, "../index.html"), "utf8");
     expect(shell).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
+  });
+
+  // Both fail silently too: without them the installed app keeps a white
+  // status bar in dark mode and a letterboxed layout above the home
+  // indicator, and nothing else in the app changes (MOB-1).
+  it("lets the installed app draw edge to edge under a theme-following status bar", () => {
+    expect(shell).toMatch(/<meta name="viewport" content="[^"]*viewport-fit=cover[^"]*" \/>/);
+    expect(shell).toContain(
+      '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />',
+    );
   });
 
   it("opens standalone at a URL inside its scope", () => {
