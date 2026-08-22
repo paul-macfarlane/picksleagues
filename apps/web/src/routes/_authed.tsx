@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/app-header";
+import { AppTabBar, appTabBarClearanceClassName } from "@/components/app-tab-bar";
 import { LegalFooter } from "@/components/legal-footer";
 
 /**
@@ -32,7 +34,7 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className={cn("flex min-h-svh flex-col", appTabBarClearanceClassName)}>
       <AppHeader />
       {/* Every authed page inherits this one column — pages never set their own
           page width, only intentionally-narrow content (single-card states,
@@ -41,6 +43,7 @@ function AuthedLayout() {
         <Outlet />
       </div>
       <LegalFooter className="mx-auto w-full max-w-5xl px-4 sm:px-6" />
+      <AppTabBar />
     </div>
   );
 }

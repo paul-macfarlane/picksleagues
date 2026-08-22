@@ -1,5 +1,6 @@
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import type { LeagueSummary } from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
 import { leagueModeLabel } from "@/lib/league";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,6 @@ export function LeagueSwitcher() {
   // /leagues/new) so the trigger stays highlighted across the whole /leagues
   // subtree: the list, a specific league, and the create-league page.
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const myLeagues = useMyLeagues();
 
   const isLoading = myLeagues.isPending || myLeagues.isError;
@@ -55,50 +55,74 @@ export function LeagueSwitcher() {
         </span>
         <ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-56 max-w-72">
-        {leagues.length === 0 ? (
-          <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => navigate({ to: "/leagues/new" })}>
-              Create league
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        ) : (
-          <>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Your leagues</DropdownMenuLabel>
-              {leagues.map((league) => {
-                const isCurrent = league.id === leagueId;
-                return (
-                  <DropdownMenuItem
-                    key={league.id}
-                    aria-current={isCurrent ? "page" : undefined}
-                    className={cn(isCurrent && "bg-accent text-accent-foreground")}
-                    onClick={() =>
-                      navigate({ to: "/leagues/$leagueId", params: { leagueId: league.id } })
-                    }
-                  >
-                    {isCurrent ? (
-                      <CheckIcon aria-hidden="true" className="shrink-0" />
-                    ) : (
-                      <span aria-hidden="true" className="size-4 shrink-0" />
-                    )}
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate">{league.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {leagueModeLabel(league.mode)}
-                      </span>
-                    </span>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate({ to: "/leagues/new" })}>
-              Create league
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
+      <LeagueMenuContent leagues={leagues} currentLeagueId={leagueId} align="start" />
     </DropdownMenu>
+  );
+}
+
+/**
+ * The switcher's menu body, shared with the phone tab bar's "League" tab
+ * (MOB-2) so both surfaces list the same leagues in the same order with the
+ * same create-league escape hatch — two menus of "your leagues" would be two
+ * places to forget the empty state.
+ */
+export function LeagueMenuContent({
+  leagues,
+  currentLeagueId,
+  align,
+  side = "bottom",
+}: {
+  leagues: readonly LeagueSummary[];
+  currentLeagueId: string | undefined;
+  align: "start" | "center" | "end";
+  side?: "top" | "bottom";
+}) {
+  const navigate = useNavigate();
+
+  return (
+    <DropdownMenuContent align={align} side={side} className="min-w-56 max-w-72">
+      {leagues.length === 0 ? (
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => navigate({ to: "/leagues/new" })}>
+            Create league
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      ) : (
+        <>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Your leagues</DropdownMenuLabel>
+            {leagues.map((league) => {
+              const isCurrent = league.id === currentLeagueId;
+              return (
+                <DropdownMenuItem
+                  key={league.id}
+                  aria-current={isCurrent ? "page" : undefined}
+                  className={cn(isCurrent && "bg-accent text-accent-foreground")}
+                  onClick={() =>
+                    navigate({ to: "/leagues/$leagueId", params: { leagueId: league.id } })
+                  }
+                >
+                  {isCurrent ? (
+                    <CheckIcon aria-hidden="true" className="shrink-0" />
+                  ) : (
+                    <span aria-hidden="true" className="size-4 shrink-0" />
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate">{league.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {leagueModeLabel(league.mode)}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate({ to: "/leagues/new" })}>
+            Create league
+          </DropdownMenuItem>
+        </>
+      )}
+    </DropdownMenuContent>
   );
 }

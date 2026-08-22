@@ -1,4 +1,11 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import {
+  devices,
+  expect,
+  test,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { cleanup, mintSession, uniqueUsername } from "./setup/session";
 import { latestInviteCode } from "./setup/league-seed";
 import {
@@ -227,7 +234,12 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   test.beforeAll(async ({ browser }) => {
     adminContext = await browser.newContext();
     commishContext = await browser.newContext();
-    joinerContext = await browser.newContext();
+    // The joiner drives the whole journey at phone width with a touch
+    // pointer: the pick sheet is where nearly every pick is actually made, so
+    // the merge gate proves it reaches Submit under the bottom tab bar (MOB-2)
+    // and with `touch-hit`'s coarse-pointer expansion live, not only at the
+    // desktop width both projects default to.
+    joinerContext = await browser.newContext(devices["iPhone 13"]);
 
     const admin = await signInAs(adminContext, {
       appRole: APP_ROLE.ADMIN,
@@ -392,13 +404,17 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
       PICKEM_PICK_STATUS.PICKS_NEEDED,
     );
 
-    // Joiner: the exact opposite side of all four.
+    // Joiner: the exact opposite side of all four — at phone width, with the
+    // tab bar on screen the whole time (MOB-2: the action bar stacks above it,
+    // never replaces it).
     await pageB.goto(`/leagues/${leagueId}/my-picks`);
+    await expect(pageB.getByRole("navigation", { name: "Primary" })).toBeVisible();
     await selectPick(pageB, "MIA", "BUF", "MIA");
     await selectPick(pageB, "DEN", "KC", "KC");
     await selectPick(pageB, "PHI", "DAL", "DAL");
     await selectPick(pageB, "SEA", "SF", "SF");
     await submitSheet(pageB);
+    await expect(pageB.getByRole("navigation", { name: "Primary" })).toBeVisible();
 
     // One irreversible submission (ADR-0018), so the same glance now reads as
     // the week being done rather than as one pick among several still to make.

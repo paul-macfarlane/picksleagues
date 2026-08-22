@@ -16,6 +16,11 @@ Decisions (owner, 2026-08-22):
   League / Profile; league sections keep the underline `TabNav`. One nav model.
 - **The pick sheets' action bar stacks above the tab bar**, never hides it.
   Navigation that vanishes when picks are dirty confuses more than it frees.
+- **Admins get a fifth "More" tab** (Admin / Simulator) instead of keeping
+  the drawer; the drawer is gone for everyone. **The League tab navigates
+  first, switches second:** one tap opens the current league (last visited on
+  this device, else the first), and a tap while already on a league page opens
+  the switcher. (MOB-2, 2026-08-22.)
 - **Order:** MOB-1 → MOB-2 → MOB-3 are the "feels like an app" threshold and
   go first; MOB-4–7 are a second round after living with the tab bar.
 - **Not in scope:** offline shell / service worker (an offline pick screen is a
@@ -43,7 +48,7 @@ against it rather than hardcoding.
   necessarily the glyph. Verify at 375px in standalone mode (sim e2e viewport
   plus a real iPhone screenshot in `docs/evidence/test-results/MOB-1/`). Pure
   CSS/markup. _(deps: none)_
-- [ ] **MOB-2** — Bottom tab bar on phone. Below `sm`, a `fixed` bottom bar
+- [x] **MOB-2** — Bottom tab bar on phone. Below `sm`, a `fixed` bottom bar
   (z-20 tier, above page content, under `TabNav`) with Home / Browse / League /
   Profile: icon + short label, `aria-current="page"`, 44pt targets, safe-area
   bottom padding. "League" resolves to the member's current league (last

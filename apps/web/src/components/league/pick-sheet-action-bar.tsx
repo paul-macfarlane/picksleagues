@@ -2,10 +2,13 @@ import type { ReactNode } from "react";
 
 /**
  * Clearing padding for the sheet whose last rows would otherwise sit under
- * `PickSheetActionBar`: the bar's own height plus the safe-area inset the
- * bar pads by, since the inset makes the bar taller by exactly that much.
+ * `PickSheetActionBar`: the bar's own height plus whatever it stands on —
+ * below `sm` the tab bar (whose published height already includes the
+ * safe-area inset), above it the inset alone, since that is what makes the
+ * bar taller there.
  */
-export const pickSheetActionBarClearanceClassName = "pb-[calc(6rem+env(safe-area-inset-bottom))]";
+export const pickSheetActionBarClearanceClassName =
+  "pb-[calc(6rem+var(--app-tab-bar-height,0px))] sm:pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
 /**
  * The bottom-anchored action bar both pick sheets end in (feedback:
@@ -19,14 +22,16 @@ export const pickSheetActionBarClearanceClassName = "pb-[calc(6rem+env(safe-area
  * and header (z-40) per app-header.tsx's layering comment, and well under
  * overlay portals (z-50).
  *
- * Pads by the safe-area insets so the home indicator never overlaps the
- * buttons in the installed app (MOB-1); a sheet rendering this clears it
- * with `pickSheetActionBarClearanceClassName`. MOB-2's tab bar stacks under
- * this bar, never hides it (owner, 2026-08-22) — its offset lands here.
+ * Stands on `AppTabBar` below `sm` (`bottom: var(--app-tab-bar-height)`)
+ * rather than hiding it — navigation that vanishes when picks are dirty
+ * confuses more than it frees (owner, 2026-08-22). The tab bar already pads
+ * the bottom safe-area inset, so this bar pads it only from `sm` up, where it
+ * sits on the viewport edge itself (MOB-1); a sheet rendering this clears it
+ * with `pickSheetActionBarClearanceClassName`.
  */
 export function PickSheetActionBar({ children }: { children: ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur">
+    <div className="fixed inset-x-0 bottom-[var(--app-tab-bar-height,0px)] z-20 border-t border-border bg-background/95 pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] backdrop-blur sm:pb-[env(safe-area-inset-bottom)]">
       {/* Stacks at phone width: the status line and the buttons each need a
           line of their own at 375px. Above `sm` there is room for one line. */}
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">

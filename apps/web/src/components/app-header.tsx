@@ -1,16 +1,13 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { MenuIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { useMe } from "@/api/me";
-import { useMyLeagues } from "@/api/leagues";
-import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BrandMark } from "@/components/brand";
-import { Button } from "@/components/ui/button";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { SimClockBanner } from "@/components/sim-clock-banner";
 import { UserIdentity } from "@/components/user-identity";
@@ -25,7 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const navLinkClassName = "touch-hit outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 const navLinkInactiveProps = { className: "text-muted-foreground" };
@@ -33,19 +29,14 @@ const navLinkActiveProps = {
   className: "text-foreground font-medium",
   "aria-current": "page" as const,
 };
-// Rows rather than `touch-hit`: in a stacked list the invisible expansion
-// would overlap the neighbour, so the row itself is the 44pt target.
-const drawerLinkClassName = cn(
-  navLinkClassName,
-  "flex min-h-11 items-center rounded-md px-2 hover:bg-muted hover:text-foreground",
-);
 
 /**
  * The signed-in shell's header, extracted from the `_authed` layout so the
  * public static pages (rules/terms/privacy) can wear the same chrome for a
  * signed-in member — navigation back into the app must not depend on which
  * route family a page lives in. Render only with a live session: its queries
- * (`useMe`, `useMyLeagues`) assume one.
+ * (`useMe`) assume one. Pairs with `AppTabBar`, which carries the primary nav
+ * below `sm` — this header's inline nav is the `sm`-and-up half.
  */
 export function AppHeader() {
   const me = useMe();
@@ -82,8 +73,8 @@ export function AppHeader() {
       {/* Overlays (Sheet/AlertDialog/DropdownMenu/Select, see components/ui) all
           portal to document.body at z-50, so z-40 here keeps the header above
           page content while staying under every overlay regardless of DOM order.
-          Layering below this: TabNav sticks at z-30, and any page-level sticky
-          element (e.g. the picks screen's action bar) must stay under that. */}
+          Layering below this: TabNav sticks at z-30, and the page-level fixed
+          tier (AppTabBar, the picks screen's action bar) stays at z-20. */}
       <header
         ref={headerRef}
         // Safe-area padding (MOB-1): with viewport-fit=cover and a translucent
@@ -103,9 +94,8 @@ export function AppHeader() {
               <BrandMark className="size-6" />
               Picks Leagues
             </Link>
-            {/* sm and up: full inline nav + league switcher. Below sm, this
-                collapses into the hamburger drawer (MobileNav) so nothing
-                overflows at phone width. */}
+            {/* sm and up: full inline nav + league switcher. Below sm the
+                bottom AppTabBar carries primary navigation instead. */}
             <nav aria-label="Primary" className="hidden items-center gap-3 text-sm sm:flex">
               <Link
                 to="/"
@@ -147,122 +137,13 @@ export function AppHeader() {
               <LeagueSwitcher />
             </nav>
           </div>
-          <div className="flex items-center gap-2">
-            <MobileNav />
-            <SessionMenu />
-          </div>
+          <SessionMenu />
         </div>
         {/* Inside the sticky header so the "now isn't real" warning survives
             scrolling — an indicator you can scroll past is one you can forget. */}
         <SimClockBanner />
       </header>
     </>
-  );
-}
-
-function MobileNav() {
-  const [open, setOpen] = useState(false);
-  const me = useMe();
-  const myLeagues = useMyLeagues();
-  const leagues = myLeagues.data?.leagues ?? [];
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger
-        render={
-          <Button variant="ghost" size="icon" aria-label="Open navigation" className="sm:hidden" />
-        }
-      >
-        <MenuIcon aria-hidden="true" />
-      </SheetTrigger>
-      <SheetContent className="select-none">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <BrandMark className="size-5" />
-            Picks Leagues
-          </SheetTitle>
-        </SheetHeader>
-        <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
-          <Link
-            to="/"
-            className={drawerLinkClassName}
-            inactiveProps={navLinkInactiveProps}
-            activeProps={navLinkActiveProps}
-            activeOptions={{ exact: true }}
-            onClick={() => setOpen(false)}
-          >
-            Home
-          </Link>
-          <Link
-            to="/discovery"
-            className={drawerLinkClassName}
-            inactiveProps={navLinkInactiveProps}
-            activeProps={navLinkActiveProps}
-            onClick={() => setOpen(false)}
-          >
-            Browse
-          </Link>
-          {me.data?.isAdmin && (
-            <Link
-              to="/admin"
-              className={drawerLinkClassName}
-              inactiveProps={navLinkInactiveProps}
-              activeProps={navLinkActiveProps}
-              onClick={() => setOpen(false)}
-            >
-              Admin
-            </Link>
-          )}
-          {me.data?.isAdmin && me.data?.simEnabled && (
-            <Link
-              to="/sim"
-              className={drawerLinkClassName}
-              inactiveProps={navLinkInactiveProps}
-              activeProps={navLinkActiveProps}
-              onClick={() => setOpen(false)}
-            >
-              Simulator
-            </Link>
-          )}
-        </nav>
-        {leagues.length > 0 && (
-          <nav aria-label="My leagues" className="flex flex-col gap-1 text-sm">
-            <span className="px-2 py-1 text-xs font-medium text-muted-foreground">My leagues</span>
-            {leagues.map((league) => (
-              <Link
-                key={league.id}
-                to="/leagues/$leagueId"
-                params={{ leagueId: league.id }}
-                className={cn(drawerLinkClassName, "truncate")}
-                inactiveProps={navLinkInactiveProps}
-                activeProps={{
-                  ...navLinkActiveProps,
-                  className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
-                }}
-                onClick={() => setOpen(false)}
-              >
-                {league.name}
-              </Link>
-            ))}
-          </nav>
-        )}
-        {/* Same row idiom as the league links above — Router CONCATENATES base and
-            active classNames (no tailwind-merge), so a buttonVariants base whose
-            bg-background would outrank the appended bg-accent can't be used here. */}
-        <Link
-          to="/leagues/new"
-          className={drawerLinkClassName}
-          inactiveProps={navLinkInactiveProps}
-          activeProps={{
-            ...navLinkActiveProps,
-            className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
-          }}
-          onClick={() => setOpen(false)}
-        >
-          Create league
-        </Link>
-      </SheetContent>
-    </Sheet>
   );
 }
 
