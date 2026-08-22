@@ -2,7 +2,8 @@
  * The app mark (LNCH-7): a tilted football whose laces are a checkmark — the
  * pick stitched into the ball. Geometry and colors are duplicated in the
  * static brand assets (`public/favicon.svg`, `public/*.png`), which can't
- * import this component — a mark change edits both or they drift.
+ * import this component — a mark change edits both or they drift. The PWA
+ * icon set regenerates from `scripts/render-pwa-icons.mjs`.
  */
 export function BrandMark({ className }: { className?: string }) {
   return (
