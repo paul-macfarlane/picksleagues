@@ -114,6 +114,25 @@ All 43 ADRs were checked against the code their decision shapes. **Every one hol
 - 0037: holds except P5 and the tiebreak direction (E5).
 - 0043: verified by ALN-1/ALN-2 (the standards sweep swept every screen against the tiers/roles; the one straggler, `survivor-board.tsx`, was fixed in ALN-2 PR C).
 
+## ALN-4 verdicts (owner, 2026-08-23)
+
+Recorded from the owner's triage of the rows above. Where a verdict differs from the row's recommendation, the verdict wins.
+
+| Row | Verdict | Consequence |
+| --- | --- | --- |
+| P1 | **Keep 15 minutes** | Docs move (spec ×3, architecture design constraint + jobs table, runbook self-contradiction) — ALN-5 |
+| P2 | **Scope provisional readings to Pick'em** | Doc moves — ALN-5 |
+| P3 | **Derive in both modes** (differs from recommendation) | Task `PKM-11`: Pick'em also shows a client-derived outcome badge in the final-but-ungraded window, mirroring Survivor's FB-23 behavior; doc records client-side derivation as the rule for both modes |
+| P4 | **Keep pick-count disclosure** | Doc moves; the pick-summary gate's internal rationale gets reworded — ALN-5 |
+| P5 | **Keep the start date** | Doc moves — ALN-5 |
+| P6 | **Add the stamp** | Task `PKM-12`: render `lastUpdatedAt` on the weekly leaderboard |
+| P7 | **Doc scopes League Picks to Pick'em** | Doc moves; the survivor board named as Survivor's all-members equivalent — ALN-5 |
+| P8 | **Accept active-only sweep** | Doc moves — ALN-5 |
+| P9 | **Keep both stricter readings** | Doc moves — ALN-5 |
+| P10 | **Add both buttons** (differs from recommendation) | Task `ADM-6`: rebuild + settle-sweep triggers on the admin page; architecture text updated for the removed seasons browser |
+| E1–E5 | **Confirmed as a block** | Docs absorb all five — ALN-5 |
+| S1–S9 | **Confirmed as a block** | ALN-5 fixes all nine (S8's code notes ride along where trivial) |
+
 ## What ALN-5 will touch, by outcome
 
-Assuming the recommendations above: `docs/mvp-spec.md` (P1 freshness language ×3, P2/P3 provisional-and-margin mode scoping, P4 pick-count sentence, P5 discovery entry, P7 League Picks scoping, P9 deletion guard, E1/E2 into the powers table and membership rules, §Screens league-home sentence), `docs/architecture.md` (P1/S1 jobs table, S2 admin capabilities pending P10, E3 two-week pricing, E4 override fields/statuses, S7 API sketch), `docs/runbooks/jobs.md` (the ≤5-minute self-contradiction), the rules guide (no changes found — its pages state mode rules the app implements), `.env.example` (S4), and the one stale code comment (S5). P6 and P10 (if "fix") are tasks to epics 05 and 04 rather than doc edits.
+Per the verdicts above (written before triage against the recommendations; P3 and P6 now also produce `PKM-11`/`PKM-12`, and P10 produces `ADM-6`): `docs/mvp-spec.md` (P1 freshness language ×3, P2/P3 provisional-and-margin mode scoping, P4 pick-count sentence, P5 discovery entry, P7 League Picks scoping, P9 deletion guard, E1/E2 into the powers table and membership rules, §Screens league-home sentence), `docs/architecture.md` (P1/S1 jobs table, S2 admin capabilities pending P10, E3 two-week pricing, E4 override fields/statuses, S7 API sketch), `docs/runbooks/jobs.md` (the ≤5-minute self-contradiction), the rules guide (no changes found — its pages state mode rules the app implements), `.env.example` (S4), and the one stale code comment (S5). P6 and P10 (if "fix") are tasks to epics 05 and 04 rather than doc edits.
