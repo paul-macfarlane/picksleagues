@@ -5,7 +5,8 @@ reasons are ADR-0043 (the broadcast scoreboard); the rules that reviews hold
 a diff to are `.claude/rules/engineering.md` §Quality. This page is the quick
 reference: tokens, type roles, surface tiers, and what the orange may touch.
 `VIS-1` landed the tokens, roles, and tag; `VIS-2` the `Band` and `Section`
-primitives and the row class, with every surface re-classified onto a tier.
+primitives and the row class, with every surface re-classified onto a tier;
+`VIS-3` the matchup line.
 
 ## Tokens
 
@@ -67,8 +68,25 @@ object in a list), the create-league / sign-in / claim-username / join /
 not-found / no-leagues cards (a dialog-like form, centred in the column), the
 renew-season notices, the install card, the profile identity form, the welcome
 page's three mode cards, and the simulator's control cards (each a thing the
-operator acts on). The game rows on the pick sheets keep their box until
-`VIS-3`'s `MatchupLine` replaces them.
+operator acts on).
+
+## The matchup line
+
+`MatchupLine` (`apps/web/src/components/league/matchup-line.tsx`) is the one
+shape a game takes anywhere it is shown (ADR-0043 §5): two `MatchupSide`
+cells facing each other across an eyebrow centre column. The cell is logo,
+abbreviation and a numeral in the display role at `text-xl`; the numeral slot
+holds the line before kickoff and the score after it (`matchupNumerals` in
+`lib/game.ts`), and the centre holds the kickoff, the period and clock, or the
+status word (`gameStateLead`). The line is layout only — a pick sheet puts its
+`MatchupSide` inside the side control, a read-only surface renders it bare —
+and a row's state lives on the row's left rule (`rowRuleClassName`): `primary`
+for the member's own live selection, the outcome colour once graded,
+transparent otherwise. Tags (`Picked`, `Locked`, `In progress`, the grade) and
+the Stats trigger sit on the line beneath. Used by both pick sheets, the All
+Picks breakdown (where the taken side is ink and the other muted — never
+orange, it isn't the viewer's), the slate preview (no line; a score once there
+is one) and the admin games browser (override-resolved values).
 
 ## Tags
 

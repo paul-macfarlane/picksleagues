@@ -3,6 +3,7 @@ import {
   PICKEM_PICK_SIDE,
   PICK_TYPE,
   type PickType,
+  type PickemPickSide,
   type PickemMemberPicks,
   type PickemPick,
   type PickemStandingsRow,
@@ -12,7 +13,8 @@ import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
 import {
   gameStateAsOfLabel,
-  gameStateLabel,
+  gameStateLead,
+  matchupNumerals,
   pickStandingLabel,
   spreadLabel,
   spreadSourceCredit,
@@ -22,28 +24,21 @@ import { cn } from "@/lib/utils";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { rowClassName, rowRuleClassName } from "@/components/row";
 import { Section } from "@/components/section";
-import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
 
-// One pick per row: a padded block of stacked lines — what the member took,
-// where the game stands, how far ahead or behind it left them — each a group of
-// its own so no line ever wraps into another's territory, with the muted
-// background separating one pick from the next where an unbounded text stack
-// read as clutter (FB-12). One layout at every width on purpose (FB-24, owner's
+// One pick per row on the row tier: the matchup line, then the pick's own
+// facts beneath it, each a line of its own so none ever wraps into another's
+// territory (FB-12). One layout at every width on purpose (FB-24, owner's
 // call): the block briefly reverted to an inline single line at `sm`, and the
 // same list reading differently per device cost more than the desktop line
-// saved.
-//
-// The frame carries a left rule the caller colours by outcome, and the block is
-// `text-sm` rather than `text-xs` so its secondary lines have a baseline to drop
-// below — a row where every line is the smallest size gives the eye no
-// hierarchy to scan by, which is what made a week of these read as a wall
-// (FB-42).
-const PICK_ROW_CLASS_NAME =
-  "flex flex-col gap-1 rounded-md border-l-2 bg-muted/40 py-2 pr-2 pl-2.5 text-sm";
+// saved. The left rule is coloured by outcome, which is what lets a member
+// scan a week of these instead of reading each one (FB-42).
+const PICK_ROW_CLASS_NAME = cn(rowClassName, rowRuleClassName, "flex flex-col gap-1");
 
 function byMemberId(rows: readonly PickemStandingsRow[]): Map<string, PickemStandingsRow> {
   return new Map(rows.map((row) => [row.leagueMemberId, row]));
@@ -264,10 +259,10 @@ function MemberPicksSection({
         )}
 
         {picked.length > 0 && (
-          // Shallow indent at every width: the blocks are set off by their
-          // background rather than by alignment with the avatar column, and at
-          // phone width the full indent would spend 36px of a ~375px viewport.
-          <ul className="flex flex-col gap-2 pl-2">
+          // No indent: the rows are set off by their rules rather than by
+          // alignment with the avatar column, and at phone width the display
+          // type needs every pixel of a ~390px viewport.
+          <ul className="flex flex-col">
             {picked.map(({ pick, game }) => (
               <PickRow key={pick.id} pick={pick} game={game} pickType={pickType} />
             ))}
@@ -301,6 +296,10 @@ function PickRow({
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
   const spread = showSpread ? spreadLabel(pick.spread, pick.side) : null;
   const stateAsOf = gameStateAsOfLabel(game);
+  // A pick visible here has kicked off (spec §Pick Visibility), so the slots
+  // hold the score — but from `pick.spread`, never `game.spread`, should a
+  // row ever be rendered for a game the sync hasn't moved off `scheduled`.
+  const numerals = matchupNumerals(game, showSpread ? pick.spread : null);
   // Literally the same rule as the pick editor's rows, via the same function.
   // Shown for every member's revealed pick, not just the viewer's — a pick
   // visible here has kicked off, so this discloses nothing the visibility rule
@@ -310,6 +309,7 @@ function PickRow({
     { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome },
     pickType,
   );
+  const emphasisFor = (side: PickemPickSide) => (pick.side === side ? "taken" : "other");
 
   return (
     // Identified as data rather than by the "(AWAY @ HOME)" text beside the
@@ -323,46 +323,53 @@ function PickRow({
       data-picked-team={pickedTeam.abbreviation}
       className={cn(PICK_ROW_CLASS_NAME, pickOutcomeAccentClassName(pick.outcome))}
     >
-      {/* The pick and its verdict share the top line, pushed to opposite ends:
-          down a member's list both land in a column, which is what makes a week
-          scannable rather than readable. Same badge the pick editor uses, so a
-          member reading their own row here and there sees one vocabulary for
-          how a pick graded. */}
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex flex-wrap items-center gap-1.5 font-medium text-foreground">
-          <TeamLogo
-            logoLightUrl={pickedTeam.logoLightUrl}
-            logoDarkUrl={pickedTeam.logoDarkUrl}
-            size="sm"
+      {/* The side they took in ink, the other muted — not orange, since
+          another member's choice is nothing the viewer can act on (ADR-0043
+          §3); the rule and the badge carry the verdict. */}
+      <MatchupLine
+        away={
+          <MatchupSide
+            team={game.awayTeam}
+            numeral={numerals.away}
+            side="away"
+            emphasis={emphasisFor(PICKEM_PICK_SIDE.AWAY)}
           />
-          {pickedTeam.abbreviation}
-          {spread && ` ${spread}`}
-        </span>
-        {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
-      </div>
-      {/* Everything about the game drops to the secondary line: the matchup on
-          the left, its state on the right, under the two they belong to. The
-          "as of" qualifier trails the state text it's dating, dimmer still so
-          it can't be mistaken for a live badge (DATA-8; spec §UI conventions). */}
+        }
+        center={gameStateLead(game, now)}
+        home={
+          <MatchupSide
+            team={game.homeTeam}
+            numeral={numerals.home}
+            side="home"
+            emphasis={emphasisFor(PICKEM_PICK_SIDE.HOME)}
+          />
+        }
+      />
+      {/* The pick's own facts, pushed to opposite ends: what was taken and at
+          what line on the left, the verdict on the right — down a member's
+          list both land in a column, which is what makes a week scannable
+          rather than readable. Same badge the pick editor uses, so a member
+          reading their own row here and there sees one vocabulary for how a
+          pick graded. The "as of" qualifier dates a running game's reading,
+          dimmer so it can't be mistaken for a live badge (DATA-8; spec §UI
+          conventions). */}
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span>
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+        <span className="flex flex-wrap items-center gap-x-1.5">
+          <span>
+            {pickedTeam.abbreviation}
+            {spread && ` ${spread}`}
+          </span>
+          {/* The magnitude, beside the line it's measured against: it pairs
+              with the badge on a graded pick and stands alone while the game
+              is still running. */}
+          {standing && <span data-testid="pick-standing">· {standing}</span>}
+          {stateAsOf && <span className="text-muted-foreground/70">· {stateAsOf}</span>}
         </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <GameStatePill status={game.status} />
-          <span>
-            {gameStateLabel(game, now)}
-            {stateAsOf && <span className="text-muted-foreground/70"> · {stateAsOf}</span>}
-          </span>
+          {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
         </span>
       </div>
-      {/* The magnitude, under the verdict it qualifies: it pairs with the badge
-          on a graded pick and stands alone while the game is still running. */}
-      {standing && (
-        <p data-testid="pick-standing" className="text-right text-xs text-muted-foreground">
-          {standing}
-        </p>
-      )}
     </li>
   );
 }
