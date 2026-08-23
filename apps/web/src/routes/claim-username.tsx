@@ -65,7 +65,7 @@ function ClaimUsername() {
   });
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-4 sm:p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <BrandMark className="mx-auto size-12" />
@@ -102,7 +102,7 @@ function ClaimUsername() {
               className="w-full justify-center"
               disabled={claim.isPending}
             >
-              {claim.isPending ? "Claiming…" : "Continue"}
+              Continue
             </Button>
           </form>
         </CardContent>

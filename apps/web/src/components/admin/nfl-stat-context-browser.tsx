@@ -158,7 +158,7 @@ function ContextRow({ game }: { game: AdminNflGameStatContext }) {
             />
           </div>
 
-          <p className="text-xs text-muted-foreground">updated {formatDateTime(block.updatedAt)}</p>
+          <p className="type-eyebrow">updated {formatDateTime(block.updatedAt)}</p>
 
           <RowEditor label="Edit override">
             <NflStatContextOverrideForm

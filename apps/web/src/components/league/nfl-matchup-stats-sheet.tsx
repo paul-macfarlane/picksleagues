@@ -441,11 +441,13 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
           <SheetTitle>{matchupName}</SheetTitle>
         </SheetHeader>
 
-        {/* Segmented control — aria-pressed carries the state, and the
-            label never changes width (engineering rules §async buttons apply
-            the same cursor-stability logic to any toggle set). */}
+        {/* A tab set in the sheet, in `TabNav`'s shape (orange underline marks
+            position, ADR-0043 §3) rather than a pill track — aria-pressed
+            carries the state, and the label never changes width (engineering
+            rules §async buttons apply the same cursor-stability logic to any
+            toggle set). */}
         <div
-          className="flex gap-1 self-start rounded-lg bg-muted p-1"
+          className="flex gap-4 self-start border-b border-border"
           role="group"
           aria-label="Matchup view"
         >
@@ -456,9 +458,9 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
               aria-pressed={segment === option}
               onClick={() => selectSegment(option)}
               className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors",
+                "touch-hit border-b-2 border-transparent px-1 pb-2 text-sm capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                 segment === option
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "border-primary font-medium text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
