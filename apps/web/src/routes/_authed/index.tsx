@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authed/")({
 function DashboardHeader() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h1 className="text-2xl font-semibold text-foreground">Your leagues</h1>
+      <h1 className="text-2xl text-foreground">Your leagues</h1>
       <div className="flex flex-wrap items-center gap-2">
         <Link to="/discovery" className={buttonVariants({ variant: "outline", size: "lg" })}>
           Browse public leagues
@@ -134,7 +134,7 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
             {league.memberCount} member{league.memberCount === 1 ? "" : "s"}
           </span>
           {league.myRole === MEMBER_ROLE.COMMISSIONER && (
-            <StatusPill tone="accent">Commissioner</StatusPill>
+            <StatusPill tone="strong">Commissioner</StatusPill>
           )}
           {/* Renewing is commissioner-only, so the pill says whose move it is:
               an opportunity to those who can take it, status to everyone else.
@@ -214,7 +214,7 @@ function pickStatusGlance(league: LeagueSummary): {
  */
 const SURVIVOR_GLANCE = {
   [SURVIVOR_PICK_STATUS.ELIMINATED]: { tone: "danger", label: "Eliminated" },
-  [SURVIVOR_PICK_STATUS.WON]: { tone: "accent", label: "Winner" },
+  [SURVIVOR_PICK_STATUS.WON]: { tone: "success", label: "Winner" },
   [SURVIVOR_PICK_STATUS.PICK_IN]: { tone: "success", label: "Pick in" },
   [SURVIVOR_PICK_STATUS.PICK_NEEDED]: { tone: "highlight", label: "Pick needed" },
   [SURVIVOR_PICK_STATUS.LOCKED]: { tone: "neutral", label: "Week closed" },

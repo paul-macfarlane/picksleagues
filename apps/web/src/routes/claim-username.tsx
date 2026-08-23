@@ -69,7 +69,7 @@ function ClaimUsername() {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <BrandMark className="mx-auto size-12" />
-          <h1 className="text-2xl font-semibold text-foreground">Choose your username</h1>
+          <h1 className="text-2xl text-foreground">Choose your username</h1>
           <CardDescription>
             3-20 characters: letters, numbers, and underscores. This is how other players will see
             you.

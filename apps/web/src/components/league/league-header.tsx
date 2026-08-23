@@ -33,8 +33,8 @@ export function LeagueHeader({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill className="capitalize">{league.visibility}</StatusPill>
-            {isCommissioner && <StatusPill tone="accent">Commissioner</StatusPill>}
+            <StatusPill>{league.visibility}</StatusPill>
+            {isCommissioner && <StatusPill tone="strong">Commissioner</StatusPill>}
           </div>
         </div>
       </CardHeader>

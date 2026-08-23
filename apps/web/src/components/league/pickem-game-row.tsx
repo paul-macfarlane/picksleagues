@@ -189,7 +189,7 @@ export function SheetGameRow({
           <Matchup game={game} />
           <NflMatchupStats game={game} />
         </div>
-        {selectedSide !== undefined && <StatusPill tone="accent">Picked</StatusPill>}
+        {selectedSide !== undefined && <StatusPill tone="strong">Picked</StatusPill>}
         {noLineYet && <StatusPill>No line yet</StatusPill>}
       </div>
 
@@ -280,7 +280,7 @@ export function SubmittedPickRow({
         ) : inProgress ? (
           <GameStatePill status={game.status} />
         ) : rowState === "picked" ? (
-          <StatusPill tone="accent">Picked</StatusPill>
+          <StatusPill tone="strong">Picked</StatusPill>
         ) : (
           game.locked && <StatusPill data-testid="lock-state">Locked</StatusPill>
         )}

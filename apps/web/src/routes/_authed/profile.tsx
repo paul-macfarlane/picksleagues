@@ -158,7 +158,7 @@ function ProfileForm({
       {/* Every top-level page carries this heading in this style — the identity
           card below shows *who* you are, which is not the same as naming the
           page for a screen reader landing on it. */}
-      <h1 className="self-start text-2xl font-semibold text-foreground">Your profile</h1>
+      <h1 className="self-start text-2xl text-foreground">Your profile</h1>
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <UserIdentity

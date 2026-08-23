@@ -159,7 +159,7 @@ export function SurvivorGameRow({
             came here for, and the state line below already carries the game's
             own status for every game that has started. */}
         {heldTeamId !== null ? (
-          <StatusPill tone="accent" data-testid="survivor-pick-state">
+          <StatusPill tone="strong" data-testid="survivor-pick-state">
             Your pick
           </StatusPill>
         ) : (
@@ -316,7 +316,7 @@ export function SurvivorPickedGameRow({
         {grade ? (
           <PickOutcomeBadge outcome={grade} />
         ) : (
-          <StatusPill tone="accent" data-testid="survivor-pick-state">
+          <StatusPill tone="strong" data-testid="survivor-pick-state">
             Your pick
           </StatusPill>
         )}

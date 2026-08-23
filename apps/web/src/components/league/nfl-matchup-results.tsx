@@ -66,9 +66,7 @@ function GameLogColumn({
                 ) : (
                   <>
                     <span className="text-muted-foreground">{scoreLabel(entry)}</span>{" "}
-                    <span className="text-[10px] font-medium tracking-wide text-primary uppercase">
-                      Live
-                    </span>
+                    <span className="type-eyebrow text-foreground">Live</span>
                   </>
                 )}
               </span>
