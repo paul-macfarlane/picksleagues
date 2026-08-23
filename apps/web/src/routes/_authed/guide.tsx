@@ -27,7 +27,13 @@ function AdminGuide() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <h1 className="text-2xl text-foreground">Admin guide</h1>
+      {/* Eyebrow over the title, the shape every other guide page takes
+          (`StaticPage`) — the one static page under the admin chrome reads as
+          the same kind of page as the rules it sits beside. */}
+      <header className="flex flex-col gap-1.5">
+        <p className="type-eyebrow">Guide</p>
+        <h1 className="text-2xl text-foreground">Admin guide</h1>
+      </header>
       <div className="max-w-2xl">
         <StaticProse>
           <section>

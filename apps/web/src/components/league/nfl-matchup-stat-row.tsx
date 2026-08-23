@@ -69,15 +69,17 @@ export function StatRow({
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1.5">
-      <span className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
+      {/* Display role at the 20px floor: one figure per column fits at 390px
+          where the standings' joined W-L-P record does not. */}
+      <span className="type-display flex items-center gap-1.5 text-xl">
         {away}
         {advantage === "away" && <EdgeDot />}
       </span>
-      <span className="text-center text-xs text-muted-foreground">
+      <span className="type-eyebrow text-center">
         {label}
-        {subLabel && <span className="block text-[10px] text-muted-foreground/70">{subLabel}</span>}
+        {subLabel && <span className="block normal-case tracking-normal">{subLabel}</span>}
       </span>
-      <span className="flex items-center justify-end gap-1.5 text-right text-sm font-medium tabular-nums">
+      <span className="type-display flex items-center justify-end gap-1.5 text-right text-xl">
         {advantage === "home" && <EdgeDot />}
         {home}
       </span>
