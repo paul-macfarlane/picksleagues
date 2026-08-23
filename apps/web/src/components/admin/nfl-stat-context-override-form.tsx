@@ -42,7 +42,7 @@ function SideFields({
 }) {
   return (
     <fieldset className="flex min-w-0 flex-col gap-3">
-      <legend className="text-xs font-semibold text-foreground">{label}</legend>
+      <legend className="type-eyebrow">{label}</legend>
       <form.Field name={`${side}:injuries`}>
         {(field) => (
           <FormTextareaField

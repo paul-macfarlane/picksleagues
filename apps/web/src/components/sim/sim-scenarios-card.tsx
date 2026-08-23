@@ -32,7 +32,7 @@ function ScenarioRow({
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-foreground">{name}</p>
-          {active && <StatusPill>Active</StatusPill>}
+          {active && <StatusPill tone="strong">Active</StatusPill>}
         </div>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
         <p className="text-xs text-muted-foreground">{meta}</p>
@@ -61,7 +61,7 @@ export function SimScenariosCard({ state }: { state: SimStateResponse }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-foreground">Edge-case scenarios</h3>
+          <h3 className="text-sm">Edge-case scenarios</h3>
           <ul className="flex flex-col">
             {state.library.map((entry) => {
               const persisted = state.scenarios.find((scenario) => scenario.slug === entry.slug);
@@ -83,7 +83,7 @@ export function SimScenariosCard({ state }: { state: SimStateResponse }) {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-foreground">Imported seasons</h3>
+          <h3 className="text-sm">Imported seasons</h3>
           {importedSeasons.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No seasons imported yet — use the replay import below.

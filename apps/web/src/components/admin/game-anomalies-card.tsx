@@ -1,9 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import type { AdminGame } from "@picksleagues/schemas";
+import { cn } from "@/lib/utils";
+import { rowClassName, rowRuleClassName } from "@/components/row";
 import { useAdminGameAnomalies } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, scoreText } from "@/lib/game";
+import { adminGameEffective, gameStatusLabel, matchupNumerals } from "@/lib/game";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { Section } from "@/components/section";
+import { buttonVariants } from "@/components/ui/button";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryState } from "@/components/query-state";
@@ -41,7 +45,7 @@ export function GameAnomaliesCard() {
         // ran", and those need opposite responses.
         emptyMessage="All clear — no game is unlocked with a knowable outcome."
       >
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col">
           {games.map((game) => (
             <AnomalyRow key={game.id} game={game} />
           ))}
@@ -61,30 +65,41 @@ function AnomaliesSkeleton() {
 
 function AnomalyRow({ game }: { game: AdminGame }) {
   const matchup = `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`;
+  const effective = adminGameEffective(game);
+  const numerals = matchupNumerals(effective, game.effectiveSpread);
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex flex-col gap-1">
-        <p
-          className="text-sm font-medium text-foreground"
-          title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-        >
-          {matchup}
-        </p>
-        <p className="text-xs text-foreground">
-          Kickoff {formatDateTime(game.effectiveKickoffAt)}
-          <span className="text-muted-foreground">
-            {" · "}
-            {gameStatusLabel(game.effectiveStatus)}
-            {scoreText(game.effectiveAwayScore, game.effectiveHomeScore)}
-          </span>
-        </p>
+    // The rule is destructive rather than a bordered box (ADR-0043 §2): a row
+    // inside a section never draws its own border, and the colour on the edge
+    // is what says "this one is wrong" without nesting a surface.
+    <li
+      className={cn(
+        rowClassName,
+        rowRuleClassName,
+        "flex flex-col gap-2 border-l-destructive sm:flex-row sm:items-center sm:justify-between",
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* The score sits in the numeral slot while the kickoff is still
+            ahead — that contradiction *is* the anomaly, and the line shows it
+            as a member would see it. The centre is the absolute kickoff, not
+            `gameStateLead`: a status word would hide the instant the row is
+            about. */}
+        <MatchupLine
+          away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
+          center={`Kickoff ${formatDateTime(game.effectiveKickoffAt)}`}
+          home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}
+        />
+        <p className="text-xs text-muted-foreground">{gameStatusLabel(game.effectiveStatus)}</p>
       </div>
       <Link
         to="/admin/games"
         search={{ weekId: game.weekId }}
         aria-label={`Open ${matchup} in the games browser`}
-        className="self-start rounded-md border border-border px-2 py-1 text-xs text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "self-start sm:self-center",
+        )}
       >
         Open week
       </Link>

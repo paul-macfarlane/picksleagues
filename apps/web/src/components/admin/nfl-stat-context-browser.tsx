@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { rowClassName } from "@/components/row";
 import type {
@@ -10,7 +9,8 @@ import { useAdminNflStatContexts } from "@/api/admin-nfl-stats";
 import { formatDateTime } from "@/lib/format";
 import { NflStatContextOverrideForm } from "@/components/admin/nfl-stat-context-override-form";
 import { nflContextOverrideFormSeed } from "@/components/admin/nfl-context-override-patch";
-import { ResolvedField } from "@/components/admin/override-display";
+import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import {
   seasonLabel,
   useAdminSeasonWeekSelection,
@@ -19,6 +19,7 @@ import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { RowEditor } from "@/components/row-editor";
 
 /** One line's worth of a side's context — compact on purpose; the form has the detail. */
 function sideSummary(context: NflGameStatsTeamContext): string {
@@ -125,26 +126,20 @@ export function NflStatContextBrowser({
 }
 
 function ContextRow({ game }: { game: AdminNflGameStatContext }) {
-  const [editOpen, setEditOpen] = useState(false);
   const block = game.context;
 
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p
-          className="text-sm font-medium text-foreground"
-          title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-        >
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-        </p>
-        {block !== null && block.overriddenAt !== null && (
-          <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">
-            Overridden
-          </span>
-        )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">kickoff {formatDateTime(game.kickoffAt)}</p>
+      {/* No numeral: this browser is about the context *around* a game, and a
+          spread or score here would be a second copy of the games browser's
+          line. The kickoff takes the centre instead of a state word — an
+          absolute instant, since the question is which slate this row is in. */}
+      <MatchupLine
+        away={<MatchupSide team={game.awayTeam} numeral={null} side="away" />}
+        center={formatDateTime(game.kickoffAt)}
+        home={<MatchupSide team={game.homeTeam} numeral={null} side="home" />}
+      />
+      {block !== null && block.overriddenAt !== null && <OverriddenTag className="self-start" />}
 
       {block ? (
         <>
@@ -165,20 +160,13 @@ function ContextRow({ game }: { game: AdminNflGameStatContext }) {
 
           <p className="text-xs text-muted-foreground">updated {formatDateTime(block.updatedAt)}</p>
 
-          {/* Same open/remount contract as the sibling browsers — the form
-              re-seeds when the stored override layer changes server-side. */}
-          <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
-            <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-              Edit override
-            </summary>
-            {editOpen && (
-              <NflStatContextOverrideForm
-                key={JSON.stringify(nflContextOverrideFormSeed(block))}
-                game={game}
-                block={block}
-              />
-            )}
-          </details>
+          <RowEditor label="Edit override">
+            <NflStatContextOverrideForm
+              key={JSON.stringify(nflContextOverrideFormSeed(block))}
+              game={game}
+              block={block}
+            />
+          </RowEditor>
         </>
       ) : (
         <p className="text-xs text-muted-foreground">

@@ -68,12 +68,14 @@ function LogoPreview({
             className="size-10 object-contain"
           />
         ) : (
-          <span className={cn("text-[10px]", tone === "light" ? "text-zinc-400" : "text-zinc-600")}>
+          <span
+            className={cn("type-eyebrow", tone === "light" ? "text-zinc-400" : "text-zinc-600")}
+          >
             none
           </span>
         )}
       </div>
-      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <span className="type-eyebrow">{label}</span>
     </div>
   );
 }

@@ -8,7 +8,8 @@ reference: tokens, type roles, surface tiers, and what the orange may touch.
 primitives and the row class, with every surface re-classified onto a tier;
 `VIS-3` the matchup line; `VIS-4` the subject band and the league card;
 `VIS-5` the boards, the week picker, and the pick-sheet count; `VIS-6` the
-public and auth surfaces, with `Figures` as the one home for the numeral slot.
+public and auth surfaces, with `Figures` as the one home for the numeral slot;
+`VIS-7` the admin and simulator hand-pass.
 
 ## Tokens
 
@@ -81,6 +82,22 @@ eyebrows. The sign-in and claim-username panels keep their shape with the
 title in display at `text-3xl`, and the invite card is the hub card's shape —
 `LeagueCardStrip` on top, `Figures` and the shared `leagueTimingLine` beneath —
 so a member joins the same object they will later see on the hub.
+
+The operator surfaces speak it too. The sim-clock strip in the sticky header
+is a ticker: a `SIMULATED TIME` eyebrow, the instant as a display numeral at
+the 20px floor, the scenario as a second eyebrow, on the `accent` tint — not
+ink, which is the league band's, and not orange, which would claim an action
+where there is only a warning. The Clock panel's readings (simulated now, real
+now, offset) are `Figures` at `text-xl`; the scenario name stays
+eyebrow-over-body, since a name in condensed caps wraps badly at 390px. Every
+game an operator sees — the games browser, the integrity list, the stat
+context browser, the sim fixtures — is a `MatchupLine`, with the kickoff in
+the centre where the row is about *which* slate rather than a game's state.
+A row's detail block is a stack of `LabeledValue` lines (eyebrow beside the
+value; `ResolvedField` adds the provider's value when an override masks it),
+`OverriddenTag` is the one danger tag on a corrected row, and `RowEditor` is
+the disclosure every inline editor opens from. The integrity list's rows carry
+a destructive left rule instead of a bordered box.
 
 ## Surface tiers
 
