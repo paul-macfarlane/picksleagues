@@ -1,23 +1,19 @@
-import {
-  GAME_STATUS,
-  PICK_OUTCOME,
-  isUnplayedStatus,
-  type GameStatus,
-  type PickOutcome,
-} from "@picksleagues/schemas";
+import { PICK_OUTCOME, type GameStatus, type PickOutcome } from "@picksleagues/schemas";
+import { terminalPickOutcome } from "@picksleagues/scoring";
 
 /**
  * The outcome a Survivor pick will grade to, derived from its game's terminal
  * state ahead of settlement (FB-23). Survivor settles week-atomically
  * (ADR-0025), so a pick whose game finished Sunday holds no stored result
  * until the whole week ends — and a completed pick with nothing on it read as
- * unacknowledged. This mirrors settlement's per-pick mapping (`gradePick` in
- * `packages/scoring/src/survivor.ts`: cancelled → push, win → correct, tie →
- * push, loss → incorrect), which can never disagree with it for a single pick;
- * only week-level consequences (elimination, revival, the team ledger) wait for
- * the settled week. Deliberately a different stance from Pick'em's
- * `pickStandingLabel`, which stays silent between final and settlement — here
- * the derivation *is* the verdict shown, so there is no unconfirmed reading.
+ * unacknowledged. The verdict is settlement's own mapping — `gradePick` in
+ * `packages/scoring/src/survivor.ts` grades through the same
+ * `pickOutcomeForMargin` this calls via `terminalPickOutcome` — so it can
+ * never disagree for a single pick; only week-level consequences
+ * (elimination, revival, the team ledger) wait for the settled week. The
+ * derivation is the verdict shown, so there is no unconfirmed reading —
+ * Pick'em took the same stance in PKM-11 (`pickemPickGrade`), so both modes
+ * show a verdict the moment a game ends.
  *
  * Null while the game is still ahead or in play, and on a final without scores
  * (the provider fault an admin score override corrects) — the row keeps its
@@ -33,16 +29,16 @@ export function survivorProvisionalOutcome(
   },
   teamId: string,
 ): PickOutcome | null {
-  if (isUnplayedStatus(game.status)) return PICK_OUTCOME.PUSH;
-  if (game.status !== GAME_STATUS.FINAL) return null;
-  if (game.homeScore === null || game.awayScore === null) return null;
-
+  // The picked team's scoreboard margin — Survivor is straight-up only
+  // (ADR-0026), so no spread. The same one subtraction as settlement's
+  // `pickedTeamMargin`, kept as a copy rather than shared because the error
+  // postures differ: settlement throws on a team outside its game (a loader
+  // bug there), while here that is the caller's documented obligation —
+  // `teamId` is "always one of this game's two" — not something to re-detect.
   const pickedHome = teamId === game.homeTeam.id;
-  const own = pickedHome ? game.homeScore : game.awayScore;
-  const opposing = pickedHome ? game.awayScore : game.homeScore;
-  if (own > opposing) return PICK_OUTCOME.CORRECT;
-  if (own < opposing) return PICK_OUTCOME.INCORRECT;
-  return PICK_OUTCOME.PUSH;
+  return terminalPickOutcome(game, (homeScore, awayScore) =>
+    pickedHome ? homeScore - awayScore : awayScore - homeScore,
+  );
 }
 
 /** The shape a survivor board pick entry needs to carry for grading here. */

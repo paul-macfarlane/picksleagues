@@ -1,5 +1,6 @@
 // Pure settlement/scoring functions per game mode (arch §Settlement & Scoring).
 // Zero I/O by rule: this package never imports from db or core.
+export * from "./pick-outcome";
 export * from "./pickem";
 export * from "./standings";
 export * from "./survivor";

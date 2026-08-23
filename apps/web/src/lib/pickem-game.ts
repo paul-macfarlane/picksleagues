@@ -6,7 +6,35 @@ import {
   type PickOutcome,
   type PickType,
 } from "@picksleagues/schemas";
-import { pickMargin } from "@picksleagues/scoring";
+import { pickMargin, terminalPickOutcome } from "@picksleagues/scoring";
+
+/**
+ * The verdict a pick row shows: the settled grade, else the one derived from
+ * its game's terminal state (PKM-11, spec §Settled pick margin). Settlement
+ * rides the score sync's cadence, so a final game's pick sits ungraded for up
+ * to a sync interval — and a decided game showing nothing there reads as the
+ * app not knowing something the scoreboard already says. The derivation *is*
+ * settlement's own: `terminalPickOutcome` over `pickMargin`, both from
+ * `packages/scoring`, so the settled grade that replaces it can never
+ * disagree — there is no second copy of the mapping here to drift.
+ *
+ * Null when there is no verdict to show: the game is still ahead or in play,
+ * it is final without scores (the provider fault an admin score override
+ * corrects — settlement refuses that one too), or an ATS pick carries no
+ * spread to measure against.
+ */
+export function pickemPickGrade(
+  game: { status: GameStatus; homeScore: number | null; awayScore: number | null },
+  pick: { side: PickemPickSide; spreadAtPick: number | null; outcome: PickOutcome | null },
+  pickType: PickType,
+): PickOutcome | null {
+  return (
+    pick.outcome ??
+    terminalPickOutcome(game, (homeScore, awayScore) =>
+      pickMargin(pick, homeScore, awayScore, pickType),
+    )
+  );
+}
 
 /**
  * Where a pick stands, in the one phrasing its moment allows — the single home
@@ -20,10 +48,12 @@ import { pickMargin } from "@picksleagues/scoring";
  * Two moments say something, and they never overlap:
  *
  * - **In progress** → a provisional reading (see `provisionalMarginLabel`).
- * - **Graded** → the settled reading (see `settledMarginLabel`). Keyed on the
- *   grade's existence rather than on `FINAL`, so the window between a game
- *   ending and the settlement sweep landing shows nothing: a reading with no
- *   badge beside it to confirm it is worse than silence.
+ * - **Graded** → the settled reading (see `settledMarginLabel`). Keyed on
+ *   `pickemPickGrade` — settled *or* derived from the final score — so the
+ *   window between a game ending and the settlement sweep landing reads in
+ *   the past tense beside the derived badge that confirms it (PKM-11; this
+ *   window used to show nothing, back when no badge existed to confirm a
+ *   reading).
  *
  * Null when there is nothing honest to say: no scores yet, an ATS pick with no
  * spread to measure against, or a push — which has no margin to state whether it
@@ -36,7 +66,7 @@ export function pickStandingLabel(
 ): string | null {
   if (game.awayScore === null || game.homeScore === null) return null;
 
-  const graded = pick.outcome !== null;
+  const graded = pickemPickGrade(game, pick, pickType) !== null;
   if (!graded && game.status !== GAME_STATUS.IN_PROGRESS) return null;
 
   const margin = pickMargin(pick, game.homeScore, game.awayScore, pickType);
