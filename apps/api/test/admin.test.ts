@@ -79,3 +79,47 @@ describe("POST /api/admin/jobs/nfl/{job}", () => {
     expect(body.details).toMatchObject({ skipped: true, reason: "no_active_games" });
   });
 });
+
+describe("POST /api/admin/jobs/settle-sweep", () => {
+  function postSettleSweep(app: ReturnType<typeof buildApp>, cookie: string | undefined) {
+    return app.request("/api/admin/jobs/settle-sweep", {
+      method: "POST",
+      headers: withCookie(cookie),
+    });
+  }
+
+  it("401s with no session cookie", async () => {
+    const app = buildApp();
+
+    const res = await postSettleSweep(app, undefined);
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "unauthenticated" });
+  });
+
+  it("403s for an authenticated caller who isn't an admin", async () => {
+    const app = buildApp();
+    const { cookie } = await createAuthenticatedUser(auth);
+
+    const res = await postSettleSweep(app, cookie);
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "not_admin" });
+  });
+
+  it("200s with the sweep summary for an admin caller", async () => {
+    const { user, cookie } = await createAuthenticatedUser(auth);
+    await grantAdmin(db, user.id);
+    const app = buildApp();
+
+    const res = await postSettleSweep(app, cookie);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as JobRunResponse;
+    expect(body.job).toBe("settle-sweep");
+    // The sweep never skips: with no active league seasons seeded it still
+    // completes, reporting an empty summary rather than a skip envelope.
+    expect(body.status).toBe("ok");
+    expect(body.details).toMatchObject({ leagueSeasons: 0, results: 0, failed: 0 });
+  });
+});

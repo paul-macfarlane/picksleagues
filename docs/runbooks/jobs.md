@@ -147,7 +147,12 @@ curl -X POST -H "x-job-secret: $JOB_SECRET" \
 ```
 
 The guard hook in `.claude/hooks/` prompts before job calls against non-local hosts.
-The admin page (ADM epic) will add button-press triggers using the same endpoints.
+The admin page's Jobs tab has button-press triggers for the four NFL syncs and the
+settlement sweep (`ADM-6`), backed by the session-gated `/api/admin/jobs/*` twins of
+these endpoints. The per-league rebuild (`POST /api/admin/leagues/:id/rebuild`) is
+deliberately button-less (owner re-verdict on `ADM-6`, 2026-08-23) — it is
+admin-session-gated, not secret-gated, so invoke it with a signed-in browser session's
+cookie (locally, mint one per `docs/runbooks/verification.md`).
 
 ## Reading a run
 

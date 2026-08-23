@@ -75,8 +75,39 @@ export function useRunNflSyncJob() {
         toast.info(skipMessage(data.job, data.details?.reason));
         return;
       }
-      toastSuccess(`Ran ${data.job} in ${data.durationMs}ms`);
+      toastSuccess(`Ran ${data.job} in ${Math.round(data.durationMs)}ms`);
       await queryClient.invalidateQueries({ queryKey: ADMIN_QUERY_KEY_PREFIX });
+    },
+    onError: () => toast.error("Job failed — check the server logs."),
+  });
+}
+
+/**
+ * The settlement sweep's manual trigger (ADM-6) — same envelope as the sync
+ * jobs, but the sweep never skips (it always recomputes its active set), so
+ * there is no skip branch here. On success the *whole* cache is invalidated,
+ * not just the admin prefix: the sweep rewrites pick results and standings
+ * across every active league, and — as with `useSetGameOverride` below — the
+ * set of member-facing surfaces derived from them isn't enumerable
+ * client-side without a key list that silently goes stale.
+ */
+export function useRunSettleSweep() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST("/api/admin/jobs/settle-sweep");
+      if (error) {
+        // Same "go check the logs" copy as the sync jobs: the admin page has
+        // no per-status recovery action for a failed run.
+        toast.error("Job failed — check the server logs.");
+        return null;
+      }
+      return data;
+    },
+    onSuccess: async (data) => {
+      if (!data) return;
+      toastSuccess(`Ran ${data.job} in ${Math.round(data.durationMs)}ms`);
+      await queryClient.invalidateQueries();
     },
     onError: () => toast.error("Job failed — check the server logs."),
   });

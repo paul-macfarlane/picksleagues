@@ -1,8 +1,6 @@
 import { NFL_SYNC_JOB, type NflSyncJob } from "@picksleagues/schemas";
-import { cn } from "@/lib/utils";
-import { rowClassName } from "@/components/row";
 import { useRunNflSyncJob } from "@/api/admin";
-import { Button } from "@/components/ui/button";
+import { JobTriggerRow } from "@/components/admin/job-trigger-row";
 import { Section } from "@/components/section";
 
 // Row copy for the manual sync triggers — kept here rather than in the
@@ -57,24 +55,11 @@ function SyncJobRow({
   const runJob = useRunNflSyncJob();
 
   return (
-    <div
-      className={cn(
-        rowClassName,
-        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",
-      )}
-    >
-      <div className="flex flex-col gap-0.5">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={runJob.isPending && runJob.variables === job}
-        onClick={() => runJob.mutate(job)}
-      >
-        Run
-      </Button>
-    </div>
+    <JobTriggerRow
+      label={label}
+      description={description}
+      pending={runJob.isPending && runJob.variables === job}
+      onRun={() => runJob.mutate(job)}
+    />
   );
 }
