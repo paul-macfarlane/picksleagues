@@ -1,11 +1,8 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import {
-  ERROR_CODE,
-  ErrorResponseSchema,
-  UpdateMemberRoleRequestSchema,
-} from "@picksleagues/schemas";
+import { ERROR_CODE, UpdateMemberRoleRequestSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
+import { leagueRefusal } from "../lib/league-refusals";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import {
   errorResponse,
@@ -96,40 +93,15 @@ export function memberRoutes(deps: AppDeps) {
 
     const result = await leaveLeague(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_NOT_FOUND,
-              message: "League not found.",
-            }),
-            404,
-          );
-        case "league_started":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_STARTED,
-              message: "Membership is frozen once the league starts.",
-            }),
-            409,
-          );
-        case "sole_member":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.SOLE_MEMBER,
-              message: "You're the only member — delete the league instead of leaving it.",
-            }),
-            409,
-          );
-        case "last_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LAST_COMMISSIONER,
-              message: "Promote another commissioner before leaving.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.LEAGUE_STARTED]: "Membership is frozen once the league starts.",
+        [ERROR_CODE.SOLE_MEMBER]:
+          "You're the only member — delete the league instead of leaving it.",
+        [ERROR_CODE.LAST_COMMISSIONER]: "Promote another commissioner before leaving.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.body(null, 204);
@@ -144,42 +116,15 @@ export function memberRoutes(deps: AppDeps) {
 
     const result = await updateMemberRole(db, clock, leagueId, sessionUser.id, memberId, role);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-        case "member_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: result.reason,
-              message:
-                result.reason === "league_not_found" ? "League not found." : "Member not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can promote or demote members.",
-            }),
-            403,
-          );
-        case "cap_exceeded":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.CAP_EXCEEDED,
-              message: "That member already runs 10 active leagues.",
-            }),
-            409,
-          );
-        case "last_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LAST_COMMISSIONER,
-              message: "A league must keep at least one commissioner.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.MEMBER_NOT_FOUND]: "Member not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can promote or demote members.",
+        [ERROR_CODE.CAP_EXCEEDED]: "That member already runs 10 active leagues.",
+        [ERROR_CODE.LAST_COMMISSIONER]: "A league must keep at least one commissioner.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.body(null, 204);
@@ -193,50 +138,16 @@ export function memberRoutes(deps: AppDeps) {
 
     const result = await kickMember(db, clock, leagueId, sessionUser.id, memberId);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-        case "member_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: result.reason,
-              message:
-                result.reason === "league_not_found" ? "League not found." : "Member not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can kick members.",
-            }),
-            403,
-          );
-        case "cannot_kick_self":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.CANNOT_KICK_SELF,
-              message: "You can't kick yourself — leave the league instead.",
-            }),
-            400,
-          );
-        case "league_started":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_STARTED,
-              message: "Membership is frozen once the league starts.",
-            }),
-            409,
-          );
-        case "last_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LAST_COMMISSIONER,
-              message: "A league must keep at least one commissioner.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.MEMBER_NOT_FOUND]: "Member not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can kick members.",
+        [ERROR_CODE.CANNOT_KICK_SELF]: "You can't kick yourself — leave the league instead.",
+        [ERROR_CODE.LEAGUE_STARTED]: "Membership is frozen once the league starts.",
+        [ERROR_CODE.LAST_COMMISSIONER]: "A league must keep at least one commissioner.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.body(null, 204);

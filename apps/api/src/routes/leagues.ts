@@ -10,6 +10,7 @@ import {
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
+import { leagueRefusal } from "../lib/league-refusals";
 import {
   errorResponse,
   LEAGUE_NOT_FOUND_404,
@@ -187,19 +188,18 @@ export function leagueRoutes(deps: AppDeps) {
     const result = await createLeague(db, clock, sessionUser.id, input);
     if (!result.ok) {
       const messages = {
-        cap_exceeded: "You already run 10 active leagues — conclude or delete one first.",
-        mode_unavailable: "That game mode isn't available yet.",
-        no_active_season: "That game mode has no season available yet.",
+        [ERROR_CODE.CAP_EXCEEDED]:
+          "You already run 10 active leagues — conclude or delete one first.",
+        [ERROR_CODE.MODE_UNAVAILABLE]: "That game mode isn't available yet.",
+        [ERROR_CODE.NO_ACTIVE_SEASON]: "That game mode has no season available yet.",
         // Deliberately names no control: neither NFL mode has a range setting
         // (ADR-0024, ADR-0031), so there is nothing for the member to adjust —
         // the honest answer is when to come back.
-        start_week_passed:
+        [ERROR_CODE.START_WEEK_PASSED]:
           "This season is already underway — check back when next season's schedule is posted.",
-      } as const;
-      return c.json(
-        ErrorResponseSchema.parse({ error: result.reason, message: messages[result.reason] }),
-        409,
-      );
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.json(result.league, 201);
@@ -240,63 +240,25 @@ export function leagueRoutes(deps: AppDeps) {
 
     const result = await updateLeague(db, clock, leagueId, sessionUser.id, input);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_NOT_FOUND,
-              message: "League not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can edit the league.",
-            }),
-            403,
-          );
-        case "league_started":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_STARTED,
-              message: "Visibility and settings are locked once the league starts.",
-            }),
-            409,
-          );
-        case "start_week_passed":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.START_WEEK_PASSED,
-              message:
-                "The league's remaining weeks have already started — this change can't be saved.",
-            }),
-            409,
-          );
-        case "invalid_settings":
-          return c.json(
-            ErrorResponseSchema.parse({ error: ERROR_CODE.VALIDATION, message: result.message }),
-            400,
-          );
-        case "max_members_below_member_count":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT,
-              message: "maxMembers can't be lower than the league's current member count.",
-            }),
-            409,
-          );
-        case "picks_locked":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.PICKS_LOCKED,
-              message:
-                "This change would discard picks that have already locked — settings are frozen once picking has started.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can edit the league.",
+        [ERROR_CODE.LEAGUE_STARTED]: "Visibility and settings are locked once the league starts.",
+        [ERROR_CODE.START_WEEK_PASSED]:
+          "The league's remaining weeks have already started — this change can't be saved.",
+        [ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT]:
+          "maxMembers can't be lower than the league's current member count.",
+        [ERROR_CODE.PICKS_LOCKED]:
+          "This change would discard picks that have already locked — settings are frozen once picking has started.",
+      } as const satisfies Record<
+        Exclude<typeof result.reason, typeof ERROR_CODE.VALIDATION>,
+        string
+      >;
+      const { body, status } = leagueRefusal(
+        result.reason,
+        result.reason === ERROR_CODE.VALIDATION ? result.message : messages[result.reason],
+      );
+      return c.json(body, status);
     }
 
     return c.json(result.league, 200);
@@ -310,32 +272,13 @@ export function leagueRoutes(deps: AppDeps) {
 
     const result = await deleteLeague(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_NOT_FOUND,
-              message: "League not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can delete the league.",
-            }),
-            403,
-          );
-        case "league_started":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_STARTED,
-              message: "A league can't be deleted after it has started.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can delete the league.",
+        [ERROR_CODE.LEAGUE_STARTED]: "A league can't be deleted after it has started.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.body(null, 204);
@@ -349,7 +292,7 @@ export function leagueRoutes(deps: AppDeps) {
 
     const result = await joinPublicLeague(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
-      if (result.reason === "league_not_found") {
+      if (result.reason === ERROR_CODE.LEAGUE_NOT_FOUND) {
         return c.json(
           ErrorResponseSchema.parse({
             error: ERROR_CODE.LEAGUE_NOT_FOUND,
@@ -378,32 +321,13 @@ export function leagueRoutes(deps: AppDeps) {
 
     const result = await renewLeagueSeason(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_NOT_FOUND,
-              message: "League not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can start the next season.",
-            }),
-            403,
-          );
-        case "no_newer_season":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NO_NEWER_SEASON,
-              message: "This league is already on the latest season.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can start the next season.",
+        [ERROR_CODE.NO_NEWER_SEASON]: "This league is already on the latest season.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.json(result.league, 201);

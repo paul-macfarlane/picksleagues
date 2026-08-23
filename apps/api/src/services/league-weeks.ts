@@ -3,6 +3,7 @@ import type { Db } from "@picksleagues/db";
 import { games, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   isWeekInSeasonRange,
@@ -31,7 +32,7 @@ import { isLocked, isPickable } from "./slate";
 
 export type LeagueWeeksResult =
   | { ok: true; value: LeagueWeeksResponse }
-  | { ok: false; reason: "league_not_found" | "wrong_league_mode" };
+  | { ok: false; reason: typeof ERROR_CODE.LEAGUE_NOT_FOUND | typeof ERROR_CODE.WRONG_LEAGUE_MODE };
 
 export async function listLeagueWeeks(
   db: Db,
@@ -40,14 +41,14 @@ export async function listLeagueWeeks(
   userId: string,
 ): Promise<LeagueWeeksResult> {
   const current = await getLeagueWithCurrentSeason(db, leagueId);
-  if (!current) return { ok: false, reason: "league_not_found" };
+  if (!current) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
 
   const membership = await getMembership(db, leagueId, userId);
-  if (!membership) return { ok: false, reason: "league_not_found" };
+  if (!membership) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
 
   const mode = current.league.mode;
   if (mode !== LEAGUE_MODE.PICKEM && mode !== LEAGUE_MODE.SURVIVOR) {
-    return { ok: false, reason: "wrong_league_mode" };
+    return { ok: false, reason: ERROR_CODE.WRONG_LEAGUE_MODE };
   }
 
   const settings = LEAGUE_SETTINGS_SCHEMAS[mode].parse(current.season.settings);

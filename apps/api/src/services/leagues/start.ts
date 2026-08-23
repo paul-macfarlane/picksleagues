@@ -4,6 +4,7 @@ import { games, weeks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
   LEAGUE_MODE,
+  LEAGUE_SETTINGS_SCHEMAS,
   type LeagueMode,
   type LeagueSettings,
   type NflWeekRef,
@@ -42,7 +43,10 @@ export async function leagueStartAt(
     return row?.startsAt ?? null;
   }
 
-  const startWeek = (settings as { startWeek: NflWeekRef }).startWeek;
+  // Parsed, not cast: stored JSONB is only trusted through its schema, so a
+  // `.default()` added later materializes here instead of being assumed
+  // (engineering rules §Data). Both NFL schemas carry `startWeek`.
+  const { startWeek } = LEAGUE_SETTINGS_SCHEMAS[league.mode].parse(settings);
   return nflWeekFirstKickoffAt(db, league.seasonId, startWeek);
 }
 

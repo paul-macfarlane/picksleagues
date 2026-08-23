@@ -17,7 +17,7 @@ import {
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { runJob } from "../lib/job-runner";
-import { jobRunResponses, misconfiguredJob } from "../lib/nfl-sync-jobs";
+import { jobRunResponses, misconfiguredJob, resolveJobDeps } from "../lib/nfl-sync-jobs";
 import {
   errorResponse,
   MISCONFIGURED_500,
@@ -267,11 +267,12 @@ export function simRoutes(deps: AppDeps) {
   });
 
   app.openapi(importSimReplayRoute, async (c) => {
-    const { db, clock: resolveClock, espnProvider } = deps;
-    if (!db || !resolveClock || !espnProvider) {
+    const resolved = await resolveJobDeps(deps);
+    const { espnProvider } = deps;
+    if (!resolved || !espnProvider) {
       return c.json(misconfiguredJob(REPLAY_JOB_NAME), 500);
     }
-    const clock = await resolveClock();
+    const { db, clock } = resolved;
     const { seasonYear } = c.req.valid("json");
 
     // Real time, not simulated: a loaded replay parks the clock inside the very
