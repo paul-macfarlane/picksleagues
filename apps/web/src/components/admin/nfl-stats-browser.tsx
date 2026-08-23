@@ -146,7 +146,7 @@ function StatsRow({ stats }: { stats: AdminNflTeamSeasonStats }) {
         />
       </div>
 
-      <p className="text-xs text-muted-foreground">updated {formatDateTime(stats.updatedAt)}</p>
+      <p className="type-eyebrow">updated {formatDateTime(stats.updatedAt)}</p>
 
       <RowEditor label="Edit override">
         <NflStatsOverrideForm key={JSON.stringify(nflStatsOverrideFormSeed(stats))} stats={stats} />

@@ -27,7 +27,7 @@ import {
  * cares about — before the first kickoff (the pick sheet open, a selection in
  * orange) and fully settled (graded picks, a leader, revealed rivals).
  */
-const OUT = "docs/evidence/test-results/vis-8";
+const OUT = process.env.VIS_CAPTURE_OUT ?? "docs/evidence/test-results/vis-8";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 

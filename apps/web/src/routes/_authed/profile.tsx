@@ -54,7 +54,7 @@ function Profile() {
   const me = useMe();
 
   return (
-    <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
+    <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
       <QueryState
         isPending={me.isPending}
         pendingFallback={
@@ -63,7 +63,7 @@ function Profile() {
             className="flex w-full flex-col items-center gap-4"
           >
             <Skeleton className="h-8 w-40 self-start" />
-            <Skeleton className="h-96 w-full max-w-sm" />
+            <Skeleton className="h-96 w-full max-w-sm self-center" />
           </LoadingRegion>
         }
         isError={me.isError}
@@ -160,7 +160,7 @@ function ProfileForm({
           card below shows *who* you are, which is not the same as naming the
           page for a screen reader landing on it. */}
       <h1 className="self-start text-2xl text-foreground">Your profile</h1>
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm self-center">
         <CardHeader className="items-center text-center">
           <UserIdentity
             displayName={profile.displayName}
@@ -287,7 +287,7 @@ function ProfileForm({
                     className="w-full justify-center"
                     disabled={!hasChanges || update.isPending}
                   >
-                    {update.isPending ? "Saving…" : "Save changes"}
+                    Save changes
                   </Button>
                 );
               }}
@@ -315,7 +315,7 @@ function AppearanceCard() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <Section title="Appearance" className="w-full max-w-sm">
+    <Section title="Appearance" className="w-full max-w-sm self-center">
       <LabeledSelect<Theme>
         id="theme"
         label="Theme"

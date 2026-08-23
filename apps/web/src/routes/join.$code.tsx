@@ -48,7 +48,9 @@ function InvitePage({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
       <AppHeader />
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-6">{children}</main>
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 sm:p-6">
+        {children}
+      </main>
     </div>
   );
 }
@@ -136,7 +138,7 @@ function JoinByCode() {
               disabled={join.isPending}
               onClick={() => join.mutate()}
             >
-              {join.isPending ? "Joining…" : "Join league"}
+              Join league
             </Button>
           ) : (
             <div className="flex flex-col gap-3">
@@ -153,7 +155,10 @@ function JoinByCode() {
                 ) : (
                   <p
                     role="status"
-                    className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-center text-sm font-medium text-destructive"
+                    // Alert weight on the row tier's left rule, not a box: a
+                    // bordered notice inside the card is the nesting the
+                    // surface tiers remove (ADR-0043 §2).
+                    className="border-l-3 border-l-destructive pl-3 text-sm font-medium text-destructive"
                   >
                     {JOIN_BLOCKED_REASON_MESSAGES[reason]}
                   </p>

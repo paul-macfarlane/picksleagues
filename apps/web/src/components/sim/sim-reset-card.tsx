@@ -2,6 +2,7 @@ import { useState } from "react";
 import { SIM_RESET_SCOPE } from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
 import { useResetSim } from "@/api/sim";
+import { useErrorToast } from "@/lib/use-error-toast";
 import { LabeledSelect } from "@/components/labeled-select";
 import {
   AlertDialog,
@@ -40,6 +41,9 @@ export function SimResetCard() {
   // Only the operator's own leagues — that's the only league list the
   // contract exposes; there's no admin "all leagues" endpoint.
   const leagues = useMyLeagues();
+  // A failed list leaves an empty select with nothing to act on — the toast is
+  // what says why (engineering rules §Quality, a query behind a control).
+  useErrorToast(leagues.isError, "Couldn't load your leagues — please try again.");
   const reset = useResetSim();
   const [leagueId, setLeagueId] = useState<string>();
   const [disposition, setDisposition] = useState<ScenarioDisposition>(SCENARIO_DISPOSITION.KEEP);
@@ -72,11 +76,6 @@ export function SimResetCard() {
                 onValueChange={setLeagueId}
                 options={myLeagues.map((league) => ({ value: league.id, label: league.name }))}
               />
-              {leagues.isError && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Couldn&apos;t load your leagues.
-                </p>
-              )}
             </div>
             <AlertDialog>
               <AlertDialogTrigger

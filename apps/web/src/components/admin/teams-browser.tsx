@@ -74,7 +74,7 @@ function TeamRow({ team }: { team: AdminTeam }) {
               checking all five. */}
           {team.overriddenAt !== null && <OverriddenTag />}
           <p>{team.providerTeamId ?? "not provider-linked"}</p>
-          <p>Updated {formatDateTime(team.updatedAt)}</p>
+          <p className="type-eyebrow">Updated {formatDateTime(team.updatedAt)}</p>
         </div>
       </div>
 
