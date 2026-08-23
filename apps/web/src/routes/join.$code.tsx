@@ -4,9 +4,11 @@ import { JOIN_BLOCKED_REASON, JOIN_BLOCKED_REASON_MESSAGES } from "@picksleagues
 import { useJoinPreview } from "@/api/invites";
 import { useJoinByCode } from "@/api/members";
 import { authClient } from "@/lib/auth";
-import { formatDateTime } from "@/lib/format";
-import { leagueModeLabel } from "@/lib/league";
+import { useAppNow } from "@/lib/app-clock";
+import { leagueTimingLine } from "@/lib/league";
 import { AppHeader } from "@/components/app-header";
+import { Figures } from "@/components/figures";
+import { LeagueCardStrip } from "@/components/league/league-card-strip";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingRegion } from "@/components/loading";
@@ -53,6 +55,7 @@ function InvitePage({ children }: { children: ReactNode }) {
 
 function JoinByCode() {
   const { code } = Route.useParams();
+  const now = useAppNow();
 
   const preview = useJoinPreview(code);
 
@@ -115,28 +118,16 @@ function JoinByCode() {
 
   return (
     <InvitePage>
-      <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
-          <CardTitle>{league.name}</CardTitle>
-          <CardDescription>{leagueModeLabel(league.mode)}</CardDescription>
-        </CardHeader>
+      {/* The same league object the hub and discovery show — strip on top,
+          numerals beneath — so the invite reads as the league it is for, not
+          as a form about one. */}
+      <Card className="w-full max-w-sm pt-0">
+        <LeagueCardStrip mode={league.mode} seasonYear={league.seasonYear}>
+          {league.name}
+        </LeagueCardStrip>
         <CardContent className="flex flex-col gap-4">
-          <dl className="flex flex-col gap-1 text-sm text-muted-foreground">
-            <div className="flex justify-between gap-2">
-              <dt>Season</dt>
-              <dd>{league.seasonYear}</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt>Members</dt>
-              <dd>{league.memberCount}</dd>
-            </div>
-            {league.startsAt && (
-              <div className="flex justify-between gap-2">
-                <dt>Starts</dt>
-                <dd>{formatDateTime(league.startsAt)}</dd>
-              </div>
-            )}
-          </dl>
+          <Figures figures={[{ label: "Members", value: league.memberCount }]} />
+          <p className="text-sm text-muted-foreground">{leagueTimingLine(league, now)}</p>
 
           {joinable ? (
             <Button

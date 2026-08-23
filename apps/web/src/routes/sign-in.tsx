@@ -34,7 +34,7 @@ function SignIn() {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <BrandMark className="mx-auto size-12" />
-          <h1 className="text-2xl text-foreground">Picks Leagues</h1>
+          <h1 className="text-3xl text-foreground">Picks Leagues</h1>
           {/* Names the category, not one mode: the product has run Survivor
               leagues since ELM, and March Madness lands later — a tagline that
               lists modes goes stale every time one ships (FB-33). */}

@@ -14,6 +14,7 @@ import { leagueModeLabel, leagueTimingLine, pickTypeLabel } from "@/lib/league";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CardGridSkeleton } from "@/components/loading";
+import { Figures } from "@/components/figures";
 import { LeagueCardStrip } from "@/components/league/league-card-strip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -171,18 +172,12 @@ function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
       <CardContent className="flex flex-1 flex-col gap-3 text-sm text-muted-foreground">
         {/* Named where the count already is: "2 spots left" is the reason this
             league sorts where it does (ADR-0037), so it is the card's numeral. */}
-        <dl className="flex flex-wrap gap-x-5 gap-y-2">
-          <div className="flex flex-col gap-1">
-            <dt className="type-eyebrow">Members</dt>
-            <dd className="type-display text-2xl text-foreground">
-              {league.memberCount} of {league.maxMembers}
-            </dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="type-eyebrow">Spots left</dt>
-            <dd className="type-display text-2xl text-foreground">{spotsLeft}</dd>
-          </div>
-        </dl>
+        <Figures
+          figures={[
+            { label: "Members", value: `${league.memberCount} of ${league.maxMembers}` },
+            { label: "Spots left", value: spotsLeft },
+          ]}
+        />
         {league.pickemSettings && (
           <p>
             {pickTypeLabel(league.pickemSettings.pickType)} · {league.pickemSettings.picksPerWeek}{" "}

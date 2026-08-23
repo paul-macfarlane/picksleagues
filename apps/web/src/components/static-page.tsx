@@ -17,12 +17,13 @@ import { LegalFooter } from "@/components/legal-footer";
  * routes to the splash and sign-in.
  */
 export function StaticPage({
+  eyebrow,
   title,
-  subtitle,
   children,
 }: {
+  /** The label above the title — what kind of page this is, or its effective date. */
+  eyebrow?: string;
   title: string;
-  subtitle?: string;
   children: ReactNode;
 }) {
   const { data: session } = authClient.useSession();
@@ -34,9 +35,9 @@ export function StaticPage({
     <div className={cn("flex min-h-svh flex-col", authed && appTabBarClearanceClassName)}>
       {authed ? <AppHeader /> : <VisitorHeader />}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-4 py-8 sm:p-6 sm:py-10">
-        <header className="flex flex-col gap-1">
-          <h1 className="text-2xl text-foreground">{title}</h1>
-          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+        <header className="flex flex-col gap-1.5">
+          {eyebrow && <p className="type-eyebrow">{eyebrow}</p>}
+          <h1 className="text-3xl text-foreground sm:text-4xl">{title}</h1>
         </header>
         <StaticProse>{children}</StaticProse>
       </main>
@@ -70,7 +71,7 @@ function VisitorHeader() {
       <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
         <Link
           to="/welcome"
-          className="flex items-center gap-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="type-display flex items-center gap-2 text-xl text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <BrandMark className="size-6" />
           Picks Leagues
