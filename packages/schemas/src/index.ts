@@ -23,6 +23,7 @@ export * from "./member-role";
 export * from "./pick-outcome";
 export * from "./pick-type";
 export * from "./pickem";
+export * from "./game-side";
 export * from "./pickem-pick-side";
 export * from "./sim";
 export * from "./slate";

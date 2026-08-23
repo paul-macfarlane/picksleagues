@@ -1,7 +1,9 @@
 import {
+  GAME_SIDE,
   GAME_STATUS,
-  SIM_FINAL_STATUS,
+  type GameSide,
   type GameStatus,
+  SIM_FINAL_STATUS,
   type SimFinalStatus,
   type WeekType,
 } from "@picksleagues/schemas";
@@ -291,10 +293,10 @@ export class SimulatedProvider implements GameDataProvider {
       return null;
     }
     const completed = completedGamesAt(snapshot.games, this.#clock.now());
-    const teamContext = (side: "home" | "away") => {
+    const teamContext = (side: GameSide) => {
       const teamProviderId =
-        side === "home" ? fixture.homeTeamProviderId : fixture.awayTeamProviderId;
-      const teamAbbr = side === "home" ? fixture.homeTeamAbbr : fixture.awayTeamAbbr;
+        side === GAME_SIDE.HOME ? fixture.homeTeamProviderId : fixture.awayTeamProviderId;
+      const teamAbbr = side === GAME_SIDE.HOME ? fixture.homeTeamAbbr : fixture.awayTeamAbbr;
       return {
         // Mocked, never replayed — era-correct injury history does not exist
         // at the provider (ADR-0040).

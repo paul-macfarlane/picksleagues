@@ -11,14 +11,8 @@ import {
 } from "@picksleagues/schemas";
 import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import {
-  gameStateAsOfLabel,
-  gameStateLead,
-  matchupNumerals,
-  pickStandingLabel,
-  spreadLabel,
-  spreadSourceCredit,
-} from "@/lib/game";
+import { gameStateAsOfLabel, gameStateLead, matchupNumerals, spreadLabel } from "@/lib/game";
+import { pickStandingLabel, spreadSourceCredit } from "@/lib/pickem-game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";

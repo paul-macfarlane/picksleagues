@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { GAME_SIDE } from "./game-side";
 
 /**
  * Which side of a game a Pick'em pick is on. Stored per pick rather than as a
@@ -6,10 +7,7 @@ import { z } from "@hono/zod-openapi";
  * pick was always "the home side of game X", and spreads are home-relative
  * (arch §Spread strategy), so the side is what scoring needs.
  */
-export const PICKEM_PICK_SIDE = {
-  HOME: "home",
-  AWAY: "away",
-} as const;
+export const PICKEM_PICK_SIDE = GAME_SIDE;
 
 export type PickemPickSide = (typeof PICKEM_PICK_SIDE)[keyof typeof PICKEM_PICK_SIDE];
 
