@@ -185,7 +185,7 @@ function memberRow(scope: Locator, displayName: string): Locator {
   return scope.getByTestId("member-picks-row").filter({ hasText: displayName });
 }
 
-// Members are collapsed by default (feedback round 6), so anything asserted as
+// Members are collapsed by default (e5b7110), so anything asserted as
 // *visible* inside one has to be opened first — through the summary, the way a
 // reader opens it. Counting assertions deliberately do not call this: a closed
 // `<details>` keeps its children in the DOM, so those still measure what was
@@ -218,7 +218,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   let game4: SlateGameSummary;
 
   // Reaches the league-wide pick detail the way a member does — through its own
-  // tab (round 5). Which URL that tab lands on is routing; what matters to every
+  // tab. Which URL that tab lands on is routing; what matters to every
   // caller below is that the card mounts and that it is the *current* week's,
   // rather than one inherited from whichever surface the member came from.
   async function openLeaguePicks() {

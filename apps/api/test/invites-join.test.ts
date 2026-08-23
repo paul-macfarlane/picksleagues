@@ -490,7 +490,7 @@ describe("concurrency", () => {
   });
 });
 
-describe("custom maxMembers cap (feedback item 10)", () => {
+describe("custom maxMembers cap (spec §Membership — league size)", () => {
   it("409s a join once the league's custom cap is reached and rolls back", async () => {
     const { commissioner, league } = await seedLeagueWithCommissioner({ maxMembers: 2 });
     const code = await createCode(commissioner.cookie, league.id);

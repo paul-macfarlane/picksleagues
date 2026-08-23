@@ -150,9 +150,11 @@ export const NFL_CONTEXT_OVERRIDE_COVERS_PAYLOAD: KeysMutuallyAssignable<
 
 // --- Wire DTOs for GET /games/{gameId}/stats (STAT-5) ---
 
-// The wire twin of `NflTeamGameContextSchema`. Registered separately because the
-// storage schema's `.default()`s exist for additive payload evolution, while
-// the wire promises fields that are always present.
+/**
+ * The wire twin of `NflTeamGameContextSchema`. Registered separately because the
+ * storage schema's `.default()`s exist for additive payload evolution, while
+ * the wire promises fields that are always present.
+ */
 export const NflGameStatsTeamContextSchema = z
   .object({
     injuries: z.array(NflInjuryReportEntrySchema),
