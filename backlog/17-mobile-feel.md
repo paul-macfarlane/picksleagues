@@ -12,10 +12,19 @@ cheap to revert (friends-scale bar).
 
 Decisions (owner, 2026-08-22):
 
-- **Global bottom tabs always.** Inside a league the bar stays Home / Browse /
-  League / Profile; league sections keep the underline `TabNav`. One nav model.
+- **Global bottom tabs always.** Inside a league the bar stays Leagues /
+  Browse / Profile; league sections keep the underline `TabNav`. One nav model.
 - **The pick sheets' action bar stacks above the tab bar**, never hides it.
   Navigation that vanishes when picks are dirty confuses more than it frees.
+- **Admins get a fifth "More" tab** (Admin / Simulator) instead of keeping
+  the drawer; the drawer is gone for everyone. **Home and League merged into
+  one "Leagues" tab** that opens the hub at `/` (your leagues + create/browse);
+  a league is one tap deeper. The first cut's League tab navigated on the
+  first tap and opened a switcher on the second, which nothing on screen
+  signalled and which contradicts the re-tap-resets-the-tab convention. The
+  desktop header follows the same order (Leagues · Browse · Admin · Simulator)
+  and its league switcher is gone with it — one nav model at every width.
+  (MOB-2, 2026-08-22.)
 - **Order:** MOB-1 → MOB-2 → MOB-3 are the "feels like an app" threshold and
   go first; MOB-4–7 are a second round after living with the tab bar.
 - **Not in scope:** offline shell / service worker (an offline pick screen is a
@@ -43,7 +52,7 @@ against it rather than hardcoding.
   necessarily the glyph. Verify at 375px in standalone mode (sim e2e viewport
   plus a real iPhone screenshot in `docs/evidence/test-results/MOB-1/`). Pure
   CSS/markup. _(deps: none)_
-- [ ] **MOB-2** — Bottom tab bar on phone. Below `sm`, a `fixed` bottom bar
+- [x] **MOB-2** — Bottom tab bar on phone. Below `sm`, a `fixed` bottom bar
   (z-20 tier, above page content, under `TabNav`) with Home / Browse / League /
   Profile: icon + short label, `aria-current="page"`, 44pt targets, safe-area
   bottom padding. "League" resolves to the member's current league (last
@@ -60,12 +69,16 @@ against it rather than hardcoding.
   on navigation, with a directional slide only if it stays under ~20 lines;
   `prefers-reduced-motion` disables it; no library. Skeleton/`QueryState`
   surfaces must not double-animate. _(deps: MOB-2)_
-- [ ] **MOB-4** — League-section nav discoverability. The scrolling underline
-  `TabNav` hides tabs past the right edge with no affordance: add edge fades
-  (mask-image) and `scroll-snap`, and scroll the active tab into view on
-  mount. Revisit a segmented control / picker sheet only if fades aren't
-  enough after a week of use — the owner chose global tabs over contextual
-  league tabs (2026-08-22). _(deps: MOB-2)_
+- [x] **MOB-4** — League-section nav fits the phone. The owner ruled out
+  horizontal scroll for the member-facing bar (2026-08-22, during MOB-2
+  review): `TabNav fit` lays the league sections out as equal columns below
+  `sm`, and "League Picks" became "All Picks" so five tabs fit at 375px.
+  The admin bar followed (owner, 2026-08-22): the guide became a standalone
+  `/guide` route linked from the Admin heading (the seat the simulator's
+  "How the simulator works" link uses — not the app's primary nav), and
+  the never-used Seasons tab was removed, leaving five fitted tabs. The
+  Simulator bar (five) is fitted too. Edge fades stay out until someone
+  actually works those panels from a phone. _(deps: MOB-2)_
 - [ ] **MOB-5** — Pull-to-refresh on query-backed views (standings, games,
   dashboard): a touch-start-at-scrollTop-0 gesture invalidates the route's
   query keys via the `apps/web/src/api/*` modules (no key literals in

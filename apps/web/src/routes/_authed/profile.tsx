@@ -11,12 +11,17 @@ import {
 } from "@picksleagues/schemas";
 import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
+import { useSignOut } from "@/lib/sign-out";
+import { isTheme, THEME_OPTIONS, type Theme } from "@/lib/theme";
+import { useTheme } from "next-themes";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAvatarPreview } from "@/lib/avatar-preview";
 import { AvatarThemePreview } from "@/components/avatar-theme-preview";
 import { InstallCard } from "@/components/install-card";
+import { LabeledSelect } from "@/components/labeled-select";
+import { LegalLinks } from "@/components/legal-footer";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -289,9 +294,76 @@ function ProfileForm({
           </form>
         </CardContent>
       </Card>
+      {/* One page, sectioned (owner, 2026-08-22) rather than a /settings
+          split: on phones this tab is the whole account surface — the header
+          menu that used to hold theme and sign-out is gone below `sm` — and
+          a second route would add navigation a friends-scale app doesn't
+          need yet. */}
+      <AppearanceCard />
       <InstallCard />
+      <AccountCard />
+      <AboutCard />
       <DangerZone />
     </>
+  );
+}
+
+function AppearanceCard() {
+  // No SSR pass, so next-themes' `theme` is already correct on first paint;
+  // `isTheme` guards the string it types as `string | undefined`.
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <LabeledSelect<Theme>
+          id="theme"
+          label="Theme"
+          value={isTheme(theme) ? theme : null}
+          onValueChange={setTheme}
+          options={[...THEME_OPTIONS]}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccountCard() {
+  const signOut = useSignOut();
+
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>Account</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="w-full justify-center"
+          onClick={() => void signOut()}
+        >
+          Sign out
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AboutCard() {
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>About</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <LegalLinks className="text-sm text-muted-foreground" />
+      </CardContent>
+    </Card>
   );
 }
 

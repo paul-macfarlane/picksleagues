@@ -124,3 +124,13 @@ export function canActOnLeague(league: LeagueResponse, action: LeagueAction, now
     preStart: !leagueHasStarted(league, now),
   });
 }
+
+/**
+ * Whether a pathname belongs to the "Leagues" primary-nav entry: the hub at
+ * `/` plus everything under `/leagues` (a league, `/leagues/new`). Both the
+ * header nav and the phone tab bar light the entry from this, so the two
+ * can't disagree about where a member is.
+ */
+export function isLeaguesSubtree(pathname: string): boolean {
+  return pathname === "/" || pathname.startsWith("/leagues");
+}

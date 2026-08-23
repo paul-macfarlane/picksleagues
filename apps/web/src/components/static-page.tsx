@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
 import { AppHeader } from "@/components/app-header";
+import { AppTabBar, appTabBarClearanceClassName } from "@/components/app-tab-bar";
 import { BrandMark } from "@/components/brand";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { LegalFooter } from "@/components/legal-footer";
 
 /**
@@ -29,7 +31,7 @@ export function StaticPage({
   const authed = Boolean(session?.user.username);
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className={cn("flex min-h-svh flex-col", authed && appTabBarClearanceClassName)}>
       {authed ? <AppHeader /> : <VisitorHeader />}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-4 py-8 sm:p-6 sm:py-10">
         <header className="flex flex-col gap-1">
@@ -38,7 +40,12 @@ export function StaticPage({
         </header>
         <StaticProse>{children}</StaticProse>
       </main>
-      <LegalFooter className="mx-auto w-full max-w-2xl px-4 sm:px-6" />
+      {/* Hidden on phones only for a signed-in member, who has the tab bar and
+          the profile's About section; a visitor has neither. */}
+      <LegalFooter
+        className={cn("mx-auto w-full max-w-2xl px-4 sm:px-6", authed && "hidden sm:flex")}
+      />
+      {authed && <AppTabBar />}
     </div>
   );
 }

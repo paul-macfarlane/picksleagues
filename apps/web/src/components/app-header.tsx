@@ -1,17 +1,13 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { MenuIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useLayoutEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
-import { useMe } from "@/api/me";
-import { useMyLeagues } from "@/api/leagues";
+import { useSignOut } from "@/lib/sign-out";
+import { isLeaguesSubtree } from "@/lib/league";
 import { cn } from "@/lib/utils";
+import { useMe } from "@/api/me";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BrandMark } from "@/components/brand";
-import { Button } from "@/components/ui/button";
-import { LeagueSwitcher } from "@/components/league-switcher";
 import { SimClockBanner } from "@/components/sim-clock-banner";
 import { UserIdentity } from "@/components/user-identity";
 import {
@@ -20,35 +16,31 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const navLinkClassName = "touch-hit outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
-const navLinkInactiveProps = { className: "text-muted-foreground" };
+const navLinkInactiveClassName = "text-muted-foreground";
+const navLinkActiveClassName = "text-foreground font-medium";
+const navLinkInactiveProps = { className: navLinkInactiveClassName };
 const navLinkActiveProps = {
-  className: "text-foreground font-medium",
+  className: navLinkActiveClassName,
   "aria-current": "page" as const,
 };
-// Rows rather than `touch-hit`: in a stacked list the invisible expansion
-// would overlap the neighbour, so the row itself is the 44pt target.
-const drawerLinkClassName = cn(
-  navLinkClassName,
-  "flex min-h-11 items-center rounded-md px-2 hover:bg-muted hover:text-foreground",
-);
 
 /**
  * The signed-in shell's header, extracted from the `_authed` layout so the
  * public static pages (rules/terms/privacy) can wear the same chrome for a
  * signed-in member — navigation back into the app must not depend on which
  * route family a page lives in. Render only with a live session: its queries
- * (`useMe`, `useMyLeagues`) assume one.
+ * (`useMe`) assume one. Pairs with `AppTabBar`, which carries the primary nav
+ * below `sm` — this header's inline nav is the `sm`-and-up half.
  */
 export function AppHeader() {
   const me = useMe();
+  const { pathname } = useLocation();
+  const onLeagues = isLeaguesSubtree(pathname);
   const headerRef = useRef<HTMLElement>(null);
 
   // TabNav (rendered by league/admin/sim route layouts) sticks flush beneath
@@ -82,8 +74,8 @@ export function AppHeader() {
       {/* Overlays (Sheet/AlertDialog/DropdownMenu/Select, see components/ui) all
           portal to document.body at z-50, so z-40 here keeps the header above
           page content while staying under every overlay regardless of DOM order.
-          Layering below this: TabNav sticks at z-30, and any page-level sticky
-          element (e.g. the picks screen's action bar) must stay under that. */}
+          Layering below this: TabNav sticks at z-30, and the page-level fixed
+          tier (AppTabBar, the picks screen's action bar) stays at z-20. */}
       <header
         ref={headerRef}
         // Safe-area padding (MOB-1): with viewport-fit=cover and a translucent
@@ -94,7 +86,11 @@ export function AppHeader() {
         // otherwise opens the text-selection loupe.
         className="sticky top-0 z-40 border-b border-border bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] select-none"
       >
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+        {/* Phones: the brand alone, centred, the way an iOS nav bar titles a
+            screen — primary nav is the bottom AppTabBar and the account lives
+            on its Profile tab, so the avatar menu would be a second way to
+            the same page. From `sm` the full masthead returns. */}
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-center gap-2 px-4 py-3 sm:justify-between sm:px-6">
           <div className="flex items-center gap-4">
             <Link
               to="/"
@@ -103,18 +99,21 @@ export function AppHeader() {
               <BrandMark className="size-6" />
               Picks Leagues
             </Link>
-            {/* sm and up: full inline nav + league switcher. Below sm, this
-                collapses into the hamburger drawer (MobileNav) so nothing
-                overflows at phone width. */}
+            {/* sm and up: full inline nav. Below sm the bottom AppTabBar
+                carries primary navigation instead, in this same order. */}
             <nav aria-label="Primary" className="hidden items-center gap-3 text-sm sm:flex">
+              {/* Manual rather than `activeProps`: the link targets `/` (the
+                  leagues hub) but the entry represents the whole leagues
+                  subtree, so it stays lit inside a league too. */}
               <Link
                 to="/"
-                className={navLinkClassName}
-                inactiveProps={navLinkInactiveProps}
-                activeProps={navLinkActiveProps}
-                activeOptions={{ exact: true }}
+                className={cn(
+                  navLinkClassName,
+                  onLeagues ? navLinkActiveClassName : navLinkInactiveClassName,
+                )}
+                aria-current={onLeagues ? "page" : undefined}
               >
-                Home
+                Leagues
               </Link>
               <Link
                 to="/discovery"
@@ -144,11 +143,9 @@ export function AppHeader() {
                   Simulator
                 </Link>
               )}
-              <LeagueSwitcher />
             </nav>
           </div>
-          <div className="flex items-center gap-2">
-            <MobileNav />
+          <div className="hidden sm:block">
             <SessionMenu />
           </div>
         </div>
@@ -160,119 +157,11 @@ export function AppHeader() {
   );
 }
 
-function MobileNav() {
-  const [open, setOpen] = useState(false);
-  const me = useMe();
-  const myLeagues = useMyLeagues();
-  const leagues = myLeagues.data?.leagues ?? [];
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger
-        render={
-          <Button variant="ghost" size="icon" aria-label="Open navigation" className="sm:hidden" />
-        }
-      >
-        <MenuIcon aria-hidden="true" />
-      </SheetTrigger>
-      <SheetContent className="select-none">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <BrandMark className="size-5" />
-            Picks Leagues
-          </SheetTitle>
-        </SheetHeader>
-        <nav aria-label="Primary" className="flex flex-col gap-1 text-sm">
-          <Link
-            to="/"
-            className={drawerLinkClassName}
-            inactiveProps={navLinkInactiveProps}
-            activeProps={navLinkActiveProps}
-            activeOptions={{ exact: true }}
-            onClick={() => setOpen(false)}
-          >
-            Home
-          </Link>
-          <Link
-            to="/discovery"
-            className={drawerLinkClassName}
-            inactiveProps={navLinkInactiveProps}
-            activeProps={navLinkActiveProps}
-            onClick={() => setOpen(false)}
-          >
-            Browse
-          </Link>
-          {me.data?.isAdmin && (
-            <Link
-              to="/admin"
-              className={drawerLinkClassName}
-              inactiveProps={navLinkInactiveProps}
-              activeProps={navLinkActiveProps}
-              onClick={() => setOpen(false)}
-            >
-              Admin
-            </Link>
-          )}
-          {me.data?.isAdmin && me.data?.simEnabled && (
-            <Link
-              to="/sim"
-              className={drawerLinkClassName}
-              inactiveProps={navLinkInactiveProps}
-              activeProps={navLinkActiveProps}
-              onClick={() => setOpen(false)}
-            >
-              Simulator
-            </Link>
-          )}
-        </nav>
-        {leagues.length > 0 && (
-          <nav aria-label="My leagues" className="flex flex-col gap-1 text-sm">
-            <span className="px-2 py-1 text-xs font-medium text-muted-foreground">My leagues</span>
-            {leagues.map((league) => (
-              <Link
-                key={league.id}
-                to="/leagues/$leagueId"
-                params={{ leagueId: league.id }}
-                className={cn(drawerLinkClassName, "truncate")}
-                inactiveProps={navLinkInactiveProps}
-                activeProps={{
-                  ...navLinkActiveProps,
-                  className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
-                }}
-                onClick={() => setOpen(false)}
-              >
-                {league.name}
-              </Link>
-            ))}
-          </nav>
-        )}
-        {/* Same row idiom as the league links above — Router CONCATENATES base and
-            active classNames (no tailwind-merge), so a buttonVariants base whose
-            bg-background would outrank the appended bg-accent can't be used here. */}
-        <Link
-          to="/leagues/new"
-          className={drawerLinkClassName}
-          inactiveProps={navLinkInactiveProps}
-          activeProps={{
-            ...navLinkActiveProps,
-            className: cn(navLinkActiveProps.className, "bg-accent text-accent-foreground"),
-          }}
-          onClick={() => setOpen(false)}
-        >
-          Create league
-        </Link>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 function SessionMenu() {
   const { data: session } = authClient.useSession();
-  // Theme selection lives in this menu rather than as its own top-bar control
-  // (FB-14, owner's call): it's a set-and-forget account preference, not a
-  // per-visit action worth permanent header real estate. No SSR pass, so
-  // next-themes' `theme` is already correct on first paint.
-  const { theme, setTheme } = useTheme();
+  // Theme is not in this menu (it was, per FB-14): a set-and-forget
+  // preference's one home is the profile page's Appearance section, which
+  // is also the only home the phone layout has (owner, 2026-08-22).
   // The avatar comes from /me, not from `session.user.image`: that column is
   // the provider's, and Better Auth's session knows nothing about the member's
   // override (ADR-0022), so reading it here would show the provider photo to
@@ -280,6 +169,7 @@ function SessionMenu() {
   // the calls in AppHeader and MobileNav, so it costs no request.
   const me = useMe();
   const navigate = useNavigate();
+  const signOut = useSignOut();
 
   // The authed layout's beforeLoad guarantees a session in that subtree; this
   // hook can still observe a brief null while it fetches on mount.
@@ -315,41 +205,7 @@ function SessionMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>Profile</DropdownMenuItem>
         <DropdownMenuSeparator />
-        {/* Label nested in a Group on purpose — this dropdown-menu is the Base
-            UI flavor, and a bare GroupLabel throws at runtime. */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-            <DropdownMenuRadioItem value="light">
-              <SunIcon />
-              Light
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="dark">
-              <MoonIcon />
-              Dark
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="system">
-              <MonitorIcon />
-              System
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={async () => {
-            // Navigate regardless of the result: /sign-in's beforeLoad bounces a
-            // still-live session back to "/", so a failed sign-out can't strand
-            // the user on a page they shouldn't see.
-            const { error } = await authClient.signOut();
-            if (error) {
-              console.error("Sign-out failed", error);
-              toast.error("Sign out failed — please try again.");
-            }
-            navigate({ to: "/sign-in" });
-          }}
-        >
-          Sign out
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
