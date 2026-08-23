@@ -11,7 +11,12 @@ import { useSurvivorStandings } from "@/api/survivor";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
-import { gameStateLabel, survivorPickGrade, survivorRevivalStillPossible } from "@/lib/game";
+import {
+  gameStateLabel,
+  survivorPickGrade,
+  survivorRevivalStillPossible,
+  survivorWeeksSurvived,
+} from "@/lib/game";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
@@ -111,7 +116,7 @@ export function SurvivorBoard({ leagueId }: { leagueId: string }) {
       <p
         data-testid="survivor-board-updated-at"
         data-settled={standings.data?.updatedAt ? "true" : "false"}
-        className="text-xs text-muted-foreground"
+        className="type-eyebrow"
       >
         {standings.data?.updatedAt
           ? `Last updated ${formatDateTime(standings.data.updatedAt)}`
@@ -227,13 +232,14 @@ function BoardRow({
       data-winner={member.isWinner ? "true" : "false"}
       className={cn(rowClassName, "flex flex-col gap-3")}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <UserIdentity
           displayName={member.displayName}
           username={member.username}
           image={member.image}
           isViewer={member.isViewer}
           avatarSize="sm"
+          className="min-w-0 flex-1"
         >
           {eliminatedIn && (
             <span
@@ -248,22 +254,36 @@ function BoardRow({
             </span>
           )}
         </UserIdentity>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {revivalPossible && (
-            <StatusPill data-testid="survivor-revival-possible">Revival possible</StatusPill>
-          )}
-          {member.revivedCount > 0 && (
-            <StatusPill tone="highlight" data-testid="survivor-revived">
-              Revived{member.revivedCount > 1 ? ` ×${member.revivedCount}` : ""}
-            </StatusPill>
-          )}
-          <StatusPill
-            tone={member.isWinner ? "success" : alive ? "highlight" : "neutral"}
-            data-testid="survivor-member-status"
-          >
-            {statusLabel(member, winnerCount)}
-          </StatusPill>
+        {/* The mode has no rank (ADR-0016), so the row's one display numeral is
+            how far the member got — the eyebrow-over-numeral slot every other
+            board uses (ADR-0043 §1). No leader mark: the Winner pill below is
+            the only verdict this board can hand out. */}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="type-eyebrow">Survived</span>
+          <span className="type-display text-xl" data-testid="survivor-weeks-survived">
+            {survivorWeeksSurvived(member.picks)}
+          </span>
         </div>
+      </div>
+
+      {/* On a line of their own rather than beside the numeral: at 390px the
+          name, the numeral, and up to three tags don't share one line, and the
+          tags wrapping under the numeral read as belonging to it. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {revivalPossible && (
+          <StatusPill data-testid="survivor-revival-possible">Revival possible</StatusPill>
+        )}
+        {member.revivedCount > 0 && (
+          <StatusPill tone="highlight" data-testid="survivor-revived">
+            Revived{member.revivedCount > 1 ? ` ×${member.revivedCount}` : ""}
+          </StatusPill>
+        )}
+        <StatusPill
+          tone={member.isWinner ? "success" : alive ? "highlight" : "neutral"}
+          data-testid="survivor-member-status"
+        >
+          {statusLabel(member, winnerCount)}
+        </StatusPill>
       </div>
 
       {/* The current week at the row level (FB-26): what this member is riding

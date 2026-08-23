@@ -226,7 +226,7 @@ function MemberPicksSection({
         {/* Fixed width so the ranks form a column the eye can run down, and
             an em dash rather than a blank while the week has yet to settle —
             an empty cell reads as a missing value. */}
-        <span className="w-7 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+        <span className="type-display w-10 shrink-0 text-xl">
           {week ? rankLabel(week.rank, weekShared) : "—"}
         </span>
         <UserIdentity

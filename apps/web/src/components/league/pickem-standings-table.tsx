@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { StatusPill } from "@/components/status-pill";
 import { UserIdentity } from "@/components/user-identity";
 
 export const STANDINGS_SORT_COLUMN = {
@@ -192,7 +193,7 @@ export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
                 <col className="w-18" />
               </colgroup>
               <TableHeader>
-                <TableRow className="bg-muted/50 text-left text-xs font-medium text-muted-foreground">
+                <TableRow className="bg-muted/50">
                   <SortableHeader
                     label="Rank"
                     column={STANDINGS_SORT_COLUMN.RANK}
@@ -234,10 +235,11 @@ export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
                         the binding a re-ordered or re-labelled board is allowed
                         to break. The merge-gate journey reads all three to prove
                         two tied members share a rank with nothing behind it. */}
-                    <TableCell
-                      data-testid="standings-rank"
-                      className="text-xs font-medium tabular-nums"
-                    >
+                    {/* Rank and points are the board's point, so they take the
+                        display role (ADR-0043 §1); the record stays body-size
+                        because three joined figures at the 20px floor don't
+                        fit its column at 390px. */}
+                    <TableCell data-testid="standings-rank" className="type-display text-xl">
                       {rankLabel(row.rank, sharedCounts)}
                     </TableCell>
                     <TableCell>
@@ -251,17 +253,29 @@ export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
                         isViewer={row.isViewer}
                         variant="compact"
                         avatarSize="sm"
-                      />
+                      >
+                        {/* Every rank-1 row, so tied leaders all carry it — a
+                            shared rank has nothing behind it to break the tie
+                            (ADR-0018). Under the name rather than beside it:
+                            the column is what's left after three fixed ones at
+                            390px, and a tag beside the name would truncate it. */}
+                        {row.rank === 1 && (
+                          <StatusPill
+                            tone="strong"
+                            data-testid="standings-leader"
+                            className="mt-0.5 self-start"
+                          >
+                            Leader
+                          </StatusPill>
+                        )}
+                      </UserIdentity>
                     </TableCell>
-                    <TableCell
-                      data-testid="standings-record"
-                      className="text-right text-xs tabular-nums"
-                    >
+                    <TableCell data-testid="standings-record" className="text-right tabular-nums">
                       {row.wins}-{row.losses}-{row.pushes}
                     </TableCell>
                     <TableCell
                       data-testid="standings-points"
-                      className="text-right text-xs tabular-nums"
+                      className="type-display text-right text-xl"
                     >
                       {row.points}
                     </TableCell>
@@ -281,7 +295,7 @@ export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
         <p
           data-testid="standings-updated-at"
           data-settled={lastUpdatedAt ? "true" : "false"}
-          className="text-xs text-muted-foreground"
+          className="type-eyebrow"
         >
           {lastUpdatedAt
             ? `Last updated ${formatDateTime(lastUpdatedAt)}`
