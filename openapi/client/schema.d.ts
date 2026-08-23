@@ -931,6 +931,8 @@ export interface components {
             maxMembers: number;
             myRole: components["schemas"]["MemberRole"];
             members: components["schemas"]["LeagueMember"][];
+            myPickemStanding: components["schemas"]["NullablePickemViewerStanding"];
+            mySurvivorStanding: components["schemas"]["NullableSurvivorViewerStanding"];
         };
         LeagueName: string;
         /** @enum {string} */
@@ -985,6 +987,21 @@ export interface components {
             /** Format: date-time */
             joinedAt: string;
         };
+        NullablePickemViewerStanding: {
+            rank: number;
+            rankShared: boolean;
+            points: number;
+            wins: number;
+            losses: number;
+            pushes: number;
+        } | null;
+        NullableSurvivorViewerStanding: {
+            status: components["schemas"]["SurvivorMemberStatus"];
+            isWinner: boolean;
+            aliveCount: number;
+        } | null;
+        /** @enum {string} */
+        SurvivorMemberStatus: "alive" | "eliminated";
         CreateLeagueRequest: {
             /** @enum {string} */
             mode: "pickem";
@@ -1033,6 +1050,9 @@ export interface components {
             renewable: boolean;
             survivorPickStatus: components["schemas"]["NullableSurvivorPickStatus"];
             pickemPickStatus: components["schemas"]["NullablePickemPickStatus"];
+            seasonYear: number;
+            myPickemStanding: components["schemas"]["NullablePickemViewerStanding"];
+            mySurvivorStanding: components["schemas"]["NullableSurvivorViewerStanding"];
         };
         /** @enum {string|null} */
         NullableSurvivorPickStatus: "eliminated" | "won" | "pick_in" | "pick_needed" | "locked" | null;
@@ -1342,8 +1362,6 @@ export interface components {
             picks: components["schemas"]["SurvivorStandingsPick"][];
             consumedTeamIds: string[];
         };
-        /** @enum {string} */
-        SurvivorMemberStatus: "alive" | "eliminated";
         SurvivorStandingsPick: {
             weekId: string;
             teamId: string | null;

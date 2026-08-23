@@ -11,6 +11,8 @@ import {
   type LeagueStatus,
   type Sport,
 } from "@picksleagues/schemas";
+import { resolvePickemViewerStandings } from "../pickem/viewer-standing";
+import { resolveSurvivorViewerStandings } from "../survivor/viewer-standing";
 import { isPreStart, leagueStartAt } from "./start";
 import { loadMembers, serializeLeague, type LeagueRow } from "./serialize";
 
@@ -174,7 +176,44 @@ export async function readAndSerializeLeague(
     members,
     viewerId,
     isRenewable(latestYear, season.seasonYear),
+    await resolveViewerStanding(db, league, season, members, viewerId),
   );
+}
+
+/**
+ * The batch resolvers the dashboard uses, asked for one league: the same
+ * functions so a header and a hub card can never disagree about the viewer's
+ * line. The viewer may be absent from `members` on the post-leave read some
+ * callers make, in which case both fields are null.
+ */
+async function resolveViewerStanding(
+  db: Db,
+  league: LeagueRow,
+  season: CurrentLeagueSeason,
+  members: Awaited<ReturnType<typeof loadMembers>>,
+  viewerId: string,
+) {
+  const none = { myPickemStanding: null, mySurvivorStanding: null };
+  const membershipId = members.find((m) => m.user.id === viewerId)?.member.id;
+  if (!membershipId) return none;
+  const input = { leagueSeasonId: season.id, leagueId: league.id, membershipId };
+  switch (league.mode) {
+    case LEAGUE_MODE.PICKEM:
+      return {
+        ...none,
+        myPickemStanding: (await resolvePickemViewerStandings(db, [input])).get(season.id) ?? null,
+      };
+    case LEAGUE_MODE.SURVIVOR:
+      return {
+        ...none,
+        mySurvivorStanding:
+          (await resolveSurvivorViewerStandings(db, [{ ...input, status: season.status }])).get(
+            season.id,
+          ) ?? null,
+      };
+    case LEAGUE_MODE.MARCH_MADNESS:
+      return none;
+  }
 }
 
 /**

@@ -338,3 +338,27 @@ const SurvivorPickStatusSchema = z.enum(SURVIVOR_PICK_STATUS).openapi("SurvivorP
 export const NullableSurvivorPickStatusSchema = SurvivorPickStatusSchema.nullable().openapi(
   "NullableSurvivorPickStatus",
 );
+
+/**
+ * Where the viewer stands in the season, carried on every league read so the
+ * league header and the hub card name it without a board fetch (ADR-0043 §2).
+ * Survivor has no rank and no points (ADR-0016), so the standing is the mode's
+ * own question — is the viewer still in it, and how many are — rather than a
+ * position. `isWinner` is a decided season's alive set (spec §End of League,
+ * ADR-0027); with `aliveCount > 1` it is the co-winner case.
+ */
+export const SurvivorViewerStandingSchema = z
+  .object({
+    status: SurvivorMemberStatusSchema,
+    isWinner: z.boolean(),
+    /** Members not yet eliminated, the viewer included when alive. */
+    aliveCount: z.number().int(),
+  })
+  .openapi("SurvivorViewerStanding");
+
+export type SurvivorViewerStanding = z.infer<typeof SurvivorViewerStandingSchema>;
+
+/** Own component name for the nullable form — see `NullableSurvivorPickStatusSchema`. */
+export const NullableSurvivorViewerStandingSchema = SurvivorViewerStandingSchema.nullable().openapi(
+  "NullableSurvivorViewerStanding",
+);

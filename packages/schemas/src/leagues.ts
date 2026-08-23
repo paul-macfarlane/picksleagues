@@ -9,8 +9,8 @@ import {
 import { LeagueStatusSchema } from "./league-status";
 import { LeagueVisibilitySchema } from "./league-visibility";
 import { MemberRoleSchema } from "./member-role";
-import { NullablePickemPickStatusSchema } from "./pickem";
-import { NullableSurvivorPickStatusSchema } from "./survivor";
+import { NullablePickemPickStatusSchema, NullablePickemViewerStandingSchema } from "./pickem";
+import { NullableSurvivorPickStatusSchema, NullableSurvivorViewerStandingSchema } from "./survivor";
 
 /**
  * mvp-spec §Leagues names no length rule for league names; 1-50 trimmed is
@@ -157,6 +157,16 @@ export const LeagueResponseSchema = z
     maxMembers: z.number().int(),
     myRole: MemberRoleSchema,
     members: z.array(LeagueMemberSchema),
+    /**
+     * The viewer's place in the league, one field per mode and null on a
+     * league of another mode (the per-mode naming rule; see `LeagueSummary`
+     * for why both DTOs carry it). Serialized pre-start too — a new member's
+     * zero line is a fact (spec §Edge Cases) — and the SPA decides whether a
+     * league that hasn't kicked off shows it, from the same clock every other
+     * pre-start label reads.
+     */
+    myPickemStanding: NullablePickemViewerStandingSchema,
+    mySurvivorStanding: NullableSurvivorViewerStandingSchema,
   })
   .openapi("LeagueResponse");
 
@@ -203,6 +213,18 @@ export const LeagueSummarySchema = z
      */
     survivorPickStatus: NullableSurvivorPickStatusSchema,
     pickemPickStatus: NullablePickemPickStatusSchema,
+    /**
+     * The season the current instance is bound to (ADR-0009), so a card's
+     * eyebrow reads "NFL Pick'em · 2026" in the same shape as the league header.
+     */
+    seasonYear: z.number().int(),
+    /**
+     * The viewer's standing at a glance, beside the pick status: the rank and
+     * record (Pick'em) or alive-or-out and who is left (Survivor) that the hub
+     * card shows as its numerals. Same viewer scoping as the glances above.
+     */
+    myPickemStanding: NullablePickemViewerStandingSchema,
+    mySurvivorStanding: NullableSurvivorViewerStandingSchema,
   })
   .openapi("LeagueSummary");
 
