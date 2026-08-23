@@ -59,7 +59,7 @@ function Welcome() {
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-12 px-4 py-12 sm:px-6 sm:py-16">
         <section className="flex flex-col items-center gap-5 text-center">
           <BrandMark className="size-20" />
-          <h1 className="text-4xl font-bold text-foreground sm:text-5xl">Picks Leagues</h1>
+          <h1 className="text-4xl text-foreground sm:text-5xl">Picks Leagues</h1>
           <p className="max-w-md text-lg text-muted-foreground">
             Season-long sports leagues with friends. Create one, invite your crew, and settle
             bragging rights on the scoreboard.
@@ -104,7 +104,7 @@ function Welcome() {
               <li key={step.title} className="flex gap-4">
                 <span
                   aria-hidden="true"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-sm font-semibold text-primary-foreground"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink type-display text-sm text-ink-foreground"
                 >
                   {index + 1}
                 </span>

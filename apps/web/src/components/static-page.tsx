@@ -35,7 +35,7 @@ export function StaticPage({
       {authed ? <AppHeader /> : <VisitorHeader />}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-4 py-8 sm:p-6 sm:py-10">
         <header className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+          <h1 className="text-2xl text-foreground">{title}</h1>
           {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </header>
         <StaticProse>{children}</StaticProse>

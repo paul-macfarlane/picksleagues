@@ -21,7 +21,7 @@ function AdminLayout() {
     <AdminGate>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-2xl font-semibold text-foreground">Admin</h1>
+          <h1 className="text-2xl text-foreground">Admin</h1>
           {/* Same seat as the simulator's "How the simulator works": the guide
               is reached from the surface it explains, not from the app's
               primary nav (owner, 2026-08-22). */}

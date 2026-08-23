@@ -60,7 +60,7 @@ function LeagueOverview() {
 function RenewSeasonBanner({ league }: { league: LeagueResponse }) {
   const renew = useRenewLeague(league.id);
   return (
-    <Card className="ring-primary/30">
+    <Card className="ring-foreground/30">
       <CardHeader>
         <CardTitle>The next season is available</CardTitle>
         <CardDescription>

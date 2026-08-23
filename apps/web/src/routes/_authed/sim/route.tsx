@@ -23,7 +23,7 @@ function SimLayout() {
     <AdminGate allow={(me) => me.isAdmin && Boolean(me.simEnabled)}>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-2xl font-semibold text-foreground">Simulator</h1>
+          <h1 className="text-2xl text-foreground">Simulator</h1>
           {/* New tab like the pick sheets' rules links: the guide is the page an
             operator sends a tester mid-drive, and losing the sim page to read
             it would lose the state being demonstrated. */}

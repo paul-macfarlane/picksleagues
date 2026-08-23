@@ -46,6 +46,8 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `14-owner-feedback.md` | `FB`   | Items the owner raised from real use: fixture bug, perf audit, QoL, scope questions |
 | `15-scope-sweep.md`    | `SWP`  | App-wide complexity-vs-value sweep: cut candidates, all triaged          |
 | `16-game-stats.md`     | `STAT` | Pre-pick matchup stats (records, injuries, team stats, matchup context), tiered basic/advanced UX |
+| `17-mobile-feel.md`    | `MOB`  | Installed-PWA feel: touch targets, bottom tab bar, view transitions |
+| `18-visual-identity.md` | `VIS` | Broadcast-scoreboard visual identity (ADR-0043): type roles, surface tiers, the matchup line, every-screen sweep |
 
 ## Build order
 
@@ -54,7 +56,8 @@ written. This list holds only remaining work; completed rounds are summarized
 below it. The order remaining work is taken (owner, 2026-08-22):
 
 1. **`17-mobile-feel`** (owner, 2026-08-22) — `MOB-1` → `MOB-2` → `MOB-3` first (standalone polish + touch targets, bottom tab bar, view transitions): the "feels like an app" threshold for the installed PWA. `MOB-4`–`7` are a second round after living with the tab bar.
-2. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+2. **`18-visual-identity`** (owner, 2026-08-22) — `VIS-1` → `VIS-2` → `VIS-3` in order (tokens and type roles, surface tiers, the signature matchup line); `VIS-4`/`VIS-5` after `VIS-2`, then `VIS-6`, `VIS-7`, and the `VIS-8` coherence audit last. Direction and primitives are ADR-0043.
+3. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `10-trust-safety` was in this list until `SWP-2` scrapped it (owner, 2026-08-09) —
 its items are `wontfix` in place. `SWP-3` kept public discovery (owner, 2026-08-11)

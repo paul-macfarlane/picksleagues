@@ -44,7 +44,10 @@ export function lastFiveWins(context: NflGameStatsTeamContext | undefined): numb
 function EdgeDot() {
   return (
     <>
-      <span aria-hidden="true" className="inline-block size-1.5 shrink-0 rounded-full bg-primary" />
+      <span
+        aria-hidden="true"
+        className="inline-block size-1.5 shrink-0 rounded-full bg-foreground"
+      />
       <span className="sr-only">(edge)</span>
     </>
   );

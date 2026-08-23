@@ -73,7 +73,7 @@ function Discovery() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <h1 className="text-2xl font-semibold text-foreground">Browse public leagues</h1>
+      <h1 className="text-2xl text-foreground">Browse public leagues</h1>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <form
@@ -167,7 +167,7 @@ function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
             this league at all, so it carries a pill's weight rather than a
             caption's (FB-36). */}
         <CardDescription className="flex flex-wrap items-center gap-2">
-          <StatusPill tone="accent">{leagueModeLabel(league.mode)}</StatusPill>
+          <StatusPill tone="neutral">{leagueModeLabel(league.mode)}</StatusPill>
           <span>{league.seasonYear}</span>
         </CardDescription>
       </CardHeader>

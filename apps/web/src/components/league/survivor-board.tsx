@@ -253,7 +253,7 @@ function BoardRow({
             <StatusPill data-testid="survivor-revival-possible">Revival possible</StatusPill>
           )}
           {member.revivedCount > 0 && (
-            <StatusPill tone="accent" data-testid="survivor-revived">
+            <StatusPill tone="highlight" data-testid="survivor-revived">
               Revived{member.revivedCount > 1 ? ` ×${member.revivedCount}` : ""}
             </StatusPill>
           )}
