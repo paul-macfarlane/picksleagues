@@ -65,12 +65,13 @@ against it rather than hardcoding.
   on navigation, with a directional slide only if it stays under ~20 lines;
   `prefers-reduced-motion` disables it; no library. Skeleton/`QueryState`
   surfaces must not double-animate. _(deps: MOB-2)_
-- [ ] **MOB-4** — League-section nav discoverability. The scrolling underline
-  `TabNav` hides tabs past the right edge with no affordance: add edge fades
-  (mask-image) and `scroll-snap`, and scroll the active tab into view on
-  mount. Revisit a segmented control / picker sheet only if fades aren't
-  enough after a week of use — the owner chose global tabs over contextual
-  league tabs (2026-08-22). _(deps: MOB-2)_
+- [x] **MOB-4** — League-section nav fits the phone. The owner ruled out
+  horizontal scroll for the member-facing bar (2026-08-22, during MOB-2
+  review): `TabNav fit` lays the league sections out as equal columns below
+  `sm`, and "League Picks" became "All Picks" so five tabs fit at 375px.
+  Admin/Simulator bars (seven and five operator tabs) keep scrolling; edge
+  fades there only if someone actually works those panels from a phone.
+  _(deps: MOB-2)_
 - [ ] **MOB-5** — Pull-to-refresh on query-backed views (standings, games,
   dashboard): a touch-start-at-scrollTop-0 gesture invalidates the route's
   query keys via the `apps/web/src/api/*` modules (no key literals in

@@ -222,7 +222,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
   // caller below is that the card mounts and that it is the *current* week's,
   // rather than one inherited from whichever surface the member came from.
   async function openLeaguePicks() {
-    await pageA.getByRole("link", { name: "League Picks" }).click();
+    await pageA.getByRole("link", { name: "All Picks" }).click();
     const detail = pageA.getByTestId("week-picks-card");
     await expect(detail).toBeVisible();
     // The week it opened on — the whole point of the assertion — read off the
