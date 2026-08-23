@@ -7,6 +7,8 @@ import {
   type LeagueResponse,
   type LeagueSettings,
   type LeagueStatus,
+  type PickemViewerStanding,
+  type SurvivorViewerStanding,
 } from "@picksleagues/schemas";
 import { resolveUserImage } from "../users";
 
@@ -53,6 +55,12 @@ export function serializeLeague(
   // (ADR-0009) — the commissioner may renew. Derived by the callers where the
   // per-sport latest year is already at hand, never stored.
   renewable: boolean,
+  // The viewer's own line, resolved by the caller per mode; null on the modes
+  // that don't apply (which for March Madness is both, until epic 07).
+  standing: {
+    myPickemStanding: PickemViewerStanding | null;
+    mySurvivorStanding: SurvivorViewerStanding | null;
+  },
 ): LeagueResponse {
   // The viewer is always among `members` (getLeague joins on their own
   // membership; createLeague just inserted it) — the fallback is for types.
@@ -70,5 +78,7 @@ export function serializeLeague(
     maxMembers: league.maxMembers,
     myRole,
     members: members.map(serializeMember),
+    myPickemStanding: standing.myPickemStanding,
+    mySurvivorStanding: standing.mySurvivorStanding,
   };
 }

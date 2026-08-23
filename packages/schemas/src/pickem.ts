@@ -59,6 +59,39 @@ export const PickemStandingsResponseSchema = z
 
 export type PickemStandingsResponse = z.infer<typeof PickemStandingsResponseSchema>;
 
+/**
+ * The viewer's own line of the season-cumulative board, carried on every
+ * league read (spec §Screens — Dashboard; ADR-0043 §2: the band names the
+ * subject and the viewer's place in it). The league header and the hub card
+ * render rank and record from the DTO they already hold, so neither pays a
+ * standings fetch per league to show two numerals.
+ *
+ * `rankShared` travels with the rank because the board's "T-3" needs the whole
+ * board to compute (`sharedRankCounts`) and a card holds only its own line.
+ */
+export const PickemViewerStandingSchema = z
+  .object({
+    rank: z.number().int(),
+    /** Whether at least one other member holds the same rank (spec §Standings — Ties). */
+    rankShared: z.boolean(),
+    points: z.number(),
+    wins: z.number().int(),
+    losses: z.number().int(),
+    pushes: z.number().int(),
+  })
+  .openapi("PickemViewerStanding");
+
+export type PickemViewerStanding = z.infer<typeof PickemViewerStandingSchema>;
+
+/**
+ * Own component name, never an inline `.nullable()` on the registered schema
+ * above — the wrapper would inherit the registration and fold `null` into the
+ * shared component.
+ */
+export const NullablePickemViewerStandingSchema = PickemViewerStandingSchema.nullable().openapi(
+  "NullablePickemViewerStanding",
+);
+
 export const PickemPickSubmissionSchema = z
   .object({
     gameId: z.uuid(),

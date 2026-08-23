@@ -6,7 +6,7 @@ a diff to are `.claude/rules/engineering.md` §Quality. This page is the quick
 reference: tokens, type roles, surface tiers, and what the orange may touch.
 `VIS-1` landed the tokens, roles, and tag; `VIS-2` the `Band` and `Section`
 primitives and the row class, with every surface re-classified onto a tier;
-`VIS-3` the matchup line.
+`VIS-3` the matchup line; `VIS-4` the subject band and the league card.
 
 ## Tokens
 
@@ -40,7 +40,12 @@ a weight or tracking of its own. Body copy is the unstyled default (Geist).
 | `type-eyebrow` | Geist 11px, 500, uppercase, wide, muted | the label above a thing (`WEEK 1`, `STANDINGS`, `KICKOFF`), `TableHead`, `StatusPill`. Pair with a `text-*` colour to recolour — a single-property utility beside it wins. |
 
 A display numeral sits in the slot the thing's *label* points at: eyebrow
-above, numeral below, nothing between.
+above, numeral below, nothing between. `LeagueStanding`
+(`components/league/league-standing.tsx`) is that slot for the viewer's own
+place in a league — rank and record for Pick'em, alive-or-out and who is
+left for Survivor, the roster size before the league has kicked off — read
+from the `myPickemStanding` / `mySurvivorStanding` fields every league DTO
+carries, so the header and the hub card never disagree.
 
 ## Surface tiers
 
@@ -49,7 +54,7 @@ surface. Ask "what is this region?" and take the first row that fits.
 
 | Tier | Primitive | Looks like | It is |
 | --- | --- | --- | --- |
-| band | `Band` | ink fill, display type | the subject of the screen — the league header, a hub card's top strip. At most one per screen; the welcome hero is the only band without a league in it. |
+| band | `Band` | ink fill, display type | the subject of the screen — the league header, a league card's top strip (`LeagueCardStrip`). At most one per *subject*: a league page has one, and a list of league cards has one per card because each card is its own subject. The welcome hero is the only band without a league in it. |
 | section | `Section` | eyebrow + `h2` + description + action slot, whitespace only | the default grouping: standings, the week's games, members, a settings group, an admin panel |
 | panel | `Card` | 1px ring, `card` fill | an object: a league in a list, a dialog-like form, the install card, a sim scenario |
 | row | `<li className={rowClassName}>` | hairline, optional left rule | a game, a standings line, a member, an audit entry — the left rule carries state (outcome colour when settled, `primary` when selected) |
@@ -64,7 +69,9 @@ carries the hairline and the vertical rhythm; its list parent is a gapless
 `flex flex-col`, and a row composes its own layout classes beside it.
 
 What stays a panel, and why: a league card on the hub or in discovery (an
-object in a list), the create-league / sign-in / claim-username / join /
+object in a list — its strip is the league header at card scale, and its body
+holds the numerals: the viewer's standing on the hub, members and spots left
+in discovery), the create-league / sign-in / claim-username / join /
 not-found / no-leagues cards (a dialog-like form, centred in the column), the
 renew-season notices, the install card, the profile identity form, the welcome
 page's three mode cards, and the simulator's control cards (each a thing the

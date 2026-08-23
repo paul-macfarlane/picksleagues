@@ -10,10 +10,12 @@ import {
 } from "@picksleagues/schemas";
 import { useMyLeagues } from "@/api/leagues";
 import { useAppNow } from "@/lib/app-clock";
-import { leagueModeLabel, leagueTimingLine } from "@/lib/league";
+import { leagueTimingLine } from "@/lib/league";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardGridSkeleton } from "@/components/loading";
+import { LeagueCardStrip } from "@/components/league/league-card-strip";
+import { LeagueStanding } from "@/components/league/league-standing";
 import { QueryState } from "@/components/query-state";
 import { StatusPill, type StatusPillTone } from "@/components/status-pill";
 
@@ -110,29 +112,44 @@ function Dashboard() {
   );
 }
 
+/**
+ * A league as an object in the member's list: the band strip names it, the
+ * body says where the viewer stands and what the week wants of them. The whole
+ * card is the link (the name's `after:absolute` overlay), which is why the strip
+ * carries no link styling of its own.
+ */
 function LeagueCard({ league }: { league: LeagueSummary }) {
   const glance = pickStatusGlance(league);
   const now = useAppNow();
   return (
-    <Card className="relative h-full transition-colors hover:ring-ring/50">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2">
-          <Link
-            to="/leagues/$leagueId"
-            params={{ leagueId: league.id }}
-            className="rounded-sm outline-none after:absolute after:inset-0 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {league.name}
-          </Link>
+    <Card className="relative h-full pt-0 transition-shadow hover:ring-ring/50">
+      <LeagueCardStrip mode={league.mode} seasonYear={league.seasonYear}>
+        <Link
+          to="/leagues/$leagueId"
+          params={{ leagueId: league.id }}
+          className="rounded-sm outline-none after:absolute after:inset-0 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {league.name}
+        </Link>
+      </LeagueCardStrip>
+      <CardContent className="flex flex-1 flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <LeagueStanding league={league} now={now} numeralClassName="text-2xl" />
           <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-        </CardTitle>
-        <CardDescription>{leagueModeLabel(league.mode)}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {glance ? (
+            <StatusPill tone={glance.tone} data-testid={glance.testId} data-status={glance.status}>
+              {glance.label}
+            </StatusPill>
+          ) : (
+            // Both NFL modes answer now (ELM-6, PKM-10); March Madness lands in a
+            // later epic, as does a league whose season holds no week to report on.
+            <span className="text-xs text-muted-foreground/70">Pick status coming soon</span>
+          )}
+          <span>{leagueTimingLine(league, now)}</span>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span>
-            {league.memberCount} member{league.memberCount === 1 ? "" : "s"}
-          </span>
           {league.myRole === MEMBER_ROLE.COMMISSIONER && (
             <StatusPill tone="strong">Commissioner</StatusPill>
           )}
@@ -150,18 +167,6 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
               <StatusPill tone="neutral">New season — waiting on a commissioner</StatusPill>
             ))}
         </div>
-        <p>{leagueTimingLine(league, now)}</p>
-        {glance ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill tone={glance.tone} data-testid={glance.testId} data-status={glance.status}>
-              {glance.label}
-            </StatusPill>
-          </div>
-        ) : (
-          // Both NFL modes answer now (ELM-6, PKM-10); March Madness lands in a
-          // later epic, as does a league whose season holds no week to report on.
-          <p className="text-xs text-muted-foreground/70">Pick status coming soon</p>
-        )}
       </CardContent>
     </Card>
   );
