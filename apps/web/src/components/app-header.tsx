@@ -1,12 +1,13 @@
 import { useLayoutEffect, useRef } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { useSignOut } from "@/lib/sign-out";
+import { isLeaguesSubtree } from "@/lib/league";
+import { cn } from "@/lib/utils";
 import { useMe } from "@/api/me";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BrandMark } from "@/components/brand";
-import { LeagueSwitcher } from "@/components/league-switcher";
 import { SimClockBanner } from "@/components/sim-clock-banner";
 import { UserIdentity } from "@/components/user-identity";
 import {
@@ -20,9 +21,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navLinkClassName = "touch-hit outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
-const navLinkInactiveProps = { className: "text-muted-foreground" };
+const navLinkInactiveClassName = "text-muted-foreground";
+const navLinkActiveClassName = "text-foreground font-medium";
+const navLinkInactiveProps = { className: navLinkInactiveClassName };
 const navLinkActiveProps = {
-  className: "text-foreground font-medium",
+  className: navLinkActiveClassName,
   "aria-current": "page" as const,
 };
 
@@ -36,6 +39,8 @@ const navLinkActiveProps = {
  */
 export function AppHeader() {
   const me = useMe();
+  const { pathname } = useLocation();
+  const onLeagues = isLeaguesSubtree(pathname);
   const headerRef = useRef<HTMLElement>(null);
 
   // TabNav (rendered by league/admin/sim route layouts) sticks flush beneath
@@ -94,17 +99,21 @@ export function AppHeader() {
               <BrandMark className="size-6" />
               Picks Leagues
             </Link>
-            {/* sm and up: full inline nav + league switcher. Below sm the
-                bottom AppTabBar carries primary navigation instead. */}
+            {/* sm and up: full inline nav. Below sm the bottom AppTabBar
+                carries primary navigation instead, in this same order. */}
             <nav aria-label="Primary" className="hidden items-center gap-3 text-sm sm:flex">
+              {/* Manual rather than `activeProps`: the link targets `/` (the
+                  leagues hub) but the entry represents the whole leagues
+                  subtree, so it stays lit inside a league too. */}
               <Link
                 to="/"
-                className={navLinkClassName}
-                inactiveProps={navLinkInactiveProps}
-                activeProps={navLinkActiveProps}
-                activeOptions={{ exact: true }}
+                className={cn(
+                  navLinkClassName,
+                  onLeagues ? navLinkActiveClassName : navLinkInactiveClassName,
+                )}
+                aria-current={onLeagues ? "page" : undefined}
               >
-                Home
+                Leagues
               </Link>
               <Link
                 to="/discovery"
@@ -114,9 +123,6 @@ export function AppHeader() {
               >
                 Browse
               </Link>
-              {/* Primary before operator, the order the phone tab bar uses
-                  (Home · Browse · League · … · More). */}
-              <LeagueSwitcher />
               {me.data?.isAdmin && (
                 <Link
                   to="/admin"

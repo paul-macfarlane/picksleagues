@@ -12,15 +12,19 @@ cheap to revert (friends-scale bar).
 
 Decisions (owner, 2026-08-22):
 
-- **Global bottom tabs always.** Inside a league the bar stays Home / Browse /
-  League / Profile; league sections keep the underline `TabNav`. One nav model.
+- **Global bottom tabs always.** Inside a league the bar stays Leagues /
+  Browse / Profile; league sections keep the underline `TabNav`. One nav model.
 - **The pick sheets' action bar stacks above the tab bar**, never hides it.
   Navigation that vanishes when picks are dirty confuses more than it frees.
 - **Admins get a fifth "More" tab** (Admin / Simulator) instead of keeping
-  the drawer; the drawer is gone for everyone. **The League tab navigates
-  first, switches second:** one tap opens the current league (last visited on
-  this device, else the first), and a tap while already on a league page opens
-  the switcher. (MOB-2, 2026-08-22.)
+  the drawer; the drawer is gone for everyone. **Home and League merged into
+  one "Leagues" tab** that opens the hub at `/` (your leagues + create/browse);
+  a league is one tap deeper. The first cut's League tab navigated on the
+  first tap and opened a switcher on the second, which nothing on screen
+  signalled and which contradicts the re-tap-resets-the-tab convention. The
+  desktop header follows the same order (Leagues · Browse · Admin · Simulator)
+  and its league switcher is gone with it — one nav model at every width.
+  (MOB-2, 2026-08-22.)
 - **Order:** MOB-1 → MOB-2 → MOB-3 are the "feels like an app" threshold and
   go first; MOB-4–7 are a second round after living with the tab bar.
 - **Not in scope:** offline shell / service worker (an offline pick screen is a

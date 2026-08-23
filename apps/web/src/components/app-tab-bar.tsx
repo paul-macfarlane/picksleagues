@@ -1,19 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   CompassIcon,
   EllipsisIcon,
-  HomeIcon,
   ShieldIcon,
   TimerIcon,
   TrophyIcon,
   UserIcon,
 } from "lucide-react";
 import { useMe } from "@/api/me";
-import { useMyLeagues } from "@/api/leagues";
-import { readRememberedLeague, rememberLeague, resolveCurrentLeague } from "@/lib/current-league";
+import { isLeaguesSubtree } from "@/lib/league";
 import { cn } from "@/lib/utils";
-import { LeagueMenuContent } from "@/components/league-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,11 +38,18 @@ const tabInactiveProps = { className: tabInactiveClassName };
 const tabActiveProps = { className: tabActiveClassName, "aria-current": "page" as const };
 
 /**
- * Phone-width primary navigation (MOB-2): a `fixed` bottom bar with Home /
- * Browse / League / Profile (+ More for admins), replacing the hamburger
- * drawer — the installed app reads as an app only once its navigation sits
- * where the thumb already is. Hidden from `sm` up, where the header's inline
- * nav takes over; the two never show together.
+ * Phone-width primary navigation (MOB-2): a `fixed` bottom bar with Leagues /
+ * Browse / Profile (+ More for admins), replacing the hamburger drawer — the
+ * installed app reads as an app only once its navigation sits where the thumb
+ * already is. Hidden from `sm` up, where the header's inline nav takes over;
+ * the two never show together.
+ *
+ * Leagues is the hub at `/` and a league page is one tap deeper — the tab
+ * model fantasy apps already taught members. An earlier cut had a Home tab
+ * plus a League tab that navigated on the first tap and opened a switcher on
+ * the second; nothing on screen signalled the second gesture, and re-tapping
+ * the active tab conventionally means "back to the top", so the switch was
+ * undiscoverable (owner, 2026-08-22).
  *
  * Layering: z-20, the page-level tier under `TabNav` (z-30) and the header
  * (z-40), sharing the tier with `PickSheetActionBar` — which stacks *above*
@@ -56,11 +60,11 @@ const tabActiveProps = { className: tabActiveClassName, "aria-current": "page" a
  * is `display: none`, so the observed height — and the offset every consumer
  * reads — is 0 without any consumer knowing the breakpoint.
  *
- * Render only with a live session: its queries (`useMe`, `useMyLeagues`)
- * assume one.
+ * Render only with a live session: `useMe` assumes one.
  */
 export function AppTabBar() {
   const me = useMe();
+  const { pathname } = useLocation();
   const barRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -94,16 +98,7 @@ export function AppTabBar() {
       // otherwise opens the text-selection loupe (MOB-1).
       className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-background pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] select-none sm:hidden"
     >
-      <Link
-        to="/"
-        className={tabClassName}
-        inactiveProps={tabInactiveProps}
-        activeProps={tabActiveProps}
-        activeOptions={{ exact: true }}
-      >
-        <HomeIcon aria-hidden="true" />
-        Home
-      </Link>
+      <LeaguesTab active={isLeaguesSubtree(pathname)} />
       <Link
         to="/discovery"
         className={tabClassName}
@@ -113,7 +108,6 @@ export function AppTabBar() {
         <CompassIcon aria-hidden="true" />
         Browse
       </Link>
-      <LeagueTab />
       <Link
         to="/profile"
         className={tabClassName}
@@ -160,56 +154,17 @@ function MenuTab({
   );
 }
 
-// Navigate first, switch second: one tap from anywhere reaches the member's
-// league, and a tap while already *on* a league page is the only gesture left
-// that can mean "a different one", so that is when the switcher opens. With
-// one league there is nothing to switch to and the tab is always a link.
-function LeagueTab() {
-  // strict: false, as LeagueSwitcher does — populated only on a league page.
-  const { leagueId } = useParams({ strict: false });
-  const { pathname } = useLocation();
-  const myLeagues = useMyLeagues();
-  const leagues = myLeagues.data?.leagues ?? [];
-
-  useEffect(() => {
-    if (leagueId) rememberLeague(leagueId);
-  }, [leagueId]);
-
-  // Read on render, not held in state: the stored id only ever changes in the
-  // effect above, and only while `leagueId` — which wins here — is set.
-  const currentLeague = resolveCurrentLeague(leagues, leagueId ?? readRememberedLeague());
-  // Prefix check, not `leagueId`, so the tab stays lit on /leagues/new.
-  const isOnLeaguesSubtree = pathname.startsWith("/leagues");
-  const icon = <TrophyIcon aria-hidden="true" />;
-
-  if (leagueId && leagues.length > 1) {
-    return (
-      <MenuTab label="League" icon={icon} active={isOnLeaguesSubtree}>
-        <LeagueMenuContent leagues={leagues} currentLeagueId={leagueId} align="center" side="top" />
-      </MenuTab>
-    );
-  }
-
-  // Manual rather than `activeProps`: the link targets one league, but the
-  // tab represents the whole /leagues subtree.
-  const linkProps = {
-    className: cn(tabClassName, isOnLeaguesSubtree ? tabActiveClassName : tabInactiveClassName),
-    "aria-current": isOnLeaguesSubtree ? ("page" as const) : undefined,
-  };
-  const body = (
-    <>
-      {icon}
-      League
-    </>
-  );
-
-  return currentLeague ? (
-    <Link to="/leagues/$leagueId" params={{ leagueId: currentLeague.id }} {...linkProps}>
-      {body}
-    </Link>
-  ) : (
-    <Link to="/leagues/new" {...linkProps}>
-      {body}
+// Manual rather than `activeProps`: the link targets `/`, but the tab
+// represents the whole leagues subtree too.
+function LeaguesTab({ active }: { active: boolean }) {
+  return (
+    <Link
+      to="/"
+      className={cn(tabClassName, active ? tabActiveClassName : tabInactiveClassName)}
+      aria-current={active ? "page" : undefined}
+    >
+      <TrophyIcon aria-hidden="true" />
+      Leagues
     </Link>
   );
 }
