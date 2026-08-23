@@ -5,6 +5,7 @@ import {
   ErrorResponseSchema,
   JOIN_BLOCKED_REASON_MESSAGES,
   LeagueResponseSchema,
+  MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MyLeaguesResponseSchema,
   UpdateLeagueRequestSchema,
 } from "@picksleagues/schemas";
@@ -188,8 +189,7 @@ export function leagueRoutes(deps: AppDeps) {
     const result = await createLeague(db, clock, sessionUser.id, input);
     if (!result.ok) {
       const messages = {
-        [ERROR_CODE.CAP_EXCEEDED]:
-          "You already run 10 active leagues — conclude or delete one first.",
+        [ERROR_CODE.CAP_EXCEEDED]: `You already run ${MAX_ACTIVE_COMMISSIONER_LEAGUES} active leagues — conclude or delete one first.`,
         [ERROR_CODE.MODE_UNAVAILABLE]: "That game mode isn't available yet.",
         [ERROR_CODE.NO_ACTIVE_SEASON]: "That game mode has no season available yet.",
         // Deliberately names no control: neither NFL mode has a range setting

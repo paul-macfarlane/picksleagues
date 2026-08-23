@@ -161,8 +161,8 @@ export function matchupNumerals(
 }
 
 /**
- * The "as of" qualifier next to a live clock (DATA-8): scores sync every ~5
- * minutes, so a game clock read from a stored snapshot can be minutes stale —
+ * The "as of" qualifier next to a live clock (DATA-8): scores sync every ~15
+ * minutes (ADR-0044), so a game clock read from a stored snapshot can be well stale —
  * unlike a final score, which is settled, or a kickoff time, which hasn't
  * happened yet, so it's shown only while the game is in progress (spec §UI
  * conventions: never claim real-time freshness). Phrased as a qualifier

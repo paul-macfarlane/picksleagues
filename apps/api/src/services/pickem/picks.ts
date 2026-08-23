@@ -387,10 +387,10 @@ export type PickemSettingsEditorRefusal = Extract<
  * same "every pick on the instance" predicate): a count that disagreed with
  * what a save would actually delete would just be a more convincing lie.
  *
- * Gated on `LEAGUE_ACTION.EDIT_SETTINGS`, not plain membership — an ordinary
- * member has no use for this number and showing it would leak how many
- * picks other members have submitted before their games kick off (spec §Pick
- * Visibility).
+ * Gated on `LEAGUE_ACTION.EDIT_SETTINGS`, not plain membership: this is the
+ * settings editor's warning input and nothing else — an ordinary member has no
+ * use for it, and pick *counts* already reach members through the per-week
+ * `hiddenPickCount`, which spec §Pick Visibility names as deliberate.
  */
 export async function getPickemPickSummary(
   db: Db,
