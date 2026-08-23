@@ -414,6 +414,21 @@ export interface SurvivorGradablePick {
 }
 
 /**
+ * How many weeks a member has come through, as the board's one numeral: the
+ * settled picks that did not eliminate them — a win, or a push, since ties
+ * advance (ADR-0033). Settled only, never the derived grade, so the number
+ * moves when "last updated" does and not before; a revival shows as its own
+ * pill rather than as a week survived, because the member's pick that week
+ * lost. Counts are out-row facts too: how far someone got is the board's
+ * subject (spec §Standings View).
+ */
+export function survivorWeeksSurvived(picks: readonly { outcome: PickOutcome | null }[]): number {
+  return picks.filter(
+    (pick) => pick.outcome === PICK_OUTCOME.CORRECT || pick.outcome === PICK_OUTCOME.PUSH,
+  ).length;
+}
+
+/**
  * A board pick's verdict for display: the settled grade, else the one derived
  * from its game's terminal state (`survivorProvisionalOutcome`) — the two can
  * never disagree for a single pick. Null for a withheld pick (no team, no

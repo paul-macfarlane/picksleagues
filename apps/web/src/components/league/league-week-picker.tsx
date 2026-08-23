@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
 import { useLeagueWeeks } from "@/api/weeks";
-import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /**
  * The week-scoped page shell: load the league's weeks, let the member pick one,
@@ -56,13 +63,45 @@ export function LeagueWeekPicker({
         isEmpty={allWeeks.length === 0}
         emptyMessage="No weeks in range for this league yet."
       >
-        <LabeledSelect
-          id={selectId}
-          label="Week"
-          value={effectiveWeekId ?? null}
-          onValueChange={onSelectWeek}
-          options={allWeeks.map((week) => ({ value: week.id, label: week.label }))}
-        />
+        {/* The week is the page's subject, so its name takes the display role
+            (ADR-0043 §1) — composed here rather than through `LabeledSelect`,
+            whose bordered input look is right for a settings field and wrong
+            for a heading. Still a real Select: same id, label association,
+            keyboard, and options, so nothing a journey binds to moves. The
+            label is screen-reader-only because the value already says "Week":
+            an eyebrow `WEEK` over `WEEK 1` is the word twice. */}
+        <div className="flex flex-col">
+          <Label htmlFor={selectId} className="sr-only">
+            Week
+          </Label>
+          {/* `items` is Base UI's value→label map for the closed trigger —
+              without it the trigger renders the raw wire id. `null`, never
+              `undefined`, for "no selection": `undefined` flips the Select to
+              uncontrolled. */}
+          <Select
+            items={allWeeks.map((week) => ({ value: week.id, label: week.label }))}
+            value={effectiveWeekId ?? null}
+            onValueChange={(next) => {
+              if (next) onSelectWeek(next);
+            }}
+          >
+            <SelectTrigger
+              id={selectId}
+              // The trigger's own `h-8` is bound to its size attribute, so the
+              // override must be too; the chevron is ink beside ink numerals.
+              className="type-display h-auto rounded-sm border-0 px-0 py-0 text-2xl data-[size=default]:h-auto dark:bg-transparent dark:hover:bg-transparent [&_svg]:size-5 [&_svg]:text-foreground"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {allWeeks.map((week) => (
+                <SelectItem key={week.id} value={week.id}>
+                  {week.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {effectiveWeekId && children(effectiveWeekId)}
       </QueryState>

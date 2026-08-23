@@ -6,6 +6,7 @@ import {
   survivorPickGrade,
   survivorProvisionalOutcome,
   survivorRevivalStillPossible,
+  survivorWeeksSurvived,
   spreadLabel,
 } from "./game";
 
@@ -169,6 +170,26 @@ describe("survivorPickGrade", () => {
 
   it("returns null for a withheld pick — no team, no game, no verdict", () => {
     expect(survivorPickGrade({ teamId: null, outcome: null, game: null })).toBeNull();
+  });
+});
+
+describe("survivorWeeksSurvived", () => {
+  it.each([
+    { name: "no picks", outcomes: [], expected: 0 },
+    { name: "wins count", outcomes: [PICK_OUTCOME.CORRECT, PICK_OUTCOME.CORRECT], expected: 2 },
+    { name: "a push advances (ADR-0033)", outcomes: [PICK_OUTCOME.PUSH], expected: 1 },
+    {
+      name: "the losing week is not survived",
+      outcomes: [PICK_OUTCOME.CORRECT, PICK_OUTCOME.INCORRECT],
+      expected: 1,
+    },
+    {
+      name: "an unsettled or withheld pick is not counted yet",
+      outcomes: [PICK_OUTCOME.CORRECT, null],
+      expected: 1,
+    },
+  ])("$name", ({ outcomes, expected }) => {
+    expect(survivorWeeksSurvived(outcomes.map((outcome) => ({ outcome })))).toBe(expected);
   });
 });
 

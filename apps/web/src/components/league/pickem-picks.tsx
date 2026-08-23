@@ -65,16 +65,6 @@ export function openSelections(
 }
 
 /**
- * The sticky action bar's progress copy (feedback: submitting a 16-game
- * slate shouldn't require scrolling to find the count) — a pure formatter so
- * the exact phrasing is pinned by a test rather than re-typed at the call
- * site.
- */
-export function pickProgressLabel(heldCount: number, picksAllowed: number): string {
-  return `${heldCount} of ${picksAllowed} picks`;
-}
-
-/**
  * The member's own week (spec §Screens: pick entry has two states).
  *
  * Which state it is in is a fact about the server, not this component: under
@@ -346,8 +336,14 @@ function PickSheet({
       {openGames.length > 0 && !awaitingLines && (
         <PickSheetActionBar>
           <div className="flex flex-col">
-            <p className="text-sm text-muted-foreground">
-              {pickProgressLabel(selections.size, required)}
+            {/* The count is the bar's point (feedback: a 16-game slate shouldn't
+                need a scroll to find it), so it takes the display role with
+                its label as an eyebrow beside it (ADR-0043 §1). */}
+            <p className="flex items-baseline gap-1.5">
+              <span className="type-display text-2xl" data-testid="pickem-pick-progress">
+                {selections.size} of {required}
+              </span>
+              <span className="type-eyebrow">picks</span>
             </p>
             {/* Reconciles the count with the rows: the member can see more
                 games on screen than the target asks for, and this names the
