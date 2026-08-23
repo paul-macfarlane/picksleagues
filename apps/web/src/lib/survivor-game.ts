@@ -15,9 +15,9 @@ import {
  * `packages/scoring/src/survivor.ts`: cancelled → push, win → correct, tie →
  * push, loss → incorrect), which can never disagree with it for a single pick;
  * only week-level consequences (elimination, revival, the team ledger) wait for
- * the settled week. Deliberately a different stance from Pick'em's
- * `pickStandingLabel`, which stays silent between final and settlement — here
- * the derivation *is* the verdict shown, so there is no unconfirmed reading.
+ * the settled week. The derivation *is* the verdict shown, so there is no
+ * unconfirmed reading — Pick'em took the same stance in PKM-11
+ * (`pickemPickGrade`), so both modes show a verdict the moment a game ends.
  *
  * Null while the game is still ahead or in play, and on a final without scores
  * (the provider fault an admin score override corrects) — the row keeps its
