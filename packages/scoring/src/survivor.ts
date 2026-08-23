@@ -5,6 +5,7 @@ import {
   type GameStatus,
   type PickOutcome,
 } from "@picksleagues/schemas";
+import { pickOutcomeForMargin } from "./pick-outcome";
 
 /**
  * Survivor settlement (spec §Game Mode 2).
@@ -33,10 +34,13 @@ import {
  * Survivor is straight-up only (ADR-0026), so nothing here consults a spread,
  * and a tied final score always advances with the team consumed — the
  * Push/Tie Resolution setting was cut at its default (ADR-0033), so no
- * settings reach this package at all. There is no shared grading helper with
- * `pickem.ts` for the same reason — with ATS gone the whole arithmetic is one
- * subtraction, and extracting it would leave two callers sharing less code
- * than the indirection costs.
+ * settings reach this package at all. The margin *arithmetic* stays this
+ * module's own (one subtraction, `pickedTeamMargin` — sharing it with
+ * `pickem.ts`'s spread math would cost more indirection than it saves), but
+ * the margin-to-verdict mapping is `pick-outcome.ts`'s, shared with Pick'em's
+ * settlement and both modes' client-side derived badges (FB-23, PKM-11):
+ * once four call sites state the same mapping, a shared function is what
+ * keeps spec §Settled pick margin's no-contradiction promise structural.
  */
 
 /** A member's single pick for the week, as stored on `survivor_picks`. */
@@ -378,10 +382,10 @@ function blockingGames(
   return [...blocking].map(([gameId, reason]) => ({ gameId, reason }));
 }
 
-// The grade and its consequence together, because the two are decided by the
-// same fact and reading the consequence back off the grade would need the very
-// distinction this drops: a cancellation and a tie are both `push`, and only one
-// of them can end a season.
+// The grade and its consequence together: which outcomes end a season is
+// settlement's rule (an incorrect pick, and nothing else — a cancellation and
+// a tie are both `push` and neither eliminates), and answering it once here
+// keeps the complete and provisional paths from ever deciding it differently.
 interface GradedSurvivorPick {
   outcome: SurvivorPickOutcome;
   eliminates: boolean;
@@ -405,25 +409,14 @@ function gradePick(
   }
 
   const margin = pickedTeamMargin(caller, pick, result);
-  if (margin > 0) {
-    return {
-      outcome: { ...graded, outcome: PICK_OUTCOME.CORRECT, teamConsumed: true },
-      eliminates: false,
-    };
-  }
-  if (margin < 0) {
-    return {
-      outcome: { ...graded, outcome: PICK_OUTCOME.INCORRECT, teamConsumed: true },
-      eliminates: true,
-    };
-  }
-
-  // A tie: advance with the team consumed — the game was played, so the team
-  // is spent, and the member survives. Fixed rather than configurable
-  // (ADR-0033 cut the Push/Tie Resolution setting at this, its default).
+  // A tie's push advances with the team consumed — the game was played, so
+  // the team is spent, and the member survives. Fixed rather than
+  // configurable (ADR-0033 cut the Push/Tie Resolution setting at this, its
+  // default).
+  const outcome = pickOutcomeForMargin(margin);
   return {
-    outcome: { ...graded, outcome: PICK_OUTCOME.PUSH, teamConsumed: true },
-    eliminates: false,
+    outcome: { ...graded, outcome, teamConsumed: true },
+    eliminates: outcome === PICK_OUTCOME.INCORRECT,
   };
 }
 

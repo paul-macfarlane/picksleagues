@@ -1,24 +1,22 @@
 import {
   GAME_STATUS,
-  PICK_OUTCOME,
   PICK_TYPE,
-  isUnplayedStatus,
   type GameStatus,
   type PickemPickSide,
   type PickOutcome,
   type PickType,
 } from "@picksleagues/schemas";
-import { pickMargin } from "@picksleagues/scoring";
+import { pickMargin, terminalPickOutcome } from "@picksleagues/scoring";
 
 /**
  * The verdict a pick row shows: the settled grade, else the one derived from
  * its game's terminal state (PKM-11, spec §Settled pick margin). Settlement
  * rides the score sync's cadence, so a final game's pick sits ungraded for up
  * to a sync interval — and a decided game showing nothing there reads as the
- * app not knowing something the scoreboard already says. The derivation
- * mirrors `settlePickemWeek`'s own mapping (cancelled → push, final scores →
- * the sign of `pickMargin`), so the settled grade that replaces it can never
- * disagree.
+ * app not knowing something the scoreboard already says. The derivation *is*
+ * settlement's own: `terminalPickOutcome` over `pickMargin`, both from
+ * `packages/scoring`, so the settled grade that replaces it can never
+ * disagree — there is no second copy of the mapping here to drift.
  *
  * Null when there is no verdict to show: the game is still ahead or in play,
  * it is final without scores (the provider fault an admin score override
@@ -30,16 +28,12 @@ export function pickemPickGrade(
   pick: { side: PickemPickSide; spreadAtPick: number | null; outcome: PickOutcome | null },
   pickType: PickType,
 ): PickOutcome | null {
-  if (pick.outcome) return pick.outcome;
-  if (isUnplayedStatus(game.status)) return PICK_OUTCOME.PUSH;
-  if (game.status !== GAME_STATUS.FINAL) return null;
-  if (game.homeScore === null || game.awayScore === null) return null;
-
-  const margin = pickMargin(pick, game.homeScore, game.awayScore, pickType);
-  if (margin === null) return null;
-  if (margin > 0) return PICK_OUTCOME.CORRECT;
-  if (margin < 0) return PICK_OUTCOME.INCORRECT;
-  return PICK_OUTCOME.PUSH;
+  return (
+    pick.outcome ??
+    terminalPickOutcome(game, (homeScore, awayScore) =>
+      pickMargin(pick, homeScore, awayScore, pickType),
+    )
+  );
 }
 
 /**
