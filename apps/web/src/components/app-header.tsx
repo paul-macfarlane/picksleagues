@@ -1,12 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import type { ComponentType } from "react";
-import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
-import { useTheme } from "next-themes";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
 import { useSignOut } from "@/lib/sign-out";
-import { THEME, THEME_OPTIONS, type Theme } from "@/lib/theme";
 import { useMe } from "@/api/me";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BrandMark } from "@/components/brand";
@@ -19,8 +15,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -120,6 +114,9 @@ export function AppHeader() {
               >
                 Browse
               </Link>
+              {/* Primary before operator, the order the phone tab bar uses
+                  (Home · Browse · League · … · More). */}
+              <LeagueSwitcher />
               {me.data?.isAdmin && (
                 <Link
                   to="/admin"
@@ -140,7 +137,6 @@ export function AppHeader() {
                   Simulator
                 </Link>
               )}
-              <LeagueSwitcher />
             </nav>
           </div>
           <div className="hidden sm:block">
@@ -155,19 +151,11 @@ export function AppHeader() {
   );
 }
 
-const themeIcons = {
-  [THEME.LIGHT]: SunIcon,
-  [THEME.DARK]: MoonIcon,
-  [THEME.SYSTEM]: MonitorIcon,
-} as const satisfies Record<Theme, ComponentType>;
-
 function SessionMenu() {
   const { data: session } = authClient.useSession();
-  // Theme selection lives in this menu rather than as its own top-bar control
-  // (FB-14, owner's call): it's a set-and-forget account preference, not a
-  // per-visit action worth permanent header real estate. No SSR pass, so
-  // next-themes' `theme` is already correct on first paint.
-  const { theme, setTheme } = useTheme();
+  // Theme is not in this menu (it was, per FB-14): a set-and-forget
+  // preference's one home is the profile page's Appearance section, which
+  // is also the only home the phone layout has (owner, 2026-08-22).
   // The avatar comes from /me, not from `session.user.image`: that column is
   // the provider's, and Better Auth's session knows nothing about the member's
   // override (ADR-0022), so reading it here would show the provider photo to
@@ -210,23 +198,6 @@ function SessionMenu() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>Profile</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {/* Label nested in a Group on purpose — this dropdown-menu is the Base
-            UI flavor, and a bare GroupLabel throws at runtime. */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-            {THEME_OPTIONS.map((option) => {
-              const Icon = themeIcons[option.value];
-              return (
-                <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  <Icon />
-                  {option.label}
-                </DropdownMenuRadioItem>
-              );
-            })}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>

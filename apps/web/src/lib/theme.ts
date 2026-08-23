@@ -7,9 +7,10 @@ export const THEME = {
 export type Theme = (typeof THEME)[keyof typeof THEME];
 
 /**
- * The theme choices in display order — one list for the header's menu and the
- * profile page's Appearance section, so the two pickers can't disagree on what
- * exists or what it's called.
+ * The theme choices in display order. One list, one picker (the profile
+ * page's Appearance section — the header menu no longer carries one), kept
+ * apart from the component so the values next-themes persists and the labels
+ * a member sees stay one declaration.
  */
 export const THEME_OPTIONS: readonly { value: Theme; label: string }[] = [
   { value: THEME.LIGHT, label: "Light" },
