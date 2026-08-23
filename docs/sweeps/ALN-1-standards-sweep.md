@@ -16,7 +16,7 @@ Six rules are questioned below — places where the violation count says the *ru
 
 ## Rule questions for the owner
 
-Each of these is a choice between "sweep the code to the rule" and "amend the rule to the code". A recommendation is given; none is pre-decided.
+Each of these is a choice between "sweep the code to the rule" and "amend the rule to the code". **Decided (owner, 2026-08-23): every recommendation accepted.** Q1 is a code migration carried by ALN-2 PR A; the rule amendments for Q2–Q6 landed in `.claude/rules/engineering.md` in the ALN-1 PR itself, so ALN-2 starts against the amended rules.
 
 1. **Refusal reasons as inline literal unions** (§Architecture "a service names its refusal reasons in a const set"; §Quality "non-test code never compares raw literals of a set"). ~60 sites across 9 pre-Pick'em services and 3 route files (`leagues.ts`, `members.ts`, `invites.ts` — 34 `case "…"` arms). Every reason is already a member of `ERROR_CODE`, so the rule's own 1:1 clause makes the migration mechanical: return `ERROR_CODE.LEAGUE_NOT_FOUND`, switch on `case ERROR_CODE.LEAGUE_NOT_FOUND:`. **Recommend: migrate** — the two halves of `services/` currently teach opposite patterns to the next diff, which is the exact failure the "match surrounding code" rule names. M.
 
@@ -53,7 +53,7 @@ One PR per area, pure conformance, evaluator on A and E (they touch refusals, se
 | **E** | Tests | merge `league-app`/`sim-helpers`; 13 files onto the harness; `signInAs` ×4 → `e2e/setup`; 11 `it.each` groups; ~5 e2e branch trims; `data-*` attrs for the 3 copy-bound selectors; 3 presentation-policy tests; add the concurrent pick-mutation race test | M |
 | **F** | Deps | TypeScript 6 → 7 (only actionable major; `@types/node` deliberately tracks the engine) | M, separate so a type-error fallout doesn't block A–E |
 
-The rule amendments from Q1–Q6 land in `engineering.md` in the same PR as the code they govern (D for Q2; A for Q3/Q4; C for Q5/Q6), per the codify-standards convention.
+The rule amendments from Q2–Q6 are already in `engineering.md` (ALN-1 PR); each ALN-2 PR sweeps its area against the amended text.
 
 ---
 
