@@ -9,7 +9,8 @@ primitives and the row class, with every surface re-classified onto a tier;
 `VIS-3` the matchup line; `VIS-4` the subject band and the league card;
 `VIS-5` the boards, the week picker, and the pick-sheet count; `VIS-6` the
 public and auth surfaces, with `Figures` as the one home for the numeral slot;
-`VIS-7` the admin and simulator hand-pass.
+`VIS-7` the admin and simulator hand-pass; `VIS-8` the coherence audit and
+its checklist (below).
 
 ## Tokens
 
@@ -163,3 +164,25 @@ a button, the pick they selected, the tab they are on, the focus ring. Every
 other emphasis is ink, a muted tone, or an outcome colour. A live game pulses
 in `strong`; an edge marker in the stats sheet is `foreground`; the welcome
 page's step numerals sit on ink.
+
+## The coherence checklist
+
+What `VIS-8` held every screen to, and what a new screen is reviewed against
+before it ships — run the capture in `docs/runbooks/verification.md` and read
+each screen at 390px first, in both themes:
+
+- **One band at most.** The subject is named once; a second ink surface is a
+  second screen.
+- **No bordered surface inside another.** A `Card` holds rows and sections,
+  never another `Card`; a row's state is its left rule, not a box.
+- **Every number in a role.** A figure is `type-display` (20px floor) under its
+  eyebrow; a stamp ("last updated", "updated 8/23") and the label above a
+  thing are `type-eyebrow`. Ad-hoc `text-[10px]` or `text-xs font-semibold`
+  labels are the tell — the matchup stats sheet was the one screen that
+  failed this and now sets its stat values in display at `text-xl`, its
+  section labels and stamps as eyebrows.
+- **The pill vocabulary is unchanged.** `StatusPill` tones only; no new tag
+  styled by hand.
+- **Orange only on action and selection.** A grep for `primary` outside
+  `components/ui` should hit the active tab, the selected pick's rule and
+  button, and nothing else.
