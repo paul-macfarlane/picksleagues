@@ -48,7 +48,7 @@ export function nflGameResultsQueryKey(gameId: string | undefined) {
  * The Results segment's game logs (STAT-9) — its own lazy fetch, mounted only
  * when a member actually selects Results, so the common sheet open pays
  * nothing for it. Shorter staleTime than the stats read: a live game's score
- * moves on the score sync's ~5-minute cadence, and the response's `updatedAt`
+ * moves on the score sync's ~15-minute cadence (ADR-0044), and the response's `updatedAt`
  * carries the honest as-of stamp either way.
  */
 export function useNflGameResults(gameId: string | undefined) {

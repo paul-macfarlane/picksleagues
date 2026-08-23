@@ -87,7 +87,7 @@ export function settledMarginLabel(margin: number, pickType: PickType): string |
  * beside a settled grade that is final:
  *
  * 1. **A number, never a verdict word.** "Covering by 7.5" is self-evidently a
- *    snapshot; "Winning" reads as a fact, and a fact five minutes stale is
+ *    snapshot; "Winning" reads as a fact, and a fact a sync interval stale is
  *    simply wrong. The number also does the work a member can't do in their
  *    head: applying a home-relative spread to an away-first score.
  * 2. **No colour and no glyph** at the call sites — `PICK_OUTCOME`'s green

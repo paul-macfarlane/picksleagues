@@ -1,5 +1,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { ERROR_CODE, UpdateMemberRoleRequestSchema } from "@picksleagues/schemas";
+import {
+  ERROR_CODE,
+  MAX_ACTIVE_COMMISSIONER_LEAGUES,
+  UpdateMemberRoleRequestSchema,
+} from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { leagueRefusal } from "../lib/league-refusals";
@@ -120,7 +124,7 @@ export function memberRoutes(deps: AppDeps) {
         [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
         [ERROR_CODE.MEMBER_NOT_FOUND]: "Member not found.",
         [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can promote or demote members.",
-        [ERROR_CODE.CAP_EXCEEDED]: "That member already runs 10 active leagues.",
+        [ERROR_CODE.CAP_EXCEEDED]: `That member already runs ${MAX_ACTIVE_COMMISSIONER_LEAGUES} active leagues.`,
         [ERROR_CODE.LAST_COMMISSIONER]: "A league must keep at least one commissioner.",
       } as const satisfies Record<typeof result.reason, string>;
       const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
