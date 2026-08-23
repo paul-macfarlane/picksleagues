@@ -48,6 +48,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `16-game-stats.md`     | `STAT` | Pre-pick matchup stats (records, injuries, team stats, matchup context), tiered basic/advanced UX |
 | `17-mobile-feel.md`    | `MOB`  | Installed-PWA feel: touch targets, bottom tab bar, view transitions |
 | `18-visual-identity.md` | `VIS` | Broadcast-scoreboard visual identity (ADR-0043): type roles, surface tiers, the matchup line, every-screen sweep |
+| `19-alignment.md`      | `ALN`  | Consistency sweeps: code vs. the written standards; documented business logic vs. the app (owner triages differences, then docs align to the app) |
 
 ## Build order
 
@@ -57,7 +58,8 @@ below it. The order remaining work is taken (owner, 2026-08-22):
 
 1. **`17-mobile-feel`** (owner, 2026-08-22) — `MOB-1` → `MOB-2` → `MOB-3` first (standalone polish + touch targets, bottom tab bar, view transitions): the "feels like an app" threshold for the installed PWA. `MOB-4`–`7` are a second round after living with the tab bar.
 2. **`18-visual-identity`** (owner, 2026-08-22) — `VIS-1` → `VIS-2` → `VIS-3` in order (tokens and type roles, surface tiers, the signature matchup line); `VIS-4`/`VIS-5` after `VIS-2`, then `VIS-6`, `VIS-7`, and the `VIS-8` coherence audit last. Direction and primitives are ADR-0043.
-3. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+3. **`19-alignment`** (owner, 2026-08-23) — `ALN-1` → `ALN-2` (standards sweep, report then per-area fixes) and `ALN-3` → `ALN-4` → `ALN-5` (spec-vs-app diff, owner triage, docs align to the app). The two tracks are independent; run the report tasks first so the fix PRs are reviewable per area. Best done before March Madness adds a third mode on top of whatever drift exists.
+4. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `10-trust-safety` was in this list until `SWP-2` scrapped it (owner, 2026-08-09) —
 its items are `wontfix` in place. `SWP-3` kept public discovery (owner, 2026-08-11)
