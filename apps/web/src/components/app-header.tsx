@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import type { ComponentType } from "react";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { authClient } from "@/lib/auth";
 import { displayNameOf, handleOf, initialsOf } from "@/lib/user";
+import { useSignOut } from "@/lib/sign-out";
+import { THEME, THEME_OPTIONS, type Theme } from "@/lib/theme";
 import { useMe } from "@/api/me";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BrandMark } from "@/components/brand";
@@ -85,7 +87,11 @@ export function AppHeader() {
         // otherwise opens the text-selection loupe.
         className="sticky top-0 z-40 border-b border-border bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] select-none"
       >
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+        {/* Phones: the brand alone, centred, the way an iOS nav bar titles a
+            screen — primary nav is the bottom AppTabBar and the account lives
+            on its Profile tab, so the avatar menu would be a second way to
+            the same page. From `sm` the full masthead returns. */}
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-center gap-2 px-4 py-3 sm:justify-between sm:px-6">
           <div className="flex items-center gap-4">
             <Link
               to="/"
@@ -137,7 +143,9 @@ export function AppHeader() {
               <LeagueSwitcher />
             </nav>
           </div>
-          <SessionMenu />
+          <div className="hidden sm:block">
+            <SessionMenu />
+          </div>
         </div>
         {/* Inside the sticky header so the "now isn't real" warning survives
             scrolling — an indicator you can scroll past is one you can forget. */}
@@ -146,6 +154,12 @@ export function AppHeader() {
     </>
   );
 }
+
+const themeIcons = {
+  [THEME.LIGHT]: SunIcon,
+  [THEME.DARK]: MoonIcon,
+  [THEME.SYSTEM]: MonitorIcon,
+} as const satisfies Record<Theme, ComponentType>;
 
 function SessionMenu() {
   const { data: session } = authClient.useSession();
@@ -161,6 +175,7 @@ function SessionMenu() {
   // the calls in AppHeader and MobileNav, so it costs no request.
   const me = useMe();
   const navigate = useNavigate();
+  const signOut = useSignOut();
 
   // The authed layout's beforeLoad guarantees a session in that subtree; this
   // hook can still observe a brief null while it fetches on mount.
@@ -201,36 +216,19 @@ function SessionMenu() {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Theme</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-            <DropdownMenuRadioItem value="light">
-              <SunIcon />
-              Light
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="dark">
-              <MoonIcon />
-              Dark
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="system">
-              <MonitorIcon />
-              System
-            </DropdownMenuRadioItem>
+            {THEME_OPTIONS.map((option) => {
+              const Icon = themeIcons[option.value];
+              return (
+                <DropdownMenuRadioItem key={option.value} value={option.value}>
+                  <Icon />
+                  {option.label}
+                </DropdownMenuRadioItem>
+              );
+            })}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={async () => {
-            // Navigate regardless of the result: /sign-in's beforeLoad bounces a
-            // still-live session back to "/", so a failed sign-out can't strand
-            // the user on a page they shouldn't see.
-            const { error } = await authClient.signOut();
-            if (error) {
-              console.error("Sign-out failed", error);
-              toast.error("Sign out failed — please try again.");
-            }
-            navigate({ to: "/sign-in" });
-          }}
-        >
-          Sign out
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

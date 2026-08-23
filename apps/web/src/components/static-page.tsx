@@ -40,7 +40,11 @@ export function StaticPage({
         </header>
         <StaticProse>{children}</StaticProse>
       </main>
-      <LegalFooter className="mx-auto w-full max-w-2xl px-4 sm:px-6" />
+      {/* Hidden on phones only for a signed-in member, who has the tab bar and
+          the profile's About section; a visitor has neither. */}
+      <LegalFooter
+        className={cn("mx-auto w-full max-w-2xl px-4 sm:px-6", authed && "hidden sm:flex")}
+      />
       {authed && <AppTabBar />}
     </div>
   );

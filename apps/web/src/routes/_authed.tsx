@@ -42,7 +42,9 @@ function AuthedLayout() {
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
         <Outlet />
       </div>
-      <LegalFooter className="mx-auto w-full max-w-5xl px-4 sm:px-6" />
+      {/* Phones get these links in the profile's About section instead; under
+          the tab bar a footer reads as stray content rather than chrome. */}
+      <LegalFooter className="mx-auto hidden w-full max-w-5xl px-4 sm:flex sm:px-6" />
       <AppTabBar />
     </div>
   );
