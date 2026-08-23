@@ -86,9 +86,11 @@ function AdminGuide() {
               </li>
             </ul>
             <p>
-              A fifth job, the <strong>settlement sweep</strong>, has no button: it re-derives every
-              league&apos;s results and standings from stored data twice a day as a safety net, so
-              any correction or missed tick is reconciled by the next sweep at the latest.
+              A fifth job, the <strong>settlement sweep</strong> (its own section below the syncs),
+              re-derives every active league&apos;s results and standings from stored data twice a
+              day as a safety net, so any correction or missed tick is reconciled by the next sweep
+              at the latest. Its button is the &quot;standings look wrong&quot; remedy: pressing it
+              runs that reconciliation now instead of waiting for the schedule.
             </p>
           </section>
 
@@ -166,9 +168,10 @@ function AdminGuide() {
                 Results and standings pick the correction up when the game next settles.
               </li>
               <li>
-                <strong>Standings look wrong right after a correction.</strong> Give it a settlement
-                cycle — corrections flow into standings when settlement runs, and the sweep
-                reconciles everything twice a day regardless.
+                <strong>Standings look wrong right after a correction.</strong> Press the settlement
+                sweep&apos;s Run button, or give it a settlement cycle — corrections flow into
+                standings when settlement runs, and the sweep reconciles everything twice a day
+                regardless.
               </li>
               <li>
                 <strong>The matchup sheet looks stale.</strong> Press Sync stats. The sheet&apos;s

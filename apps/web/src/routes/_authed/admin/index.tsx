@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SettlementCard } from "@/components/admin/settlement-card";
 import { SyncJobsCard } from "@/components/admin/sync-jobs-card";
 
 /**
@@ -12,5 +13,10 @@ export const Route = createFileRoute("/_authed/admin/")({
 });
 
 function AdminJobs() {
-  return <SyncJobsCard />;
+  return (
+    <>
+      <SyncJobsCard />
+      <SettlementCard />
+    </>
+  );
 }
