@@ -117,11 +117,53 @@ function labelledScore(game: GameStateInput): string | null {
 export function gameStateLabel(game: GameStateInput, now: Date): string {
   if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatKickoff(game.kickoffAt, now)}`;
   const score = labelledScore(game);
-  const lead =
-    game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null
-      ? `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}`
-      : gameStatusLabel(game.status);
+  const lead = gameStateLead(game, now);
   return score ? `${lead} · ${score}` : lead;
+}
+
+/**
+ * `gameStateLabel` without the score, for the matchup line's centre column
+ * (ADR-0043 §5): there the score sits in the team cells' numeral slots, so the
+ * centre carries only *when* or *where* the game is — the kickoff while it is
+ * ahead, the period and clock while it runs, the status word otherwise. The
+ * "Kickoff" prefix goes too: between two team cells the time is self-evidently
+ * a kickoff, and the word would take the room the time needs at 390px.
+ */
+export function gameStateLead(game: GameStateInput, now: Date): string {
+  if (game.status === GAME_STATUS.SCHEDULED) return formatKickoff(game.kickoffAt, now);
+  return game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null
+    ? `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}`
+    : gameStatusLabel(game.status);
+}
+
+/**
+ * What each team cell's numeral slot holds on a matchup line (ADR-0043 §5):
+ * the line before kickoff and the score after it, in the same slot, so a row's
+ * shape never changes across pre-pick → picked → locked → live → final.
+ *
+ * "Before kickoff" is the game's *status*, not the lock: a locked game the
+ * score sync hasn't reached yet is still `scheduled`, and it keeps showing the
+ * line rather than an empty slot — there is no score to show, and the line is
+ * still the number the member's pick is bought at. Once the game has left
+ * `scheduled` the line is no longer the point, so a postponed or cancelled game
+ * with no score shows nothing.
+ *
+ * `spread` is whatever number the caller wants read as the line — the game's
+ * current spread on the open sheet, `spread_at_pick` on a submitted pick, null
+ * for a straight-up league or a surface with no line to show.
+ */
+export function matchupNumerals(
+  game: { status: GameStatus; awayScore: number | null; homeScore: number | null },
+  spread: number | null,
+): { away: string | null; home: string | null } {
+  if (game.status === GAME_STATUS.SCHEDULED) {
+    return {
+      away: spreadLabel(spread, PICKEM_PICK_SIDE.AWAY),
+      home: spreadLabel(spread, PICKEM_PICK_SIDE.HOME),
+    };
+  }
+  if (game.awayScore === null || game.homeScore === null) return { away: null, home: null };
+  return { away: String(game.awayScore), home: String(game.homeScore) };
 }
 
 /**

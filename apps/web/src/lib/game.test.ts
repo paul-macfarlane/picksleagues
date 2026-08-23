@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GAME_STATUS, PICK_OUTCOME, type GameStatus } from "@picksleagues/schemas";
 import {
   isClosedToPicks,
+  matchupNumerals,
   survivorPickGrade,
   survivorProvisionalOutcome,
   survivorRevivalStillPossible,
@@ -187,5 +188,54 @@ describe("spreadLabel", () => {
     { name: "even line, away side", spread: 0, side: "away", expected: "Even" },
   ] as const)("$name → $expected", ({ spread, side, expected }) => {
     expect(spreadLabel(spread, side)).toBe(expected);
+  });
+});
+
+describe("matchupNumerals", () => {
+  // The domain rule under the slot (ADR-0043 §5): which *number* a member is
+  // looking at beside a team. The line is home-relative and flips for the
+  // away side, the score is each team's own — and the switch between them is
+  // the game's status, not the lock, so a locked game the score sync hasn't
+  // reached still shows the number the pick is bought at.
+  const scores = { awayScore: 17, homeScore: 27 };
+  it.each([
+    {
+      name: "scheduled, line posted",
+      game: { status: GAME_STATUS.SCHEDULED, awayScore: null, homeScore: null },
+      spread: -3.5,
+      expected: { away: "+3.5", home: "-3.5" },
+    },
+    {
+      name: "scheduled, no line",
+      game: { status: GAME_STATUS.SCHEDULED, awayScore: null, homeScore: null },
+      spread: null,
+      expected: { away: null, home: null },
+    },
+    {
+      name: "in progress shows the score, not the line",
+      game: { status: GAME_STATUS.IN_PROGRESS, ...scores },
+      spread: -3.5,
+      expected: { away: "17", home: "27" },
+    },
+    {
+      name: "final shows the score",
+      game: { status: GAME_STATUS.FINAL, ...scores },
+      spread: null,
+      expected: { away: "17", home: "27" },
+    },
+    {
+      name: "in progress before any score lands shows nothing",
+      game: { status: GAME_STATUS.IN_PROGRESS, awayScore: null, homeScore: null },
+      spread: -3.5,
+      expected: { away: null, home: null },
+    },
+    {
+      name: "cancelled shows nothing — the line no longer decides anything",
+      game: { status: GAME_STATUS.CANCELLED, awayScore: null, homeScore: null },
+      spread: -3.5,
+      expected: { away: null, home: null },
+    },
+  ])("$name", ({ game, spread, expected }) => {
+    expect(matchupNumerals(game, spread)).toEqual(expected);
   });
 });

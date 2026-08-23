@@ -56,14 +56,17 @@ export function pickOutcomeButtonClassName(outcome: PickOutcome): string {
  *
  * **Redundant by design.** The rule repeats what the row's badge already says
  * in a glyph and a word, exactly so the same colour-never-alone rule this
- * module is built on still holds: strip the colour and nothing is lost. An
- * ungraded pick keeps the neutral border rather than losing its rule, so rows
- * stay the same width whatever state they're in.
+ * module is built on still holds: strip the colour and nothing is lost. A push
+ * gets the hairline colour — a verdict, but not one with a hue (see the table
+ * above) — and an ungraded pick gets no colour at all, which on the row tier's
+ * always-present rule (`rowRuleClassName`) reads as "nothing to say yet"
+ * rather than as a missing rule.
  */
 export function pickOutcomeAccentClassName(outcome: PickOutcome | null): string {
   if (outcome === PICK_OUTCOME.CORRECT) return "border-l-success";
   if (outcome === PICK_OUTCOME.INCORRECT) return "border-l-destructive";
-  return "border-l-border";
+  if (outcome === PICK_OUTCOME.PUSH) return "border-l-border";
+  return "border-l-transparent";
 }
 
 export function PickOutcomeIcon({ outcome }: { outcome: PickOutcome }) {
