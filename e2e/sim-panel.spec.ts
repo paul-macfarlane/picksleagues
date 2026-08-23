@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
-import { cleanup, mintSession, signInAs, uniqueUsername } from "./setup/session";
+import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { APP_ROLE } from "../packages/schemas/src/app-role";
 
 // Read-only by design, and it stays that way even though simulator-driven
@@ -105,8 +105,7 @@ test.describe("simulator", () => {
   });
 
   test("a non-admin cannot see the simulator route", async ({ page, context }) => {
-    const { user, cookieForPlaywright } = await mintSession({ username: uniqueUsername() });
-    await context.addCookies([cookieForPlaywright]);
+    const user = await signInAs(context, { username: uniqueUsername() });
 
     try {
       // Deep-linked, not navigated: the nav link is already invisible to a

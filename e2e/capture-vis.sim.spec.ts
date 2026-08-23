@@ -1,5 +1,5 @@
 import { test, type BrowserContext, type Page } from "@playwright/test";
-import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { json, loadScenario, resetSim, setSimClock } from "./setup/sim";
 import { latestInviteCode } from "./setup/league-seed";
 import {
@@ -131,14 +131,10 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
 
   const commishName = uniqueUsername();
   const joinerName = uniqueUsername();
-  const admin = await mintSession({ appRole: APP_ROLE.ADMIN, username: uniqueUsername() });
-  const commish = await mintSession({ username: commishName, displayName: "Sam Rivera" });
-  const joiner = await mintSession({ username: joinerName, displayName: "Jordan Lee" });
-  const fresh = await mintSession({ username: null });
-  await adminCtx.addCookies([admin.cookieForPlaywright]);
-  await commishCtx.addCookies([commish.cookieForPlaywright]);
-  await joinerCtx.addCookies([joiner.cookieForPlaywright]);
-  await freshCtx.addCookies([fresh.cookieForPlaywright]);
+  const admin = await signInAs(adminCtx, { appRole: APP_ROLE.ADMIN, username: uniqueUsername() });
+  const commish = await signInAs(commishCtx, { username: commishName, displayName: "Sam Rivera" });
+  const joiner = await signInAs(joinerCtx, { username: joinerName, displayName: "Jordan Lee" });
+  const fresh = await signInAs(freshCtx, { username: null });
 
   const anon = await (await browser.newContext()).newPage();
   const adminPage = await adminCtx.newPage();
@@ -285,7 +281,7 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
     }
   } finally {
     await resetSim(adminCtx);
-    await cleanup([admin.user.id, commish.user.id, joiner.user.id, fresh.user.id]);
+    await cleanup([admin.id, commish.id, joiner.id, fresh.id]);
     await Promise.all([adminCtx, commishCtx, joinerCtx, freshCtx].map((c) => c.close()));
   }
 });

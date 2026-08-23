@@ -453,7 +453,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // clock → sync job → Postgres → API → refetch, with no remount anywhere in
     // that chain. Which badge a started game takes is presentation; that the
     // row now reads as *in progress* is the fact the rest of this test stands
-    // on. The lock itself is asserted below, by the API's own refusal.
+    // on; the refusal behind it is pinned in apps/api/test/pickem-picks.test.ts.
     const lockedRow = gameRow(pageA, "MIA", "BUF");
     await expect(lockedRow.getByTestId("game-status")).toHaveAttribute(
       "data-status",

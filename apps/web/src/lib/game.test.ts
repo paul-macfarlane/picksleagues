@@ -92,6 +92,7 @@ describe("spreadLabel", () => {
   // reads as a signed zero (FB-30) — the word itself is the owner's.
   it("reads an even line the same from both sides, never as ±0", () => {
     const home = spreadLabel(0, "home");
+    expect(home).toBeTruthy();
     expect(home).toBe(spreadLabel(0, "away"));
     expect(home).not.toMatch(/[+-]0/);
   });

@@ -32,7 +32,7 @@ async function openAccountMenu(page: Page) {
 }
 
 test.describe("identity", () => {
-  test("unclaimed session is gated to /claim-username; invalid submit errors inline; a valid claim reaches the dashboard", async ({
+  test("unclaimed session is gated to /claim-username; a valid claim reaches the dashboard", async ({
     page,
     context,
   }) => {
