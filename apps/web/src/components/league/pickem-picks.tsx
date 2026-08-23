@@ -192,7 +192,7 @@ function SubmittedWeek({
           {credit}
         </p>
       )}
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {picked.map(({ game, pick }) => (
           <SubmittedPickRow key={pick.id} game={game} pick={pick} pickType={pickType} />
         ))}
@@ -325,7 +325,7 @@ function PickSheet({
             You didn&apos;t make any picks this week.
           </p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col">
             {openGames.map((game) => {
               const selectedSide = selections.get(game.id);
               return (

@@ -4,8 +4,10 @@ import { rowClassName } from "@/components/row";
 import { type AdminGame } from "@picksleagues/schemas";
 import { useAdminGames } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, scoreText } from "@/lib/game";
+import { gameStateLead, gameStatusLabel, matchupNumerals, scoreText } from "@/lib/game";
+import { useAppNow } from "@/lib/app-clock";
 import { GameOverrideForm } from "@/components/admin/game-override-form";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { ResolvedField } from "@/components/admin/override-display";
 import {
   seasonLabel,
@@ -15,6 +17,7 @@ import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { StatusPill } from "@/components/status-pill";
 
 function isOverridden(game: AdminGame) {
   return (
@@ -124,24 +127,37 @@ export function GamesBrowser({
 }
 
 function GameRow({ game }: { game: AdminGame }) {
+  const now = useAppNow();
   const overridden = isOverridden(game);
   const [editOpen, setEditOpen] = useState(false);
+  // The line shows the game as members see it — override-resolved (arch D15
+  // precedence, `effective_*`) — because "what is the app currently saying
+  // about this game" is the question an operator opens this browser with. The
+  // provider values stay in the fields below, beside the resolved ones.
+  const effective = {
+    status: game.effectiveStatus,
+    kickoffAt: game.effectiveKickoffAt,
+    awayScore: game.effectiveAwayScore,
+    homeScore: game.effectiveHomeScore,
+    awayTeam: game.awayTeam,
+    homeTeam: game.homeTeam,
+    period: game.effectivePeriod,
+    clockSeconds: game.effectiveClockSeconds,
+  };
+  const numerals = matchupNumerals(effective, game.effectiveSpread);
 
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p
-          className="text-sm font-medium text-foreground"
-          title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-        >
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-        </p>
-        {overridden && (
-          <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">
-            Overridden
-          </span>
-        )}
-      </div>
+      <MatchupLine
+        away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
+        center={gameStateLead(effective, now)}
+        home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}
+      />
+      {overridden && (
+        <StatusPill tone="danger" className="self-start">
+          Overridden
+        </StatusPill>
+      )}
 
       <div className="flex flex-col gap-1 text-xs text-foreground">
         <ResolvedField

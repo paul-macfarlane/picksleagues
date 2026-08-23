@@ -152,7 +152,7 @@ function PickedGame({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorP
   if (!pick || !game) return null;
 
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="flex flex-col">
       <SurvivorPickedGameRow game={game} teamId={pick.teamId} outcome={pick.outcome} />
     </ul>
   );
@@ -324,7 +324,7 @@ function SurvivorPickSheet({
         {!frozen && openGames.length === 0 && !saved && (
           <p className="text-sm text-muted-foreground">You didn&apos;t make a pick this week.</p>
         )}
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col">
           {frozen && savedGame && pick ? (
             // Their own game alone. A slate of teams none of which can be
             // taken is an offer that isn't there: the write path refuses every
