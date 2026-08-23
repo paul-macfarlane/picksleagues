@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
+import { LabeledValue } from "@/components/labeled-value";
+import { RowEditor } from "@/components/row-editor";
 import { cn } from "@/lib/utils";
 import { rowClassName } from "@/components/row";
 import { useForm } from "@tanstack/react-form";
 import { SIM_FINAL_STATUS, WEEK_TYPE, type SimFixtureGame } from "@picksleagues/schemas";
 import { useUpdateSimFixtureGame } from "@/api/sim";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, scoreText, weekTypeLabel } from "@/lib/game";
+import { gameStatusLabel, matchupNumerals, scoreText, weekTypeLabel } from "@/lib/game";
 import {
   buildFixturePatch,
   fixtureFormSeed,
@@ -156,42 +159,54 @@ function FixtureEditForm({ game }: { game: SimFixtureGame }) {
 }
 
 export function SimFixtureRow({ game }: { game: SimFixtureGame }) {
-  const [editOpen, setEditOpen] = useState(false);
+  // The numeral slot holds the fixture's *terminal* truth — the final score
+  // once the fixture has one, the spread otherwise — not the projection: the
+  // projection is what the provider is saying at the simulated now, and the
+  // labelled line beneath keeps it beside the final so the two can be read
+  // against each other (ADR-0012).
+  const numerals = matchupNumerals(
+    { status: game.finalStatus, awayScore: game.finalAwayScore, homeScore: game.finalHomeScore },
+    game.spread,
+  );
+  const away = { abbreviation: game.awayTeamAbbr, name: game.awayTeamName };
+  const home = { abbreviation: game.homeTeamAbbr, name: game.homeTeamName };
 
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
-      <p
-        className="text-sm font-medium text-foreground"
-        title={`${game.awayTeamName} @ ${game.homeTeamName}`}
-      >
-        {game.awayTeamAbbr} @ {game.homeTeamAbbr}
-      </p>
+      <MatchupLine
+        away={<MatchupSide team={away} numeral={numerals.away} side="away" />}
+        center={formatDateTime(game.kickoffAt)}
+        home={<MatchupSide team={home} numeral={numerals.home} side="home" />}
+      />
 
       <div className="flex flex-col gap-1 text-xs text-foreground">
-        <span>Kickoff {formatDateTime(game.kickoffAt)}</span>
-        <span>
-          {weekTypeLabel(game.weekType)} week {game.weekNumber}
-        </span>
-        <span>Spread {game.spread === null ? "no line" : String(game.spread)}</span>
-        <span>
-          Final: {gameStatusLabel(game.finalStatus)}
-          {scoreText(game.finalAwayScore, game.finalHomeScore)}
-        </span>
+        <LabeledValue label="Week">
+          <span>
+            {weekTypeLabel(game.weekType)} {game.weekNumber}
+          </span>
+        </LabeledValue>
+        <LabeledValue label="Final">
+          <span>
+            {gameStatusLabel(game.finalStatus)}
+            {scoreText(game.finalAwayScore, game.finalHomeScore)}
+          </span>
+        </LabeledValue>
         {/* The provider's read at the current simulated now — `scheduled`/
             `in_progress` until the clock passes this game's kickoff
             (ADR-0012), which is the whole reason this browser exists. */}
-        <span>
-          Projected: {gameStatusLabel(game.projectedStatus)}
-          {scoreText(game.projectedAwayScore, game.projectedHomeScore)}
-        </span>
+        <LabeledValue label="Projected">
+          <span>
+            {gameStatusLabel(game.projectedStatus)}
+            {scoreText(game.projectedAwayScore, game.projectedHomeScore)}
+          </span>
+        </LabeledValue>
       </div>
 
       <p className="text-xs text-muted-foreground">provider game id {game.providerGameId}</p>
 
-      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer text-xs text-muted-foreground select-none">Edit</summary>
-        {editOpen && <FixtureEditForm game={game} />}
-      </details>
+      <RowEditor label="Edit">
+        <FixtureEditForm game={game} />
+      </RowEditor>
     </li>
   );
 }

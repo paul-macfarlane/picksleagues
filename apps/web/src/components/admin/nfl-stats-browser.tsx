@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { rowClassName } from "@/components/row";
 import type { AdminNflTeamSeasonStats } from "@picksleagues/schemas";
@@ -7,11 +6,12 @@ import { formatDateTime } from "@/lib/format";
 import { recordLabel, streakLabel } from "@/lib/nfl-stats";
 import { NflStatsOverrideForm } from "@/components/admin/nfl-stats-override-form";
 import { nflStatsOverrideFormSeed } from "@/components/admin/nfl-stats-override-patch";
-import { ResolvedField } from "@/components/admin/override-display";
+import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
 import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { RowEditor } from "@/components/row-editor";
 
 function isOverridden(stats: AdminNflTeamSeasonStats): boolean {
   // `overriddenAt` is set exactly while any override field is (cleared with
@@ -83,19 +83,14 @@ export function NflStatsBrowser({
 }
 
 function StatsRow({ stats }: { stats: AdminNflTeamSeasonStats }) {
-  const [editOpen, setEditOpen] = useState(false);
-
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-foreground">
-          {stats.team.abbreviation} · {stats.team.name}
+        <p className="text-sm text-foreground">
+          <span className="type-display text-xl">{stats.team.abbreviation}</span>{" "}
+          <span className="text-muted-foreground">{stats.team.name}</span>
         </p>
-        {isOverridden(stats) && (
-          <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">
-            Overridden
-          </span>
-        )}
+        {isOverridden(stats) && <OverriddenTag />}
       </div>
 
       <div className="flex flex-col gap-1 text-xs text-foreground">
@@ -153,21 +148,9 @@ function StatsRow({ stats }: { stats: AdminNflTeamSeasonStats }) {
 
       <p className="text-xs text-muted-foreground">updated {formatDateTime(stats.updatedAt)}</p>
 
-      {/* Same open/remount contract as the games browser: never rendered
-          hidden, and the form re-seeds when its override values change
-          server-side (fingerprint key) so a save can't leave a stale diff
-          baseline in a still-open editor. */}
-      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-          Edit override
-        </summary>
-        {editOpen && (
-          <NflStatsOverrideForm
-            key={JSON.stringify(nflStatsOverrideFormSeed(stats))}
-            stats={stats}
-          />
-        )}
-      </details>
+      <RowEditor label="Edit override">
+        <NflStatsOverrideForm key={JSON.stringify(nflStatsOverrideFormSeed(stats))} stats={stats} />
+      </RowEditor>
     </li>
   );
 }

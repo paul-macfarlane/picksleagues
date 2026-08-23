@@ -84,7 +84,7 @@ export function AuditLog({
                   The scroll container is `Table`'s own — do not add one here. */}
             <Table className="min-w-3xl text-xs">
               <TableHeader>
-                <TableRow className="text-xs font-medium text-muted-foreground">
+                <TableRow>
                   <TableHead>When</TableHead>
                   <TableHead>Admin</TableHead>
                   <TableHead>Action</TableHead>
@@ -150,7 +150,9 @@ function AuditRow({ entry }: { entry: AdminAuditEntry }) {
         {/* Collapsed by default: the shape differs per action and a row is
             scanned far more often than a prior value is read. */}
         <details>
-          <summary className="cursor-pointer text-muted-foreground select-none">Show</summary>
+          <summary className="type-eyebrow cursor-pointer select-none hover:text-foreground">
+            Show
+          </summary>
           <pre className="mt-1 max-w-xs overflow-x-auto rounded-md bg-muted p-2 text-xs">
             {JSON.stringify(entry.priorValue, null, 2)}
           </pre>
