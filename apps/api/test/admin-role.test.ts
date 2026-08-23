@@ -1,14 +1,10 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, users } from "@picksleagues/db";
-import { FixedClock } from "@picksleagues/core";
+import { users } from "@picksleagues/db";
 import { APP_ROLE, type MeResponse } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness } from "./setup/fixed-app";
 
 /**
  * App-wide admin capability lives in `users.app_role` and nowhere else
@@ -18,18 +14,10 @@ import { makeTestEnv } from "./setup/test-env";
 
 const FIXED_NOW = new Date("2026-09-09T00:00:00.000Z");
 
-const db = createDb(getTestDatabaseUrl());
-// One `auth` shared by every app built below — cookies stay valid across them
-// since they share `db` and makeTestEnv's `BETTER_AUTH_SECRET`.
-const auth = createAuth({ env: makeTestEnv(), db });
+const { db, auth, appAt } = makeFixedAppHarness();
 
 function buildApp() {
-  return createApp({
-    auth,
-    db,
-    env: makeTestEnv(),
-    clock: async () => new FixedClock(FIXED_NOW),
-  });
+  return appAt(FIXED_NOW);
 }
 
 function getMe(app: ReturnType<typeof buildApp>, cookie: string) {

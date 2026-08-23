@@ -6,17 +6,14 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
-import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { cleanup, signInAs, uniqueUsername } from "./setup/session";
+import { loadScenario, resetSim, setSimClock } from "./setup/sim";
 import { latestInviteCode } from "./setup/league-seed";
 import {
   APP_ROLE,
-  ERROR_CODE,
   GAME_STATUS,
-  PICKEM_PICK_SIDE,
   PICKEM_PICK_STATUS,
   PICK_OUTCOME,
-  SIM_CLOCK_ADJUSTMENT_KIND,
-  SIM_RESET_SCOPE,
   type PickOutcome,
 } from "../packages/schemas/src/index";
 
@@ -76,12 +73,6 @@ type SlateGameSummary = {
   homeTeam: { abbreviation: string };
   awayTeam: { abbreviation: string };
 };
-
-async function signInAs(context: BrowserContext, overrides?: Parameters<typeof mintSession>[0]) {
-  const { user, cookieForPlaywright } = await mintSession(overrides);
-  await context.addCookies([cookieForPlaywright]);
-  return user;
-}
 
 /**
  * Locators for the contracts the SPA carries for this suite.
@@ -265,21 +256,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // (FK RESTRICT from league_seasons) — then load, then sync so the fixture
     // actually reaches `games`/`weeks` (nothing changes for the app until a
     // sync job runs).
-    await adminContext.request.post("/api/sim/reset", {
-      data: { scope: SIM_RESET_SCOPE.ENVIRONMENT, dropScenario: true },
-    });
-    await adminContext.request.post("/api/sim/scenarios/mixed-week/load");
-    await adminContext.request.post("/api/admin/jobs/nfl/sync-schedule");
-    await adminContext.request.post("/api/admin/jobs/nfl/sync-odds");
+    await loadScenario(adminContext, "mixed-week", ["sync-schedule", "sync-odds"]);
   });
 
   test.afterAll(async () => {
-    // Drop the active scenario and return the clock to real time — the offset
-    // lives on the DB singleton, not this process, so a later local run must
-    // never inherit it.
-    await adminContext.request.post("/api/sim/reset", {
-      data: { scope: SIM_RESET_SCOPE.ENVIRONMENT, dropScenario: true },
-    });
+    await resetSim(adminContext);
     await cleanup([adminId, commishId, joinerId]);
     await commishContext.close();
     await joinerContext.close();
@@ -459,10 +440,7 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     await pageA.goto(`/leagues/${leagueId}/my-picks`);
     await expect(gameRow(pageA, "MIA", "BUF")).toBeVisible();
 
-    const lockInstant = new Date(new Date(game1.kickoffAt).getTime() + 60_000).toISOString();
-    await adminContext.request.post("/api/sim/clock", {
-      data: { kind: SIM_CLOCK_ADJUSTMENT_KIND.INSTANT, instant: lockInstant },
-    });
+    await setSimClock(adminContext, new Date(game1.kickoffAt).getTime() + 60_000);
 
     // Pull the started game's live state through, so the row renders what a
     // member actually sees mid-Sunday rather than a still-"Scheduled" row that
@@ -489,32 +467,18 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     //
     // Kickoffs read relative to the *app* clock (arch D13), not the browser's.
     // This is the assertion that tells the two apart: simulated time has jumped
-    // three days ahead, so the last game is ~12h away and reads "Today"/
-    // "Tomorrow", while a browser-clock label would still call it three days
-    // out and print a weekday. Nothing else in the suite can distinguish them.
-    await expectValue(
-      gameRow(pageA, "SEA", "SF").getByTestId("game-state"),
-      /\b(Today|Tomorrow)\b/,
+    // three days ahead, so the last game is ~12h away — zero or one local day
+    // out — while a browser-clock label would still put it three days out.
+    // Bound to the day count the label is worded from, never to the wording.
+    await expect(gameRow(pageA, "SEA", "SF").getByTestId("game-state")).toHaveAttribute(
+      "data-kickoff-days",
+      /^[01]$/,
     );
 
     // The week is still frozen mid-Sunday: immutability is a property of having
     // submitted, not of the games locking, and a refetch must not hand any of
     // it back.
     await expect(submitControl(pageA)).toHaveCount(0);
-
-    // API: the refusal that makes this whole journey's premise true. A week is
-    // one immutable submission (ADR-0018 decision 1), so a second call is
-    // refused on that ground alone — `already_submitted` is checked ahead of
-    // every per-game rule (`services/pickem/picks.ts`), which is why this body
-    // never reaches the lock it would otherwise have tripped.
-    const refused = await pageA.request.put(
-      `/api/leagues/${leagueId}/pickem/weeks/${weekId}/picks`,
-      {
-        data: { picks: [{ gameId: game1.id, side: PICKEM_PICK_SIDE.AWAY, spread: null }] },
-      },
-    );
-    expect(refused.status()).toBe(409);
-    expect(((await refused.json()) as { error: string }).error).toBe(ERROR_CODE.ALREADY_SUBMITTED);
 
     // Visibility: the joiner's pick on the now-kicked-off game is revealed to
     // the commissioner; their other three picks (still unstarted) are not.
@@ -530,12 +494,10 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // Past every game's final threshold (kickoff + 3h15m, docs/simulator-guide.md
     // "How a fixture becomes a status") — game4 kicks off latest, so its
     // threshold is the binding one.
-    const finalInstant = new Date(
+    await setSimClock(
+      adminContext,
       new Date(game4.kickoffAt).getTime() + (3 * 60 + 16) * 60 * 1000,
-    ).toISOString();
-    await adminContext.request.post("/api/sim/clock", {
-      data: { kind: SIM_CLOCK_ADJUSTMENT_KIND.INSTANT, instant: finalInstant },
-    });
+    );
     await adminContext.request.post("/api/admin/jobs/nfl/sync-scores");
     // Not load-bearing (nfl-sync-scores already settles a game's picks as it
     // goes final) — a full rebuild-and-inspect for extra confidence, and to

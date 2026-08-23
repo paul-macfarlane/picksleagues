@@ -33,17 +33,11 @@ describe("heldSurvivorSelection", () => {
     expect(heldSurvivorSelection(GAMES, draft, SAVED)).toEqual(draft);
   });
 
-  it("drops a selection whose game kicked off after it was made", () => {
-    expect(heldSurvivorSelection(GAMES, { gameId: "locked", teamId: "other" }, SAVED)).toEqual(
-      SAVED,
-    );
-  });
-
-  it("drops a selection whose game stopped being playable", () => {
-    expect(heldSurvivorSelection(GAMES, { gameId: "cancelled", teamId: "other" }, null)).toBeNull();
-  });
-
-  it("drops a selection on a game that is no longer in the slate", () => {
-    expect(heldSurvivorSelection(GAMES, { gameId: "gone", teamId: "other" }, null)).toBeNull();
+  it.each([
+    { name: "kicked off after it was made", gameId: "locked", saved: SAVED },
+    { name: "stopped being playable", gameId: "cancelled", saved: null },
+    { name: "is no longer in the slate", gameId: "gone", saved: null },
+  ])("drops a selection whose game $name, falling back to what was saved", ({ gameId, saved }) => {
+    expect(heldSurvivorSelection(GAMES, { gameId, teamId: "other" }, saved)).toEqual(saved);
   });
 });

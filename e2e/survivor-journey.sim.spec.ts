@@ -1,12 +1,11 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
-import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { cleanup, signInAs, uniqueUsername } from "./setup/session";
+import { loadScenario, resetSim, setSimClock } from "./setup/sim";
 import { latestInviteCode } from "./setup/league-seed";
 import { SIM_GAME_DURATION_MS } from "../packages/core/src/sim-provider";
 import {
   APP_ROLE,
   PICK_OUTCOME,
-  SIM_CLOCK_ADJUSTMENT_KIND,
-  SIM_RESET_SCOPE,
   SURVIVOR_MEMBER_STATUS,
   SURVIVOR_PICK_STATUS,
 } from "../packages/schemas/src/index";
@@ -57,12 +56,6 @@ type SimSettleBody = { leagues: Array<{ summary: { weeks: number } }> };
 /** Past every game of a week: the sim projects `final` at kickoff + the game window. */
 const AFTER_GAME_MS = SIM_GAME_DURATION_MS + 60_000;
 const HOUR_MS = 60 * 60 * 1000;
-
-async function signInAs(context: BrowserContext, overrides?: Parameters<typeof mintSession>[0]) {
-  const { user, cookieForPlaywright } = await mintSession(overrides);
-  await context.addCookies([cookieForPlaywright]);
-  return user;
-}
 
 // One team's control inside one game's row, both addressed by what they are
 // rather than by where they sit — `survivor-game-row` and `survivor-team-pick`
@@ -122,15 +115,7 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
   let weeks: LeagueWeekSummary[] = [];
   const lastKickoffMs = new Map<string, number>();
 
-  async function setClock(instantMs: number) {
-    const res = await adminContext.request.post("/api/sim/clock", {
-      data: {
-        kind: SIM_CLOCK_ADJUSTMENT_KIND.INSTANT,
-        instant: new Date(instantMs).toISOString(),
-      },
-    });
-    expect(res.ok()).toBe(true);
-  }
+  const setClock = (instantMs: number) => setSimClock(adminContext, instantMs);
 
   /** Early in a week: every game of it is still ahead, so every member can pick. */
   async function openWeek(index: number) {
@@ -219,19 +204,11 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     // clears already-ingested data — then load, then sync so the fixture reaches
     // `weeks`/`games`. No odds sync: Survivor is straight-up only (ADR-0026), so
     // nothing here reads a spread.
-    await adminContext.request.post("/api/sim/reset", {
-      data: { scope: SIM_RESET_SCOPE.ENVIRONMENT, dropScenario: true },
-    });
-    await adminContext.request.post("/api/sim/scenarios/survivor-season/load");
-    await adminContext.request.post("/api/admin/jobs/nfl/sync-schedule");
+    await loadScenario(adminContext, "survivor-season", ["sync-schedule"]);
   });
 
   test.afterAll(async () => {
-    // Drop the scenario and return the clock to real time — the offset lives on
-    // the DB singleton, not this process, so a later local run must not inherit it.
-    await adminContext.request.post("/api/sim/reset", {
-      data: { scope: SIM_RESET_SCOPE.ENVIRONMENT, dropScenario: true },
-    });
+    await resetSim(adminContext);
     await cleanup(userIds);
     await Promise.all(contexts.map((context) => context.close()));
   });

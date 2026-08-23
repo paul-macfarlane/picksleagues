@@ -24,7 +24,12 @@ import {
   seedSeason,
 } from "./setup/league-helpers";
 import { insertSurvivorPick, insertSurvivorState } from "./setup/survivor-league";
-import { makeLeagueTestHarness, POST_START_NOW, WEEK1_KICKOFF } from "./setup/league-app";
+import {
+  makeLeagueTestHarness,
+  POST_START_NOW,
+  WEEK1_KICKOFF,
+  withCookie,
+} from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app, appAfterKickoff, appAtKickoff } = makeLeagueTestHarness();
@@ -49,7 +54,7 @@ function postLeague(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...(cookie ? { cookie } : {}),
+      ...withCookie(cookie),
     },
     body: JSON.stringify(body),
   });
@@ -58,14 +63,14 @@ function postLeague(
 function getMyLeagues(cookie: string | undefined, on: typeof app = app) {
   return on.request("/api/leagues", {
     method: "GET",
-    headers: { ...(cookie ? { cookie } : {}) },
+    headers: withCookie(cookie),
   });
 }
 
 function getLeague(cookie: string | undefined, leagueId: string) {
   return app.request(`/api/leagues/${leagueId}`, {
     method: "GET",
-    headers: { ...(cookie ? { cookie } : {}) },
+    headers: withCookie(cookie),
   });
 }
 

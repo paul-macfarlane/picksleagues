@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatKickoff } from "./format";
+import { formatDateTime, formatKickoff, kickoffDaysAway } from "./format";
 
 /**
  * Every case builds its instants with the local-time `Date` constructor and
@@ -13,20 +13,23 @@ describe("formatKickoff", () => {
   const now = new Date(2026, 8, 13, 15, 0);
   const at = (...args: [number, number, number, number, number]) => new Date(...args).toISOString();
 
+  // The day bucket is the domain; which word each bucket gets is the owner's
+  // (engineering rules §Quality, presentation policy), so the words are not
+  // pinned here.
   it.each([
-    { name: "later the same day", iso: at(2026, 8, 13, 20, 20), expected: "Today " },
-    { name: "earlier the same day", iso: at(2026, 8, 13, 9, 30), expected: "Today " },
-    { name: "the next day", iso: at(2026, 8, 14, 13, 0), expected: "Tomorrow " },
-    { name: "the previous day", iso: at(2026, 8, 12, 20, 15), expected: "Yesterday " },
-  ])("names $name", ({ iso, expected }) => {
-    expect(formatKickoff(iso, now)).toContain(expected);
+    { name: "later the same day", iso: at(2026, 8, 13, 20, 20), expected: 0 },
+    { name: "earlier the same day", iso: at(2026, 8, 13, 9, 30), expected: 0 },
+    { name: "the next day", iso: at(2026, 8, 14, 13, 0), expected: 1 },
+    { name: "the previous day", iso: at(2026, 8, 12, 20, 15), expected: -1 },
+  ])("counts $name as $expected day(s) away", ({ iso, expected }) => {
+    expect(kickoffDaysAway(iso, now)).toBe(expected);
   });
 
   // Two hours later but across midnight: "tomorrow" is a calendar question, not
   // a 24-hour one, which is why both sides collapse to local midnight first.
   it("counts calendar days, not elapsed hours", () => {
     const lateNight = new Date(2026, 8, 13, 23, 30);
-    expect(formatKickoff(at(2026, 8, 14, 1, 30), lateNight)).toContain("Tomorrow ");
+    expect(kickoffDaysAway(at(2026, 8, 14, 1, 30), lateNight)).toBe(1);
   });
 
   it.each([2, 3, 6])("uses the weekday name %i days out", (days) => {

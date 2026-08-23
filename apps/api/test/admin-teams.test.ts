@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { adminAudit, createDb, teams, weeks } from "@picksleagues/db";
+import { adminAudit, teams, weeks } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
@@ -11,15 +11,12 @@ import {
   type TeamIdentityOverrideResponse,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { StatsFakeProvider } from "./setup/fake-provider";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness, withCookie } from "./setup/fixed-app";
 
 /**
  * Team identity overrides (STAT-8, ADR-0042): the override write with its
@@ -33,16 +30,9 @@ const SEASON_YEAR = 2026;
 const seedClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
 const nowClock = new FixedClock(new Date("2026-09-12T00:00:00.000Z"));
 
-const db = createDb(getTestDatabaseUrl());
 const provider = new StatsFakeProvider();
-const auth = createAuth({ env: makeTestEnv(), db });
-const app = createApp({
-  auth,
-  env: makeTestEnv(),
-  db,
-  clock: async () => nowClock,
-  provider: async () => provider,
-});
+const { db, auth, appAt } = makeFixedAppHarness();
+const app = appAt(nowClock.now(), { provider: async () => provider });
 
 /** One week, one HOM/AWY game — enough to exercise every identity read. */
 async function seedSchedule() {
@@ -71,7 +61,7 @@ async function seedSchedule() {
 async function putOverride(teamId: string, body: TeamIdentityOverrideRequest, cookie?: string) {
   return app.request(`/api/admin/teams/${teamId}/override`, {
     method: "PUT",
-    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    headers: { "content-type": "application/json", ...withCookie(cookie) },
     body: JSON.stringify(body),
   });
 }

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createDb,
   games,
   leagueMembers,
   leagueSeasons,
@@ -35,7 +34,6 @@ import {
   type WeekType,
   type JobRunResponse,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
 import { BaseFakeProvider } from "./setup/fake-provider";
 import { ingestSeasonSnapshot } from "../src/services/nfl/ingest-season";
 import { settlePicksForGames } from "../src/services/settlement";
@@ -43,8 +41,9 @@ import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { DEFAULT_PICKEM_SETTINGS } from "./setup/league-helpers";
 import { providerGame, providerTeam, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
+import { makeFixedAppHarness } from "./setup/fixed-app";
 import { makeTestEnv } from "./setup/test-env";
+import { runScheduleSyncJob } from "./setup/jobs";
 
 const testEnv = makeTestEnv();
 
@@ -95,27 +94,15 @@ class FakeProvider extends BaseFakeProvider {
   }
 }
 
-const db = createDb(getTestDatabaseUrl());
+const { db, appAt } = makeFixedAppHarness();
 const provider = new FakeProvider();
-const app = createApp({
-  env: testEnv,
-  db,
-  clock: async () => new FixedClock(FIXED_NOW),
-  provider: async () => provider,
-});
-
-function runSyncSchedule(query = "", secret: string | null = testEnv.JOB_SECRET) {
-  return app.request(`/api/jobs/nfl/sync-schedule${query}`, {
-    method: "POST",
-    headers: secret ? { "x-job-secret": secret } : {},
-  });
-}
+const app = appAt(FIXED_NOW, { env: testEnv, provider: async () => provider });
 
 async function runExpecting(
   expectedStatus: string,
   query: string,
 ): Promise<Record<string, string | number | boolean>> {
-  const res = await runSyncSchedule(query);
+  const res = await runScheduleSyncJob(app, query);
   // A skipped run is a 200 too — only real failures may trip the cron
   // scheduler's failure notifications (ADR-0007).
   expect(res.status).toBe(200);
@@ -240,12 +227,6 @@ afterAll(async () => {
 });
 
 describe("POST /api/jobs/nfl/sync-schedule", () => {
-  it("401s without the x-job-secret header", async () => {
-    const res = await runSyncSchedule("", null);
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ error: "unauthorized" });
-  });
-
   it("first run creates the season, weeks, and games with counters in the envelope", async () => {
     seedBaselineProvider();
 

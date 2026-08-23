@@ -1,5 +1,6 @@
 import { test, type BrowserContext, type Page } from "@playwright/test";
 import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { json, loadScenario, resetSim, setSimClock } from "./setup/sim";
 import { latestInviteCode } from "./setup/league-seed";
 import {
   APP_ROLE,
@@ -7,8 +8,6 @@ import {
   LEAGUE_VISIBILITY,
   PICKEM_PICK_SIDE,
   PICK_TYPE,
-  SIM_CLOCK_ADJUSTMENT_KIND,
-  SIM_RESET_SCOPE,
 } from "../packages/schemas/src/index";
 
 /**
@@ -72,14 +71,6 @@ async function shoot(
   }
 }
 
-async function json<T>(
-  res: Promise<{ ok(): boolean; json(): Promise<unknown>; status(): number; url(): string }>,
-): Promise<T> {
-  const r = await res;
-  if (!r.ok()) throw new Error(`${r.url()} → ${r.status()}`);
-  return (await r.json()) as T;
-}
-
 async function slate(ctx: BrowserContext, leagueId: string) {
   const { weeks } = await json<{ weeks: { id: string; label: string; startsAt: string }[] }>(
     ctx.request.get(`/api/leagues/${leagueId}/weeks`),
@@ -89,28 +80,6 @@ async function slate(ctx: BrowserContext, leagueId: string) {
     ctx.request.get(`/api/weeks/${week.id}/games`),
   );
   return { week, games };
-}
-
-async function setClock(admin: BrowserContext, instantMs: number) {
-  await json(
-    admin.request.post("/api/sim/clock", {
-      data: { kind: SIM_CLOCK_ADJUSTMENT_KIND.INSTANT, instant: new Date(instantMs).toISOString() },
-    }),
-  );
-}
-
-async function reset(admin: BrowserContext) {
-  await admin.request.post("/api/sim/reset", {
-    data: { scope: SIM_RESET_SCOPE.ENVIRONMENT, dropScenario: true },
-  });
-}
-
-async function loadScenario(admin: BrowserContext, slug: string) {
-  await reset(admin);
-  await json(admin.request.post(`/api/sim/scenarios/${slug}/load`));
-  await json(admin.request.post("/api/admin/jobs/nfl/sync-schedule"));
-  await json(admin.request.post("/api/admin/jobs/nfl/sync-odds"));
-  await json(admin.request.post("/api/admin/jobs/nfl/sync-stats"));
 }
 
 async function settle(admin: BrowserContext, leagueId: string) {
@@ -196,7 +165,7 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
     await shoot(joinerPage, "profile", "/profile");
 
     // --- Pick'em: mixed-week, pre-kickoff then settled ---------------------
-    await loadScenario(adminCtx, "mixed-week");
+    await loadScenario(adminCtx, "mixed-week", ["sync-schedule", "sync-odds", "sync-stats"]);
     const pickemId = await createLeague(commishCtx, {
       mode: LEAGUE_MODE.PICKEM,
       name: "Sunday Regulars",
@@ -247,7 +216,7 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
       }),
     );
     const lastKickoff = Math.max(...games.map((g) => Date.parse(g.kickoffAt)));
-    await setClock(adminCtx, lastKickoff + 6 * HOUR_MS);
+    await setSimClock(adminCtx, lastKickoff + 6 * HOUR_MS);
     await settle(adminCtx, pickemId);
     await shoot(commishPage, "hub-settled", "/");
     await shoot(commishPage, "stats-sheet-settled", `/leagues/${pickemId}/my-picks`, openStats);
@@ -275,7 +244,7 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
     }
 
     // --- Survivor: survivor-season, pre-kickoff then two weeks in ----------
-    await loadScenario(adminCtx, "survivor-season");
+    await loadScenario(adminCtx, "survivor-season", ["sync-schedule", "sync-odds", "sync-stats"]);
     const survivorId = await createLeague(commishCtx, {
       mode: LEAGUE_MODE.SURVIVOR,
       name: "Last One Standing",
@@ -287,7 +256,7 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
       commishCtx.request.get(`/api/leagues/${survivorId}/weeks`),
     );
     const week1 = weeks[0]!;
-    await setClock(adminCtx, Date.parse(week1.startsAt) + HOUR_MS);
+    await setSimClock(adminCtx, Date.parse(week1.startsAt) + HOUR_MS);
     const { games: w1 } = await json<{ games: SlateGame[] }>(
       commishCtx.request.get(`/api/weeks/${week1.id}/games`),
     );
@@ -308,14 +277,14 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
         data: { gameId: sf.id, teamId: sf.homeTeam.id },
       }),
     );
-    await setClock(adminCtx, Math.max(...w1.map((g) => Date.parse(g.kickoffAt))) + DAY_MS);
+    await setSimClock(adminCtx, Math.max(...w1.map((g) => Date.parse(g.kickoffAt))) + DAY_MS);
     await settle(adminCtx, survivorId);
     await shoot(joinerPage, "hub-survivor-out", "/");
     for (const [name, path] of leagueRoutes("survivor-settled", survivorId, false)) {
       await shoot(commishPage, name, path);
     }
   } finally {
-    await reset(adminCtx);
+    await resetSim(adminCtx);
     await cleanup([admin.user.id, commish.user.id, joiner.user.id, fresh.user.id]);
     await Promise.all([adminCtx, commishCtx, joinerCtx, freshCtx].map((c) => c.close()));
   }

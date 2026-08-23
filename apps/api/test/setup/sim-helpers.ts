@@ -19,8 +19,11 @@ import { BaseFakeProvider } from "./fake-provider";
 import { providerWeek } from "./provider-fixtures";
 import { getTestDatabaseUrl } from "./test-database-url";
 import { makeTestEnv } from "./test-env";
+import { withCookie } from "./fixed-app";
 
-export const TEST_JOB_SECRET = makeTestEnv().JOB_SECRET;
+export { withCookie };
+
+export { TEST_JOB_SECRET } from "./jobs";
 
 // ---------------------------------------------------------------------------
 // Fake ESPN stand-in, shared by the provider-swap, clock-projection, and
@@ -133,10 +136,6 @@ export async function adminCaller(fakeEspn?: GameDataProvider) {
   return { app: buildApp({ fakeEspn }), cookie, userId: user.id };
 }
 
-export function withCookie(cookie?: string): Record<string, string> {
-  return cookie ? { cookie } : {};
-}
-
 export function get(app: ReturnType<typeof buildApp>, path: string, cookie?: string) {
   return app.request(path, { headers: { ...withCookie(cookie) } });
 }
@@ -170,26 +169,7 @@ export function patchJson(
   });
 }
 
-export function runScheduleSyncJob(app: ReturnType<typeof buildApp>, query = "") {
-  return app.request(`/api/jobs/nfl/sync-schedule${query}`, {
-    method: "POST",
-    headers: { "x-job-secret": TEST_JOB_SECRET },
-  });
-}
-
-export function runScoresSyncJob(app: ReturnType<typeof buildApp>, query = "") {
-  return app.request(`/api/jobs/nfl/sync-scores${query}`, {
-    method: "POST",
-    headers: { "x-job-secret": TEST_JOB_SECRET },
-  });
-}
-
-export function runOddsSyncJob(app: ReturnType<typeof buildApp>, query = "") {
-  return app.request(`/api/jobs/nfl/sync-odds${query}`, {
-    method: "POST",
-    headers: { "x-job-secret": TEST_JOB_SECRET },
-  });
-}
+export { runOddsSyncJob, runScheduleSyncJob, runScoresSyncJob } from "./jobs";
 
 /** Loads a library scenario and returns its serialized `activeScenario` — the
  * id/seasonYear/startsAt every regression test below anchors its sync/clock

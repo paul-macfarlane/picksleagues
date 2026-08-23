@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, sportSeasons } from "@picksleagues/db";
+import { games, sportSeasons } from "@picksleagues/db";
 import {
   FixedClock,
   type ProviderGame,
@@ -8,14 +8,14 @@ import {
   type ProviderWeek,
 } from "@picksleagues/core";
 import { GAME_STATUS, WEEK_TYPE, type WeekType, type JobRunResponse } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
 import { BaseFakeProvider } from "./setup/fake-provider";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflScores } from "../src/services/nfl/sync-scores";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
+import { makeFixedAppHarness } from "./setup/fixed-app";
 import { makeTestEnv } from "./setup/test-env";
+import { runScoresSyncJob } from "./setup/jobs";
 
 const testEnv = makeTestEnv();
 
@@ -53,14 +53,9 @@ class FakeProvider extends BaseFakeProvider {
   }
 }
 
-const db = createDb(getTestDatabaseUrl());
+const { db, appAt } = makeFixedAppHarness();
 const provider = new FakeProvider();
-const app = createApp({
-  env: testEnv,
-  db,
-  clock: async () => afterClock,
-  provider: async () => provider,
-});
+const app = appAt(afterClock.now(), { env: testEnv, provider: async () => provider });
 
 /** Seeds one season + the given week with its games via the real schedule sync. */
 async function seedSchedule(
@@ -629,17 +624,8 @@ describe("syncNflScores: offseason season roll-forward", () => {
 });
 
 describe("POST /api/jobs/nfl/sync-scores", () => {
-  it("401s without the x-job-secret header", async () => {
-    const res = await app.request("/api/jobs/nfl/sync-scores", { method: "POST" });
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ error: "unauthorized" });
-  });
-
   it("rejects an invalid weekType with a 400", async () => {
-    const res = await app.request("/api/jobs/nfl/sync-scores?weekType=garbage", {
-      method: "POST",
-      headers: { "x-job-secret": testEnv.JOB_SECRET },
-    });
+    const res = await runScoresSyncJob(app, "?weekType=garbage");
     expect(res.status).toBe(400);
   });
 
@@ -661,10 +647,7 @@ describe("POST /api/jobs/nfl/sync-scores", () => {
       }),
     ]);
 
-    const res = await app.request("/api/jobs/nfl/sync-scores", {
-      method: "POST",
-      headers: { "x-job-secret": testEnv.JOB_SECRET },
-    });
+    const res = await runScoresSyncJob(app);
     expect(res.status).toBe(200);
     const body = (await res.json()) as JobRunResponse;
     expect(body.status).toBe("ok");

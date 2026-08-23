@@ -27,16 +27,12 @@ describe("openSelections", () => {
     expect([...openSelections([OPEN], selecting("open")).keys()]).toEqual(["open"]);
   });
 
-  it("drops a selection whose game locked after it was made", () => {
-    expect(openSelections([LOCKED], selecting("locked")).size).toBe(0);
-  });
-
-  it("drops a selection whose game stopped being playable", () => {
-    expect(openSelections([CANCELLED], selecting("cancelled")).size).toBe(0);
-  });
-
-  it("drops a selection on a game that is no longer in the slate", () => {
-    expect(openSelections([OPEN], selecting("gone")).size).toBe(0);
+  it.each([
+    { name: "locked after it was made", slate: [LOCKED], gameId: "locked" },
+    { name: "stopped being playable", slate: [CANCELLED], gameId: "cancelled" },
+    { name: "is no longer in the slate", slate: [OPEN], gameId: "gone" },
+  ])("drops a selection whose game $name", ({ slate, gameId }) => {
+    expect(openSelections(slate, selecting(gameId)).size).toBe(0);
   });
 
   it("narrows a mixed map to only the open games, preserving each side", () => {

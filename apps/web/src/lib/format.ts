@@ -17,6 +17,16 @@ export function formatDateTime(iso: string): string {
 // "is this the same day" is a calendar question, not a 24-hour one, so both
 // sides collapse to local midnight first. `Math.round` absorbs the 23- and
 // 25-hour days a DST boundary produces.
+/**
+ * Whole local calendar days from `now` to a kickoff — the bucket `formatKickoff`
+ * words as Today / Tomorrow / a weekday. Exported as data for the Pick'em
+ * journey's app-clock proof (`data-kickoff-days`), so the merge gate binds to
+ * the number and the wording stays the owner's.
+ */
+export function kickoffDaysAway(iso: string, now: Date): number {
+  return localDaysBetween(now, new Date(iso));
+}
+
 function localDaysBetween(from: Date, to: Date): number {
   const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   return Math.round((midnight(to) - midnight(from)) / 86_400_000);

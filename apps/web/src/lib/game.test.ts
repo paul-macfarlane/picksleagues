@@ -25,10 +25,6 @@ describe("isClosedToPicks", () => {
   });
 });
 
-// Must mirror settlement's per-pick mapping exactly (`gradePick` in
-// packages/scoring/src/survivor.ts) — a derived verdict the settled grade later
-// contradicts is worse than the silence it replaced.
-
 describe("matchupNumerals", () => {
   // The domain rule under the slot (ADR-0043 §5): which *number* a member is
   // looking at beside a team. The line is home-relative and flips for the
@@ -88,11 +84,15 @@ describe("spreadLabel", () => {
     { name: "away favored, home side", spread: 7, side: "home", expected: "+7" },
     { name: "away favored, away side", spread: 7, side: "away", expected: "-7" },
     { name: "no line yet", spread: null, side: "home", expected: null },
-    // Neither side is giving points, so both read the same word rather than
-    // "+0"/"-0" (FB-30).
-    { name: "even line, home side", spread: 0, side: "home", expected: "Even" },
-    { name: "even line, away side", spread: 0, side: "away", expected: "Even" },
   ] as const)("$name → $expected", ({ spread, side, expected }) => {
     expect(spreadLabel(spread, side)).toBe(expected);
+  });
+
+  // Neither side is giving points, so both sides read the same and neither
+  // reads as a signed zero (FB-30) — the word itself is the owner's.
+  it("reads an even line the same from both sides, never as ±0", () => {
+    const home = spreadLabel(0, "home");
+    expect(home).toBe(spreadLabel(0, "away"));
+    expect(home).not.toMatch(/[+-]0/);
   });
 });
