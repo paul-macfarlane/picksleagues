@@ -20,9 +20,9 @@ import {
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { Section } from "@/components/section";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
@@ -129,56 +129,54 @@ export function PickemWeekDetail({
   const credit = spreadSourceCredit(slate.data?.games ?? [], pickType);
 
   return (
-    // The card is addressed by testid and identified by the week it is for:
+    // The section is addressed by testid and identified by the week it is for:
     // the title reads "Picks — Week 1", of which only "Week 1" is a fact — the
     // rest is copy the facelift may reword.
-    <Card data-testid="week-picks-card" data-week-label={slate.data?.label}>
-      <CardHeader>
-        <CardTitle>{slate.data && picks.data ? `Picks — ${slate.data.label}` : "Picks"}</CardTitle>
+    <Section
+      data-testid="week-picks-card"
+      data-week-label={slate.data?.label}
+      title={slate.data && picks.data ? `Picks — ${slate.data.label}` : "Picks"}
+      description={
+        slate.data && picks.data
+          ? "Best week first — open a member to see their picks. Each pick is revealed once its game kicks off."
+          : undefined
+      }
+    >
+      {credit && (
+        <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+          {credit}
+        </p>
+      )}
+      <QueryState
+        isPending={slate.isPending || picks.isPending}
+        pendingFallback={
+          <RowsSkeleton label="Loading this week's picks" rows={3} rowClassName="h-24 w-full" />
+        }
+        isError={slate.isError || picks.isError}
+        onRetry={() => {
+          void slate.refetch();
+          void picks.refetch();
+        }}
+        errorMessage="Couldn't load this week's picks."
+      >
         {slate.data && picks.data && (
-          <CardDescription>
-            Best week first — open a member to see their picks. Each pick is revealed once its game
-            kicks off.
-          </CardDescription>
+          <div className="flex flex-col">
+            {orderMembersByWeek(picks.data.members, weekRows, seasonRows).map((member) => (
+              <MemberPicksSection
+                key={member.leagueMemberId}
+                member={member}
+                gameById={gameById}
+                pickType={pickType}
+                week={weekByMember.get(member.leagueMemberId)}
+                season={seasonByMember.get(member.leagueMemberId)}
+                weekShared={weekShared}
+                seasonShared={seasonShared}
+              />
+            ))}
+          </div>
         )}
-        {credit && (
-          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
-            {credit}
-          </p>
-        )}
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={slate.isPending || picks.isPending}
-          pendingFallback={
-            <RowsSkeleton label="Loading this week's picks" rows={3} rowClassName="h-24 w-full" />
-          }
-          isError={slate.isError || picks.isError}
-          onRetry={() => {
-            void slate.refetch();
-            void picks.refetch();
-          }}
-          errorMessage="Couldn't load this week's picks."
-        >
-          {slate.data && picks.data && (
-            <div className="flex flex-col">
-              {orderMembersByWeek(picks.data.members, weekRows, seasonRows).map((member) => (
-                <MemberPicksSection
-                  key={member.leagueMemberId}
-                  member={member}
-                  gameById={gameById}
-                  pickType={pickType}
-                  week={weekByMember.get(member.leagueMemberId)}
-                  season={seasonByMember.get(member.leagueMemberId)}
-                  weekShared={weekShared}
-                  seasonShared={seasonShared}
-                />
-              ))}
-            </div>
-          )}
-        </QueryState>
-      </CardContent>
-    </Card>
+      </QueryState>
+    </Section>
   );
 }
 

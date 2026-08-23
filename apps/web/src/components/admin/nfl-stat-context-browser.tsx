@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import type {
   AdminNflGameStatContext,
   NflGameStatsTeamContext,
@@ -13,7 +15,7 @@ import {
   seasonLabel,
   useAdminSeasonWeekSelection,
 } from "@/components/admin/use-season-week-selection";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
@@ -57,74 +59,68 @@ export function NflStatContextBrowser({
   const contexts = useAdminNflStatContexts(effectiveWeekId);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Game stat context</CardTitle>
-        <CardDescription>
-          Injuries, FPI, ATS, and recent form per game — provider payload, sparse override, and the
-          resolved values the matchup sheet serves.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={seasons.isPending}
-          isError={seasons.isError}
-          onRetry={() => seasons.refetch()}
-          errorMessage="Couldn't load seasons."
-          pendingFallback={
-            <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
-          }
-          isEmpty={all.length === 0}
-          emptyMessage="No seasons synced yet."
-        >
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <LabeledSelect
-                id="stat-context-browser-season"
-                label="Season"
-                value={selectedSeason?.id ?? null}
-                onValueChange={onSeasonChange}
-                options={all.map((season) => ({ value: season.id, label: seasonLabel(season) }))}
-              />
-              <LabeledSelect
-                id="stat-context-browser-week"
-                label="Week"
-                value={effectiveWeekId ?? null}
-                onValueChange={onWeekChange}
-                options={(selectedSeason?.weeks ?? []).map((week) => ({
-                  value: week.id,
-                  label: week.label,
-                }))}
-              />
-            </div>
-
-            {/* A season with no weeks leaves the query skipped — "nothing to
-                ask for" is an empty state, not a load that never resolves. */}
-            <QueryState
-              isPending={Boolean(effectiveWeekId) && contexts.isPending}
-              isError={contexts.isError}
-              onRetry={() => contexts.refetch()}
-              errorMessage="Couldn't load stat contexts."
-              pendingFallback={
-                <RowsSkeleton label="Loading stat contexts" rows={6} rowClassName="h-14 w-full" />
-              }
-              isEmpty={!effectiveWeekId || contexts.data?.games.length === 0}
-              emptyMessage={
-                effectiveWeekId
-                  ? "No games synced for this week."
-                  : "No weeks synced for this season."
-              }
-            >
-              <ul className="flex flex-col gap-3">
-                {contexts.data?.games.map((game) => (
-                  <ContextRow key={game.gameId} game={game} />
-                ))}
-              </ul>
-            </QueryState>
+    <Section
+      title="Game stat context"
+      description="Injuries, FPI, ATS, and recent form per game — provider payload, sparse override, and the resolved values the matchup sheet serves."
+    >
+      <QueryState
+        isPending={seasons.isPending}
+        isError={seasons.isError}
+        onRetry={() => seasons.refetch()}
+        errorMessage="Couldn't load seasons."
+        pendingFallback={
+          <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+        }
+        isEmpty={all.length === 0}
+        emptyMessage="No seasons synced yet."
+      >
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <LabeledSelect
+              id="stat-context-browser-season"
+              label="Season"
+              value={selectedSeason?.id ?? null}
+              onValueChange={onSeasonChange}
+              options={all.map((season) => ({ value: season.id, label: seasonLabel(season) }))}
+            />
+            <LabeledSelect
+              id="stat-context-browser-week"
+              label="Week"
+              value={effectiveWeekId ?? null}
+              onValueChange={onWeekChange}
+              options={(selectedSeason?.weeks ?? []).map((week) => ({
+                value: week.id,
+                label: week.label,
+              }))}
+            />
           </div>
-        </QueryState>
-      </CardContent>
-    </Card>
+
+          {/* A season with no weeks leaves the query skipped — "nothing to
+                ask for" is an empty state, not a load that never resolves. */}
+          <QueryState
+            isPending={Boolean(effectiveWeekId) && contexts.isPending}
+            isError={contexts.isError}
+            onRetry={() => contexts.refetch()}
+            errorMessage="Couldn't load stat contexts."
+            pendingFallback={
+              <RowsSkeleton label="Loading stat contexts" rows={6} rowClassName="h-14 w-full" />
+            }
+            isEmpty={!effectiveWeekId || contexts.data?.games.length === 0}
+            emptyMessage={
+              effectiveWeekId
+                ? "No games synced for this week."
+                : "No weeks synced for this season."
+            }
+          >
+            <ul className="flex flex-col">
+              {contexts.data?.games.map((game) => (
+                <ContextRow key={game.gameId} game={game} />
+              ))}
+            </ul>
+          </QueryState>
+        </div>
+      </QueryState>
+    </Section>
   );
 }
 
@@ -133,7 +129,7 @@ function ContextRow({ game }: { game: AdminNflGameStatContext }) {
   const block = game.context;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p
           className="text-sm font-medium text-foreground"

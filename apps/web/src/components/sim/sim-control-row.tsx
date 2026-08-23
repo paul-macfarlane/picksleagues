@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 
 /**
  * Shared bordered-row chrome for a labelled simulator control (rule of
@@ -16,7 +18,7 @@ export function SimControlRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <div className={cn(rowClassName, "flex flex-col gap-2")}>
       <div className="flex flex-col gap-0.5">
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-sm text-muted-foreground">{description}</p>

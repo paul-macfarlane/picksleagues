@@ -4,7 +4,8 @@ Which named thing to reach for when building a screen. The direction and the
 reasons are ADR-0043 (the broadcast scoreboard); the rules that reviews hold
 a diff to are `.claude/rules/engineering.md` §Quality. This page is the quick
 reference: tokens, type roles, surface tiers, and what the orange may touch.
-`VIS-1` landed the tokens, roles, and tag; `VIS-2` adds `Band` and `Section`.
+`VIS-1` landed the tokens, roles, and tag; `VIS-2` the `Band` and `Section`
+primitives and the row class, with every surface re-classified onto a tier.
 
 ## Tokens
 
@@ -16,7 +17,7 @@ in both. The pairs, with the roles they play:
 | --- | --- | --- |
 | `background` / `foreground` | page | the light page (dark theme: the dark page) |
 | `card` / `card-foreground` | panel | a bordered object |
-| `ink` / `ink-foreground`, `ink-muted-foreground` | band | the one dark surface on the screen; the subject is named here |
+| `ink` / `ink-foreground`, `ink-muted-foreground`, `ink-muted` | band | the one dark surface on the screen; the subject is named here. `ink-muted` is the tag and hairline surface *on* ink |
 | `primary` / `primary-foreground` | action | buttons, the selected pick, the active tab, focus — nothing else |
 | `muted` / `muted-foreground` | eyebrow, neutral tag | the quiet label |
 | `accent` / `accent-foreground` | `highlight` tag | a warm lift with no verdict in it |
@@ -47,14 +48,27 @@ surface. Ask "what is this region?" and take the first row that fits.
 
 | Tier | Primitive | Looks like | It is |
 | --- | --- | --- | --- |
-| band | `Band` (VIS-2) | ink fill, display type | the subject of the screen — the league header, a hub card's top strip. At most one per screen; the welcome hero is the only band without a league in it. |
-| section | `Section` (VIS-2) | eyebrow + heading + action slot, whitespace only | the default grouping: standings, the week's games, members, a settings group, an admin panel |
+| band | `Band` | ink fill, display type | the subject of the screen — the league header, a hub card's top strip. At most one per screen; the welcome hero is the only band without a league in it. |
+| section | `Section` | eyebrow + `h2` + description + action slot, whitespace only | the default grouping: standings, the week's games, members, a settings group, an admin panel |
 | panel | `Card` | 1px ring, `card` fill | an object: a league in a list, a dialog-like form, the install card, a sim scenario |
-| row | `<li>` + `border-b` | hairline, optional 3px left rule | a game, a standings line, a member, an audit entry — the left rule carries state (outcome colour when settled, `primary` when selected) |
+| row | `<li className={rowClassName}>` | hairline, optional left rule | a game, a standings line, a member, an audit entry — the left rule carries state (outcome colour when settled, `primary` when selected) |
 
-Until `VIS-2` lands, `Card` remains at every call site; new work should still
-pick a tier from this table and note it, so the re-classification pass has
-nothing to guess.
+Inside a `Band` the theme tokens are re-pointed (`foreground` and
+`muted-foreground` to the ink pair; `muted`, `accent`, and `border` to
+`ink-muted`), so a `StatusPill`, an eyebrow, or `text-muted-foreground` renders
+on ink with no band-specific variant. A `Section`'s `title` is a real `h2` —
+the page's `h1` is its band's subject or its page title, and a section with no
+title renders no header. The row class (`apps/web/src/components/row.tsx`)
+carries the hairline and the vertical rhythm; its list parent is a gapless
+`flex flex-col`, and a row composes its own layout classes beside it.
+
+What stays a panel, and why: a league card on the hub or in discovery (an
+object in a list), the create-league / sign-in / claim-username / join /
+not-found / no-leagues cards (a dialog-like form, centred in the column), the
+renew-season notices, the install card, the profile identity form, the welcome
+page's three mode cards, and the simulator's control cards (each a thing the
+operator acts on). The game rows on the pick sheets keep their box until
+`VIS-3`'s `MatchupLine` replaces them.
 
 ## Tags
 

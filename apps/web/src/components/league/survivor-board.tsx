@@ -12,11 +12,12 @@ import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { gameStateLabel, survivorPickGrade, survivorRevivalStillPossible } from "@/lib/game";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
 import { QueryState } from "@/components/query-state";
+import { rowClassName } from "@/components/row";
+import { Section } from "@/components/section";
 import { StatusPill } from "@/components/status-pill";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
@@ -25,9 +26,9 @@ import { UserIdentity } from "@/components/user-identity";
  * The survivor board (spec §Standings View): every member's status, the week
  * they went out, the teams they have burned, and their week-by-week history.
  *
- * **One card per member, not a week-by-member grid.** An eighteen-week season
+ * **One row per member, not a week-by-member grid.** An eighteen-week season
  * across a dozen members is a matrix no phone can render, and picks are made on
- * phones — so the season reads down the card and the history sits behind a
+ * phones — so the season reads down the row and the history sits behind a
  * disclosure rather than across columns. This is why it isn't the shared
  * `Table`: not every list is one (engineering rules §Quality), and the same
  * reasoning already keeps the admin browsers on card-lists.
@@ -85,39 +86,38 @@ export function SurvivorBoard({ leagueId }: { leagueId: string }) {
   const standings = useSurvivorStandings(leagueId);
 
   return (
-    <Card data-testid="survivor-board">
-      <CardHeader>
-        <CardTitle>Survivor board</CardTitle>
-        <CardDescription>{boardSummary(standings.data)}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <QueryState
-          isPending={standings.isPending}
-          pendingFallback={<SurvivorBoardSkeleton />}
-          isError={standings.isError}
-          onRetry={() => standings.refetch()}
-          errorMessage="Couldn't load the survivor board."
-          isEmpty={standings.data?.weeks.length === 0}
-          emptyMessage="This league's weeks haven't been scheduled yet."
-        >
-          {standings.data && <BoardRows board={standings.data} />}
-        </QueryState>
+    <Section
+      data-testid="survivor-board"
+      title="Survivor board"
+      description={boardSummary(standings.data)}
+      className="gap-4"
+    >
+      <QueryState
+        isPending={standings.isPending}
+        pendingFallback={<SurvivorBoardSkeleton />}
+        isError={standings.isError}
+        onRetry={() => standings.refetch()}
+        errorMessage="Couldn't load the survivor board."
+        isEmpty={standings.data?.weeks.length === 0}
+        emptyMessage="This league's weeks haven't been scheduled yet."
+      >
+        {standings.data && <BoardRows board={standings.data} />}
+      </QueryState>
 
-        {/* The spec requires a "last updated" stamp and forbids claiming
-            real-time freshness — never "live", just when settlement last wrote
-            this board. `data-settled` is the fact the stamp reports, so a
-            journey can assert either state without binding to a sentence. */}
-        <p
-          data-testid="survivor-board-updated-at"
-          data-settled={standings.data?.updatedAt ? "true" : "false"}
-          className="text-xs text-muted-foreground"
-        >
-          {standings.data?.updatedAt
-            ? `Last updated ${formatDateTime(standings.data.updatedAt)}`
-            : "Nothing has settled yet."}
-        </p>
-      </CardContent>
-    </Card>
+      {/* The spec requires a "last updated" stamp and forbids claiming
+          real-time freshness — never "live", just when settlement last wrote
+          this board. `data-settled` is the fact the stamp reports, so a
+          journey can assert either state without binding to a sentence. */}
+      <p
+        data-testid="survivor-board-updated-at"
+        data-settled={standings.data?.updatedAt ? "true" : "false"}
+        className="text-xs text-muted-foreground"
+      >
+        {standings.data?.updatedAt
+          ? `Last updated ${formatDateTime(standings.data.updatedAt)}`
+          : "Nothing has settled yet."}
+      </p>
+    </Section>
   );
 }
 
@@ -160,7 +160,7 @@ function BoardRows({ board }: { board: SurvivorStandingsResponse }) {
   );
 
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="flex flex-col">
       {rows.map((member) => (
         <BoardRow
           key={member.leagueMemberId}
@@ -225,7 +225,7 @@ function BoardRow({
       data-member={member.leagueMemberId}
       data-status={member.status}
       data-winner={member.isWinner ? "true" : "false"}
-      className="flex flex-col gap-3 rounded-lg border border-border p-3"
+      className={cn(rowClassName, "flex flex-col gap-3")}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <UserIdentity

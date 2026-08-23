@@ -1,6 +1,7 @@
 import { MEMBER_ROLE, type LeagueMember, type LeagueResponse } from "@picksleagues/schemas";
 import { useKickMember, useLeaveLeague, useUpdateMemberRole } from "@/api/members";
 import { authClient } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { hasSoleCommissioner, memberRoleLabel } from "@/lib/league";
 import {
@@ -15,7 +16,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { rowClassName } from "@/components/row";
+import { Section } from "@/components/section";
 import { UserIdentity } from "@/components/user-identity";
 
 const KICK_LOCKED_REASON_ID = "kick-locked-reason";
@@ -60,28 +62,25 @@ export function MembersSection({
       : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Members</CardTitle>
-        <CardDescription>
-          {league.members.length} member{league.members.length === 1 ? "" : "s"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {/* One note serves every row's Kick trigger rather than
+    <Section
+      title="Members"
+      description={`${league.members.length} member${league.members.length === 1 ? "" : "s"}`}
+    >
+      {/* One note serves every row's Kick trigger rather than
             repeating the reason per row — each disabled trigger below points
             at it via aria-describedby. */}
-        {isCommissioner && started && (
-          <p id={KICK_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
-            Removing members is locked once the league starts.
-          </p>
-        )}
-        {isCommissioner && soleCommissioner && (
-          <p id={DEMOTE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
-            Stepping down needs another commissioner — promote a replacement first.
-          </p>
-        )}
+      {isCommissioner && started && (
+        <p id={KICK_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+          Removing members is locked once the league starts.
+        </p>
+      )}
+      {isCommissioner && soleCommissioner && (
+        <p id={DEMOTE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+          Stepping down needs another commissioner — promote a replacement first.
+        </p>
+      )}
 
+      <ul className="flex flex-col">
         {league.members.map((member) => (
           <MemberRow
             key={member.id}
@@ -99,50 +98,50 @@ export function MembersSection({
             isKickPending={kickMember.isPending && kickMember.variables === member.id}
           />
         ))}
+      </ul>
 
-        {/* Clearly separated from the roster above — visible to every
+      {/* Clearly separated from the roster above — visible to every
             member, not gated on isCommissioner. */}
-        <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
-          {leaveLockedReason !== null && (
-            <p id={LEAVE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
-              {leaveLockedReason}
-            </p>
-          )}
-          <AlertDialog>
-            <AlertDialogTrigger
-              render={
-                <Button
-                  variant="outline"
-                  className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  disabled={leaveLockedReason !== null || leaveLeague.isPending}
-                  aria-describedby={leaveLockedReason !== null ? LEAVE_LOCKED_REASON_ID : undefined}
-                />
-              }
-            >
-              Leave league
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Leave {league.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  You&apos;ll lose access to this league&apos;s picks and standings.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={leaveLeague.isPending}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={leaveLeague.isPending}
-                  onClick={() => leaveLeague.mutate()}
-                >
-                  Leave league
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
+        {leaveLockedReason !== null && (
+          <p id={LEAVE_LOCKED_REASON_ID} className="text-sm text-muted-foreground">
+            {leaveLockedReason}
+          </p>
+        )}
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={
+              <Button
+                variant="outline"
+                className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={leaveLockedReason !== null || leaveLeague.isPending}
+                aria-describedby={leaveLockedReason !== null ? LEAVE_LOCKED_REASON_ID : undefined}
+              />
+            }
+          >
+            Leave league
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Leave {league.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You&apos;ll lose access to this league&apos;s picks and standings.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={leaveLeague.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={leaveLeague.isPending}
+                onClick={() => leaveLeague.mutate()}
+              >
+                Leave league
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </Section>
   );
 }
 
@@ -170,7 +169,7 @@ function MemberRow({
   isKickPending: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
+    <li className={cn(rowClassName, "flex flex-wrap items-center justify-between gap-3")}>
       <UserIdentity
         displayName={member.displayName}
         username={member.username}
@@ -278,6 +277,6 @@ function MemberRow({
           )}
         </div>
       )}
-    </div>
+    </li>
   );
 }

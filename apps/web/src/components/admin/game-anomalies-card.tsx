@@ -3,7 +3,7 @@ import type { AdminGame } from "@picksleagues/schemas";
 import { useAdminGameAnomalies } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { gameStatusLabel, scoreText } from "@/lib/game";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryState } from "@/components/query-state";
@@ -25,35 +25,29 @@ export function GameAnomaliesCard() {
   const games = anomalies.data?.games ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Data integrity</CardTitle>
-        <CardDescription>
-          Games whose kickoff is still ahead while their status or score already gives the outcome
-          away — members can still pick them. Open the week and correct the kickoff or the result.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={anomalies.isPending}
-          pendingFallback={<AnomaliesSkeleton />}
-          isError={anomalies.isError}
-          onRetry={() => anomalies.refetch()}
-          errorMessage="Couldn't check for unlocked games with known outcomes."
-          isEmpty={games.length === 0}
-          // Stated rather than left blank: a card with nothing in it can't tell
-          // an operator "the check ran and found nothing" from "the check never
-          // ran", and those need opposite responses.
-          emptyMessage="All clear — no game is unlocked with a knowable outcome."
-        >
-          <ul className="flex flex-col gap-3">
-            {games.map((game) => (
-              <AnomalyRow key={game.id} game={game} />
-            ))}
-          </ul>
-        </QueryState>
-      </CardContent>
-    </Card>
+    <Section
+      title="Data integrity"
+      description="Games whose kickoff is still ahead while their status or score already gives the outcome away — members can still pick them. Open the week and correct the kickoff or the result."
+    >
+      <QueryState
+        isPending={anomalies.isPending}
+        pendingFallback={<AnomaliesSkeleton />}
+        isError={anomalies.isError}
+        onRetry={() => anomalies.refetch()}
+        errorMessage="Couldn't check for unlocked games with known outcomes."
+        isEmpty={games.length === 0}
+        // Stated rather than left blank: a card with nothing in it can't tell
+        // an operator "the check ran and found nothing" from "the check never
+        // ran", and those need opposite responses.
+        emptyMessage="All clear — no game is unlocked with a knowable outcome."
+      >
+        <ul className="flex flex-col gap-3">
+          {games.map((game) => (
+            <AnomalyRow key={game.id} game={game} />
+          ))}
+        </ul>
+      </QueryState>
+    </Section>
   );
 }
 

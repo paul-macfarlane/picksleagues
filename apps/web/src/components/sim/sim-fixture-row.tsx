@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import { useForm } from "@tanstack/react-form";
 import { SIM_FINAL_STATUS, WEEK_TYPE, type SimFixtureGame } from "@picksleagues/schemas";
 import { useUpdateSimFixtureGame } from "@/api/sim";
@@ -157,7 +159,7 @@ export function SimFixtureRow({ game }: { game: SimFixtureGame }) {
   const [editOpen, setEditOpen] = useState(false);
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <p
         className="text-sm font-medium text-foreground"
         title={`${game.awayTeamName} @ ${game.homeTeamName}`}
