@@ -13,6 +13,16 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/**
+ * Whole local calendar days from `now` to a kickoff — the bucket `formatKickoff`
+ * words as Today / Tomorrow / a weekday. Exported as data for the Pick'em
+ * journey's app-clock proof (`data-kickoff-days`), so the merge gate binds to
+ * the number and the wording stays the owner's.
+ */
+export function kickoffDaysAway(iso: string, now: Date): number {
+  return localDaysBetween(now, new Date(iso));
+}
+
 // Calendar days from one instant to the other, in the viewer's local timezone —
 // "is this the same day" is a calendar question, not a 24-hour one, so both
 // sides collapse to local midnight first. `Math.round` absorbs the 23- and

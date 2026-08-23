@@ -1,14 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb } from "@picksleagues/db";
-import { FixedClock } from "@picksleagues/core";
 import type { JobRunResponse } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
 import { BaseFakeProvider } from "./setup/fake-provider";
-import { createAuth } from "../src/auth";
 import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness, withCookie } from "./setup/fixed-app";
 
 const FIXED_NOW = new Date("2026-09-09T00:00:00.000Z");
 
@@ -16,27 +11,17 @@ const FIXED_NOW = new Date("2026-09-09T00:00:00.000Z");
  * fast no-op path returns before touching the provider. */
 class FakeProvider extends BaseFakeProvider {}
 
-const db = createDb(getTestDatabaseUrl());
 const provider = new FakeProvider();
-// One `auth` instance shared by every app built below — session cookies it
-// mints stay valid across them since they all share `db` and the same
-// `BETTER_AUTH_SECRET` (makeTestEnv's default).
-const auth = createAuth({ env: makeTestEnv(), db });
+const { db, auth, appAt } = makeFixedAppHarness();
 
 function buildApp() {
-  return createApp({
-    auth,
-    db,
-    env: makeTestEnv(),
-    clock: async () => new FixedClock(FIXED_NOW),
-    provider: async () => provider,
-  });
+  return appAt(FIXED_NOW, { provider: async () => provider });
 }
 
 function postAdminJob(app: ReturnType<typeof buildApp>, job: string, cookie: string | undefined) {
   return app.request(`/api/admin/jobs/nfl/${job}`, {
     method: "POST",
-    headers: { ...(cookie ? { cookie } : {}) },
+    headers: withCookie(cookie),
   });
 }
 

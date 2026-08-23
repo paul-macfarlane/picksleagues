@@ -1,10 +1,8 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games } from "@picksleagues/db";
+import { games } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import { WEEK_TYPE, type NflGameStatsResponse, type WeekType } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflStats } from "../src/services/nfl/sync-stats";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
@@ -15,8 +13,7 @@ import {
   providerWeek,
 } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness, withCookie } from "./setup/fixed-app";
 
 const SEASON_YEAR = 2026;
 const NOW = new Date("2026-09-12T00:00:00.000Z");
@@ -27,16 +24,9 @@ function weekKey(weekType: WeekType, weekNumber: number): string {
   return `${weekType}:${weekNumber}`;
 }
 
-const db = createDb(getTestDatabaseUrl());
 const provider = new StatsFakeProvider();
-const auth = createAuth({ env: makeTestEnv(), db });
-const app = createApp({
-  auth,
-  env: makeTestEnv(),
-  db,
-  clock: async () => nowClock,
-  provider: async () => provider,
-});
+const { db, auth, appAt } = makeFixedAppHarness();
+const app = appAt(nowClock.now(), { provider: async () => provider });
 
 /** Seeds the schedule (one unstarted week-1 game) and runs the stats sync. */
 async function seedAll() {
@@ -67,7 +57,7 @@ async function seedAll() {
 
 async function getStats(gameId: string, cookie?: string) {
   return app.request(`/api/games/${gameId}/nfl-stats`, {
-    headers: cookie ? { cookie } : {},
+    headers: withCookie(cookie),
   });
 }
 

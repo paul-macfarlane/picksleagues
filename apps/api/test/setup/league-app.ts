@@ -4,6 +4,9 @@ import { createApp } from "../../src/app";
 import { createAuth } from "../../src/auth";
 import { getTestDatabaseUrl } from "./test-database-url";
 import { makeTestEnv } from "./test-env";
+import { withCookie } from "./fixed-app";
+
+export { withCookie };
 
 export const WEEK1_KICKOFF = new Date("2026-09-13T17:00:00.000Z");
 /**
@@ -130,8 +133,4 @@ export function makeLeagueTestHarness() {
     getStandings,
     getPickSummary,
   };
-}
-
-export function withCookie(cookie: string | undefined): Record<string, string> {
-  return cookie ? { cookie } : {};
 }

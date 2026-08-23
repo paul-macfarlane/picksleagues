@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { adminAudit, createDb, leagues as leaguesTable } from "@picksleagues/db";
+import { adminAudit, leagues as leaguesTable } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
@@ -11,16 +11,13 @@ import {
   PICKEM_PICK_SIDE,
   type AdminAuditResponse,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { settlePicksForGames, settleSweep } from "../src/services/settlement";
 import { settleForSim } from "../src/services/sim/settle";
-import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
+import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, insertPick, seedSeason, setGame } from "./setup/league-helpers";
 import { seedPickemLeague } from "./setup/pickem-league";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness } from "./setup/fixed-app";
 
 /**
  * The admin audit trail (ADM-3; engineering rules §Data: "every
@@ -45,25 +42,18 @@ const NOW = new Date("2026-09-20T00:00:00.000Z");
 const LATER = new Date("2026-09-20T00:05:00.000Z");
 const KICKOFF = new Date("2026-09-13T17:00:00.000Z");
 
-const db = createDb(getTestDatabaseUrl());
-const auth = createAuth({ env: makeTestEnv(), db });
+const { db, auth, appAt, adminCaller } = makeFixedAppHarness();
 const clock = new FixedClock(NOW);
 
 function buildAppAt(now: Date) {
-  return createApp({ auth, db, env: makeTestEnv(), clock: async () => new FixedClock(now) });
+  return appAt(now);
 }
 
 function buildApp() {
-  return createApp({ auth, db, env: makeTestEnv(), clock: async () => clock });
+  return appAt(clock.now());
 }
 
 type App = ReturnType<typeof buildApp>;
-
-async function adminCaller(overrides: { displayName?: string; username?: string } = {}) {
-  const { user, cookie } = await createAuthenticatedUser(auth, overrides);
-  await grantAdmin(db, user.id);
-  return { app: buildApp(), cookie, userId: user.id };
-}
 
 function auditRows() {
   return db.select().from(adminAudit);
@@ -180,7 +170,7 @@ afterAll(async () => {
 
 describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
   it("records who rebuilt which league season, and what stood there before", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { league, leagueSeasonId } = await seedSettledLeague();
 
     const res = await rebuild(app, cookie, league.id);
@@ -206,7 +196,7 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
   });
 
   it("captures each rebuild's own prior state, so the second row shows the first's output", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const seeded = await seedSettledLeague();
     // Only the first game was graded when the fixture settled; these picks are
     // what the first rebuild adds, and therefore what the second one replaces.
@@ -224,7 +214,7 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
   });
 
   it("writes no row for a league whose mode settlement doesn't grade", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { seasonId } = await seedSeason(db, {
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: KICKOFF }] }],
     });
@@ -248,7 +238,7 @@ describe("POST /api/admin/leagues/{leagueId}/rebuild — audit trail", () => {
   });
 
   it("stays silent when the sweep, ingestion, or the simulator settles the same season", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { league, leagueSeasonId, firstGameId } = await seedSettledLeague();
     await rebuild(app, cookie, league.id);
     expect(await auditRows()).toHaveLength(1);
@@ -284,7 +274,7 @@ describe("GET /api/admin/audit", () => {
   });
 
   it("lists both kinds of admin action newest-first, with actor, target label and prior value", async () => {
-    const { app, cookie } = await adminCaller({
+    const { app, cookie } = await adminCaller(buildApp(), {
       displayName: "Ada Admin",
       username: "ada_admin",
     });
@@ -333,7 +323,7 @@ describe("GET /api/admin/audit", () => {
   });
 
   it("still returns a row whose target has been deleted, with no label", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const seeded = await seedSettledLeague();
     await rebuild(app, cookie, seeded.league.id);
 
@@ -353,7 +343,7 @@ describe("GET /api/admin/audit", () => {
   });
 
   it("pages the whole trail without dropping or repeating a row", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { gameIds } = await seedSeason(db, {
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: KICKOFF }] }],
     });
@@ -377,7 +367,7 @@ describe("GET /api/admin/audit", () => {
   });
 
   it("serves an offset past the end as an empty page, not an error", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { gameIds } = await seedSeason(db, {
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: KICKOFF }] }],
     });
@@ -391,7 +381,7 @@ describe("GET /api/admin/audit", () => {
   });
 
   it.each(["?limit=0", "?limit=101", "?offset=-1"])("400s on %s", async (query) => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
 
     const res = await getAudit(app, cookie, query);
 

@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { adminAudit, createDb, games } from "@picksleagues/db";
+import { adminAudit, games } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
@@ -11,11 +11,9 @@ import {
   type NflGameStatsResponse,
   type NflTeamSeasonStatsOverrideRequest,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflStats } from "../src/services/nfl/sync-stats";
-import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
+import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { StatsFakeProvider } from "./setup/fake-provider";
 import {
   providerGame,
@@ -23,8 +21,7 @@ import {
   providerWeek,
 } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness, withCookie } from "./setup/fixed-app";
 
 /**
  * The admin stats surface (STAT-7, ADR-0041): browsers over the two stats
@@ -40,16 +37,9 @@ const NOW = new Date("2026-09-12T00:00:00.000Z");
 const seedClock = new FixedClock(new Date("2026-09-01T00:00:00.000Z"));
 const nowClock = new FixedClock(NOW);
 
-const db = createDb(getTestDatabaseUrl());
 const provider = new StatsFakeProvider();
-const auth = createAuth({ env: makeTestEnv(), db });
-const app = createApp({
-  auth,
-  env: makeTestEnv(),
-  db,
-  clock: async () => nowClock,
-  provider: async () => provider,
-});
+const { db, auth, appAt, adminCaller } = makeFixedAppHarness();
+const app = appAt(nowClock.now(), { provider: async () => provider });
 
 const HOME_CONTEXT = {
   injuries: [{ athleteName: "A. Safety", position: "S", status: "Out", injuryType: "Ankle" }],
@@ -110,16 +100,10 @@ async function seedAll() {
   return { gameId: game!.id, weekId: game!.weekId };
 }
 
-async function adminCaller() {
-  const { user, cookie } = await createAuthenticatedUser(auth);
-  await grantAdmin(db, user.id);
-  return { cookie, userId: user.id };
-}
-
 function getAdminStats(cookie: string | undefined, season?: number) {
   const query = season === undefined ? "" : `?season=${season}`;
   return app.request(`/api/admin/nfl-stats${query}`, {
-    headers: cookie ? { cookie } : {},
+    headers: withCookie(cookie),
   });
 }
 
@@ -130,14 +114,14 @@ function putStatsOverride(
 ) {
   return app.request(`/api/admin/nfl-stats/${statsId}/override`, {
     method: "PUT",
-    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    headers: { "content-type": "application/json", ...withCookie(cookie) },
     body: JSON.stringify(body),
   });
 }
 
 function getContexts(cookie: string | undefined, weekId: string) {
   return app.request(`/api/admin/nfl-stat-contexts?weekId=${weekId}`, {
-    headers: cookie ? { cookie } : {},
+    headers: withCookie(cookie),
   });
 }
 
@@ -148,7 +132,7 @@ function putContextOverride(
 ) {
   return app.request(`/api/admin/nfl-stat-contexts/${gameId}/override`, {
     method: "PUT",
-    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    headers: { "content-type": "application/json", ...withCookie(cookie) },
     body: JSON.stringify(body),
   });
 }
@@ -206,7 +190,7 @@ describe("admin stats browsers — auth", () => {
 describe("GET /api/admin/nfl-stats", () => {
   it("serves the stored season years and the newest season's rows by default", async () => {
     await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
 
     const res = await getAdminStats(cookie);
     expect(res.status).toBe(200);
@@ -228,7 +212,7 @@ describe("GET /api/admin/nfl-stats", () => {
 
   it("a requested year with no rows is an empty list under that year, not a fallback", async () => {
     await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
 
     const res = await getAdminStats(cookie, 2019);
     const body = (await res.json()) as AdminNflTeamSeasonStatsResponse;
@@ -240,7 +224,7 @@ describe("GET /api/admin/nfl-stats", () => {
 
 describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
   it("404s for an unknown row", async () => {
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const res = await putStatsOverride(cookie, "00000000-0000-4000-8000-000000000000", {
       wins: 1,
     });
@@ -250,14 +234,14 @@ describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
 
   it("400s an empty body — at least one field is required", async () => {
     await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const id = await statsRowId(cookie, "AWY");
     expect((await putStatsOverride(cookie, id, {})).status).toBe(400);
   });
 
   it("resolves override ?? provider everywhere: admin blocks, member read, and rank derivation", async () => {
     const { gameId } = await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const awayId = await statsRowId(cookie, "AWY");
 
     // Flip the away team to the stronger offense (30 ppg vs home's 27).
@@ -290,7 +274,7 @@ describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
 
   it("audit rows resolve human labels through the audit view", async () => {
     const { gameId } = await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const awayId = await statsRowId(cookie, "AWY");
     await putStatsOverride(cookie, awayId, { wins: 1 });
     await putContextOverride(cookie, gameId, { home: { fpiWinPct: 50 } });
@@ -317,7 +301,7 @@ describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
 
   it("writes the audit row in the same transaction, prior value = the override layer", async () => {
     await seedAll();
-    const { cookie, userId } = await adminCaller();
+    const { cookie, userId } = await adminCaller(app);
     const awayId = await statsRowId(cookie, "AWY");
 
     await putStatsOverride(cookie, awayId, { wins: 1 });
@@ -338,7 +322,7 @@ describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
 
   it("a re-sync updates provider facts without clobbering the correction", async () => {
     await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const awayId = await statsRowId(cookie, "AWY");
     await putStatsOverride(cookie, awayId, { streak: 3 });
 
@@ -378,7 +362,7 @@ describe("PUT /api/admin/nfl-stats/{statsId}/override", () => {
 
   it("three-state: omitted keeps, null clears, and a full clear reverts cleanly", async () => {
     await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const awayId = await statsRowId(cookie, "AWY");
     await putStatsOverride(cookie, awayId, { wins: 1, streak: 3 });
 
@@ -417,7 +401,7 @@ describe("GET /api/admin/nfl-stat-contexts", () => {
     );
     await syncNflSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
 
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const res = await getContexts(cookie, weekId);
     expect(res.status).toBe(200);
     const body = (await res.json()) as AdminNflGameStatContextsResponse;
@@ -445,7 +429,7 @@ describe("PUT /api/admin/nfl-stat-contexts/{gameId}/override", () => {
       }),
     );
     await syncNflSchedule(db, seedClock, provider, { seasonYear: SEASON_YEAR });
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
 
     const unknown = await putContextOverride(cookie, "00000000-0000-4000-8000-000000000000", {});
     expect(unknown.status).toBe(404);
@@ -460,7 +444,7 @@ describe("PUT /api/admin/nfl-stat-contexts/{gameId}/override", () => {
 
   it("400s an override-to-null scalar — hiding a provider value is not a correction (ADR-0041)", async () => {
     const { gameId } = await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     const res = await app.request(`/api/admin/nfl-stat-contexts/${gameId}/override`, {
       method: "PUT",
       headers: { "content-type": "application/json", cookie },
@@ -471,7 +455,7 @@ describe("PUT /api/admin/nfl-stat-contexts/{gameId}/override", () => {
 
   it("a sparse override wins field-by-field on the member read; the rest keeps syncing", async () => {
     const { gameId } = await seedAll();
-    const { cookie, userId } = await adminCaller();
+    const { cookie, userId } = await adminCaller(app);
 
     const res = await putContextOverride(cookie, gameId, {
       home: { injuries: [] },
@@ -509,7 +493,7 @@ describe("PUT /api/admin/nfl-stat-contexts/{gameId}/override", () => {
 
   it("an empty body clears the layer back to never-corrected", async () => {
     const { gameId, weekId } = await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
     await putContextOverride(cookie, gameId, { home: { fpiWinPct: 99 } });
 
     const res = await putContextOverride(cookie, gameId, {});
@@ -527,7 +511,7 @@ describe("PUT /api/admin/nfl-stat-contexts/{gameId}/override", () => {
 
   it("an empty-object side normalizes away — {} carries no override", async () => {
     const { gameId, weekId } = await seedAll();
-    const { cookie } = await adminCaller();
+    const { cookie } = await adminCaller(app);
 
     await putContextOverride(cookie, gameId, { home: {}, away: {} });
     const list = await getContexts(cookie, weekId);

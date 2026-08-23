@@ -1,6 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, sportSeasons, teams, weeks } from "@picksleagues/db";
-import { FixedClock } from "@picksleagues/core";
+import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   GAME_STATUS,
   SPORT,
@@ -9,13 +8,10 @@ import {
   type AdminSeasonsResponse,
   type AdminTeamsResponse,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
 import { BaseFakeProvider } from "./setup/fake-provider";
-import { createAuth } from "../src/auth";
-import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
+import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness, withCookie } from "./setup/fixed-app";
 
 // The browsers are pure reads — nothing here consults the clock, so a fixed
 // instant only exists to satisfy createApp's dep.
@@ -25,28 +21,14 @@ const SEEDED_AT = new Date("2026-09-01T00:00:00.000Z");
 /** Never called — no route under test touches the provider. */
 class FakeProvider extends BaseFakeProvider {}
 
-const db = createDb(getTestDatabaseUrl());
-const auth = createAuth({ env: makeTestEnv(), db });
+const { db, auth, appAt, adminCaller } = makeFixedAppHarness();
 
 function buildApp() {
-  return createApp({
-    auth,
-    db,
-    env: makeTestEnv(),
-    clock: async () => new FixedClock(FIXED_NOW),
-    provider: async () => new FakeProvider(),
-  });
+  return appAt(FIXED_NOW, { provider: async () => new FakeProvider() });
 }
 
 function get(app: ReturnType<typeof buildApp>, path: string, cookie?: string) {
-  return app.request(path, { headers: { ...(cookie ? { cookie } : {}) } });
-}
-
-/** Signs in a user, grants them the admin role, and returns an admin-ready app. */
-async function adminCaller() {
-  const { user, cookie } = await createAuthenticatedUser(auth);
-  await grantAdmin(db, user.id);
-  return { app: buildApp(), cookie, userId: user.id };
+  return app.request(path, { headers: withCookie(cookie) });
 }
 
 /**
@@ -255,7 +237,7 @@ describe("admin reference-data browsers", () => {
 
 describe("GET /api/admin/teams", () => {
   it("400s without the required sport param", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
 
     const res = await get(app, "/api/admin/teams", cookie);
 
@@ -263,7 +245,7 @@ describe("GET /api/admin/teams", () => {
   });
 
   it("returns one sport's teams by abbreviation, preserving unlinked rows", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     await seed(userId);
 
     const res = await get(app, "/api/admin/teams?sport=nfl", cookie);
@@ -285,7 +267,7 @@ describe("GET /api/admin/teams", () => {
 
 describe("GET /api/admin/seasons", () => {
   it("returns seasons newest-first with chronological weeks and game counts", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     await seed(userId);
 
     const res = await get(app, "/api/admin/seasons?sport=nfl", cookie);
@@ -312,7 +294,7 @@ describe("GET /api/admin/seasons", () => {
 
 describe("GET /api/admin/games", () => {
   it("400s on a non-uuid week id", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
 
     const res = await get(app, "/api/admin/games?weekId=not-a-uuid", cookie);
 
@@ -320,7 +302,7 @@ describe("GET /api/admin/games", () => {
   });
 
   it("returns [] for a week with no games", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const seeded = await seed(userId);
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week2.id}`, cookie);
@@ -330,7 +312,7 @@ describe("GET /api/admin/games", () => {
   });
 
   it("orders by resolved kickoff, not the provider's", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const seeded = await seed(userId);
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);
@@ -341,7 +323,7 @@ describe("GET /api/admin/games", () => {
   });
 
   it("serializes provider fields untouched alongside the override-resolved ones", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const seeded = await seed(userId);
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);
@@ -377,7 +359,7 @@ describe("GET /api/admin/games", () => {
   });
 
   it("falls back to provider values when nothing is overridden", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const seeded = await seed(userId);
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);

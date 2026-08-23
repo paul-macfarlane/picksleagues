@@ -17,6 +17,7 @@ import {
 } from "@/lib/game";
 import { pickRowState, pickStandingLabel } from "@/lib/pickem-game";
 import { useAppNow } from "@/lib/app-clock";
+import { kickoffDaysAway } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GameStatePill } from "@/components/league/game-state";
@@ -173,6 +174,7 @@ export function SheetGameRow({
           simulator is months from the browser's. */}
       <MatchupLine
         data-testid="game-state"
+        data-kickoff-days={kickoffDaysAway(game.kickoffAt, now)}
         away={
           <SideButton
             team={game.awayTeam}
@@ -265,6 +267,7 @@ export function SubmittedPickRow({
           locked wants to know how it is doing, not what they bought it at. */}
       <MatchupLine
         data-testid="game-state"
+        data-kickoff-days={kickoffDaysAway(game.kickoffAt, now)}
         away={
           <SideButton
             team={game.awayTeam}

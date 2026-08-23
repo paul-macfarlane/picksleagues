@@ -1,14 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
 import { GAME_STATUS, type AdminGamesResponse } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
-import { createAuth } from "../src/auth";
-import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
+import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { seedSeason, setGame } from "./setup/league-helpers";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness } from "./setup/fixed-app";
 
 /**
  * Detection of `unlocked ∧ outcome-knowable` games (ADM-3) — the state the
@@ -30,21 +26,14 @@ const FUTURE = new Date("2026-09-21T00:00:00.000Z");
 // answer, since `isLocked` is `kickoff <= now`.
 const JUST_AFTER_NOW = new Date(NOW.getTime() + 1);
 
-const db = createDb(getTestDatabaseUrl());
-const auth = createAuth({ env: makeTestEnv(), db });
+const { db, auth, appAt, adminCaller } = makeFixedAppHarness();
 const clock = new FixedClock(NOW);
 
 function buildApp() {
-  return createApp({ auth, db, env: makeTestEnv(), clock: async () => clock });
+  return appAt(clock.now());
 }
 
 type App = ReturnType<typeof buildApp>;
-
-async function adminCaller() {
-  const { user, cookie } = await createAuthenticatedUser(auth);
-  await grantAdmin(db, user.id);
-  return { app: buildApp(), cookie, userId: user.id };
-}
 
 function getAnomalies(app: App, cookie: string) {
   return app.request("/api/admin/games/anomalies", { headers: { cookie } });
@@ -149,7 +138,7 @@ describe("GET /api/admin/games/anomalies", () => {
   });
 
   it("lists exactly the games left unlocked while their outcome is knowable", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const seeded = await seedGames();
 
     const ids = await anomalousIds(app, cookie);
@@ -163,7 +152,7 @@ describe("GET /api/admin/games/anomalies", () => {
   });
 
   it("treats a game kicking off at exactly now as locked, not anomalous", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const seeded = await seedGames();
 
     const ids = await anomalousIds(app, cookie);
@@ -176,7 +165,7 @@ describe("GET /api/admin/games/anomalies", () => {
   });
 
   it("surfaces what a later-kickoff override and score ingestion produce between them", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const seeded = await seedGames();
 
     // Allowed, and correctly so: at this moment the game is scheduled and
@@ -210,7 +199,7 @@ describe("GET /api/admin/games/anomalies", () => {
   });
 
   it("clears once the kickoff is moved back into the past, and stays editable until it is", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const seeded = await seedGames();
 
     // The guard's carve-out is what makes the games browser the repair path: an

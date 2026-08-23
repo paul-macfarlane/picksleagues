@@ -1,3 +1,4 @@
+import type { BrowserContext } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { createDb } from "../../packages/db/src/client";
 import { loadEnv } from "../../packages/core/src/env";
@@ -71,6 +72,20 @@ export async function mintSession(
       path: "/",
     },
   };
+}
+
+/**
+ * Mints a session and drops it straight into the browser's cookie jar — every
+ * spec authenticates this way instead of driving real OAuth (there's no
+ * headless IdP to drive; see e2e/smoke.spec.ts).
+ */
+export async function signInAs(
+  context: BrowserContext,
+  overrides?: Parameters<typeof mintSession>[0],
+): Promise<MintedUser> {
+  const { user, cookieForPlaywright } = await mintSession(overrides);
+  await context.addCookies([cookieForPlaywright]);
+  return user;
 }
 
 /**

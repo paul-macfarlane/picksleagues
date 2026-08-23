@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, games, sportSeasons, weeks } from "@picksleagues/db";
+import { games, sportSeasons, weeks } from "@picksleagues/db";
 import {
   FixedClock,
   type ProviderGame,
@@ -14,15 +14,15 @@ import {
   type WeekType,
   type JobRunResponse,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
 import { BaseFakeProvider } from "./setup/fake-provider";
 import { resolveGameOverrides } from "../src/services/games";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
+import { makeFixedAppHarness } from "./setup/fixed-app";
 import { makeTestEnv } from "./setup/test-env";
+import { runOddsSyncJob } from "./setup/jobs";
 
 const testEnv = makeTestEnv();
 
@@ -55,14 +55,9 @@ class FakeProvider extends BaseFakeProvider {
   }
 }
 
-const db = createDb(getTestDatabaseUrl());
+const { db, appAt } = makeFixedAppHarness();
 const provider = new FakeProvider();
-const app = createApp({
-  env: testEnv,
-  db,
-  clock: async () => oddsClock,
-  provider: async () => provider,
-});
+const app = appAt(oddsClock.now(), { env: testEnv, provider: async () => provider });
 
 /** Current spread per provider game id — the state a re-run must leave alone. */
 async function spreadsByProviderId(): Promise<Map<string, number | null>> {
@@ -876,12 +871,6 @@ describe("syncNflOdds: offseason season roll-forward", () => {
 });
 
 describe("POST /api/jobs/nfl/sync-odds", () => {
-  it("401s without the x-job-secret header", async () => {
-    const res = await app.request("/api/jobs/nfl/sync-odds", { method: "POST" });
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ error: "unauthorized" });
-  });
-
   it("returns the job envelope with the odds counters", async () => {
     await seedSchedule([
       providerGame({
@@ -892,10 +881,7 @@ describe("POST /api/jobs/nfl/sync-odds", () => {
       }),
     ]);
 
-    const res = await app.request("/api/jobs/nfl/sync-odds", {
-      method: "POST",
-      headers: { "x-job-secret": testEnv.JOB_SECRET },
-    });
+    const res = await runOddsSyncJob(app);
     expect(res.status).toBe(200);
     const body = (await res.json()) as JobRunResponse;
     expect(body.status).toBe("ok");

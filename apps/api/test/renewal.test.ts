@@ -17,7 +17,7 @@ import {
 import { joinPublicLeague, renewLeagueSeason } from "../src/services/leagues";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { DEFAULT_SURVIVOR_SETTINGS, insertLeague, seedSeason } from "./setup/league-helpers";
-import { makeLeagueTestHarness } from "./setup/league-app";
+import { makeLeagueTestHarness, withCookie } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app } = makeLeagueTestHarness();
@@ -37,7 +37,7 @@ const Y2027_KICKOFF = new Date("2027-09-13T17:00:00.000Z");
 function postRenew(cookie: string | undefined, leagueId: string) {
   return app.request(`/api/leagues/${leagueId}/seasons`, {
     method: "POST",
-    headers: { ...(cookie ? { cookie } : {}) },
+    headers: withCookie(cookie),
   });
 }
 
