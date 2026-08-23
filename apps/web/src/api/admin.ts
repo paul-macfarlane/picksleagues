@@ -18,9 +18,11 @@ import type {
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 
-// One home for the admin cache-key shape: every admin browser query (here and
-// in api/admin-nfl-stats.ts) is prefixed with this, so a single invalidation
-// after a sync job covers them all without restating key literals.
+/**
+ * One home for the admin cache-key shape: every admin browser query (here and
+ * in api/admin-nfl-stats.ts) is prefixed with this, so a single invalidation
+ * after a sync job covers them all without restating key literals.
+ */
 export const ADMIN_QUERY_KEY_PREFIX = ["admin"];
 
 // Wire slug → operator copy for a run that had nothing to do. A skip is a 200,

@@ -5,9 +5,11 @@ import { api } from "@/lib/api";
 // rows, NFL-qualified because the stat shapes are the sport's, not the app's
 // (engineering rules §naming).
 
-// Exported for the admin stats-override mutations' invalidation fan-out
-// (api/admin.ts): a stats correction changes what this surface serves, and the
-// prefix belongs here so no other module restates the key literal.
+/**
+ * Exported for the admin stats-override mutations' invalidation fan-out
+ * (api/admin.ts): a stats correction changes what this surface serves, and the
+ * prefix belongs here so no other module restates the key literal.
+ */
 export const NFL_GAME_STATS_QUERY_KEY_PREFIX = ["nfl-game-stats"];
 
 export function nflGameStatsQueryKey(gameId: string | undefined) {

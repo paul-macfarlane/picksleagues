@@ -151,7 +151,7 @@ export async function revokeInvite(
 }
 
 /** What a link unfurl says about an invite (FB-41). */
-export interface InviteLinkPreview {
+export type InviteLinkPreview = {
   leagueName: string;
   mode: LeagueMode;
   memberCount: number;
@@ -159,7 +159,7 @@ export interface InviteLinkPreview {
   startsAt: Date | null;
   /** Whether a new member could still take a spot — the unfurl's tense. */
   open: boolean;
-}
+};
 
 /**
  * The invite as a link-preview bot sees it: enough to say which league this is,

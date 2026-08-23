@@ -156,8 +156,10 @@ export function SurvivorSettingsFields({ seasonRange }: { seasonRange?: NflSeaso
   );
 }
 
-// Scoring is standard doubling only (ADR-0034) — max brackets is the one
-// setting the mode has.
+/**
+ * Scoring is standard doubling only (ADR-0034) — max brackets is the one
+ * setting the mode has.
+ */
 export function MarchMadnessSettingsFields({
   maxBrackets,
   onMaxBracketsChange,

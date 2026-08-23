@@ -18,9 +18,11 @@ export const ImageUrlSchema = z
 
 export type ImageUrl = z.infer<typeof ImageUrlSchema>;
 
-// The nullable wrapper is registered under its own component name — an inline
-// `.nullable()` on the registered node would fold `null` into the shared
-// `ImageUrl` component and widen every other reference to it (engineering
-// rules §Contract & codegen). Exported from here, the schema's home, so its
-// consumers (me, admin team logos) share one registration.
+/**
+ * The nullable wrapper is registered under its own component name — an inline
+ * `.nullable()` on the registered node would fold `null` into the shared
+ * `ImageUrl` component and widen every other reference to it (engineering
+ * rules §Contract & codegen). Exported from here, the schema's home, so its
+ * consumers (me, admin team logos) share one registration.
+ */
 export const NullableImageUrlSchema = ImageUrlSchema.nullable().openapi("NullableImageUrl");
