@@ -73,9 +73,11 @@ against it rather than hardcoding.
   horizontal scroll for the member-facing bar (2026-08-22, during MOB-2
   review): `TabNav fit` lays the league sections out as equal columns below
   `sm`, and "League Picks" became "All Picks" so five tabs fit at 375px.
-  Admin/Simulator bars (seven and five operator tabs) keep scrolling; edge
-  fades there only if someone actually works those panels from a phone.
-  _(deps: MOB-2)_
+  The admin bar followed (owner, 2026-08-22): the guide became a standalone
+  `/guide` route beside Admin and Simulator in the header and More menu, and
+  the never-used Seasons tab was removed, leaving five fitted tabs. The
+  Simulator bar (five) is fitted too. Edge fades stay out until someone
+  actually works those panels from a phone. _(deps: MOB-2)_
 - [ ] **MOB-5** — Pull-to-refresh on query-backed views (standings, games,
   dashboard): a touch-start-at-scrollTop-0 gesture invalidates the route's
   query keys via the `apps/web/src/api/*` modules (no key literals in

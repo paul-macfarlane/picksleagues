@@ -18,6 +18,7 @@ import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedDiscoveryRouteImport } from './routes/_authed/discovery'
+import { Route as AuthedGuideRouteImport } from './routes/_authed/guide'
 import { Route as AuthedProfileRouteImport } from './routes/_authed/profile'
 import { Route as AuthedSimRouteRouteImport } from './routes/_authed/sim/route'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
@@ -27,8 +28,6 @@ import { Route as RulesSurvivorRouteImport } from './routes/rules/survivor'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
 import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
-import { Route as AuthedAdminGuideRouteImport } from './routes/_authed/admin/guide'
-import { Route as AuthedAdminSeasonsRouteImport } from './routes/_authed/admin/seasons'
 import { Route as AuthedAdminStatsRouteImport } from './routes/_authed/admin/stats'
 import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
 import { Route as AuthedLeaguesLeagueIdRouteRouteImport } from './routes/_authed/leagues/$leagueId/route'
@@ -87,6 +86,11 @@ const AuthedDiscoveryRoute = AuthedDiscoveryRouteImport.update({
   path: '/discovery',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedGuideRoute = AuthedGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedProfileRoute = AuthedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -130,16 +134,6 @@ const AuthedAdminAuditRoute = AuthedAdminAuditRouteImport.update({
 const AuthedAdminGamesRoute = AuthedAdminGamesRouteImport.update({
   id: '/games',
   path: '/games',
-  getParentRoute: () => AuthedAdminRouteRoute,
-} as any)
-const AuthedAdminGuideRoute = AuthedAdminGuideRouteImport.update({
-  id: '/guide',
-  path: '/guide',
-  getParentRoute: () => AuthedAdminRouteRoute,
-} as any)
-const AuthedAdminSeasonsRoute = AuthedAdminSeasonsRouteImport.update({
-  id: '/seasons',
-  path: '/seasons',
   getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
 const AuthedAdminStatsRoute = AuthedAdminStatsRouteImport.update({
@@ -224,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/sim': typeof AuthedSimRouteRouteWithChildren
   '/discovery': typeof AuthedDiscoveryRoute
+  '/guide': typeof AuthedGuideRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/rules/pickem': typeof RulesPickemRoute
@@ -232,8 +227,6 @@ export interface FileRoutesByFullPath {
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
-  '/admin/guide': typeof AuthedAdminGuideRoute
-  '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/stats': typeof AuthedAdminStatsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
@@ -255,6 +248,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
   '/discovery': typeof AuthedDiscoveryRoute
+  '/guide': typeof AuthedGuideRoute
   '/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/rules/pickem': typeof RulesPickemRoute
@@ -263,8 +257,6 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
-  '/admin/guide': typeof AuthedAdminGuideRoute
-  '/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/admin/stats': typeof AuthedAdminStatsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
   '/leagues/new': typeof AuthedLeaguesNewRoute
@@ -290,6 +282,7 @@ export interface FileRoutesById {
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
   '/_authed/sim': typeof AuthedSimRouteRouteWithChildren
   '/_authed/discovery': typeof AuthedDiscoveryRoute
+  '/_authed/guide': typeof AuthedGuideRoute
   '/_authed/profile': typeof AuthedProfileRoute
   '/join/$code': typeof JoinCodeRoute
   '/rules/pickem': typeof RulesPickemRoute
@@ -299,8 +292,6 @@ export interface FileRoutesById {
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
   '/_authed/admin/audit': typeof AuthedAdminAuditRoute
   '/_authed/admin/games': typeof AuthedAdminGamesRoute
-  '/_authed/admin/guide': typeof AuthedAdminGuideRoute
-  '/_authed/admin/seasons': typeof AuthedAdminSeasonsRoute
   '/_authed/admin/stats': typeof AuthedAdminStatsRoute
   '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
   '/_authed/leagues/new': typeof AuthedLeaguesNewRoute
@@ -327,6 +318,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/sim'
     | '/discovery'
+    | '/guide'
     | '/profile'
     | '/join/$code'
     | '/rules/pickem'
@@ -335,8 +327,6 @@ export interface FileRouteTypes {
     | '/leagues/$leagueId'
     | '/admin/audit'
     | '/admin/games'
-    | '/admin/guide'
-    | '/admin/seasons'
     | '/admin/stats'
     | '/admin/teams'
     | '/leagues/new'
@@ -358,6 +348,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/welcome'
     | '/discovery'
+    | '/guide'
     | '/profile'
     | '/join/$code'
     | '/rules/pickem'
@@ -366,8 +357,6 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/audit'
     | '/admin/games'
-    | '/admin/guide'
-    | '/admin/seasons'
     | '/admin/stats'
     | '/admin/teams'
     | '/leagues/new'
@@ -392,6 +381,7 @@ export interface FileRouteTypes {
     | '/_authed/admin'
     | '/_authed/sim'
     | '/_authed/discovery'
+    | '/_authed/guide'
     | '/_authed/profile'
     | '/join/$code'
     | '/rules/pickem'
@@ -401,8 +391,6 @@ export interface FileRouteTypes {
     | '/_authed/leagues/$leagueId'
     | '/_authed/admin/audit'
     | '/_authed/admin/games'
-    | '/_authed/admin/guide'
-    | '/_authed/admin/seasons'
     | '/_authed/admin/stats'
     | '/_authed/admin/teams'
     | '/_authed/leagues/new'
@@ -496,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDiscoveryRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/guide': {
+      id: '/_authed/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof AuthedGuideRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/profile': {
       id: '/_authed/profile'
       path: '/profile'
@@ -557,20 +552,6 @@ declare module '@tanstack/react-router' {
       path: '/games'
       fullPath: '/admin/games'
       preLoaderRoute: typeof AuthedAdminGamesRouteImport
-      parentRoute: typeof AuthedAdminRouteRoute
-    }
-    '/_authed/admin/guide': {
-      id: '/_authed/admin/guide'
-      path: '/guide'
-      fullPath: '/admin/guide'
-      preLoaderRoute: typeof AuthedAdminGuideRouteImport
-      parentRoute: typeof AuthedAdminRouteRoute
-    }
-    '/_authed/admin/seasons': {
-      id: '/_authed/admin/seasons'
-      path: '/seasons'
-      fullPath: '/admin/seasons'
-      preLoaderRoute: typeof AuthedAdminSeasonsRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
     '/_authed/admin/stats': {
@@ -670,8 +651,6 @@ declare module '@tanstack/react-router' {
 interface AuthedAdminRouteRouteChildren {
   AuthedAdminAuditRoute: typeof AuthedAdminAuditRoute
   AuthedAdminGamesRoute: typeof AuthedAdminGamesRoute
-  AuthedAdminGuideRoute: typeof AuthedAdminGuideRoute
-  AuthedAdminSeasonsRoute: typeof AuthedAdminSeasonsRoute
   AuthedAdminStatsRoute: typeof AuthedAdminStatsRoute
   AuthedAdminTeamsRoute: typeof AuthedAdminTeamsRoute
   AuthedAdminIndexRoute: typeof AuthedAdminIndexRoute
@@ -680,8 +659,6 @@ interface AuthedAdminRouteRouteChildren {
 const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
   AuthedAdminAuditRoute: AuthedAdminAuditRoute,
   AuthedAdminGamesRoute: AuthedAdminGamesRoute,
-  AuthedAdminGuideRoute: AuthedAdminGuideRoute,
-  AuthedAdminSeasonsRoute: AuthedAdminSeasonsRoute,
   AuthedAdminStatsRoute: AuthedAdminStatsRoute,
   AuthedAdminTeamsRoute: AuthedAdminTeamsRoute,
   AuthedAdminIndexRoute: AuthedAdminIndexRoute,
@@ -735,6 +712,7 @@ interface AuthedRouteChildren {
   AuthedAdminRouteRoute: typeof AuthedAdminRouteRouteWithChildren
   AuthedSimRouteRoute: typeof AuthedSimRouteRouteWithChildren
   AuthedDiscoveryRoute: typeof AuthedDiscoveryRoute
+  AuthedGuideRoute: typeof AuthedGuideRoute
   AuthedProfileRoute: typeof AuthedProfileRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedLeaguesLeagueIdRouteRoute: typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
@@ -745,6 +723,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRouteRoute: AuthedAdminRouteRouteWithChildren,
   AuthedSimRouteRoute: AuthedSimRouteRouteWithChildren,
   AuthedDiscoveryRoute: AuthedDiscoveryRoute,
+  AuthedGuideRoute: AuthedGuideRoute,
   AuthedProfileRoute: AuthedProfileRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedLeaguesLeagueIdRouteRoute: AuthedLeaguesLeagueIdRouteRouteWithChildren,

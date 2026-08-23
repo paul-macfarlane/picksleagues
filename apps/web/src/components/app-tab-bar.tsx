@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
+  BookOpenIcon,
   CompassIcon,
   EllipsisIcon,
   ShieldIcon,
@@ -174,7 +175,8 @@ function LeaguesTab({ active }: { active: boolean }) {
 function MoreTab({ simEnabled }: { simEnabled: boolean }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const active = pathname.startsWith("/admin") || pathname.startsWith("/sim");
+  const active =
+    pathname.startsWith("/admin") || pathname.startsWith("/sim") || pathname.startsWith("/guide");
 
   return (
     <MenuTab label="More" icon={<EllipsisIcon aria-hidden="true" />} active={active}>
@@ -192,6 +194,10 @@ function MoreTab({ simEnabled }: { simEnabled: boolean }) {
               Simulator
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem onClick={() => navigate({ to: "/guide" })}>
+            <BookOpenIcon />
+            Guide
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </MenuTab>
