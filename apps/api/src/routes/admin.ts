@@ -25,6 +25,7 @@ import {
   jobRunResponses,
   misconfiguredJob,
   NFL_SYNC_JOBS,
+  resolveJobDeps,
   resolveNflJobDeps,
   SyncQuerySchema,
 } from "../lib/nfl-sync-jobs";
@@ -289,16 +290,16 @@ export function adminRoutes(deps: AppDeps) {
   });
 
   app.openapi(runAdminSettleSweepRoute, async (c) => {
-    const { db, clock: resolveClock } = deps;
-    if (!db || !resolveClock) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
-    const clock = await resolveClock();
+    const resolved = await resolveJobDeps(deps);
+    if (!resolved) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
+    const { db, clock } = resolved;
     return runJob(c, SETTLE_SWEEP_JOB_NAME, () => settleSweep(db, clock));
   });
 
   app.openapi(rebuildLeagueRoute, async (c) => {
-    const { db, clock: resolveClock } = deps;
-    if (!db || !resolveClock) return c.json(misconfiguredJob(REBUILD_JOB_NAME), 500);
-    const clock = await resolveClock();
+    const resolved = await resolveJobDeps(deps);
+    if (!resolved) return c.json(misconfiguredJob(REBUILD_JOB_NAME), 500);
+    const { db, clock } = resolved;
     const { leagueId } = c.req.valid("param");
 
     // Rebuild targets the league's current instance (ADR-0009) — the one whose

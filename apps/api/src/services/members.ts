@@ -3,6 +3,7 @@ import type { Db } from "@picksleagues/db";
 import { leagueMembers } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   LEAGUE_ACTION,
   MAX_ACTIVE_COMMISSIONER_LEAGUES,
   MEMBER_ROLE,
@@ -16,6 +17,7 @@ import {
   leagueIsPreStart,
   lockLeagueRow,
   lockUserRow,
+  type LeagueActionRefusal,
 } from "./leagues";
 
 /**
@@ -38,20 +40,24 @@ async function countCommissioners(db: Db, leagueId: string): Promise<number> {
 
 /** Thrown inside member transactions to roll back and surface the refusal. */
 class MemberMutationError extends Error {
-  readonly reason: "cap_exceeded" | "last_commissioner";
+  readonly reason: typeof ERROR_CODE.CAP_EXCEEDED | typeof ERROR_CODE.LAST_COMMISSIONER;
 
-  constructor(reason: "cap_exceeded" | "last_commissioner") {
+  constructor(reason: typeof ERROR_CODE.CAP_EXCEEDED | typeof ERROR_CODE.LAST_COMMISSIONER) {
     super(`member mutation refused: ${reason}`);
     this.reason = reason;
   }
 }
 
-type ActorGateFailure = { ok: false; reason: "league_not_found" | "not_commissioner" };
-
 export type UpdateMemberRoleResult =
   | { ok: true }
-  | ActorGateFailure
-  | { ok: false; reason: "member_not_found" | "cap_exceeded" | "last_commissioner" };
+  | LeagueActionRefusal
+  | {
+      ok: false;
+      reason:
+        | typeof ERROR_CODE.MEMBER_NOT_FOUND
+        | typeof ERROR_CODE.CAP_EXCEEDED
+        | typeof ERROR_CODE.LAST_COMMISSIONER;
+    };
 
 export async function updateMemberRole(
   db: Db,
@@ -81,7 +87,7 @@ export async function updateMemberRole(
         .select()
         .from(leagueMembers)
         .where(and(eq(leagueMembers.id, memberId), eq(leagueMembers.leagueId, leagueId)));
-      if (!target) return { ok: false, reason: "member_not_found" as const };
+      if (!target) return { ok: false, reason: ERROR_CODE.MEMBER_NOT_FOUND };
       if (target.role === role) return { ok: true as const };
 
       if (role === MEMBER_ROLE.COMMISSIONER) {
@@ -108,12 +114,12 @@ export async function updateMemberRole(
         if (
           (await countActiveCommissionerships(tx, target.userId)) > MAX_ACTIVE_COMMISSIONER_LEAGUES
         ) {
-          throw new MemberMutationError("cap_exceeded");
+          throw new MemberMutationError(ERROR_CODE.CAP_EXCEEDED);
         }
       } else if ((await countCommissioners(tx, leagueId)) === 0) {
         // Demote (incl. stepping down): a league with members must keep ≥1
         // commissioner (ADR-0004).
-        throw new MemberMutationError("last_commissioner");
+        throw new MemberMutationError(ERROR_CODE.LAST_COMMISSIONER);
       }
 
       return { ok: true as const };
@@ -128,10 +134,14 @@ export async function updateMemberRole(
 
 export type KickMemberResult =
   | { ok: true }
-  | ActorGateFailure
+  | LeagueActionRefusal
   | {
       ok: false;
-      reason: "member_not_found" | "cannot_kick_self" | "league_started" | "last_commissioner";
+      reason:
+        | typeof ERROR_CODE.MEMBER_NOT_FOUND
+        | typeof ERROR_CODE.CANNOT_KICK_SELF
+        | typeof ERROR_CODE.LEAGUE_STARTED
+        | typeof ERROR_CODE.LAST_COMMISSIONER;
     };
 
 export async function kickMember(
@@ -150,32 +160,32 @@ export async function kickMember(
       // Kicking yourself would dodge LG-8's leave rules (sole-member
       // commissioners must delete the league, not empty it) — route them there.
       if (gate.membership.id === memberId) {
-        return { ok: false, reason: "cannot_kick_self" as const };
+        return { ok: false, reason: ERROR_CODE.CANNOT_KICK_SELF };
       }
 
       const [target] = await tx
         .select()
         .from(leagueMembers)
         .where(and(eq(leagueMembers.id, memberId), eq(leagueMembers.leagueId, leagueId)));
-      if (!target) return { ok: false, reason: "member_not_found" as const };
+      if (!target) return { ok: false, reason: ERROR_CODE.MEMBER_NOT_FOUND };
 
       if (
         leagueActionIsPreStartOnly(LEAGUE_ACTION.KICK_MEMBER) &&
         !(await leagueIsPreStart(tx, clock, leagueId))
       ) {
-        return { ok: false, reason: "league_started" as const };
+        return { ok: false, reason: ERROR_CODE.LEAGUE_STARTED };
       }
 
       await tx.delete(leagueMembers).where(eq(leagueMembers.id, target.id));
 
       if ((await countCommissioners(tx, leagueId)) === 0) {
-        throw new MemberMutationError("last_commissioner");
+        throw new MemberMutationError(ERROR_CODE.LAST_COMMISSIONER);
       }
       return { ok: true as const };
     });
   } catch (error) {
-    if (error instanceof MemberMutationError && error.reason === "last_commissioner") {
-      return { ok: false, reason: "last_commissioner" };
+    if (error instanceof MemberMutationError && error.reason === ERROR_CODE.LAST_COMMISSIONER) {
+      return { ok: false, reason: ERROR_CODE.LAST_COMMISSIONER };
     }
     throw error;
   }
@@ -185,7 +195,11 @@ export type LeaveLeagueResult =
   | { ok: true }
   | {
       ok: false;
-      reason: "league_not_found" | "league_started" | "sole_member" | "last_commissioner";
+      reason:
+        | typeof ERROR_CODE.LEAGUE_NOT_FOUND
+        | typeof ERROR_CODE.LEAGUE_STARTED
+        | typeof ERROR_CODE.SOLE_MEMBER
+        | typeof ERROR_CODE.LAST_COMMISSIONER;
     };
 
 /**
@@ -207,33 +221,33 @@ export async function leaveLeague(
       // LEAVE_LEAGUE is the one non-commissioner action in the matrix — the
       // gate only 404s non-members here.
       const gate = await authorizeLeagueAction(tx, leagueId, userId, LEAGUE_ACTION.LEAVE_LEAGUE);
-      if (!gate.ok) return { ok: false, reason: "league_not_found" as const };
+      if (!gate.ok) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
       const membership = gate.membership;
 
       if (
         leagueActionIsPreStartOnly(LEAGUE_ACTION.LEAVE_LEAGUE) &&
         !(await leagueIsPreStart(tx, clock, leagueId))
       ) {
-        return { ok: false, reason: "league_started" as const };
+        return { ok: false, reason: ERROR_CODE.LEAGUE_STARTED };
       }
 
       if (
         membership.role === MEMBER_ROLE.COMMISSIONER &&
         (await countMembers(tx, leagueId)) === 1
       ) {
-        return { ok: false, reason: "sole_member" as const };
+        return { ok: false, reason: ERROR_CODE.SOLE_MEMBER };
       }
 
       await tx.delete(leagueMembers).where(eq(leagueMembers.id, membership.id));
 
       if ((await countCommissioners(tx, leagueId)) === 0) {
-        throw new MemberMutationError("last_commissioner");
+        throw new MemberMutationError(ERROR_CODE.LAST_COMMISSIONER);
       }
       return { ok: true as const };
     });
   } catch (error) {
-    if (error instanceof MemberMutationError && error.reason === "last_commissioner") {
-      return { ok: false, reason: "last_commissioner" };
+    if (error instanceof MemberMutationError && error.reason === ERROR_CODE.LAST_COMMISSIONER) {
+      return { ok: false, reason: ERROR_CODE.LAST_COMMISSIONER };
     }
     throw error;
   }

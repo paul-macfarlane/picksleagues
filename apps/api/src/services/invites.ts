@@ -4,6 +4,7 @@ import type { Db } from "@picksleagues/db";
 import { leagueInvites, users } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   JOIN_BLOCKED_REASON,
   LEAGUE_ACTION,
   LEAGUE_STATUS,
@@ -26,6 +27,7 @@ import {
   leagueIsPreStart,
   LeagueMissingError,
   leagueStartAt,
+  type LeagueActionRefusal,
 } from "./leagues";
 
 type InviteRow = typeof leagueInvites.$inferSelect;
@@ -41,13 +43,15 @@ function inviteIsRevoked(invite: InviteRow): boolean {
   return invite.revokedAt !== null;
 }
 
-// MANAGE_INVITES (listing and revoking) is an anytime power — the shared gate
-// covers its only axis. Creation is the split-off CREATE_INVITE, which has a
-// window and checks it below.
-type CommissionerGateFailure = { ok: false; reason: "league_not_found" | "not_commissioner" };
-
+/**
+ * Creation is the split-off CREATE_INVITE, which has a window on top of the
+ * shared gate; MANAGE_INVITES (listing and revoking) is an anytime power, so
+ * `ListInvitesResult`/`RevokeInviteResult` carry no `league_started`.
+ */
 export type CreateInviteResult =
-  { ok: true; invite: Invite } | CommissionerGateFailure | { ok: false; reason: "league_started" };
+  | { ok: true; invite: Invite }
+  | LeagueActionRefusal
+  | { ok: false; reason: typeof ERROR_CODE.LEAGUE_STARTED };
 
 export async function createInvite(
   db: Db,
@@ -66,7 +70,7 @@ export async function createInvite(
     leagueActionIsPreStartOnly(LEAGUE_ACTION.CREATE_INVITE) &&
     !(await leagueIsPreStart(db, clock, leagueId))
   ) {
-    return { ok: false, reason: "league_started" };
+    return { ok: false, reason: ERROR_CODE.LEAGUE_STARTED };
   }
 
   const now = clock.now();
@@ -90,7 +94,7 @@ export async function createInvite(
   return { ok: true, invite: await serializeInvite(db, created) };
 }
 
-export type ListInvitesResult = { ok: true; invites: Invite[] } | CommissionerGateFailure;
+export type ListInvitesResult = { ok: true; invites: Invite[] } | LeagueActionRefusal;
 
 export async function listInvites(
   db: Db,
@@ -117,7 +121,7 @@ export async function listInvites(
 }
 
 export type RevokeInviteResult =
-  { ok: true } | CommissionerGateFailure | { ok: false; reason: "invite_not_found" };
+  { ok: true } | LeagueActionRefusal | { ok: false; reason: typeof ERROR_CODE.INVITE_NOT_FOUND };
 
 export async function revokeInvite(
   db: Db,
@@ -131,7 +135,7 @@ export async function revokeInvite(
 
   const [invite] = await db.select().from(leagueInvites).where(eq(leagueInvites.code, code));
   if (!invite || invite.leagueId !== leagueId) {
-    return { ok: false, reason: "invite_not_found" };
+    return { ok: false, reason: ERROR_CODE.INVITE_NOT_FOUND };
   }
 
   // Idempotent: revoking an already-revoked invite keeps the original
@@ -259,7 +263,7 @@ export async function getJoinPreview(
 
 export type JoinByCodeResult =
   | { ok: true; league: LeagueResponse }
-  | { ok: false; reason: JoinBlockedReason | "invite_invalid" };
+  | { ok: false; reason: JoinBlockedReason | typeof ERROR_CODE.INVITE_INVALID };
 
 /**
  * Join via invite link (spec §Invites, §Membership). The use-count increment
@@ -308,7 +312,7 @@ export async function joinByCode(
     return { ok: true, league };
   } catch (error) {
     if (error instanceof InviteInvalidError || error instanceof LeagueMissingError) {
-      return { ok: false, reason: "invite_invalid" };
+      return { ok: false, reason: ERROR_CODE.INVITE_INVALID };
     }
     if (error instanceof JoinRefusedError) {
       return { ok: false, reason: error.reason };

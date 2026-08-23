@@ -814,7 +814,9 @@
             "type": "string"
           },
           "code": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           },
           "useCount": {
             "type": "integer"
@@ -917,7 +919,7 @@
             "type": "boolean"
           },
           "reason": {
-            "$ref": "#/components/schemas/JoinBlockedReason"
+            "$ref": "#/components/schemas/NullableJoinBlockedReason"
           }
         },
         "required": [
@@ -926,7 +928,7 @@
           "reason"
         ]
       },
-      "JoinBlockedReason": {
+      "NullableJoinBlockedReason": {
         "type": [
           "string",
           "null"
@@ -5452,7 +5454,8 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64
             },
             "required": true,
             "name": "code",
@@ -5514,7 +5517,8 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64
             },
             "required": true,
             "name": "code",
@@ -5571,7 +5575,8 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64
             },
             "required": true,
             "name": "code",

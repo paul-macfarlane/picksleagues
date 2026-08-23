@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { LEAGUE_MODE, type LeagueMode } from "@picksleagues/schemas";
+import { InviteCodeSchema, LEAGUE_MODE, type LeagueMode } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { renderShellMeta } from "@picksleagues/html-shell";
 import { fallbackInviteShell, GENERIC_INVITE_OG, type InviteOgMeta } from "../lib/invite-og";
@@ -62,7 +62,11 @@ export function invitePreviewRoutes(deps: AppDeps) {
   app.get("/invite-preview/:code", async (c) => {
     const db = c.get("db");
     const clock = c.get("clock");
-    const preview = await getInviteLinkPreview(db, clock, c.req.param("code"));
+    // Validated by hand because this is the one `app.get` (HTML, so it is not
+    // an `app.openapi` route with a param schema) — an unbounded string from a
+    // public, cacheable URL must not reach the query.
+    const code = InviteCodeSchema.safeParse(c.req.param("code"));
+    const preview = code.success ? await getInviteLinkPreview(db, clock, code.data) : null;
     // A dead code still returns the shell, so the SPA behind it can render its
     // own "Invite not found" — the unfurl just can't name a league.
     const meta = preview ? inviteOgMeta(preview) : GENERIC_INVITE_OG;

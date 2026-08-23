@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   ERROR_CODE,
   ErrorResponseSchema,
+  InviteCodeSchema,
   InviteSchema,
   InvitesResponseSchema,
   JOIN_BLOCKED_REASON_MESSAGES,
@@ -10,6 +11,7 @@ import {
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
+import { leagueRefusal } from "../lib/league-refusals";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
 import {
   errorResponse,
@@ -28,8 +30,8 @@ import {
 } from "../services/invites";
 
 const LeagueIdParamsSchema = z.object({ leagueId: z.uuid() });
-const InviteCodeParamsSchema = z.object({ code: z.string().min(1) });
-const LeagueInviteParamsSchema = z.object({ leagueId: z.uuid(), code: z.string().min(1) });
+const InviteCodeParamsSchema = z.object({ code: InviteCodeSchema });
+const LeagueInviteParamsSchema = z.object({ leagueId: z.uuid(), code: InviteCodeSchema });
 
 const postInvite = createRoute({
   method: "post",
@@ -145,32 +147,14 @@ export function inviteRoutes(deps: AppDeps) {
 
     const result = await createInvite(db, clock, leagueId, sessionUser.id);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_NOT_FOUND,
-              message: "League not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can manage invites.",
-            }),
-            403,
-          );
-        case "league_started":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.LEAGUE_STARTED,
-              message: "New invite links can't be created once the league has started.",
-            }),
-            409,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can manage invites.",
+        [ERROR_CODE.LEAGUE_STARTED]:
+          "New invite links can't be created once the league has started.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.json(result.invite, 201);
@@ -183,7 +167,7 @@ export function inviteRoutes(deps: AppDeps) {
 
     const result = await listInvites(db, leagueId, sessionUser.id);
     if (!result.ok) {
-      if (result.reason === "league_not_found") {
+      if (result.reason === ERROR_CODE.LEAGUE_NOT_FOUND) {
         return c.json(
           ErrorResponseSchema.parse({
             error: ERROR_CODE.LEAGUE_NOT_FOUND,
@@ -212,26 +196,13 @@ export function inviteRoutes(deps: AppDeps) {
 
     const result = await revokeInvite(db, clock, leagueId, code, sessionUser.id);
     if (!result.ok) {
-      switch (result.reason) {
-        case "league_not_found":
-        case "invite_not_found":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: result.reason,
-              message:
-                result.reason === "league_not_found" ? "League not found." : "Invite not found.",
-            }),
-            404,
-          );
-        case "not_commissioner":
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: ERROR_CODE.NOT_COMMISSIONER,
-              message: "Only a commissioner can manage invites.",
-            }),
-            403,
-          );
-      }
+      const messages = {
+        [ERROR_CODE.LEAGUE_NOT_FOUND]: "League not found.",
+        [ERROR_CODE.INVITE_NOT_FOUND]: "Invite not found.",
+        [ERROR_CODE.NOT_COMMISSIONER]: "Only a commissioner can manage invites.",
+      } as const satisfies Record<typeof result.reason, string>;
+      const { body, status } = leagueRefusal(result.reason, messages[result.reason]);
+      return c.json(body, status);
     }
 
     return c.body(null, 204);
@@ -265,7 +236,7 @@ export function inviteRoutes(deps: AppDeps) {
 
     const result = await joinByCode(db, clock, code, sessionUser.id);
     if (!result.ok) {
-      if (result.reason === "invite_invalid") {
+      if (result.reason === ERROR_CODE.INVITE_INVALID) {
         return c.json(
           ErrorResponseSchema.parse({
             error: ERROR_CODE.INVITE_INVALID,

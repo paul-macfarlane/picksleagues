@@ -2,6 +2,7 @@ import { and, count, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { leagueMembers } from "@picksleagues/db";
 import {
+  ERROR_CODE,
   LEAGUE_STATUS,
   MEMBER_ROLE,
   leagueActionRequiresCommissioner,
@@ -48,9 +49,19 @@ export async function getMembership(
   return row ?? null;
 }
 
+/**
+ * The refusal half of every commissioner-gated result: non-members get
+ * league_not_found (404 — private leagues stay hidden), members lacking the
+ * role get not_commissioner (403). One type, so a service that composes it
+ * can't drift from the gate that produces it.
+ */
+export type LeagueActionRefusal = {
+  ok: false;
+  reason: typeof ERROR_CODE.LEAGUE_NOT_FOUND | typeof ERROR_CODE.NOT_COMMISSIONER;
+};
+
 export type LeagueActionGate =
-  | { ok: true; membership: typeof leagueMembers.$inferSelect }
-  | { ok: false; reason: "league_not_found" | "not_commissioner" };
+  { ok: true; membership: typeof leagueMembers.$inferSelect } | LeagueActionRefusal;
 
 /**
  * The one role-axis gate for league actions, consulting the LEAGUE_ACTION
@@ -69,9 +80,9 @@ export async function authorizeLeagueAction(
   action: LeagueAction,
 ): Promise<LeagueActionGate> {
   const membership = await getMembership(db, leagueId, userId);
-  if (!membership) return { ok: false, reason: "league_not_found" };
+  if (!membership) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
   if (leagueActionRequiresCommissioner(action) && membership.role !== MEMBER_ROLE.COMMISSIONER) {
-    return { ok: false, reason: "not_commissioner" };
+    return { ok: false, reason: ERROR_CODE.NOT_COMMISSIONER };
   }
   return { ok: true, membership };
 }
