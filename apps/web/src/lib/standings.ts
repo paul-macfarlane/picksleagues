@@ -21,5 +21,14 @@ export function sharedRankCounts(rows: readonly { rank: number }[]): Map<number,
 }
 
 export function rankLabel(rank: number, sharedCounts: Map<number, number>): string {
-  return (sharedCounts.get(rank) ?? 0) > 1 ? `T-${rank}` : `${rank}`;
+  return sharedRankLabel(rank, (sharedCounts.get(rank) ?? 0) > 1);
+}
+
+/**
+ * The same label from a line that already knows it is tied — the viewer's
+ * standing on a league DTO carries `rankShared` because a card holds no board
+ * to count from.
+ */
+export function sharedRankLabel(rank: number, shared: boolean): string {
+  return shared ? `T-${rank}` : `${rank}`;
 }

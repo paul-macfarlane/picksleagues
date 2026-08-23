@@ -252,6 +252,12 @@
             "items": {
               "$ref": "#/components/schemas/LeagueMember"
             }
+          },
+          "myPickemStanding": {
+            "$ref": "#/components/schemas/NullablePickemViewerStanding"
+          },
+          "mySurvivorStanding": {
+            "$ref": "#/components/schemas/NullableSurvivorViewerStanding"
           }
         },
         "required": [
@@ -266,7 +272,9 @@
           "renewable",
           "maxMembers",
           "myRole",
-          "members"
+          "members",
+          "myPickemStanding",
+          "mySurvivorStanding"
         ]
       },
       "LeagueName": {
@@ -484,6 +492,69 @@
           "joinedAt"
         ]
       },
+      "NullablePickemViewerStanding": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "rankShared": {
+            "type": "boolean"
+          },
+          "points": {
+            "type": "number"
+          },
+          "wins": {
+            "type": "integer"
+          },
+          "losses": {
+            "type": "integer"
+          },
+          "pushes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "rankShared",
+          "points",
+          "wins",
+          "losses",
+          "pushes"
+        ]
+      },
+      "NullableSurvivorViewerStanding": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/SurvivorMemberStatus"
+          },
+          "isWinner": {
+            "type": "boolean"
+          },
+          "aliveCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "isWinner",
+          "aliveCount"
+        ]
+      },
+      "SurvivorMemberStatus": {
+        "type": "string",
+        "enum": [
+          "alive",
+          "eliminated"
+        ]
+      },
       "CreateLeagueRequest": {
         "oneOf": [
           {
@@ -664,6 +735,15 @@
           },
           "pickemPickStatus": {
             "$ref": "#/components/schemas/NullablePickemPickStatus"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "myPickemStanding": {
+            "$ref": "#/components/schemas/NullablePickemViewerStanding"
+          },
+          "mySurvivorStanding": {
+            "$ref": "#/components/schemas/NullableSurvivorViewerStanding"
           }
         },
         "required": [
@@ -679,7 +759,10 @@
           "currentWeekLabel",
           "renewable",
           "survivorPickStatus",
-          "pickemPickStatus"
+          "pickemPickStatus",
+          "seasonYear",
+          "myPickemStanding",
+          "mySurvivorStanding"
         ]
       },
       "NullableSurvivorPickStatus": {
@@ -2037,13 +2120,6 @@
           "isWinner",
           "picks",
           "consumedTeamIds"
-        ]
-      },
-      "SurvivorMemberStatus": {
-        "type": "string",
-        "enum": [
-          "alive",
-          "eliminated"
         ]
       },
       "SurvivorStandingsPick": {

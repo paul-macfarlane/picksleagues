@@ -12,14 +12,15 @@ import { useJoinPublicLeague } from "@/api/members";
 import { useAppNow } from "@/lib/app-clock";
 import { leagueModeLabel, leagueTimingLine, pickTypeLabel } from "@/lib/league";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { CardGridSkeleton } from "@/components/loading";
+import { Figures } from "@/components/figures";
+import { LeagueCardStrip } from "@/components/league/league-card-strip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Pagination } from "@/components/ui/pagination";
 import { QueryState } from "@/components/query-state";
-import { StatusPill } from "@/components/status-pill";
 
 // Filters live in the URL, not component state: a browse list is a thing
 // members share and come back to, and Back after opening a league has to return
@@ -73,7 +74,7 @@ function Discovery() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <h1 className="text-2xl font-semibold text-foreground">Browse public leagues</h1>
+      <h1 className="text-2xl text-foreground">Browse public leagues</h1>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <form
@@ -150,9 +151,13 @@ function Discovery() {
 
 /**
  * What a member is signing up for, in the order they need it: which game they'd
- * be playing, how much room is left, and the settings that decide what the
- * league asks of them each week (FB-35). Survivor shows no settings line
- * because it has no member-facing setting to show — its rules are the mode.
+ * be playing (the strip's eyebrow — the one attribute that decides whether a
+ * member wants this league at all, FB-36), how much room is left, and the
+ * settings that decide what the league asks of them each week (FB-35).
+ * Survivor shows no settings line because it has no member-facing setting to
+ * show — its rules are the mode. Same shape as the hub card: the strip names
+ * the league, the body holds the numerals, because a league a member might
+ * join should look like the leagues they are already in.
  */
 function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
   const join = useJoinPublicLeague(league.id);
@@ -160,28 +165,19 @@ function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
   const spotsLeft = league.maxMembers - league.memberCount;
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>{league.name}</CardTitle>
-        {/* The mode is the one attribute that decides whether a member wants
-            this league at all, so it carries a pill's weight rather than a
-            caption's (FB-36). */}
-        <CardDescription className="flex flex-wrap items-center gap-2">
-          <StatusPill tone="accent">{leagueModeLabel(league.mode)}</StatusPill>
-          <span>{league.seasonYear}</span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-        <div className="flex flex-wrap items-center gap-x-2">
-          <span>
-            {league.memberCount} of {league.maxMembers} members
-          </span>
-          {/* Named where the count already is: "2 spots left" is the reason
-              this league sorts where it does (ADR-0037). */}
-          <span className="text-foreground">
-            {spotsLeft} spot{spotsLeft === 1 ? "" : "s"} left
-          </span>
-        </div>
+    <Card className="h-full pt-0">
+      <LeagueCardStrip mode={league.mode} seasonYear={league.seasonYear}>
+        {league.name}
+      </LeagueCardStrip>
+      <CardContent className="flex flex-1 flex-col gap-3 text-sm text-muted-foreground">
+        {/* Named where the count already is: "2 spots left" is the reason this
+            league sorts where it does (ADR-0037), so it is the card's numeral. */}
+        <Figures
+          figures={[
+            { label: "Members", value: `${league.memberCount} of ${league.maxMembers}` },
+            { label: "Spots left", value: spotsLeft },
+          ]}
+        />
         {league.pickemSettings && (
           <p>
             {pickTypeLabel(league.pickemSettings.pickType)} · {league.pickemSettings.picksPerWeek}{" "}
@@ -192,11 +188,11 @@ function DiscoveryLeagueCard({ league }: { league: DiscoveryLeague }) {
         <p>{leagueTimingLine(league, now)}</p>
         <Button
           size="lg"
-          className="w-full justify-center"
+          className="mt-auto w-full justify-center"
           disabled={join.isPending}
           onClick={() => join.mutate()}
         >
-          {join.isPending ? "Joining…" : "Join league"}
+          Join league
         </Button>
       </CardContent>
     </Card>

@@ -1,0 +1,21 @@
+{
+  "name": "Picks Leagues",
+  "short_name": "Picks Leagues",
+  "description": "Season-long sports leagues with friends — NFL pick'em and survivor, with March Madness brackets to come.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fdfbfa",
+  "theme_color": "#fdfbfa",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

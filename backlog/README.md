@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included, plus `LNCH-13`/`LNCH-14`, which production surfaced rather than the plan: Google rejected the app's OAuth branding because the SPA served every URL as an empty shell, so the public routes are now prerendered at build (ADR-0039). The owner-feedback epic (`14`) closed in two rounds (PR #75, PR #78), the scope sweep (`15`) finished triaging on 2026-08-11, and game stats (`16`) delivered STAT-1–11 by 2026-08-14. What remains before the NFL season is a short hardening-and-handoff run (the owner is away for a week from mid-August: `DATA-10`, `FND-12`, `DATA-11`, `ADM-5`, then a prod promotion so the second admin can test solo), the `STAT-12` presentation nit on return, then March Madness (`07`) when its season approaches.
+Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included, plus `LNCH-13`/`LNCH-14`, which production surfaced rather than the plan: Google rejected the app's OAuth branding because the SPA served every URL as an empty shell, so the public routes are now prerendered at build (ADR-0039). The owner-feedback epic (`14`) closed in two rounds (PR #75, PR #78), the scope sweep (`15`) finished triaging on 2026-08-11, game stats (`16`) delivered STAT-1–11 by 2026-08-14, and the pre-honeymoon hardening-and-handoff run (`DATA-10`, `FND-12`, `DATA-11`, `ADM-5`) is merged and promoted to prod. The pre-season tail (`STAT-12` matchup-sheet sizing, `ID-5` avatar theme preview, `LNCH-15` installable PWA, `LNCH-16` install affordance) landed by 2026-08-22 (PRs #97–#100). What remains is the mobile-feel epic (`17`) for the installed PWA, then March Madness (`07`) when its season approaches.
 
 ## Task format
 
@@ -46,32 +46,34 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `14-owner-feedback.md` | `FB`   | Items the owner raised from real use: fixture bug, perf audit, QoL, scope questions |
 | `15-scope-sweep.md`    | `SWP`  | App-wide complexity-vs-value sweep: cut candidates, all triaged          |
 | `16-game-stats.md`     | `STAT` | Pre-pick matchup stats (records, injuries, team stats, matchup context), tiered basic/advanced UX |
+| `17-mobile-feel.md`    | `MOB`  | Installed-PWA feel: touch targets, bottom tab bar, view transitions |
+| `18-visual-identity.md` | `VIS` | Broadcast-scoreboard visual identity (ADR-0043): type roles, surface tiers, the matchup line, every-screen sweep |
 
 ## Build order
 
 File numbers are historical, not priority — they record the order epics were
-written. The order work is actually taken (owner, 2026-08-09):
+written. This list holds only remaining work; completed rounds are summarized
+below it. The order remaining work is taken (owner, 2026-08-22):
 
-1. **`05-pickem`, remainder** — `PKM-10`, the dashboard pick-status glance the launch mode still answers with a placeholder. **Done** (PR #54).
-2. **`06-survivor`, remainder** — `ELM-11`, eliminating a member the moment their loss is certain. **Done** (delivered 2026-08-08, ADR-0028; the checkbox lagged the merge, which is how this list re-listed it).
-3. **`09-launch`** — branding, design pass, ToS/privacy, splash, rules guide, loading states, cron schedules, mobile QA, production cutover, and the `LNCH-12` March Madness gate. **Done** (owner confirmed 2026-08-10 — `LNCH-12` shipped with the rest of launch rather than ahead of it as this list once planned; its server-side gate in `createLeague` stands until epic 07 lifts it).
-4. **`14-owner-feedback`** — what the owner noticed using the thing. Deliberately after launch: none of it blocks going live, and one item (`FB-2`) is a question whose answer gets better once there is real usage to point at. **Done** (PR #75 — FB-1/2/5/6 resolved, FB-3/4/7 wontfixed).
-5. **`15-scope-sweep`** — owner triage of the app-wide cut candidates (2026-08-09 sweep). Sat before the epics below because its rulings decide whether they get built at all: `SWP-2`/`SWP-3` gate trust-safety, `SWP-6` reshapes March Madness before it starts. **Done** — `SWP-3` ruled 2026-08-11 (public visibility stays, no code change), which was the last open item.
-6. **`16-game-stats`** — pre-pick matchup stats (owner, 2026-08-12). Ahead of March Madness on season timing: it serves the NFL modes whose season starts Sept 2026, while MM isn't needed until Feb 2027. **Done** (STAT-1–11, last merge PR #90; the STAT-12 nit below was filed after completion).
-7. **Pre-honeymoon hardening & handoff** (owner, 2026-08-14 — away for a week, NFL season ~2 weeks out): `DATA-10` (ESPN fetch timeout, the cause of the sync-odds cron timeouts) → `FND-12` (drop the post-deploy CI run on main) → `DATA-11` (daily-cron retry/recovery, platform-first) → `ADM-5` (in-app admin guide — the handoff enabler), then promote staging → main so the second admin tests the override editors, matchup sheet, and guide against prod while the owner is away.
-8. **`STAT-12`** — stable matchup-sheet sizing; first item on return, before the season starts.
-9. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+1. **`17-mobile-feel`** (owner, 2026-08-22) — `MOB-1` → `MOB-2` → `MOB-3` first (standalone polish + touch targets, bottom tab bar, view transitions): the "feels like an app" threshold for the installed PWA. `MOB-4`–`7` are a second round after living with the tab bar.
+2. **`18-visual-identity`** (owner, 2026-08-22) — `VIS-1` → `VIS-2` → `VIS-3` in order (tokens and type roles, surface tiers, the signature matchup line); `VIS-4`/`VIS-5` after `VIS-2`, then `VIS-6`, `VIS-7`, and the `VIS-8` coherence audit last. Direction and primitives are ADR-0043.
+3. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
-`10-trust-safety` was step 7 until `SWP-2` scrapped it (owner, 2026-08-09) — its
-items are `wontfix` in place. `SWP-3` kept public discovery (owner, 2026-08-11)
+`10-trust-safety` was in this list until `SWP-2` scrapped it (owner, 2026-08-09) —
+its items are `wontfix` in place. `SWP-3` kept public discovery (owner, 2026-08-11)
 and accepted the trade with it: a public league's recourse is the commissioner's
 remove-member and a direct database update, not an in-app reporting flow. That
 acceptance is what reopening the epic would have to argue against — real abuse
 in a real public league, not the fact that strangers can see one.
 
-Prior rounds, for reference: epics 12 (rule simplification) and 13 (quality) ran
-first and are complete, which is why the launch and mode work listed above is
-cheaper than it was written to be.
+Completed rounds, for reference: epics 12 (rule simplification) and 13 (quality)
+ran first, which made everything after them cheaper than it was written to be;
+then the mode tails (`PKM-10` PR #54, `ELM-11` ADR-0028), launch (`09`, owner
+confirmed 2026-08-10), owner feedback (`14`, PR #75), the scope sweep (`15`,
+triage closed 2026-08-11), game stats (`16`, STAT-1–11, last merge PR #90), and
+the pre-honeymoon hardening & handoff (`DATA-10` → `FND-12` → `DATA-11` →
+`ADM-5`, PRs #93–#96, promoted staging → main for the second admin's solo test),
+and the pre-season tail (`STAT-12`, `ID-5`, `LNCH-15`, `LNCH-16`, PRs #97–#100).
 
 ## Working the backlog
 

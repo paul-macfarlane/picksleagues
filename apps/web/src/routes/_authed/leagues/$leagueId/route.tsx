@@ -57,7 +57,7 @@ function LeagueLayout() {
               isCommissioner={league.data.myRole === MEMBER_ROLE.COMMISSIONER}
             />
 
-            <TabNav label="League sections">
+            <TabNav label="League sections" fit>
               <Link
                 to="/leagues/$leagueId"
                 params={{ leagueId }}
@@ -83,10 +83,12 @@ function LeagueLayout() {
                 </Link>
               )}
               {/* Still Pick'em-only: Survivor's all-members board is its own
-                surface and doesn't exist yet. */}
+                surface and doesn't exist yet. "All Picks", not "League Picks"
+                (the route slug): the shorter label is what lets five tabs fit
+                a 375px bar without scrolling (MOB-4). */}
               {league.data.mode === LEAGUE_MODE.PICKEM && (
                 <Link to="/leagues/$leagueId/league-picks" params={{ leagueId }} {...tabLinkProps}>
-                  League Picks
+                  All Picks
                 </Link>
               )}
               <Link to="/leagues/$leagueId/members" params={{ leagueId }} {...tabLinkProps}>

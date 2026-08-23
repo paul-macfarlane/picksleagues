@@ -7,7 +7,7 @@ export const Route = createFileRoute("/terms")({
 
 function Terms() {
   return (
-    <StaticPage title="Terms of Service" subtitle="Effective August 9, 2026">
+    <StaticPage eyebrow="Effective August 9, 2026" title="Terms of Service">
       <section>
         <p>
           Picks Leagues is a free web app for running sports pick&apos;em leagues with people you

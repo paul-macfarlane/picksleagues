@@ -43,10 +43,11 @@ function skipMessage(job: string, reason: unknown): string {
 
 /**
  * Each job row mounts its own instance and scopes pending state off
- * `mutation.variables` (async-button standard). SyncJobsCard, SeasonsBrowser,
- * GamesBrowser, and TeamsBrowser are siblings on the same admin page reading
- * exactly the tables these jobs write, so a successful run invalidates all
- * four — otherwise a real sync and a no-op look identical to the operator.
+ * `mutation.variables` (async-button standard). SyncJobsCard, GamesBrowser,
+ * and TeamsBrowser are siblings on the same admin page reading exactly the
+ * tables these jobs write (the seasons query feeds their week pickers and the
+ * simulator), so a successful run invalidates all of them — otherwise a real
+ * sync and a no-op look identical to the operator.
  */
 export function useRunNflSyncJob() {
   const queryClient = useQueryClient();

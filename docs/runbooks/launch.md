@@ -52,6 +52,10 @@ Per `docs/runbooks/environments.md` (FND-9):
 - [x] Signed-out `https://www.picksleagues.com/` lands on the splash; Terms/Privacy/rules
       pages render; favicon and social unfurl look right (paste the URL in a Discord
       message to check the OG image).
+- [ ] Installable (LNCH-15): on a phone, "Add to Home Screen" (iOS Safari share
+      sheet / Android Chrome menu) offers the app name and icon, and the installed
+      app opens standalone — no browser chrome. Chrome DevTools → Application →
+      Manifest shows no installability warnings.
 - [x] Create a real league in each NFL mode, invite a second account via link, join,
       submit a pick in each mode at phone width.
 - [ ] After the first real game weekend: standings show results and a "Last updated"

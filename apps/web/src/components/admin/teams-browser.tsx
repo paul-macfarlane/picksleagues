@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import { SPORT, type AdminTeam } from "@picksleagues/schemas";
 import { useAdminTeams } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { ResolvedField } from "@/components/admin/override-display";
+import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
 import { TeamIdentityOverrideForm } from "@/components/admin/team-identity-override-form";
 import { teamIdentityOverrideFormSeed } from "@/components/admin/team-identity-override-patch";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { RowEditor } from "@/components/row-editor";
 import { TeamLogo } from "@/components/team-logo";
 
 /**
@@ -20,42 +22,37 @@ export function TeamsBrowser() {
   const teams = useAdminTeams(SPORT.NFL);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Teams</CardTitle>
-        <CardDescription>
+    <Section
+      title="Teams"
+      description={
+        <>
           {teams.data ? `${teams.data.teams.length} synced` : "Synced NFL teams"} · display fields
           are correctable; identity keys are not
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={teams.isPending}
-          isError={teams.isError}
-          onRetry={() => teams.refetch()}
-          errorMessage="Couldn't load teams."
-          pendingFallback={
-            <RowsSkeleton label="Loading teams" rows={6} rowClassName="h-14 w-full" />
-          }
-          isEmpty={teams.data?.teams.length === 0}
-          emptyMessage="No teams synced yet."
-        >
-          <ul className="flex flex-col gap-2">
-            {teams.data?.teams.map((team) => (
-              <TeamRow key={team.id} team={team} />
-            ))}
-          </ul>
-        </QueryState>
-      </CardContent>
-    </Card>
+        </>
+      }
+    >
+      <QueryState
+        isPending={teams.isPending}
+        isError={teams.isError}
+        onRetry={() => teams.refetch()}
+        errorMessage="Couldn't load teams."
+        pendingFallback={<RowsSkeleton label="Loading teams" rows={6} rowClassName="h-14 w-full" />}
+        isEmpty={teams.data?.teams.length === 0}
+        emptyMessage="No teams synced yet."
+      >
+        <ul className="flex flex-col">
+          {teams.data?.teams.map((team) => (
+            <TeamRow key={team.id} team={team} />
+          ))}
+        </ul>
+      </QueryState>
+    </Section>
   );
 }
 
 function TeamRow({ team }: { team: AdminTeam }) {
-  const [editOpen, setEditOpen] = useState(false);
-
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <div className="flex items-center gap-3">
         <TeamLogo
           logoLightUrl={team.effectiveLogoLightUrl}
@@ -75,11 +72,7 @@ function TeamRow({ team }: { team: AdminTeam }) {
           {/* `overriddenAt` is set exactly while any override field is
               (cleared with the last one, arch D15), so it stands in for
               checking all five. */}
-          {team.overriddenAt !== null && (
-            <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-medium text-destructive">
-              Overridden
-            </span>
-          )}
+          {team.overriddenAt !== null && <OverriddenTag />}
           <p>{team.providerTeamId ?? "not provider-linked"}</p>
           <p>Updated {formatDateTime(team.updatedAt)}</p>
         </div>
@@ -120,21 +113,12 @@ function TeamRow({ team }: { team: AdminTeam }) {
         </div>
       )}
 
-      {/* Same open/remount contract as the stats browser: never rendered
-          hidden, and the form re-seeds when its override values change
-          server-side (fingerprint key) so a save can't leave a stale diff
-          baseline in a still-open editor. */}
-      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-          Edit override
-        </summary>
-        {editOpen && (
-          <TeamIdentityOverrideForm
-            key={JSON.stringify(teamIdentityOverrideFormSeed(team))}
-            team={team}
-          />
-        )}
-      </details>
+      <RowEditor label="Edit override">
+        <TeamIdentityOverrideForm
+          key={JSON.stringify(teamIdentityOverrideFormSeed(team))}
+          team={team}
+        />
+      </RowEditor>
     </li>
   );
 }

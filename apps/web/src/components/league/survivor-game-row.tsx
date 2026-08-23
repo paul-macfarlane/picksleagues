@@ -5,18 +5,20 @@ import {
   type SlateGame,
   type SlateTeam,
 } from "@picksleagues/schemas";
-import { gameStateLabel, survivorProvisionalOutcome } from "@/lib/game";
+import { gameStateLead, matchupNumerals, survivorProvisionalOutcome } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import {
   PickOutcomeBadge,
   PickOutcomeIcon,
+  pickOutcomeAccentClassName,
   pickOutcomeButtonClassName,
 } from "@/components/league/pick-outcome";
+import { rowClassName, rowRuleClassName } from "@/components/row";
 import { StatusPill } from "@/components/status-pill";
-import { TeamLogo } from "@/components/team-logo";
 
 /**
  * A game's row on the Survivor pick screen, in the two shapes the week leaves
@@ -27,14 +29,25 @@ import { TeamLogo } from "@/components/team-logo";
  * Survivor picks a *team*, not a side, so unlike `pickem-game-row.tsx` there is
  * no home/away semantic behind the two controls — they are simply the two teams
  * this game makes available, and taking either one replaces whatever the member
- * held elsewhere in the week.
+ * held elsewhere in the week. The matchup line still places them as away and
+ * home, because that is what the *game* is and what keeps a Survivor row the
+ * same shape as every other (ADR-0043 §5); there is no line to show (Survivor
+ * is straight-up only, ADR-0026), so the numeral slot is empty until a score
+ * fills it.
  *
  * Split out of `survivor-picks.tsx`, which owns the week's selection and its
  * one write, for the same reason Pick'em's rows are: a row's rendering is its
  * own responsibility.
  */
 
-const ROW_CLASS_NAME = "flex flex-col gap-2 rounded-lg border border-border p-3";
+const ROW_CLASS_NAME = cn(rowClassName, rowRuleClassName, "flex flex-col gap-2");
+
+// A 44pt target at every width (MOB-1), tall enough for the display-type
+// cell inside it, hugging its outer edge so the two cells face each other
+// across the centre column; the home side mirrors so its glyph and "used"
+// note sit on the outer edge too. Shared by both controls so a held record
+// sits exactly where the offer it replaced did.
+const TEAM_BUTTON_CLASS_NAME = "h-auto min-h-11 w-full max-w-xs justify-start px-2 py-1.5";
 
 /**
  * The row's identity as data rather than the "<away> @ <home>" line it prints,
@@ -47,17 +60,6 @@ function gameRowAttributes(game: SlateGame) {
     "data-away-team": game.awayTeam.abbreviation,
     "data-home-team": game.homeTeam.abbreviation,
   } as const;
-}
-
-function MatchupLine({ game }: { game: SlateGame }) {
-  return (
-    <p
-      className="text-sm font-medium text-foreground"
-      title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-    >
-      {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-    </p>
-  );
 }
 
 /**
@@ -81,12 +83,16 @@ function unavailableReason(
 
 function TeamButton({
   team,
+  numeral,
+  side,
   held,
   consumed,
   reason,
   onSelect,
 }: {
   team: SlateTeam;
+  numeral: string | null;
+  side: "away" | "home";
   held: boolean;
   consumed: boolean;
   reason: string | null;
@@ -105,6 +111,8 @@ function TeamButton({
       data-testid="survivor-team-pick"
       data-team={team.abbreviation}
       className={cn(
+        TEAM_BUTTON_CLASS_NAME,
+        side === "home" && "flex-row-reverse",
         // A held team spends the rest of the week disabled once its game kicks
         // off, so it lifts out of the standard disabled dimming enough to stay
         // readable beside its outline sibling (same treatment as Pick'em's held
@@ -114,13 +122,12 @@ function TeamButton({
       disabled={reason !== null}
       onClick={onSelect}
     >
-      <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
-      {team.abbreviation}
+      <MatchupSide team={team} numeral={numeral} side={side} />
       {/* Visible, not only in the accessible name: the one rule a Survivor
           member has to hold in their head all season is which teams they've
           spent, and a dimmed button alone doesn't distinguish "used" from
           "kicked off". */}
-      {consumed && <span className="text-xs font-normal">used</span>}
+      {consumed && <span className="type-eyebrow">used</span>}
     </Button>
   );
 }
@@ -139,54 +146,56 @@ export function SurvivorGameRow({
   onSelect: (teamId: string) => void;
 }) {
   const now = useAppNow();
-  const awayConsumed = consumedTeamIds.has(game.awayTeam.id);
-  const homeConsumed = consumedTeamIds.has(game.homeTeam.id);
+  const numerals = matchupNumerals(game, null);
   const reasonFor = (team: SlateTeam) => unavailableReason(team, game, consumedTeamIds);
 
   return (
     <li
       {...gameRowAttributes(game)}
-      className={cn(ROW_CLASS_NAME, heldTeamId !== null && "border-primary bg-primary/5")}
+      className={cn(ROW_CLASS_NAME, heldTeamId !== null && "border-l-primary")}
     >
+      {/* The line is the game's state: kickoff in the centre before the game
+          starts, status + score after — phrased against the app clock, which
+          under the simulator is months away from the browser's. */}
+      <MatchupLine
+        data-testid="game-state"
+        away={
+          <TeamButton
+            team={game.awayTeam}
+            numeral={numerals.away}
+            side="away"
+            held={heldTeamId === game.awayTeam.id}
+            consumed={consumedTeamIds.has(game.awayTeam.id)}
+            reason={reasonFor(game.awayTeam)}
+            onSelect={() => onSelect(game.awayTeam.id)}
+          />
+        }
+        center={gameStateLead(game, now)}
+        home={
+          <TeamButton
+            team={game.homeTeam}
+            numeral={numerals.home}
+            side="home"
+            held={heldTeamId === game.homeTeam.id}
+            consumed={consumedTeamIds.has(game.homeTeam.id)}
+            reason={reasonFor(game.homeTeam)}
+            onSelect={() => onSelect(game.homeTeam.id)}
+          />
+        }
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <MatchupLine game={game} />
-          <NflMatchupStats game={game} />
-        </div>
+        <NflMatchupStats game={game} />
         {/* One pill, most-informative-wins: "Your pick" is the fact the member
-            came here for, and the state line below already carries the game's
+            came here for, and the line's centre already carries the game's
             own status for every game that has started. */}
         {heldTeamId !== null ? (
-          <StatusPill tone="accent" data-testid="survivor-pick-state">
+          <StatusPill tone="strong" data-testid="survivor-pick-state">
             Your pick
           </StatusPill>
         ) : (
           game.locked && <StatusPill data-testid="lock-state">Locked</StatusPill>
         )}
-      </div>
-
-      {/* Kickoff before the game starts, status + score after — and phrased
-          against the app clock, which under the simulator is months away from
-          the browser's. */}
-      <p data-testid="game-state" className="text-xs text-muted-foreground">
-        {gameStateLabel(game, now)}
-      </p>
-
-      <div className="grid grid-cols-2 gap-2">
-        <TeamButton
-          team={game.awayTeam}
-          held={heldTeamId === game.awayTeam.id}
-          consumed={awayConsumed}
-          reason={reasonFor(game.awayTeam)}
-          onSelect={() => onSelect(game.awayTeam.id)}
-        />
-        <TeamButton
-          team={game.homeTeam}
-          held={heldTeamId === game.homeTeam.id}
-          consumed={homeConsumed}
-          reason={reasonFor(game.homeTeam)}
-          onSelect={() => onSelect(game.homeTeam.id)}
-        />
       </div>
     </li>
   );
@@ -204,10 +213,14 @@ export function SurvivorGameRow({
  */
 function HeldTeamButton({
   team,
+  numeral,
+  side,
   held,
   outcome,
 }: {
   team: SlateTeam;
+  numeral: string | null;
+  side: "away" | "home";
   held: boolean;
   outcome: PickOutcome | null;
 }) {
@@ -222,6 +235,8 @@ function HeldTeamButton({
       aria-pressed={held}
       title={team.name}
       className={cn(
+        TEAM_BUTTON_CLASS_NAME,
+        side === "home" && "flex-row-reverse",
         // This control spends its whole life disabled, so a held one lifts out
         // of the standard disabled dimming enough to stay readable beside its
         // outline sibling (same treatment as Pick'em's held side).
@@ -231,8 +246,7 @@ function HeldTeamButton({
       disabled
     >
       {grade !== null && <PickOutcomeIcon outcome={grade} />}
-      <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
-      {team.abbreviation}
+      <MatchupSide team={team} numeral={numeral} side={side} />
     </Button>
   );
 }
@@ -247,7 +261,7 @@ function HeldTeamButton({
  * with no derivable verdict the badge slot is empty again. Everything else gets
  * one short line naming why the grade is provisional at all.
  *
- * Null while the game is still ahead or in play: the state line already says
+ * Null while the game is still ahead or in play: the line's centre already says
  * so, and "not graded yet" about a game nobody has finished is noise.
  */
 function ungradedNote(
@@ -293,6 +307,7 @@ export function SurvivorPickedGameRow({
   // moment the game ends instead of after Monday night's settlement.
   const grade = outcome ?? survivorProvisionalOutcome(game, teamId);
   const note = ungradedNote(game, outcome, grade);
+  const numerals = matchupNumerals(game, null);
 
   return (
     <li
@@ -301,32 +316,45 @@ export function SurvivorPickedGameRow({
       // held control is addressed by its `aria-pressed` state, and a journey
       // asking "what did I end up with" wants the answer as data.
       data-picked-team={heldTeam.abbreviation}
-      className={cn(ROW_CLASS_NAME, "border-primary bg-primary/5")}
+      // The rule carries the grade once there is one; until then it says
+      // "yours" in the one colour that means it (ADR-0043 §3).
+      className={cn(ROW_CLASS_NAME, grade ? pickOutcomeAccentClassName(grade) : "border-l-primary")}
     >
+      <MatchupLine
+        data-testid="game-state"
+        away={
+          <HeldTeamButton
+            team={game.awayTeam}
+            numeral={numerals.away}
+            side="away"
+            held={teamId === game.awayTeam.id}
+            outcome={grade}
+          />
+        }
+        center={gameStateLead(game, now)}
+        home={
+          <HeldTeamButton
+            team={game.homeTeam}
+            numeral={numerals.home}
+            side="home"
+            held={teamId === game.homeTeam.id}
+            outcome={grade}
+          />
+        }
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <MatchupLine game={game} />
-          <NflMatchupStats game={game} />
-        </div>
+        <NflMatchupStats game={game} />
         {/* One pill, most-informative-wins: a graded pick — settled or derived
             — takes the slot from "Your pick", which by then is both implied and
             the less interesting fact. */}
         {grade ? (
           <PickOutcomeBadge outcome={grade} />
         ) : (
-          <StatusPill tone="accent" data-testid="survivor-pick-state">
+          <StatusPill tone="strong" data-testid="survivor-pick-state">
             Your pick
           </StatusPill>
         )}
-      </div>
-
-      <p data-testid="game-state" className="text-xs text-muted-foreground">
-        {gameStateLabel(game, now)}
-      </p>
-
-      <div className="grid grid-cols-2 gap-2">
-        <HeldTeamButton team={game.awayTeam} held={teamId === game.awayTeam.id} outcome={grade} />
-        <HeldTeamButton team={game.homeTeam} held={teamId === game.homeTeam.id} outcome={grade} />
       </div>
 
       {note && (

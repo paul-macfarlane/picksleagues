@@ -13,6 +13,7 @@ import { LabeledDateTimeField } from "@/components/labeled-date-time-field";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Figures } from "@/components/figures";
 import { SimControlRow } from "@/components/sim/sim-control-row";
 
 const MINUTE_MS = 60_000;
@@ -56,27 +57,6 @@ function formatOffset(ms: number): string {
   if (hours) parts.push(`${hours}h`);
   if (minutes || parts.length === 0) parts.push(`${minutes}m`);
   return `${sign}${parts.join(" ")}`;
-}
-
-function StatusItem({
-  label,
-  value,
-  // On the value, not the label: what proves this card reached
-  // GET /api/sim/state is the reading, and the label beside it is copy.
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd data-testid={testId} className="text-sm font-medium text-foreground">
-        {value}
-      </dd>
-    </div>
-  );
 }
 
 /**
@@ -225,27 +205,27 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
         <CardDescription>What every &quot;now&quot; read in the app resolves to.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatusItem
-            label="Simulated now"
-            testId="sim-now"
-            value={formatDateTime(state.clock.now)}
-          />
-          <StatusItem label="Real now" value={formatDateTime(state.clock.realNow)} />
-          <StatusItem
-            label="Offset"
-            testId="sim-offset"
-            value={formatOffset(state.clock.offsetMs)}
-          />
-          <StatusItem
-            label="Active scenario"
-            value={
-              state.activeScenario
-                ? `${state.activeScenario.name} (${state.activeScenario.seasonYear})`
-                : "None — the provider serves real data"
-            }
-          />
-        </dl>
+        {/* The three readings are the panel's numerals; the scenario is a
+            name, and a name in condensed caps wraps badly at 390px, so it
+            keeps the eyebrow-over-body shape beside them. Testids sit on the
+            values: what proves this panel reached GET /api/sim/state is the
+            reading, and the label beside it is copy. */}
+        <Figures
+          numeralClassName="text-xl"
+          figures={[
+            { label: "Simulated now", value: formatDateTime(state.clock.now), testId: "sim-now" },
+            { label: "Real now", value: formatDateTime(state.clock.realNow) },
+            { label: "Offset", value: formatOffset(state.clock.offsetMs), testId: "sim-offset" },
+          ]}
+        />
+        <div className="flex flex-col gap-1">
+          <p className="type-eyebrow">Active scenario</p>
+          <p className="text-sm text-foreground">
+            {state.activeScenario
+              ? `${state.activeScenario.name} (${state.activeScenario.seasonYear})`
+              : "None — the provider serves real data"}
+          </p>
+        </div>
 
         <SimControlRow title="Advance by a step" description="Nudge the clock forward or back.">
           <div className="flex flex-wrap gap-2">

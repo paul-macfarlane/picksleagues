@@ -1,9 +1,12 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
+import { Band } from "@/components/band";
 import { BrandMark } from "@/components/brand";
 import { LegalFooter } from "@/components/legal-footer";
+import { Section } from "@/components/section";
+import { StatusPill } from "@/components/status-pill";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/welcome")({
@@ -56,35 +59,34 @@ const STEPS = [
 function Welcome() {
   return (
     <div className="flex min-h-svh flex-col">
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-12 px-4 py-12 sm:px-6 sm:py-16">
-        <section className="flex flex-col items-center gap-5 text-center">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-6 sm:px-6 sm:py-10">
+        {/* The one band with no league in it (ADR-0043 §2): a visitor has no
+            league to be the subject, so the product is. */}
+        <Band className="items-center gap-5 py-10 text-center sm:py-14">
           <BrandMark className="size-20" />
-          <h1 className="text-4xl font-bold text-foreground sm:text-5xl">Picks Leagues</h1>
-          <p className="max-w-md text-lg text-muted-foreground">
-            Season-long sports leagues with friends. Create one, invite your crew, and settle
-            bragging rights on the scoreboard.
-          </p>
+          <div className="flex flex-col gap-3">
+            <h1 className="text-5xl sm:text-6xl">Picks Leagues</h1>
+            <p className="mx-auto max-w-md text-lg text-muted-foreground">
+              Season-long sports leagues with friends. Create one, invite your crew, and settle
+              bragging rights on the scoreboard.
+            </p>
+          </div>
           <Link to="/sign-in" className={cn(buttonVariants({ size: "lg" }), "px-8")}>
             Sign in to play
           </Link>
-          <p className="text-xs text-muted-foreground">
-            Free to play. Sign in with Google or Discord.
-          </p>
-        </section>
+          <p className="type-eyebrow">Free to play · Sign in with Google or Discord</p>
+        </Band>
 
-        <section className="flex flex-col gap-4" aria-labelledby="modes-heading">
-          <h2 id="modes-heading" className="text-xl font-semibold text-foreground">
-            Three ways to play
-          </h2>
+        <Section eyebrow="Game modes" title="Three ways to play">
           <div className="grid gap-4 sm:grid-cols-3">
             {MODES.map((mode) => (
               <Card key={mode.name}>
                 <CardHeader>
                   <CardTitle>{mode.name}</CardTitle>
                   {mode.status && (
-                    <CardDescription className="text-xs font-medium uppercase tracking-wide">
-                      {mode.status}
-                    </CardDescription>
+                    <div>
+                      <StatusPill>{mode.status}</StatusPill>
+                    </div>
                   )}
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground">
@@ -93,29 +95,26 @@ function Welcome() {
               </Card>
             ))}
           </div>
-        </section>
+        </Section>
 
-        <section className="flex flex-col gap-4" aria-labelledby="how-heading">
-          <h2 id="how-heading" className="text-xl font-semibold text-foreground">
-            How it works
-          </h2>
-          <ol className="flex flex-col gap-4">
+        <Section eyebrow="The season" title="How it works">
+          <ol className="flex flex-col gap-5">
             {STEPS.map((step, index) => (
               <li key={step.title} className="flex gap-4">
                 <span
                   aria-hidden="true"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-sm font-semibold text-primary-foreground"
+                  className="type-display w-10 shrink-0 text-3xl leading-none text-foreground"
                 >
-                  {index + 1}
+                  {String(index + 1).padStart(2, "0")}
                 </span>
-                <div className="flex flex-col gap-0.5">
-                  <h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
+                <div className="flex flex-col gap-0.5 pt-0.5">
+                  <h3 className="text-base leading-snug">{step.title}</h3>
                   <p className="text-sm text-muted-foreground">{step.description}</p>
                 </div>
               </li>
             ))}
           </ol>
-        </section>
+        </Section>
       </main>
       <LegalFooter className="mx-auto w-full max-w-3xl px-4 sm:px-6" />
     </div>

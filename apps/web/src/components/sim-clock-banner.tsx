@@ -39,13 +39,10 @@ export function SimClockBanner() {
     if (clock.offsetMs === 0 && !activeScenario) return null;
     return (
       <SimClockBar now={clock.now} operator>
-        {/* The separator only earns its place while both parts share a line;
-            below `sm` the scenario takes its own, where a leading "·" would
-            dangle off the end of the one above it. */}
-        <span aria-hidden="true" className="hidden sm:inline">
-          ·
-        </span>
-        <span className="w-full sm:w-auto">
+        {/* Its own eyebrow rather than a "·"-joined clause: below `sm` the
+            scenario takes its own line, and a label reads there where a
+            dangling separator would not. */}
+        <span className="type-eyebrow w-full sm:w-auto">
           {activeScenario ? activeScenario.name : "No scenario loaded"}
         </span>
       </SimClockBar>
@@ -71,7 +68,14 @@ function MemberSimClockBanner() {
   return <SimClockBar now={now.toISOString()} />;
 }
 
-/** The shared bar, so the two audiences can't drift on placement or styling. */
+/**
+ * The shared strip, so the two audiences can't drift on placement or styling.
+ * A ticker in the scoreboard voice (ADR-0043): an eyebrow naming the reading,
+ * the instant as a display numeral at the 20px floor, on the warm `accent`
+ * tint — not ink, which is the league band's and would put a second dark
+ * surface on every screen, and not orange, which means "yours to act on" and
+ * this is a warning, not an action.
+ */
 function SimClockBar({
   now,
   operator = false,
@@ -85,22 +89,22 @@ function SimClockBar({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="border-t border-border bg-muted text-muted-foreground">
+    <div className="border-t border-border bg-accent text-accent-foreground">
       {/* The link is a sibling of the wrapping text rather than a member of it:
           as one flex-wrap row, `ml-auto` pushed it onto a line of its own at
           phone width, right-aligned under nothing and reading as a stray third
           row. Now the text block wraps inside its own column and the link stays
           put beside it, vertically centred. */}
-      <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-1.5 text-xs sm:px-6">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
-          <span className="font-medium text-foreground">Simulated time</span>
-          <span>{formatDateTime(now)}</span>
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-1 sm:px-6">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span className="type-eyebrow">Simulated time</span>
+          <span className="type-display text-xl">{formatDateTime(now)}</span>
           {children}
         </div>
         {operator && (
           <Link
             to="/sim"
-            className="shrink-0 underline outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="type-eyebrow shrink-0 text-accent-foreground underline outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             Simulator
           </Link>

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueMembers, leagueSeasons, leagues, users } from "@picksleagues/db";
+import { leagueMembers, leagueSeasons, leagues, pickemStandings, users } from "@picksleagues/db";
 import {
   LEAGUE_MODE,
   LEAGUE_STATUS,
@@ -24,7 +24,7 @@ import {
   seedSeason,
 } from "./setup/league-helpers";
 import { insertSurvivorPick, insertSurvivorState } from "./setup/survivor-league";
-import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
+import { makeLeagueTestHarness, POST_START_NOW, WEEK1_KICKOFF } from "./setup/league-app";
 import { resetDb } from "./setup/reset-db";
 
 const { db, auth, app, appAfterKickoff, appAtKickoff } = makeLeagueTestHarness();
@@ -957,6 +957,203 @@ describe("GET /api/leagues", () => {
           ["Survivor", [null, "pick_in"]],
         ]),
       );
+    });
+  });
+
+  // VIS-4: the hub card's numerals ride the list so a member in many leagues
+  // never pays a board fetch per card. Standings rows are seeded rather than
+  // settled because the subject is the wire shape, not the replay that writes
+  // them (arch D10 makes the rows settlement's output either way).
+  describe("myPickemStanding", () => {
+    async function seedStandingsRow(
+      leagueSeasonId: string,
+      leagueMemberId: string,
+      line: { points: number; wins: number; losses: number; pushes: number },
+    ) {
+      await db.insert(pickemStandings).values({
+        leagueSeasonId,
+        leagueMemberId,
+        weekId: null,
+        ...line,
+        // Stored rank is deliberately wrong: the read re-ranks through
+        // `rankStandings` like the board does, so a stale column never leaks.
+        rank: 99,
+        updatedAt: POST_START_NOW,
+      });
+    }
+
+    it("carries the viewer's season line, re-ranked against the whole league", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const me = await createAuthenticatedUser(auth);
+      const leader = await createAuthenticatedUser(auth);
+      const league = await insertLeague(db, {
+        seasonId,
+        name: "Pickem",
+        members: [
+          { userId: me.user.id, role: MEMBER_ROLE.COMMISSIONER },
+          { userId: leader.user.id, role: MEMBER_ROLE.MEMBER },
+        ],
+      });
+      const members = await membersOf(db, league.id);
+      const leagueSeasonId = await seasonIdFor(db, league.id);
+      await seedStandingsRow(leagueSeasonId, members.get(me.user.id)!, {
+        points: 2,
+        wins: 2,
+        losses: 1,
+        pushes: 1,
+      });
+      await seedStandingsRow(leagueSeasonId, members.get(leader.user.id)!, {
+        points: 3,
+        wins: 3,
+        losses: 1,
+        pushes: 0,
+      });
+
+      expect((await readMyLeagues(me.cookie)).leagues[0]).toMatchObject({
+        seasonYear: 2026,
+        myPickemStanding: {
+          rank: 2,
+          rankShared: false,
+          points: 2,
+          wins: 2,
+          losses: 1,
+          pushes: 1,
+        },
+        mySurvivorStanding: null,
+      });
+      expect((await readMyLeagues(leader.cookie)).leagues[0]).toMatchObject({
+        myPickemStanding: { rank: 1, rankShared: false, points: 3 },
+      });
+    });
+
+    it("marks a shared rank, and gives an unsettled member a zero line that ties at the top", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const me = await createAuthenticatedUser(auth);
+      const joiner = await createAuthenticatedUser(auth);
+      const league = await insertLeague(db, {
+        seasonId,
+        name: "Pickem",
+        members: [
+          { userId: me.user.id, role: MEMBER_ROLE.COMMISSIONER },
+          { userId: joiner.user.id, role: MEMBER_ROLE.MEMBER },
+        ],
+      });
+      const members = await membersOf(db, league.id);
+      const leagueSeasonId = await seasonIdFor(db, league.id);
+      // Settled at zero — level with the member who has no row at all (spec
+      // §Edge Cases: a late joiner has zero-point weeks, not no standing).
+      await seedStandingsRow(leagueSeasonId, members.get(me.user.id)!, {
+        points: 0,
+        wins: 0,
+        losses: 2,
+        pushes: 0,
+      });
+
+      expect((await readMyLeagues(me.cookie)).leagues[0]).toMatchObject({
+        myPickemStanding: { rank: 1, rankShared: true, losses: 2 },
+      });
+      expect((await readMyLeagues(joiner.cookie)).leagues[0]).toMatchObject({
+        myPickemStanding: { rank: 1, rankShared: true, points: 0, wins: 0, losses: 0, pushes: 0 },
+      });
+    });
+
+    it("is also on the single-league read, from the same line", async () => {
+      const { seasonId } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const me = await createAuthenticatedUser(auth);
+      const league = await insertLeague(db, {
+        seasonId,
+        name: "Pickem",
+        members: [{ userId: me.user.id, role: MEMBER_ROLE.COMMISSIONER }],
+      });
+      const members = await membersOf(db, league.id);
+      await seedStandingsRow(await seasonIdFor(db, league.id), members.get(me.user.id)!, {
+        points: 1.5,
+        wins: 1,
+        losses: 0,
+        pushes: 1,
+      });
+
+      const res = await getLeague(me.cookie, league.id);
+      expect(res.status).toBe(200);
+      expect((await res.json()) as LeagueResponse).toMatchObject({
+        myPickemStanding: { rank: 1, rankShared: false, points: 1.5, wins: 1, pushes: 1 },
+        mySurvivorStanding: null,
+      });
+    });
+  });
+
+  describe("mySurvivorStanding", () => {
+    it("reports alive-or-out and how many are still in, per viewer", async () => {
+      const { seasonId, weekIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const alive = await createAuthenticatedUser(auth);
+      const out = await createAuthenticatedUser(auth);
+      const alsoAlive = await createAuthenticatedUser(auth);
+      const league = await insertLeague(db, {
+        seasonId,
+        name: "Survivor",
+        mode: LEAGUE_MODE.SURVIVOR,
+        settings: DEFAULT_SURVIVOR_SETTINGS,
+        members: [
+          { userId: alive.user.id, role: MEMBER_ROLE.COMMISSIONER },
+          { userId: out.user.id, role: MEMBER_ROLE.MEMBER },
+          { userId: alsoAlive.user.id, role: MEMBER_ROLE.MEMBER },
+        ],
+      });
+      const members = await membersOf(db, league.id);
+      const leagueSeasonId = await seasonIdFor(db, league.id);
+      await insertSurvivorState(db, {
+        leagueSeasonId,
+        leagueMemberId: members.get(out.user.id)!,
+        eliminatedWeekId: weekIds.get("regular:1")!,
+      });
+
+      expect((await readMyLeagues(alive.cookie)).leagues[0]).toMatchObject({
+        mySurvivorStanding: { status: "alive", isWinner: false, aliveCount: 2 },
+        myPickemStanding: null,
+      });
+      expect((await readMyLeagues(out.cookie)).leagues[0]).toMatchObject({
+        mySurvivorStanding: { status: "eliminated", isWinner: false, aliveCount: 2 },
+      });
+      const single = (await (await getLeague(out.cookie, league.id)).json()) as LeagueResponse;
+      expect(single.mySurvivorStanding).toEqual({
+        status: "eliminated",
+        isWinner: false,
+        aliveCount: 2,
+      });
+    });
+
+    it("names the last member standing a winner once the season has concluded", async () => {
+      const { seasonId, weekIds } = await seedGlanceSeason([WEEK1_KICKOFF]);
+      const survivor = await createAuthenticatedUser(auth);
+      const beaten = await createAuthenticatedUser(auth);
+      const league = await insertLeague(db, {
+        seasonId,
+        name: "Survivor",
+        mode: LEAGUE_MODE.SURVIVOR,
+        settings: DEFAULT_SURVIVOR_SETTINGS,
+        members: [
+          { userId: survivor.user.id, role: MEMBER_ROLE.COMMISSIONER },
+          { userId: beaten.user.id, role: MEMBER_ROLE.MEMBER },
+        ],
+      });
+      const members = await membersOf(db, league.id);
+      const leagueSeasonId = await seasonIdFor(db, league.id);
+      await insertSurvivorState(db, {
+        leagueSeasonId,
+        leagueMemberId: members.get(beaten.user.id)!,
+        eliminatedWeekId: weekIds.get("regular:1")!,
+      });
+      await db
+        .update(leagueSeasons)
+        .set({ status: LEAGUE_STATUS.CONCLUDED })
+        .where(eq(leagueSeasons.id, leagueSeasonId));
+
+      expect((await readMyLeagues(survivor.cookie)).leagues[0]).toMatchObject({
+        mySurvivorStanding: { status: "alive", isWinner: true, aliveCount: 1 },
+      });
+      expect((await readMyLeagues(beaten.cookie)).leagues[0]).toMatchObject({
+        mySurvivorStanding: { status: "eliminated", isWinner: false, aliveCount: 1 },
+      });
     });
   });
 });

@@ -2,7 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/archivo";
+/* The `wdth` build rather than the default weight-only one: the display role
+   (ADR-0043 §1) is Archivo at ~65% width, and only this file ships the width
+   axis. ~55 KB more font, no new package. */
+@import "@fontsource-variable/archivo/wdth.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -30,6 +33,10 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-muted-foreground: var(--ink-muted-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-accent-foreground: var(--accent-foreground);
@@ -55,7 +62,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* `.light` alongside `:root` so a region can opt back into the light palette
+   inside a dark page, the way a `.dark` wrapper already opts into the dark
+   one by redeclaration below. The profile's avatar theme preview (ID-5) needs
+   both swatches at once; without a `.light` scope the light swatch would
+   inherit whatever theme the member is currently in. */
+:root,
+.light {
   /* LNCH-9 palette: warm (stone-cast) neutrals so the pigskin orange sits
      naturally, with the brand as the interactive spine — primary, ring, and
      active states. Primary is deeper than `--brand` (the mark's literal
@@ -67,7 +80,7 @@
   --card-foreground: oklch(0.155 0.008 50);
   --popover: oklch(1 0.002 75);
   --popover-foreground: oklch(0.155 0.008 50);
-  --primary: oklch(0.58 0.16 42);
+  --primary: oklch(0.555 0.16 42);
   --primary-foreground: oklch(0.99 0.01 60);
   --secondary: oklch(0.965 0.008 65);
   --secondary-foreground: oklch(0.24 0.02 45);
@@ -75,11 +88,12 @@
   --muted-foreground: oklch(0.52 0.015 55);
   --accent: oklch(0.955 0.012 60);
   --accent-foreground: oklch(0.24 0.02 45);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(0.55 0.22 27.325);
   /* `destructive` and `success` are semantic (loss/win on settled picks),
-     matched in lightness so neither outweighs the other — and the reason the
-     brand hue is orange, not red or green. */
-  --success: oklch(0.577 0.145 149);
+     near-matched in lightness so neither outweighs the other — and the reason
+     the brand hue is orange, not red or green. Both sit where they still clear
+     AA as text on the page (VIS-1: green needs less lightness than red to). */
+  --success: oklch(0.52 0.14 149);
   --border: oklch(0.912 0.008 65);
   --input: oklch(0.912 0.008 65);
   --ring: oklch(0.62 0.12 45);
@@ -91,12 +105,22 @@
      the two semantic hues (destructive = loss, success = win). */
   --brand: #d2622a;
   --brand-foreground: #ffffff;
+  /* The scoreboard band (ADR-0043 §2): the one dark surface on a light page,
+     where the subject of the screen is named. Warm near-black rather than the
+     dark theme's page colour so it still reads as a band when the dark theme
+     is on — there it goes a shade deeper than the page instead. */
+  --ink: oklch(0.2 0.01 50);
+  --ink-muted: oklch(0.3 0.012 50);
+  --ink-foreground: oklch(0.985 0.004 75);
+  --ink-muted-foreground: oklch(0.76 0.01 60);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.5rem;
+  /* 0.375rem, down from shadcn's 0.5rem: a scoreboard is squarer than a
+     settings page (ADR-0043 §2). The whole radius scale derives from it. */
+  --radius: 0.375rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -130,6 +154,10 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.7 0.12 48);
+  --ink: oklch(0.115 0.006 50);
+  --ink-muted: oklch(0.21 0.01 50);
+  --ink-foreground: oklch(0.985 0.004 75);
+  --ink-muted-foreground: oklch(0.74 0.01 60);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -145,6 +173,58 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Grows a control's tappable area to the 44pt minimum on touch screens
+   without changing its visible size (MOB-1): a pseudo-element inset
+   negatively by exactly the shortfall per axis, so a 32px icon button is hit
+   as 44px and one already 44px gains nothing. Coarse pointers only — a mouse
+   needs no slack, and the widened box would steal hover from neighbours.
+   Not for `absolute`-positioned controls: it claims `position: relative`. */
+@utility touch-hit {
+  @media (pointer: coarse) {
+    position: relative;
+    &::before {
+      content: "";
+      position: absolute;
+      inset: min(0px, calc((100% - 44px) / 2));
+    }
+  }
+}
+
+/* The three type roles (ADR-0043 §1). A component reaches for a role, never
+   for its own size + weight + tracking combination, so "is this the same kind
+   of text as that" is answered by the class name. Size is the call site's
+   (`text-2xl` beside `type-display`); the display role's floor is 20px, the
+   point below which the condensed numerals stop being legible at 390px.
+   Colour is set here only for the eyebrow, and as an ordinary declaration: a
+   `text-*` utility beside it wins (custom utilities sort before single-property
+   ones), which is how a pill tone recolours its own eyebrow. */
+@utility type-display {
+  font-family: var(--font-heading);
+  font-stretch: 65%;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility type-heading {
+  font-family: var(--font-heading);
+  font-stretch: 100%;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+@utility type-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -154,14 +234,38 @@
   }
   html {
     @apply font-sans;
+    /* Installed-app feel (MOB-1). Rubber-banding past the document's edge
+       drags the whole shell — including the sticky header — on iOS, which
+       is the single clearest "this is a website" tell. The grey tap flash is
+       the second; it's inherited, so one declaration covers every control. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
   }
-  /* One home for the heading voice (LNCH-9) rather than a font-heading class
-     sprinkled per file; components needing it on a non-heading element
-     (CardTitle is a div) opt in with `font-heading`. */
-  h1,
+  /* Without this a tap waits ~300ms for a possible double-tap-to-zoom before
+     it fires, and a pick sheet that answers late reads as one that missed
+     the tap. `manipulation` keeps pinch-zoom, drops only the double-tap. */
+  a,
+  button,
+  summary,
+  label,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [role="menuitem"],
+  [role="tab"] {
+    touch-action: manipulation;
+  }
+  /* One home for the heading voice rather than a class sprinkled per file:
+     the page title is the display role, section titles the heading role
+     (ADR-0043 §1). A non-heading element needing either (CardTitle is a div)
+     opts in with the same utility. */
+  h1 {
+    @apply type-display;
+  }
   h2,
   h3 {
-    @apply font-heading tracking-tight;
+    @apply type-heading;
   }
   /* Tables are overwhelmingly numeric here (standings, spreads, scores);
      tabular figures keep columns of numbers vertically aligned. */

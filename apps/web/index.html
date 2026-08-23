@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the installed app draw under the notch and home
+         indicator; every edge-anchored surface (header, pick-sheet action
+         bars, toaster) then pads by env(safe-area-inset-*) itself (MOB-1). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Picks Leagues</title>
     <meta
       name="description"
@@ -11,6 +14,14 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.png" type="image/png" sizes="96x96" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Installability only (LNCH-15): no service worker, because a cached
+         SPA can serve stale pick/lock state against derived locks (arch D11). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Translucent, not `default`/`black`: those paint iOS's status bar a
+         fixed color that can only match one theme. Translucent lets the
+         sticky header's own background show through, so the bar follows the
+         theme toggle for free — the header pads by the top inset for it. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <!-- Pre-hydration defaults mirroring the --background tokens (index.css);
          the anti-FOUC script below and ThemeColorSync keep them honest when
          the app's stored theme overrides the OS preference. -->

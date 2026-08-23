@@ -21,7 +21,9 @@ import {
 import { logInfo } from "../../lib/logger";
 import { loadSeasonWeeks, resolveCurrentWeekLabel } from "../league-weeks";
 import { resolvePickemPickStatuses } from "../pickem/pick-status";
+import { resolvePickemViewerStandings } from "../pickem/viewer-standing";
 import { resolveSurvivorPickStatuses } from "../survivor/pick-status";
+import { resolveSurvivorViewerStandings } from "../survivor/viewer-standing";
 import { resetPicksInvalidatedBySettings } from "./settings-reset";
 import { isPreStart, leagueStartAt } from "./start";
 import { resolveLeagueSettings } from "./season-range";
@@ -436,42 +438,41 @@ export async function listMyLeagues(
   // once for the same reason, and the two modes concurrently because neither
   // reads what the other writes. Settings are parsed rather than trusted so
   // schema defaults materialize on rows written before a field existed.
-  const [survivorStatuses, pickemStatuses] = await Promise.all([
-    resolveSurvivorPickStatuses(
-      db,
-      clock,
-      rows.flatMap((row) =>
-        row.league.mode === LEAGUE_MODE.SURVIVOR
-          ? [
-              {
-                leagueSeasonId: row.leagueSeasonId,
-                leagueId: row.league.id,
-                seasonId: row.seasonId,
-                membershipId: row.membershipId,
-                settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
-                status: row.status,
-              },
-            ]
-          : [],
-      ),
-    ),
-    resolvePickemPickStatuses(
-      db,
-      clock,
-      rows.flatMap((row) =>
-        row.league.mode === LEAGUE_MODE.PICKEM
-          ? [
-              {
-                leagueSeasonId: row.leagueSeasonId,
-                seasonId: row.seasonId,
-                membershipId: row.membershipId,
-                settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(row.settings),
-                status: row.status,
-              },
-            ]
-          : [],
-      ),
-    ),
+  const survivorInputs = rows.flatMap((row) =>
+    row.league.mode === LEAGUE_MODE.SURVIVOR
+      ? [
+          {
+            leagueSeasonId: row.leagueSeasonId,
+            leagueId: row.league.id,
+            seasonId: row.seasonId,
+            membershipId: row.membershipId,
+            settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.SURVIVOR].parse(row.settings),
+            status: row.status,
+          },
+        ]
+      : [],
+  );
+  const pickemInputs = rows.flatMap((row) =>
+    row.league.mode === LEAGUE_MODE.PICKEM
+      ? [
+          {
+            leagueSeasonId: row.leagueSeasonId,
+            leagueId: row.league.id,
+            seasonId: row.seasonId,
+            membershipId: row.membershipId,
+            settings: LEAGUE_SETTINGS_SCHEMAS[LEAGUE_MODE.PICKEM].parse(row.settings),
+            status: row.status,
+          },
+        ]
+      : [],
+  );
+  // The viewer's standing rides the same payload as the glance and for the same
+  // reason: the hub card's numerals must not cost a board fetch per league.
+  const [survivorStatuses, pickemStatuses, survivorStandings, pickemStandings] = await Promise.all([
+    resolveSurvivorPickStatuses(db, clock, survivorInputs),
+    resolvePickemPickStatuses(db, clock, pickemInputs),
+    resolveSurvivorViewerStandings(db, survivorInputs),
+    resolvePickemViewerStandings(db, pickemInputs),
   ]);
 
   // Weeks for every season on the dashboard in one read — cards overwhelmingly
@@ -512,6 +513,9 @@ export async function listMyLeagues(
         ),
         survivorPickStatus: survivorStatuses.get(row.leagueSeasonId) ?? null,
         pickemPickStatus: pickemStatuses.get(row.leagueSeasonId) ?? null,
+        seasonYear: row.seasonYear,
+        myPickemStanding: pickemStandings.get(row.leagueSeasonId) ?? null,
+        mySurvivorStanding: survivorStandings.get(row.leagueSeasonId) ?? null,
       };
     }),
   );

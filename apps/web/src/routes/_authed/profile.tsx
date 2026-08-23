@@ -11,10 +11,17 @@ import {
 } from "@picksleagues/schemas";
 import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
 import { authClient } from "@/lib/auth";
+import { useSignOut } from "@/lib/sign-out";
+import { isTheme, THEME_OPTIONS, type Theme } from "@/lib/theme";
+import { useTheme } from "next-themes";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAvatarPreview } from "@/lib/avatar-preview";
+import { AvatarThemePreview } from "@/components/avatar-theme-preview";
+import { InstallCard } from "@/components/install-card";
+import { LabeledSelect } from "@/components/labeled-select";
+import { LegalLinks } from "@/components/legal-footer";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -28,7 +35,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserIdentity } from "@/components/user-identity";
@@ -151,7 +159,7 @@ function ProfileForm({
       {/* Every top-level page carries this heading in this style — the identity
           card below shows *who* you are, which is not the same as naming the
           page for a screen reader landing on it. */}
-      <h1 className="self-start text-2xl font-semibold text-foreground">Your profile</h1>
+      <h1 className="self-start text-2xl text-foreground">Your profile</h1>
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <UserIdentity
@@ -246,6 +254,13 @@ function ProfileForm({
                 reads as "the preview is slow" when it actually means the URL
                 won't render for anyone. `role="status"` so it's announced,
                 since the preview itself is purely visual. */}
+            {/* Only while the URL is being changed: the header avatar already
+                shows the saved image in the current theme, and the question
+                the swatches answer — does this read on *both* grounds — is one
+                the member asks before saving, not after. */}
+            {draftImage.trim() !== (profile.imageOverride ?? "") && (
+              <AvatarThemePreview image={preview.src} displayName={profile.displayName} />
+            )}
             {preview.failed && (
               <p role="status" className="text-xs text-muted-foreground">
                 We couldn&apos;t load that image. Saving it will show your initials instead.
@@ -280,8 +295,61 @@ function ProfileForm({
           </form>
         </CardContent>
       </Card>
+      {/* One page, sectioned (owner, 2026-08-22) rather than a /settings
+          split: on phones this tab is the whole account surface — the header
+          menu that used to hold theme and sign-out is gone below `sm` — and
+          a second route would add navigation a friends-scale app doesn't
+          need yet. */}
+      <AppearanceCard />
+      <InstallCard />
+      <AccountCard />
+      <AboutCard />
       <DangerZone />
     </>
+  );
+}
+
+function AppearanceCard() {
+  // No SSR pass, so next-themes' `theme` is already correct on first paint;
+  // `isTheme` guards the string it types as `string | undefined`.
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <Section title="Appearance" className="w-full max-w-sm">
+      <LabeledSelect<Theme>
+        id="theme"
+        label="Theme"
+        value={isTheme(theme) ? theme : null}
+        onValueChange={setTheme}
+        options={[...THEME_OPTIONS]}
+      />
+    </Section>
+  );
+}
+
+function AccountCard() {
+  const signOut = useSignOut();
+
+  return (
+    <Section title="Account" className="w-full max-w-sm">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className="w-full justify-center"
+        onClick={() => void signOut()}
+      >
+        Sign out
+      </Button>
+    </Section>
+  );
+}
+
+function AboutCard() {
+  return (
+    <Section title="About" className="w-full max-w-sm">
+      <LegalLinks className="text-sm text-muted-foreground" />
+    </Section>
   );
 }
 
@@ -296,56 +364,54 @@ function DangerZone() {
   const blocked = blockingLeagues.length > 0;
 
   return (
-    <Card className="w-full max-w-sm ring-destructive/30">
-      <CardHeader>
-        <CardTitle className="text-destructive">Danger zone</CardTitle>
-        <CardDescription>Deleting your account is permanent and immediate.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {blocked && (
-          <p data-testid="deletion-blocked-reason" className="text-sm text-muted-foreground">
-            You&apos;re the only commissioner of{" "}
-            {blockingLeagues.map((league) => league.name).join(", ")} — promote another commissioner
-            there before deleting your account.
-          </p>
-        )}
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button
-                variant="destructive"
-                size="lg"
-                className="w-full justify-center"
-                disabled={blocked || deleteAccount.isPending}
-              />
-            }
-          >
-            Delete account
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete your account?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This can&apos;t be undone. Your account is anonymized immediately: your username is
-                released, your display name and avatar are replaced with a &quot;Deleted User&quot;
-                placeholder, and your sign-in identities are removed. Your picks and league history
-                stay under that placeholder. You&apos;ll be signed out everywhere, and signing in
-                again with the same provider creates a brand-new account.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleteAccount.isPending}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                disabled={deleteAccount.isPending}
-                onClick={() => deleteAccount.mutate()}
-              >
-                Delete account
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardContent>
-    </Card>
+    <Section
+      title={<span className="text-destructive">Danger zone</span>}
+      description="Deleting your account is permanent and immediate."
+      className="w-full max-w-sm"
+    >
+      {blocked && (
+        <p data-testid="deletion-blocked-reason" className="text-sm text-muted-foreground">
+          You&apos;re the only commissioner of{" "}
+          {blockingLeagues.map((league) => league.name).join(", ")} — promote another commissioner
+          there before deleting your account.
+        </p>
+      )}
+      <AlertDialog>
+        <AlertDialogTrigger
+          render={
+            <Button
+              variant="destructive"
+              size="lg"
+              className="w-full justify-center"
+              disabled={blocked || deleteAccount.isPending}
+            />
+          }
+        >
+          Delete account
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This can&apos;t be undone. Your account is anonymized immediately: your username is
+              released, your display name and avatar are replaced with a &quot;Deleted User&quot;
+              placeholder, and your sign-in identities are removed. Your picks and league history
+              stay under that placeholder. You&apos;ll be signed out everywhere, and signing in
+              again with the same provider creates a brand-new account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAccount.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteAccount.isPending}
+              onClick={() => deleteAccount.mutate()}
+            >
+              Delete account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Section>
   );
 }

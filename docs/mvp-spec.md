@@ -245,7 +245,7 @@ When brackets tie on points: closest **absolute difference** between the Champio
 - **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM); each NFL game row opens its **matchup stats sheet** (below)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
 
-Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "League Picks"). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
+Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "All Picks" — the latter's route is `league-picks`, and this document and the ADRs call the screen League Picks). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
 
 **Pick entry has two states, and shows what each one is for.** An unsubmitted week is an editable sheet the member assembles: the games they can still pick, a save control that stays inactive until the sheet holds the week's full required set, and an explicit confirmation that submitting is irreversible before anything lands. A submitted week is **read-only** — their picks, with the spreads they accepted, which is the week in review rather than a slate to scan past. A member who picked nothing sees a stated empty result, never a blank card.
 

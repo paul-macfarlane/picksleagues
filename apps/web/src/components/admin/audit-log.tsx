@@ -8,7 +8,7 @@ import {
 import { useAdminAudit } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
 import { Pagination } from "@/components/ui/pagination";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -61,61 +61,55 @@ export function AuditLog({
   const page = audit.data;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Audit log</CardTitle>
-        <CardDescription>
-          Every admin override and rebuild — who did it, what it targeted, and what stood there
-          before.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={audit.isPending}
-          pendingFallback={<AuditSkeleton />}
-          isError={audit.isError}
-          onRetry={() => audit.refetch()}
-          errorMessage="Couldn't load the audit log."
-          // Emptiness is a property of the trail, not of the page: an offset
-          // past the end still needs its pager rendered so the operator can
-          // get back.
-          isEmpty={page?.total === 0}
-          emptyMessage="No admin actions recorded yet."
-        >
-          {page && (
-            <div className="flex flex-col gap-3">
-              {/* Five columns don't fit a phone, so the table keeps its width
+    <Section
+      title="Audit log"
+      description="Every admin override and rebuild — who did it, what it targeted, and what stood there before."
+    >
+      <QueryState
+        isPending={audit.isPending}
+        pendingFallback={<AuditSkeleton />}
+        isError={audit.isError}
+        onRetry={() => audit.refetch()}
+        errorMessage="Couldn't load the audit log."
+        // Emptiness is a property of the trail, not of the page: an offset
+        // past the end still needs its pager rendered so the operator can
+        // get back.
+        isEmpty={page?.total === 0}
+        emptyMessage="No admin actions recorded yet."
+      >
+        {page && (
+          <div className="flex flex-col gap-3">
+            {/* Five columns don't fit a phone, so the table keeps its width
                   and scrolls rather than wrapping cells into unreadable stacks.
                   The scroll container is `Table`'s own — do not add one here. */}
-              <Table className="min-w-3xl text-xs">
-                <TableHeader>
-                  <TableRow className="text-xs font-medium text-muted-foreground">
-                    <TableHead>When</TableHead>
-                    <TableHead>Admin</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Prior value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {page.entries.map((entry) => (
-                    <AuditRow key={entry.id} entry={entry} />
-                  ))}
-                </TableBody>
-              </Table>
+            <Table className="min-w-3xl text-xs">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>When</TableHead>
+                  <TableHead>Admin</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Prior value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {page.entries.map((entry) => (
+                  <AuditRow key={entry.id} entry={entry} />
+                ))}
+              </TableBody>
+            </Table>
 
-              <AuditPager
-                total={page.total}
-                limit={page.limit}
-                offset={page.offset}
-                shown={page.entries.length}
-                onOffsetChange={onOffsetChange}
-              />
-            </div>
-          )}
-        </QueryState>
-      </CardContent>
-    </Card>
+            <AuditPager
+              total={page.total}
+              limit={page.limit}
+              offset={page.offset}
+              shown={page.entries.length}
+              onOffsetChange={onOffsetChange}
+            />
+          </div>
+        )}
+      </QueryState>
+    </Section>
   );
 }
 
@@ -156,7 +150,9 @@ function AuditRow({ entry }: { entry: AdminAuditEntry }) {
         {/* Collapsed by default: the shape differs per action and a row is
             scanned far more often than a prior value is read. */}
         <details>
-          <summary className="cursor-pointer text-muted-foreground select-none">Show</summary>
+          <summary className="type-eyebrow cursor-pointer select-none hover:text-foreground">
+            Show
+          </summary>
           <pre className="mt-1 max-w-xs overflow-x-auto rounded-md bg-muted p-2 text-xs">
             {JSON.stringify(entry.priorValue, null, 2)}
           </pre>

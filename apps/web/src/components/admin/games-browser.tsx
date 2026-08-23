@@ -1,18 +1,28 @@
-import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import { type AdminGame } from "@picksleagues/schemas";
 import { useAdminGames } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { gameStatusLabel, scoreText } from "@/lib/game";
+import {
+  adminGameEffective,
+  gameStateLead,
+  gameStatusLabel,
+  matchupNumerals,
+  scoreText,
+} from "@/lib/game";
+import { useAppNow } from "@/lib/app-clock";
 import { GameOverrideForm } from "@/components/admin/game-override-form";
-import { ResolvedField } from "@/components/admin/override-display";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
+import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
 import {
   seasonLabel,
   useAdminSeasonWeekSelection,
 } from "@/components/admin/use-season-week-selection";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { RowEditor } from "@/components/row-editor";
 
 function isOverridden(game: AdminGame) {
   return (
@@ -50,101 +60,91 @@ export function GamesBrowser({
   const games = useAdminGames(effectiveWeekId);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Games</CardTitle>
-        <CardDescription>
-          Provider, override, and resolved values for a week&apos;s games.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={seasons.isPending}
-          isError={seasons.isError}
-          onRetry={() => seasons.refetch()}
-          errorMessage="Couldn't load seasons."
-          pendingFallback={
-            <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
-          }
-          isEmpty={all.length === 0}
-          emptyMessage="No seasons synced yet."
-        >
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <LabeledSelect
-                id="games-browser-season"
-                label="Season"
-                value={selectedSeason?.id ?? null}
-                // Drops the week: carrying one over from a different season
-                // would select a week this season doesn't have.
-                onValueChange={onSeasonChange}
-                options={all.map((season) => ({
-                  value: season.id,
-                  label: seasonLabel(season),
-                }))}
-              />
-              <LabeledSelect
-                id="games-browser-week"
-                label="Week"
-                value={effectiveWeekId ?? null}
-                onValueChange={onWeekChange}
-                options={(selectedSeason?.weeks ?? []).map((week) => ({
-                  value: week.id,
-                  label: week.label,
-                }))}
-              />
-            </div>
+    <Section
+      title="Games"
+      description="Provider, override, and resolved values for a week's games."
+    >
+      <QueryState
+        isPending={seasons.isPending}
+        isError={seasons.isError}
+        onRetry={() => seasons.refetch()}
+        errorMessage="Couldn't load seasons."
+        pendingFallback={
+          <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+        }
+        isEmpty={all.length === 0}
+        emptyMessage="No seasons synced yet."
+      >
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <LabeledSelect
+              id="games-browser-season"
+              label="Season"
+              value={selectedSeason?.id ?? null}
+              // Drops the week: carrying one over from a different season
+              // would select a week this season doesn't have.
+              onValueChange={onSeasonChange}
+              options={all.map((season) => ({
+                value: season.id,
+                label: seasonLabel(season),
+              }))}
+            />
+            <LabeledSelect
+              id="games-browser-week"
+              label="Week"
+              value={effectiveWeekId ?? null}
+              onValueChange={onWeekChange}
+              options={(selectedSeason?.weeks ?? []).map((week) => ({
+                value: week.id,
+                label: week.label,
+              }))}
+            />
+          </div>
 
-            {/* A season with no weeks leaves the games query skipped, which
+          {/* A season with no weeks leaves the games query skipped, which
                 reports `isPending` forever — treat "nothing to ask for" as an
                 empty state rather than a load that never resolves. */}
-            <QueryState
-              isPending={Boolean(effectiveWeekId) && games.isPending}
-              isError={games.isError}
-              onRetry={() => games.refetch()}
-              errorMessage="Couldn't load games."
-              pendingFallback={
-                <RowsSkeleton label="Loading games" rows={6} rowClassName="h-14 w-full" />
-              }
-              isEmpty={!effectiveWeekId || games.data?.games.length === 0}
-              emptyMessage={
-                effectiveWeekId
-                  ? "No games synced for this week."
-                  : "No weeks synced for this season."
-              }
-            >
-              <ul className="flex flex-col gap-3">
-                {games.data?.games.map((game) => (
-                  <GameRow key={game.id} game={game} />
-                ))}
-              </ul>
-            </QueryState>
-          </div>
-        </QueryState>
-      </CardContent>
-    </Card>
+          <QueryState
+            isPending={Boolean(effectiveWeekId) && games.isPending}
+            isError={games.isError}
+            onRetry={() => games.refetch()}
+            errorMessage="Couldn't load games."
+            pendingFallback={
+              <RowsSkeleton label="Loading games" rows={6} rowClassName="h-14 w-full" />
+            }
+            isEmpty={!effectiveWeekId || games.data?.games.length === 0}
+            emptyMessage={
+              effectiveWeekId
+                ? "No games synced for this week."
+                : "No weeks synced for this season."
+            }
+          >
+            <ul className="flex flex-col">
+              {games.data?.games.map((game) => (
+                <GameRow key={game.id} game={game} />
+              ))}
+            </ul>
+          </QueryState>
+        </div>
+      </QueryState>
+    </Section>
   );
 }
 
 function GameRow({ game }: { game: AdminGame }) {
+  const now = useAppNow();
   const overridden = isOverridden(game);
-  const [editOpen, setEditOpen] = useState(false);
+  const effective = adminGameEffective(game);
+  const numerals = matchupNumerals(effective, game.effectiveSpread);
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p
-          className="text-sm font-medium text-foreground"
-          title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-        >
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-        </p>
-        {overridden && (
-          <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">
-            Overridden
-          </span>
-        )}
-      </div>
+    <li className={cn(rowClassName, "flex flex-col gap-2")}>
+      <MatchupLine
+        away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
+        center={gameStateLead(effective, now)}
+        home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}
+      />
+      {overridden && <OverriddenTag className="self-start" />}
 
       <div className="flex flex-col gap-1 text-xs text-foreground">
         <ResolvedField
@@ -176,18 +176,11 @@ function GameRow({ game }: { game: AdminGame }) {
 
       <p className="text-xs text-muted-foreground">provider game id {game.providerGameId}</p>
 
-      {/* Never rendered hidden, so opening always mounts against the current
-          `game` prop. `GameOverrideForm` itself now re-seeds on every
-          server-side change to the override values (fingerprint-keyed
-          remount, game-override-form.tsx), including while this stays open
-          across a save — a stale seed is what turns a diff-based save into a
-          stale write. */}
-      <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-          Edit override
-        </summary>
-        {editOpen && <GameOverrideForm game={game} />}
-      </details>
+      {/* `GameOverrideForm` carries its own fingerprint key (RowEditor's
+          re-seed half), so it is mounted bare here. */}
+      <RowEditor label="Edit override">
+        <GameOverrideForm game={game} />
+      </RowEditor>
     </li>
   );
 }

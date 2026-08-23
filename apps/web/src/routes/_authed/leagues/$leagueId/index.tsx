@@ -7,6 +7,7 @@ import { PickemStandingsSection } from "@/components/league/pickem-standings-sec
 import { SurvivorBoard } from "@/components/league/survivor-board";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 
 export const Route = createFileRoute("/_authed/leagues/$leagueId/")({
   component: LeagueOverview,
@@ -36,18 +37,13 @@ function LeagueOverview() {
         // nothing weekly to total (ADR-0016).
         <SurvivorBoard leagueId={leagueId} />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Standings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* March Madness's bracket leaderboard ships with its own epic —
-                nothing to compute yet for that mode. */}
-            <p className="text-sm text-muted-foreground">
-              Standings for this game mode aren&apos;t available yet.
-            </p>
-          </CardContent>
-        </Card>
+        <Section title="Standings">
+          {/* March Madness's bracket leaderboard ships with its own epic —
+              nothing to compute yet for that mode. */}
+          <p className="text-sm text-muted-foreground">
+            Standings for this game mode aren&apos;t available yet.
+          </p>
+        </Section>
       )}
     </div>
   );
@@ -60,7 +56,7 @@ function LeagueOverview() {
 function RenewSeasonBanner({ league }: { league: LeagueResponse }) {
   const renew = useRenewLeague(league.id);
   return (
-    <Card className="ring-primary/30">
+    <Card className="ring-foreground/30">
       <CardHeader>
         <CardTitle>The next season is available</CardTitle>
         <CardDescription>

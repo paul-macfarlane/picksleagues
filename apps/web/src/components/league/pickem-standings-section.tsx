@@ -1,5 +1,5 @@
 import { PickemStandingsTable } from "@/components/league/pickem-standings-table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 
 /**
  * Pick'em's standings on League home: the season-cumulative board, and only it
@@ -10,16 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  */
 export function PickemStandingsSection({ leagueId }: { leagueId: string }) {
   return (
-    // Addressed by testid rather than by a card whose title happens to read
+    // Addressed by testid rather than by a section whose title happens to read
     // "Standings".
-    <Card data-testid="standings-card">
-      <CardHeader>
-        <CardTitle>Standings</CardTitle>
-        <CardDescription>Cumulative points across the season.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <PickemStandingsTable leagueId={leagueId} />
-      </CardContent>
-    </Card>
+    <Section
+      data-testid="standings-card"
+      title="Standings"
+      description="Cumulative points across the season."
+    >
+      <PickemStandingsTable leagueId={leagueId} />
+    </Section>
   );
 }

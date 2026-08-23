@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import type {
   AdminNflGameStatContext,
   NflGameStatsTeamContext,
@@ -8,15 +9,17 @@ import { useAdminNflStatContexts } from "@/api/admin-nfl-stats";
 import { formatDateTime } from "@/lib/format";
 import { NflStatContextOverrideForm } from "@/components/admin/nfl-stat-context-override-form";
 import { nflContextOverrideFormSeed } from "@/components/admin/nfl-context-override-patch";
-import { ResolvedField } from "@/components/admin/override-display";
+import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import {
   seasonLabel,
   useAdminSeasonWeekSelection,
 } from "@/components/admin/use-season-week-selection";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
+import { RowEditor } from "@/components/row-editor";
 
 /** One line's worth of a side's context — compact on purpose; the form has the detail. */
 function sideSummary(context: NflGameStatsTeamContext): string {
@@ -57,98 +60,86 @@ export function NflStatContextBrowser({
   const contexts = useAdminNflStatContexts(effectiveWeekId);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Game stat context</CardTitle>
-        <CardDescription>
-          Injuries, FPI, ATS, and recent form per game — provider payload, sparse override, and the
-          resolved values the matchup sheet serves.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState
-          isPending={seasons.isPending}
-          isError={seasons.isError}
-          onRetry={() => seasons.refetch()}
-          errorMessage="Couldn't load seasons."
-          pendingFallback={
-            <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
-          }
-          isEmpty={all.length === 0}
-          emptyMessage="No seasons synced yet."
-        >
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <LabeledSelect
-                id="stat-context-browser-season"
-                label="Season"
-                value={selectedSeason?.id ?? null}
-                onValueChange={onSeasonChange}
-                options={all.map((season) => ({ value: season.id, label: seasonLabel(season) }))}
-              />
-              <LabeledSelect
-                id="stat-context-browser-week"
-                label="Week"
-                value={effectiveWeekId ?? null}
-                onValueChange={onWeekChange}
-                options={(selectedSeason?.weeks ?? []).map((week) => ({
-                  value: week.id,
-                  label: week.label,
-                }))}
-              />
-            </div>
-
-            {/* A season with no weeks leaves the query skipped — "nothing to
-                ask for" is an empty state, not a load that never resolves. */}
-            <QueryState
-              isPending={Boolean(effectiveWeekId) && contexts.isPending}
-              isError={contexts.isError}
-              onRetry={() => contexts.refetch()}
-              errorMessage="Couldn't load stat contexts."
-              pendingFallback={
-                <RowsSkeleton label="Loading stat contexts" rows={6} rowClassName="h-14 w-full" />
-              }
-              isEmpty={!effectiveWeekId || contexts.data?.games.length === 0}
-              emptyMessage={
-                effectiveWeekId
-                  ? "No games synced for this week."
-                  : "No weeks synced for this season."
-              }
-            >
-              <ul className="flex flex-col gap-3">
-                {contexts.data?.games.map((game) => (
-                  <ContextRow key={game.gameId} game={game} />
-                ))}
-              </ul>
-            </QueryState>
+    <Section
+      title="Game stat context"
+      description="Injuries, FPI, ATS, and recent form per game — provider payload, sparse override, and the resolved values the matchup sheet serves."
+    >
+      <QueryState
+        isPending={seasons.isPending}
+        isError={seasons.isError}
+        onRetry={() => seasons.refetch()}
+        errorMessage="Couldn't load seasons."
+        pendingFallback={
+          <RowsSkeleton label="Loading seasons" rows={2} rowClassName="h-9 w-full sm:max-w-xs" />
+        }
+        isEmpty={all.length === 0}
+        emptyMessage="No seasons synced yet."
+      >
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <LabeledSelect
+              id="stat-context-browser-season"
+              label="Season"
+              value={selectedSeason?.id ?? null}
+              onValueChange={onSeasonChange}
+              options={all.map((season) => ({ value: season.id, label: seasonLabel(season) }))}
+            />
+            <LabeledSelect
+              id="stat-context-browser-week"
+              label="Week"
+              value={effectiveWeekId ?? null}
+              onValueChange={onWeekChange}
+              options={(selectedSeason?.weeks ?? []).map((week) => ({
+                value: week.id,
+                label: week.label,
+              }))}
+            />
           </div>
-        </QueryState>
-      </CardContent>
-    </Card>
+
+          {/* A season with no weeks leaves the query skipped — "nothing to
+                ask for" is an empty state, not a load that never resolves. */}
+          <QueryState
+            isPending={Boolean(effectiveWeekId) && contexts.isPending}
+            isError={contexts.isError}
+            onRetry={() => contexts.refetch()}
+            errorMessage="Couldn't load stat contexts."
+            pendingFallback={
+              <RowsSkeleton label="Loading stat contexts" rows={6} rowClassName="h-14 w-full" />
+            }
+            isEmpty={!effectiveWeekId || contexts.data?.games.length === 0}
+            emptyMessage={
+              effectiveWeekId
+                ? "No games synced for this week."
+                : "No weeks synced for this season."
+            }
+          >
+            <ul className="flex flex-col">
+              {contexts.data?.games.map((game) => (
+                <ContextRow key={game.gameId} game={game} />
+              ))}
+            </ul>
+          </QueryState>
+        </div>
+      </QueryState>
+    </Section>
   );
 }
 
 function ContextRow({ game }: { game: AdminNflGameStatContext }) {
-  const [editOpen, setEditOpen] = useState(false);
   const block = game.context;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p
-          className="text-sm font-medium text-foreground"
-          title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-        >
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-        </p>
-        {block !== null && block.overriddenAt !== null && (
-          <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">
-            Overridden
-          </span>
-        )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">kickoff {formatDateTime(game.kickoffAt)}</p>
+    <li className={cn(rowClassName, "flex flex-col gap-2")}>
+      {/* No numeral: this browser is about the context *around* a game, and a
+          spread or score here would be a second copy of the games browser's
+          line. The kickoff takes the centre instead of a state word — an
+          absolute instant, since the question is which slate this row is in. */}
+      <MatchupLine
+        away={<MatchupSide team={game.awayTeam} numeral={null} side="away" />}
+        center={formatDateTime(game.kickoffAt)}
+        home={<MatchupSide team={game.homeTeam} numeral={null} side="home" />}
+      />
+      {block !== null && block.overriddenAt !== null && <OverriddenTag className="self-start" />}
 
       {block ? (
         <>
@@ -169,20 +160,13 @@ function ContextRow({ game }: { game: AdminNflGameStatContext }) {
 
           <p className="text-xs text-muted-foreground">updated {formatDateTime(block.updatedAt)}</p>
 
-          {/* Same open/remount contract as the sibling browsers — the form
-              re-seeds when the stored override layer changes server-side. */}
-          <details open={editOpen} onToggle={(event) => setEditOpen(event.currentTarget.open)}>
-            <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-              Edit override
-            </summary>
-            {editOpen && (
-              <NflStatContextOverrideForm
-                key={JSON.stringify(nflContextOverrideFormSeed(block))}
-                game={game}
-                block={block}
-              />
-            )}
-          </details>
+          <RowEditor label="Edit override">
+            <NflStatContextOverrideForm
+              key={JSON.stringify(nflContextOverrideFormSeed(block))}
+              game={game}
+              block={block}
+            />
+          </RowEditor>
         </>
       ) : (
         <p className="text-xs text-muted-foreground">

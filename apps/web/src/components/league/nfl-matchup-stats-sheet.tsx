@@ -131,7 +131,7 @@ function contextStat(
 function InjuryList({ team, entries }: { team: SlateTeam; entries: NflInjuryReportEntry[] }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs font-medium text-foreground">{team.abbreviation}</p>
+      <p className="type-eyebrow text-foreground">{team.abbreviation}</p>
       {entries.length === 0 ? (
         <p className="text-xs text-muted-foreground">None reported.</p>
       ) : (
@@ -215,7 +215,7 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
             <div className="flex flex-col gap-4" data-testid="nfl-matchup-stats-body">
               <div className="flex flex-col gap-1">
                 {(home || away) && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="type-eyebrow">
                     {sharedSeasonYear && home ? `${home.seasonYear} season stats` : "Season stats"}
                     {statsUpdatedAt && ` · updated ${formatDateTime(statsUpdatedAt)}`}
                   </p>
@@ -348,10 +348,10 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                 </div>
 
                 {(home || away) && (
-                  <p className="text-[10px] text-muted-foreground/70">
+                  <p className="text-xs text-muted-foreground">
                     <span
                       aria-hidden="true"
-                      className="mr-1 inline-block size-1.5 rounded-full bg-primary"
+                      className="mr-1 inline-block size-1.5 rounded-full bg-foreground"
                     />
                     marks the side with the edge in a category.
                   </p>
@@ -359,16 +359,14 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
               </div>
 
               <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold text-foreground">
-                  {advanced ? "Injury report" : "Key injuries"}
-                </p>
+                <p className="type-eyebrow">{advanced ? "Injury report" : "Key injuries"}</p>
                 {context ? (
                   <>
                     <div className="grid grid-cols-2 gap-3">
                       <InjuryList team={game.awayTeam} entries={injuriesFor(context.away)} />
                       <InjuryList team={game.homeTeam} entries={injuriesFor(context.home)} />
                     </div>
-                    <p className="text-[10px] text-muted-foreground/70">
+                    <p className="type-eyebrow">
                       Injury and matchup data updated {formatDateTime(context.updatedAt)}.
                     </p>
                   </>

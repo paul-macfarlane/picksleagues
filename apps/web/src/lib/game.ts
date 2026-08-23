@@ -5,6 +5,7 @@ import {
   PICKEM_PICK_SIDE,
   WEEK_TYPE,
   isUnplayedStatus,
+  type AdminGame,
   type GameStatus,
   type PickemPickSide,
   type PickOutcome,
@@ -70,6 +71,26 @@ export function clockLabel(clockSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+/**
+ * An admin game as members see it: every field override-resolved (arch D15
+ * precedence, the `effective_*` columns). "What is the app currently saying
+ * about this game" is the question every admin surface opens with, so the
+ * matchup line and its state read this, and the provider values stay beside
+ * it in the row's fields.
+ */
+export function adminGameEffective(game: AdminGame) {
+  return {
+    status: game.effectiveStatus,
+    kickoffAt: game.effectiveKickoffAt,
+    awayScore: game.effectiveAwayScore,
+    homeScore: game.effectiveHomeScore,
+    awayTeam: game.awayTeam,
+    homeTeam: game.homeTeam,
+    period: game.effectivePeriod,
+    clockSeconds: game.effectiveClockSeconds,
+  };
+}
+
 type GameStateInput = {
   status: GameStatus;
   kickoffAt: string;
@@ -117,11 +138,53 @@ function labelledScore(game: GameStateInput): string | null {
 export function gameStateLabel(game: GameStateInput, now: Date): string {
   if (game.status === GAME_STATUS.SCHEDULED) return `Kickoff ${formatKickoff(game.kickoffAt, now)}`;
   const score = labelledScore(game);
-  const lead =
-    game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null
-      ? `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}`
-      : gameStatusLabel(game.status);
+  const lead = gameStateLead(game, now);
   return score ? `${lead} · ${score}` : lead;
+}
+
+/**
+ * `gameStateLabel` without the score, for the matchup line's centre column
+ * (ADR-0043 §5): there the score sits in the team cells' numeral slots, so the
+ * centre carries only *when* or *where* the game is — the kickoff while it is
+ * ahead, the period and clock while it runs, the status word otherwise. The
+ * "Kickoff" prefix goes too: between two team cells the time is self-evidently
+ * a kickoff, and the word would take the room the time needs at 390px.
+ */
+export function gameStateLead(game: GameStateInput, now: Date): string {
+  if (game.status === GAME_STATUS.SCHEDULED) return formatKickoff(game.kickoffAt, now);
+  return game.status === GAME_STATUS.IN_PROGRESS && game.period != null && game.clockSeconds != null
+    ? `${periodLabel(game.period)} ${clockLabel(game.clockSeconds)}`
+    : gameStatusLabel(game.status);
+}
+
+/**
+ * What each team cell's numeral slot holds on a matchup line (ADR-0043 §5):
+ * the line before kickoff and the score after it, in the same slot, so a row's
+ * shape never changes across pre-pick → picked → locked → live → final.
+ *
+ * "Before kickoff" is the game's *status*, not the lock: a locked game the
+ * score sync hasn't reached yet is still `scheduled`, and it keeps showing the
+ * line rather than an empty slot — there is no score to show, and the line is
+ * still the number the member's pick is bought at. Once the game has left
+ * `scheduled` the line is no longer the point, so a postponed or cancelled game
+ * with no score shows nothing.
+ *
+ * `spread` is whatever number the caller wants read as the line — the game's
+ * current spread on the open sheet, `spread_at_pick` on a submitted pick, null
+ * for a straight-up league or a surface with no line to show.
+ */
+export function matchupNumerals(
+  game: { status: GameStatus; awayScore: number | null; homeScore: number | null },
+  spread: number | null,
+): { away: string | null; home: string | null } {
+  if (game.status === GAME_STATUS.SCHEDULED) {
+    return {
+      away: spreadLabel(spread, PICKEM_PICK_SIDE.AWAY),
+      home: spreadLabel(spread, PICKEM_PICK_SIDE.HOME),
+    };
+  }
+  if (game.awayScore === null || game.homeScore === null) return { away: null, home: null };
+  return { away: String(game.awayScore), home: String(game.homeScore) };
 }
 
 /**
@@ -369,6 +432,21 @@ export interface SurvivorGradablePick {
     homeTeamId: string;
     awayTeamId: string;
   } | null;
+}
+
+/**
+ * How many weeks a member has come through, as the board's one numeral: the
+ * settled picks that did not eliminate them — a win, or a push, since ties
+ * advance (ADR-0033). Settled only, never the derived grade, so the number
+ * moves when "last updated" does and not before; a revival shows as its own
+ * pill rather than as a week survived, because the member's pick that week
+ * lost. Counts are out-row facts too: how far someone got is the board's
+ * subject (spec §Standings View).
+ */
+export function survivorWeeksSurvived(picks: readonly { outcome: PickOutcome | null }[]): number {
+  return picks.filter(
+    (pick) => pick.outcome === PICK_OUTCOME.CORRECT || pick.outcome === PICK_OUTCOME.PUSH,
+  ).length;
 }
 
 /**

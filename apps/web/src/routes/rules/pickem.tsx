@@ -9,7 +9,7 @@ export const Route = createFileRoute("/rules/pickem")({
 // the source of truth, and a rules change edits both or the guide lies.
 function PickemRules() {
   return (
-    <StaticPage title="NFL Pick'em rules" subtitle="How a Pick'em league works">
+    <StaticPage eyebrow="Rules" title="NFL Pick'em rules">
       <section>
         <p>
           A season-long league where members compete to build the best record picking NFL games each

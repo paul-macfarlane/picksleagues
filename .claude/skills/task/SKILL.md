@@ -27,6 +27,8 @@ Know the plan before coding, at the weight the task deserves — a few sentences
 
 Then implement, following `.claude/rules/engineering.md` and the architecture doc. Contract changes regenerate `openapi/` in the same commit.
 
+**UI pre-flight.** Before the first diff to `apps/web`, read `docs/design-system.md` — the four questions in §Before the first diff (subject, groupings/objects/rows, which numbers, what is actionable) name the band, sections, panels, rows, numerals, and orange the screen composes from, and the coherence checklist is what the screen is reviewed against. A surface built from those named things needs no restyling pass; one that re-derives them is the review finding.
+
 ## 3. Test & review
 
 **Tests land with the behavior:** new or changed behavior gets an automated test at the cheapest layer that can pin it (the testing ladder in `.claude/rules/engineering.md`).

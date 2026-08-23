@@ -142,7 +142,7 @@ export function SimFixturesCard({ state }: { state: SimStateResponse }) {
                 : "No scenarios loaded yet — load one on the Scenarios tab."
             }
           >
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col">
               {fixtures.data?.games.map((game) => (
                 <SimFixtureRow key={game.id} game={game} />
               ))}

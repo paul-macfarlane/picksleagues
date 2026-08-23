@@ -10,8 +10,9 @@ import {
 } from "@picksleagues/schemas";
 import {
   gameStateAsOfLabel,
-  gameStateLabel,
+  gameStateLead,
   isClosedToPicks,
+  matchupNumerals,
   pickRowState,
   pickStandingLabel,
   spreadLabel,
@@ -20,14 +21,16 @@ import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GameStatePill } from "@/components/league/game-state";
+import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import {
   PickOutcomeBadge,
   PickOutcomeIcon,
+  pickOutcomeAccentClassName,
   pickOutcomeButtonClassName,
 } from "@/components/league/pick-outcome";
+import { rowClassName, rowRuleClassName } from "@/components/row";
 import { StatusPill } from "@/components/status-pill";
-import { TeamLogo } from "@/components/team-logo";
 
 /**
  * A game's row on the member's own pick screen, in the two shapes ADR-0018
@@ -55,19 +58,21 @@ import { TeamLogo } from "@/components/team-logo";
  * *outcome's* glyph. An unsettled pick gets the fill alone: a checkmark on one
  * reads as "you got this right" rather than "you chose this", and on a game
  * that hasn't finished there is no such fact — the app would be claiming an
- * outcome it doesn't have. The fill, the row border, and the badge carry
+ * outcome it doesn't have. The fill, the row's rule, and the badge carry
  * "chosen" between them until a result exists.
  */
 function SideButton({
   team,
-  spread,
+  numeral,
+  side,
   held,
   outcome,
   disabled,
   onClick,
 }: {
   team: SlateGame["homeTeam"];
-  spread: string | null;
+  numeral: string | null;
+  side: PickemPickSide;
   held: boolean;
   outcome: PickOutcome | null;
   disabled: boolean;
@@ -82,6 +87,13 @@ function SideButton({
       variant={held && !settled ? "default" : "outline"}
       aria-pressed={held}
       className={cn(
+        // The sheet's primary tap, a 44pt target at every width (MOB-1), and
+        // tall enough for the display-type cell inside it; the control hugs
+        // its outer edge so the two numerals on the line face each other
+        // across the centre column, and the home side mirrors so its outcome
+        // glyph sits on the outer edge too.
+        "h-auto min-h-11 w-full max-w-xs justify-start px-2 py-1.5",
+        side === PICKEM_PICK_SIDE.HOME && "flex-row-reverse",
         // A held side spends most of its life disabled — a submitted week never
         // becomes editable again — so it lifts out of the standard disabled
         // dimming enough to stay readable against its outline sibling.
@@ -92,35 +104,10 @@ function SideButton({
       onClick={onClick}
     >
       {settled && <PickOutcomeIcon outcome={outcome} />}
-      <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
-      {team.abbreviation}
-      {spread && ` ${spread}`}
+      <MatchupSide team={team} numeral={numeral} side={side} />
     </Button>
   );
 }
-
-function Matchup({ game }: { game: SlateGame }) {
-  return (
-    <p
-      className="flex items-center gap-1.5 text-sm font-medium text-foreground"
-      title={`${game.awayTeam.name} @ ${game.homeTeam.name}`}
-    >
-      <TeamLogo
-        logoLightUrl={game.awayTeam.logoLightUrl}
-        logoDarkUrl={game.awayTeam.logoDarkUrl}
-        size="sm"
-      />
-      {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-      <TeamLogo
-        logoLightUrl={game.homeTeam.logoLightUrl}
-        logoDarkUrl={game.homeTeam.logoDarkUrl}
-        size="sm"
-      />
-    </p>
-  );
-}
-
-const ROW_CLASS_NAME = "flex flex-col gap-2 rounded-lg border border-border p-3";
 
 /**
  * The row's identity as data: which two teams it is between, rather
@@ -135,6 +122,8 @@ function gameRowAttributes(game: SlateGame) {
     "data-home-team": game.homeTeam.abbreviation,
   } as const;
 }
+
+const ROW_CLASS_NAME = cn(rowClassName, rowRuleClassName, "flex flex-col gap-2");
 
 /**
  * A row in the unsubmitted sheet. Only games the member can still pick reach
@@ -166,51 +155,54 @@ export function SheetGameRow({
   // this game still counts toward the required set and therefore holds the whole
   // week's submission until it has a number.
   const noLineYet = showSpread && game.spread === null;
-  const spreadFor = (side: PickemPickSide) => (showSpread ? spreadLabel(game.spread, side) : null);
+  const numerals = matchupNumerals(game, showSpread ? game.spread : null);
 
   return (
     <li
       {...gameRowAttributes(game)}
       className={cn(
         ROW_CLASS_NAME,
-        // Full-strength `primary`, not a fraction of it: the palette is
-        // achromatic, so a tinted border is the only row-level cue available
-        // and a 50% one sits too close to `border` (white/10% in dark) to
-        // survive scanning a 16-game slate.
-        pickRowState(game, selectedSide !== undefined) === "picked" &&
-          "border-primary bg-primary/5",
+        // The rule says "selected" in the one colour that means it (ADR-0043
+        // §3); full-strength, because a fraction of it sits too close to the
+        // hairline to survive scanning a 16-game slate.
+        pickRowState(game, selectedSide !== undefined) === "picked" && "border-l-primary",
       )}
     >
+      {/* The line *is* the game's state (ADR-0043 §5): its numeral slots hold
+          the spread now and the score once the game starts, and its centre
+          the kickoff, phrased against the app clock — which under the
+          simulator is months from the browser's. */}
+      <MatchupLine
+        data-testid="game-state"
+        away={
+          <SideButton
+            team={game.awayTeam}
+            numeral={numerals.away}
+            side={PICKEM_PICK_SIDE.AWAY}
+            held={selectedSide === PICKEM_PICK_SIDE.AWAY}
+            outcome={null}
+            disabled={noLineYet || buttonsDisabled}
+            onClick={() => onToggle(PICKEM_PICK_SIDE.AWAY)}
+          />
+        }
+        center={gameStateLead(game, now)}
+        home={
+          <SideButton
+            team={game.homeTeam}
+            numeral={numerals.home}
+            side={PICKEM_PICK_SIDE.HOME}
+            held={selectedSide === PICKEM_PICK_SIDE.HOME}
+            outcome={null}
+            disabled={noLineYet || buttonsDisabled}
+            onClick={() => onToggle(PICKEM_PICK_SIDE.HOME)}
+          />
+        }
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Matchup game={game} />
-          <NflMatchupStats game={game} />
-        </div>
-        {selectedSide !== undefined && <StatusPill tone="accent">Picked</StatusPill>}
+        <NflMatchupStats game={game} />
+        {selectedSide !== undefined && <StatusPill tone="strong">Picked</StatusPill>}
         {noLineYet && <StatusPill>No line yet</StatusPill>}
-      </div>
-
-      <p data-testid="game-state" className="text-xs text-muted-foreground">
-        {gameStateLabel(game, now)}
-      </p>
-
-      <div className="grid grid-cols-2 gap-2">
-        <SideButton
-          team={game.awayTeam}
-          spread={spreadFor(PICKEM_PICK_SIDE.AWAY)}
-          held={selectedSide === PICKEM_PICK_SIDE.AWAY}
-          outcome={null}
-          disabled={noLineYet || buttonsDisabled}
-          onClick={() => onToggle(PICKEM_PICK_SIDE.AWAY)}
-        />
-        <SideButton
-          team={game.homeTeam}
-          spread={spreadFor(PICKEM_PICK_SIDE.HOME)}
-          held={selectedSide === PICKEM_PICK_SIDE.HOME}
-          outcome={null}
-          disabled={noLineYet || buttonsDisabled}
-          onClick={() => onToggle(PICKEM_PICK_SIDE.HOME)}
-        />
       </div>
     </li>
   );
@@ -219,11 +211,13 @@ export function SheetGameRow({
 /**
  * A row in a submitted week: the pick, frozen (ADR-0018 decision 1).
  *
- * Both sides render from `pick.spread` — the number the member accepted at
- * submission — never from `game.spread`. The line keeps moving after a
- * submission and the current one is true about nothing here: settlement grades
- * this pick against what it was bought at, so showing anything else would put a
- * number on screen that no longer decides anything.
+ * Every number here is `pick.spread` — the line the member accepted at
+ * submission — never `game.spread`. The line keeps moving after a submission
+ * and the current one is true about nothing here: settlement grades this pick
+ * against what it was bought at, so showing anything else would put a number
+ * on screen that no longer decides anything. Before kickoff that number sits in
+ * the cells' numeral slots; once the score takes the slots it moves to the
+ * pick summary, beside the standing it explains.
  */
 export function SubmittedPickRow({
   game,
@@ -236,7 +230,8 @@ export function SubmittedPickRow({
 }) {
   const now = useAppNow();
   const showSpread = pickType === PICK_TYPE.AGAINST_THE_SPREAD;
-  const spreadFor = (side: PickemPickSide) => (showSpread ? spreadLabel(pick.spread, side) : null);
+  const numerals = matchupNumerals(game, showSpread ? pick.spread : null);
+  const heldSpread = showSpread ? spreadLabel(pick.spread, pick.side) : null;
   // Read once for the badge precedence below; `GameStatePill` re-checks it, so
   // the two can't disagree about which status counts as live.
   const inProgress = game.status === GAME_STATUS.IN_PROGRESS;
@@ -251,16 +246,57 @@ export function SubmittedPickRow({
     { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome },
     pickType,
   );
+  const heldTeam = pick.side === PICKEM_PICK_SIDE.HOME ? game.homeTeam : game.awayTeam;
 
   return (
     <li
       {...gameRowAttributes(game)}
-      className={cn(ROW_CLASS_NAME, rowState === "picked" && "border-primary bg-primary/5")}
+      // The rule says the most that is known: the grade once there is one,
+      // "selected" in orange while the pick is still the member's live
+      // holding, nothing once the game has closed on an ungraded pick — the
+      // held control still answers "who did I take".
+      className={cn(
+        ROW_CLASS_NAME,
+        pick.outcome
+          ? pickOutcomeAccentClassName(pick.outcome)
+          : rowState === "picked" && "border-l-primary",
+      )}
     >
+      {/* Spread before the game starts, score after — a member whose pick has
+          locked wants to know how it is doing, not what they bought it at. */}
+      <MatchupLine
+        data-testid="game-state"
+        away={
+          <SideButton
+            team={game.awayTeam}
+            numeral={numerals.away}
+            side={PICKEM_PICK_SIDE.AWAY}
+            held={pick.side === PICKEM_PICK_SIDE.AWAY}
+            outcome={pick.outcome}
+            disabled
+          />
+        }
+        center={gameStateLead(game, now)}
+        home={
+          <SideButton
+            team={game.homeTeam}
+            numeral={numerals.home}
+            side={PICKEM_PICK_SIDE.HOME}
+            held={pick.side === PICKEM_PICK_SIDE.HOME}
+            outcome={pick.outcome}
+            disabled
+          />
+        }
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Matchup game={game} />
+        <div className="flex flex-wrap items-center gap-2">
           <NflMatchupStats game={game} />
+          {/* Beside the stats trigger rather than under the score it dates:
+              the qualifier reads as a footnote to the line, dimmer so it can't
+              be mistaken for a live badge (DATA-8; spec §UI conventions — a
+              stored clock reading can be minutes stale). */}
+          {stateAsOf && <span className="text-xs text-muted-foreground/70">{stateAsOf}</span>}
         </div>
         {/* One badge, most-informative-wins, and the chain is total because
             each state strictly implies the next: a settled pick takes the slot
@@ -269,7 +305,7 @@ export function SubmittedPickRow({
             "Locked" too — it has kicked off by definition, and "still being
             played" is the fact that separates it from the finished games above
             it and the unstarted ones below. No status badge for unplayable
-            games — the state line below carries the status for every
+            games — the line's centre carries the status for every
             non-scheduled game, and repeating "Cancelled" twelve pixels apart
             reads as a rendering bug. */}
         {pick.outcome ? (
@@ -277,44 +313,18 @@ export function SubmittedPickRow({
         ) : inProgress ? (
           <GameStatePill status={game.status} />
         ) : rowState === "picked" ? (
-          <StatusPill tone="accent">Picked</StatusPill>
+          <StatusPill tone="strong">Picked</StatusPill>
         ) : (
           game.locked && <StatusPill data-testid="lock-state">Locked</StatusPill>
         )}
       </div>
 
-      {/* Kickoff before the game starts, status + score after — a member whose
-          pick has locked wants to know how it is doing, not when it began. */}
-      <p data-testid="game-state" className="text-xs text-muted-foreground">
-        {gameStateLabel(game, now)}
-      </p>
-      {/* Own line, not appended to the state line above: this row has the
-          room, and the qualifier reads more clearly set apart from the score
-          it's dating than crowded onto the same line (DATA-8; spec §UI
-          conventions — a stored clock reading can be minutes stale). */}
-      {stateAsOf && <p className="text-xs text-muted-foreground/70">{stateAsOf}</p>}
-
-      <div className="grid grid-cols-2 gap-2">
-        <SideButton
-          team={game.awayTeam}
-          spread={spreadFor(PICKEM_PICK_SIDE.AWAY)}
-          held={pick.side === PICKEM_PICK_SIDE.AWAY}
-          outcome={pick.outcome}
-          disabled
-        />
-        <SideButton
-          team={game.homeTeam}
-          spread={spreadFor(PICKEM_PICK_SIDE.HOME)}
-          held={pick.side === PICKEM_PICK_SIDE.HOME}
-          outcome={pick.outcome}
-          disabled
-        />
-      </div>
-
-      {/* Only once the game has closed. Before kickoff the highlighted button
+      {/* Only once the game has closed. Before kickoff the highlighted control
           already answers "who did I take", and a second statement of it beside
-          an unstarted game is noise; afterwards the buttons are both dimmed and
-          the line carries the answer plus how the pick is doing. */}
+          an unstarted game is noise; afterwards both controls are dimmed, the
+          slots hold the score, and this line carries the answer — with the
+          line it was bought at, now that the slot no longer shows it — plus
+          how the pick is doing. */}
       {isClosedToPicks(game) && (
         <div className="flex flex-col gap-2">
           {/* The standing rides on this line rather than the badge slot above
@@ -322,11 +332,8 @@ export function SubmittedPickRow({
               there is already saying "In progress" or how it graded, which is
               the game's news. */}
           <p data-testid="pick-summary" className="text-xs text-muted-foreground">
-            {`Your pick: ${
-              pick.side === PICKEM_PICK_SIDE.HOME
-                ? game.homeTeam.abbreviation
-                : game.awayTeam.abbreviation
-            }`}
+            {`Your pick: ${heldTeam.abbreviation}`}
+            {heldSpread && ` ${heldSpread}`}
             {standing && ` · ${standing}`}
           </p>
           {/* The push stands, whatever else is left in the week (ADR-0018

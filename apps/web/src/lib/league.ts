@@ -70,7 +70,7 @@ export function leagueModeRulesPath(mode: LeagueMode): string | null {
  * clock once per component and pass `now` down; the server's 409 stays the
  * actual enforcement, this is only the disable-with-reason hint.
  */
-export function leagueHasStarted(league: LeagueResponse, now: Date): boolean {
+export function leagueHasStarted(league: { startsAt: string | null }, now: Date): boolean {
   return league.startsAt !== null && now.getTime() >= new Date(league.startsAt).getTime();
 }
 
@@ -123,4 +123,14 @@ export function canActOnLeague(league: LeagueResponse, action: LeagueAction, now
     role: league.myRole,
     preStart: !leagueHasStarted(league, now),
   });
+}
+
+/**
+ * Whether a pathname belongs to the "Leagues" primary-nav entry: the hub at
+ * `/` plus everything under `/leagues` (a league, `/leagues/new`). Both the
+ * header nav and the phone tab bar light the entry from this, so the two
+ * can't disagree about where a member is.
+ */
+export function isLeaguesSubtree(pathname: string): boolean {
+  return pathname === "/" || pathname.startsWith("/leagues");
 }

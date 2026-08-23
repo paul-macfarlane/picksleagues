@@ -9,15 +9,17 @@ const footerLinkActiveProps = {
 };
 
 /**
- * The one home for the site footer links — the authed shell, the splash, and
- * the static pages all render this, so adding a link or restyling touches one
- * file. Width/border differences stay at the call site via `className`. The
- * page the reader is on is highlighted so the footer doubles as a "you are
+ * The one home for the site links — the footer below wraps them for the
+ * splash, the static pages, and the signed-in shells at `sm` and up; the
+ * profile page's About section renders them bare on phones, where the
+ * footer is hidden (a footer under a bottom tab bar reads as stray content
+ * rather than chrome). Adding a link or restyling touches one file. The
+ * page the reader is on is highlighted so the list doubles as a "you are
  * here" on the legal pages themselves.
  */
-export function LegalFooter({ className }: { className?: string }) {
+export function LegalLinks({ className }: { className?: string }) {
   return (
-    <footer className={cn("flex items-center gap-4 py-4 text-xs text-muted-foreground", className)}>
+    <div className={cn("flex items-center gap-4", className)}>
       <Link to="/terms" className="hover:text-foreground" activeProps={footerLinkActiveProps}>
         Terms
       </Link>
@@ -32,6 +34,15 @@ export function LegalFooter({ className }: { className?: string }) {
       >
         GitHub
       </a>
+    </div>
+  );
+}
+
+// Width/border differences stay at the call site via `className`.
+export function LegalFooter({ className }: { className?: string }) {
+  return (
+    <footer className={cn("type-eyebrow flex items-center py-4", className)}>
+      <LegalLinks />
     </footer>
   );
 }

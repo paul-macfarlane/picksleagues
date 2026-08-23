@@ -12,7 +12,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 
 /**
  * Commissioner-only — the route only renders this component when the viewer
@@ -32,50 +32,48 @@ export function DangerZoneSection({
   const deleteLeague = useDeleteLeague(league.id);
 
   return (
-    <Card className="ring-destructive/30">
-      <CardHeader>
-        <CardTitle className="text-destructive">Danger zone</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {started && (
-          <p id="delete-league-reason" className="text-sm text-muted-foreground">
-            Deleting is locked once the league starts.
-          </p>
-        )}
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button
-                variant="destructive"
-                className="w-full justify-center"
-                disabled={started || deleteLeague.isPending}
-                aria-describedby={started ? "delete-league-reason" : undefined}
-              />
-            }
-          >
-            Delete league
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {league.name}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This permanently deletes the league, its settings, members, and invites. This
-                can&apos;t be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleteLeague.isPending}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                disabled={deleteLeague.isPending}
-                onClick={() => deleteLeague.mutate()}
-              >
-                Delete league
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardContent>
-    </Card>
+    // A settings group like the one above it (ADR-0043 §2), not a red-ringed
+    // box: the title's colour and the destructive button say what this is,
+    // and a tinted border was the one surface on the tab that had one.
+    <Section title={<span className="text-destructive">Danger zone</span>} className="gap-2">
+      {started && (
+        <p id="delete-league-reason" className="text-sm text-muted-foreground">
+          Deleting is locked once the league starts.
+        </p>
+      )}
+      <AlertDialog>
+        <AlertDialogTrigger
+          render={
+            <Button
+              variant="destructive"
+              className="w-full justify-center"
+              disabled={started || deleteLeague.isPending}
+              aria-describedby={started ? "delete-league-reason" : undefined}
+            />
+          }
+        >
+          Delete league
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {league.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the league, its settings, members, and invites. This
+              can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLeague.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteLeague.isPending}
+              onClick={() => deleteLeague.mutate()}
+            >
+              Delete league
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Section>
   );
 }
