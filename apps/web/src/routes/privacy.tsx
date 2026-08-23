@@ -7,7 +7,7 @@ export const Route = createFileRoute("/privacy")({
 
 function Privacy() {
   return (
-    <StaticPage title="Privacy Policy" subtitle="Effective August 9, 2026">
+    <StaticPage eyebrow="Effective August 9, 2026" title="Privacy Policy">
       <section>
         <p>
           Picks Leagues stores the minimum it needs to run pick&apos;em leagues, and nothing else.

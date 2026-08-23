@@ -7,7 +7,8 @@ reference: tokens, type roles, surface tiers, and what the orange may touch.
 `VIS-1` landed the tokens, roles, and tag; `VIS-2` the `Band` and `Section`
 primitives and the row class, with every surface re-classified onto a tier;
 `VIS-3` the matchup line; `VIS-4` the subject band and the league card;
-`VIS-5` the boards, the week picker, and the pick-sheet count.
+`VIS-5` the boards, the week picker, and the pick-sheet count; `VIS-6` the
+public and auth surfaces, with `Figures` as the one home for the numeral slot.
 
 ## Tokens
 
@@ -41,9 +42,12 @@ a weight or tracking of its own. Body copy is the unstyled default (Geist).
 | `type-eyebrow` | Geist 11px, 500, uppercase, wide, muted | the label above a thing (`WEEK 1`, `STANDINGS`, `KICKOFF`), `TableHead`, `StatusPill`. Pair with a `text-*` colour to recolour — a single-property utility beside it wins. |
 
 A display numeral sits in the slot the thing's *label* points at: eyebrow
-above, numeral below, nothing between. `LeagueStanding`
-(`components/league/league-standing.tsx`) is that slot for the viewer's own
-place in a league — rank and record for Pick'em, alive-or-out and who is
+above, numeral below, nothing between. `Figures` (`components/figures.tsx`)
+is that slot as a primitive — a `<dl>` of eyebrow-over-numeral cells, the
+numeral at `text-2xl` by default — and every list of figures composes it: a
+discovery card's members and spots left, an invite's roster, and
+`LeagueStanding` (`components/league/league-standing.tsx`), which is the slot
+for the viewer's own place in a league — rank and record for Pick'em, alive-or-out and who is
 left for Survivor, the roster size before the league has kicked off — read
 from the `myPickemStanding` / `mySurvivorStanding` fields every league DTO
 carries, so the header and the hub card never disagree.
@@ -63,6 +67,20 @@ picker's value is the display role at `text-2xl` with a screen-reader-only
 label (`LeagueWeekPicker` composes the Select directly; `LabeledSelect` keeps
 its bordered input look for settings fields), and the Pick'em action bar's
 count reads `4 OF 4` beside a `PICKS` eyebrow.
+
+The public pages speak the same voice. The welcome hero is the one band with
+no league in it: the mark, `PICKS LEAGUES` in display at `text-5xl`, the
+tagline, the orange sign-in button (the page's only action), and a
+`FREE TO PLAY` eyebrow; beneath it the three mode cards stay panels under a
+`GAME MODES` section, and the "How it works" steps are bare display numerals
+(`01`, `02`, `03`) — never a circle, the one rounded-full shape on a squared
+screen. `StaticPage` (rules, terms, privacy) puts an eyebrow *above* its `h1`
+(`RULES`, `GUIDE`, or the effective date) rather than a subtitle beneath; the
+visitor header's wordmark is display type; the legal footer's links are
+eyebrows. The sign-in and claim-username panels keep their shape with the
+title in display at `text-3xl`, and the invite card is the hub card's shape —
+`LeagueCardStrip` on top, `Figures` and the shared `leagueTimingLine` beneath —
+so a member joins the same object they will later see on the hub.
 
 ## Surface tiers
 

@@ -2,7 +2,7 @@ import type { LeagueResponse, LeagueSummary } from "@picksleagues/schemas";
 import { LEAGUE_MODE, SURVIVOR_MEMBER_STATUS } from "@picksleagues/schemas";
 import { leagueHasStarted } from "@/lib/league";
 import { sharedRankLabel } from "@/lib/standings";
-import { cn } from "@/lib/utils";
+import { Figures, type Figure } from "@/components/figures";
 
 /**
  * The viewer's place in a league as display numerals (ADR-0043 §1): the eyebrow
@@ -31,25 +31,14 @@ export function LeagueStanding({
   className?: string;
   numeralClassName?: string;
 }) {
-  const figures = standingFigures(league, now);
   return (
-    <dl className={cn("flex flex-wrap gap-x-5 gap-y-2", className)} data-testid="league-standing">
-      {figures.map((figure) => (
-        <div key={figure.label} className="flex flex-col gap-1">
-          <dt className="type-eyebrow">{figure.label}</dt>
-          <dd className={cn("type-display", numeralClassName)} data-testid={figure.testId}>
-            {figure.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <Figures
+      figures={standingFigures(league, now)}
+      numeralClassName={numeralClassName}
+      className={className}
+      data-testid="league-standing"
+    />
   );
-}
-
-interface Figure {
-  label: string;
-  value: string;
-  testId: string;
 }
 
 function standingFigures(

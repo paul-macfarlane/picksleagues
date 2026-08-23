@@ -12,10 +12,7 @@ export const Route = createFileRoute("/rules/simulator")({
 // there is nothing here to gate.
 function SimulatorGuide() {
   return (
-    <StaticPage
-      title="How the simulator works"
-      subtitle="What simulated time means when you're testing the app"
-    >
+    <StaticPage eyebrow="Guide" title="How the simulator works">
       <section>
         <p>
           On a test environment, the app doesn&apos;t run on the real NFL calendar. It runs a{" "}

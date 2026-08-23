@@ -41,7 +41,7 @@ export function LegalLinks({ className }: { className?: string }) {
 // Width/border differences stay at the call site via `className`.
 export function LegalFooter({ className }: { className?: string }) {
   return (
-    <footer className={cn("flex items-center py-4 text-xs text-muted-foreground", className)}>
+    <footer className={cn("type-eyebrow flex items-center py-4", className)}>
       <LegalLinks />
     </footer>
   );

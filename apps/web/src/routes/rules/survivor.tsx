@@ -9,7 +9,7 @@ export const Route = createFileRoute("/rules/survivor")({
 // the source of truth, and a rules change edits both or the guide lies.
 function SurvivorRules() {
   return (
-    <StaticPage title="NFL Survivor rules" subtitle="How a Survivor league works">
+    <StaticPage eyebrow="Rules" title="NFL Survivor rules">
       <section>
         <p>
           A survivor pool across the NFL regular season. Each week, every member picks one team to
