@@ -7,6 +7,7 @@ Web app where friends create and compete in sports pick'em leagues. Solo project
 - **Product:** `docs/mvp-spec.md` — standalone, complete MVP rule set for every game mode. Source of truth for _what_.
 - **Architecture:** `docs/architecture.md` — locked stack, environments, simulator, data model, and decision log (D1–D15). Source of truth for _how_.
 - **Engineering rules:** `.claude/rules/engineering.md` — standards every change must follow (imported below).
+- **Design system:** `docs/design-system.md` — the named things a screen is built from (tiers, type roles, the matchup line, the tag, the orange rule) and the 390px-first check. Read before any `apps/web` UI change.
 - **Backlog:** `backlog/` — work split by epic. Pick tasks from here.
 - **Runtime verification:** `docs/runbooks/verification.md` — how to launch, drive, and prove a change works locally (ports, session minting, sim endpoints, test layers). `docs/simulator-guide.md` goes deeper on the simulator itself, the repo's primary verification harness.
 - **Decisions:** `docs/adr/` — architecture decision records.
