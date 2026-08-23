@@ -143,16 +143,6 @@ export function AppHeader() {
                   Simulator
                 </Link>
               )}
-              {me.data?.isAdmin && (
-                <Link
-                  to="/guide"
-                  className={navLinkClassName}
-                  inactiveProps={navLinkInactiveProps}
-                  activeProps={navLinkActiveProps}
-                >
-                  Guide
-                </Link>
-              )}
             </nav>
           </div>
           <div className="hidden sm:block">

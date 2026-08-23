@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_authed/guide")({
   ),
 });
 
-// A standalone route beside Admin and Simulator rather than an Admin tab:
+// A standalone route linked from the Admin heading rather than an Admin tab:
 // with it the admin bar was seven tabs, which scrolls at phone width (owner,
 // 2026-08-22). Operator-shaped consolidation of docs/runbooks/jobs.md and
 // docs/simulator-guide.md (ADM-5) — those docs are the source of truth, and a

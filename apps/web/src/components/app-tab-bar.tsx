@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  BookOpenIcon,
   CompassIcon,
   EllipsisIcon,
   ShieldIcon,
@@ -175,6 +174,7 @@ function LeaguesTab({ active }: { active: boolean }) {
 function MoreTab({ simEnabled }: { simEnabled: boolean }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  // /guide counts as Admin: it's reached from the Admin heading, not this menu.
   const active =
     pathname.startsWith("/admin") || pathname.startsWith("/sim") || pathname.startsWith("/guide");
 
@@ -194,10 +194,6 @@ function MoreTab({ simEnabled }: { simEnabled: boolean }) {
               Simulator
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => navigate({ to: "/guide" })}>
-            <BookOpenIcon />
-            Guide
-          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </MenuTab>

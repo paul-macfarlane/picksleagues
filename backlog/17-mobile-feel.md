@@ -74,7 +74,8 @@ against it rather than hardcoding.
   review): `TabNav fit` lays the league sections out as equal columns below
   `sm`, and "League Picks" became "All Picks" so five tabs fit at 375px.
   The admin bar followed (owner, 2026-08-22): the guide became a standalone
-  `/guide` route beside Admin and Simulator in the header and More menu, and
+  `/guide` route linked from the Admin heading (the seat the simulator's
+  "How the simulator works" link uses — not the app's primary nav), and
   the never-used Seasons tab was removed, leaving five fitted tabs. The
   Simulator bar (five) is fitted too. Edge fades stay out until someone
   actually works those panels from a phone. _(deps: MOB-2)_
