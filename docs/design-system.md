@@ -6,7 +6,8 @@ a diff to are `.claude/rules/engineering.md` §Quality. This page is the quick
 reference: tokens, type roles, surface tiers, and what the orange may touch.
 `VIS-1` landed the tokens, roles, and tag; `VIS-2` the `Band` and `Section`
 primitives and the row class, with every surface re-classified onto a tier;
-`VIS-3` the matchup line; `VIS-4` the subject band and the league card.
+`VIS-3` the matchup line; `VIS-4` the subject band and the league card;
+`VIS-5` the boards, the week picker, and the pick-sheet count.
 
 ## Tokens
 
@@ -46,6 +47,22 @@ place in a league — rank and record for Pick'em, alive-or-out and who is
 left for Survivor, the roster size before the league has kicked off — read
 from the `myPickemStanding` / `mySurvivorStanding` fields every league DTO
 carries, so the header and the hub card never disagree.
+
+The boards put the same slot on every row. The Pick'em standings table
+(`pickem-standings-table.tsx`) sets rank and points in the display role at
+`text-xl` under their eyebrow headers and marks every rank-1 row with a
+`strong` `Leader` tag — tied leaders all carry it, since a shared rank has
+nothing behind it (ADR-0018) — while the W-L-P record stays body-size, three
+joined figures at the 20px floor not fitting its column at 390px. The All
+Picks member headers use the same rank numeral. The Survivor board has no
+rank (ADR-0016), so its row numeral is `SURVIVED` over the count of settled
+weeks the member came through (`survivorWeeksSurvived`, a push counting —
+ADR-0033), and no leader mark: `Winner` is the only verdict it hands out. A
+board's "last updated" stamp is an eyebrow. On the pick sheets, the week
+picker's value is the display role at `text-2xl` with a screen-reader-only
+label (`LeagueWeekPicker` composes the Select directly; `LabeledSelect` keeps
+its bordered input look for settings fields), and the Pick'em action bar's
+count reads `4 OF 4` beside a `PICKS` eyebrow.
 
 ## Surface tiers
 
