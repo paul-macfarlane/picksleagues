@@ -419,6 +419,13 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     const detail = await openLeaguePicks();
 
+    // The weekly leaderboard carries the same stamp (PKM-12), read the same
+    // way — its "written" half is likewise asserted after settlement runs.
+    await expect(detail.getByTestId("week-standings-updated-at")).toHaveAttribute(
+      "data-settled",
+      "false",
+    );
+
     // The viewer's own submission comes back attached to them, with nothing
     // withheld from them. Counting locators read the DOM rather than the
     // screen, so a member collapsed by default still measures what was
@@ -535,6 +542,11 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
 
     // Every game is final now, so both members' full picks are revealed.
     const detail = await openLeaguePicks();
+    // The weekly leaderboard's stamp reports written too (PKM-12).
+    await expect(detail.getByTestId("week-standings-updated-at")).toHaveAttribute(
+      "data-settled",
+      "true",
+    );
     const commishPicks = memberRow(detail, commishName);
     const joinerPicks = memberRow(detail, joinerName);
     await expect(commishPicks.getByTestId("member-pick")).toHaveCount(4);

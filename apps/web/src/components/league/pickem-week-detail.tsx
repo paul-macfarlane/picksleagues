@@ -24,6 +24,7 @@ import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
+import { StandingsUpdatedStamp } from "@/components/league/standings-updated-stamp";
 
 // One pick per row on the row tier: the matchup line, then the pick's own
 // facts beneath it, each a line of its own so none ever wraps into another's
@@ -165,6 +166,17 @@ export function PickemWeekDetail({
           </div>
         )}
       </QueryState>
+      {/* The collapsed page is the weekly leaderboard (PKM-12), so it carries
+          the same stamp as the other boards. Gated on the standings response
+          rather than rendered from its absence: standings are this screen's
+          decoration (see above), and on a failed query "Nothing has settled
+          yet." would be a claim about data that never arrived. */}
+      {weekStandings.data && (
+        <StandingsUpdatedStamp
+          updatedAt={weekStandings.data.lastUpdatedAt}
+          data-testid="week-standings-updated-at"
+        />
+      )}
     </Section>
   );
 }
