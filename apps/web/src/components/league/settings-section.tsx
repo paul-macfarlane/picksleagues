@@ -36,7 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateLeague } from "@/api/leagues";
@@ -58,26 +58,21 @@ export function LeagueSettingsSection({
   started: boolean;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>League settings</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        {/* Forces a remount (and a fresh derived-state read) whenever any
+    <Section title="League settings" className="gap-6">
+      {/* Forces a remount (and a fresh derived-state read) whenever any
             editable field changes on the server — the successful-save
             invalidation in api/leagues.ts's useUpdateLeague refetches
             `league`, and this key re-derives every field from it rather than
             syncing each one via a `useEffect` (the effect-free idiom
             number-field.tsx uses for a single prop, applied once for the
             whole merged form). */}
-        <SettingsForm
-          key={settingsFingerprint(league)}
-          league={league}
-          canEdit={canEdit}
-          started={started}
-        />
-      </CardContent>
-    </Card>
+      <SettingsForm
+        key={settingsFingerprint(league)}
+        league={league}
+        canEdit={canEdit}
+        started={started}
+      />
+    </Section>
   );
 }
 

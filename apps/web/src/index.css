@@ -35,6 +35,7 @@
   --color-success: var(--success);
   --color-ink: var(--ink);
   --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
   --color-ink-muted-foreground: var(--ink-muted-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
@@ -109,6 +110,7 @@
      dark theme's page colour so it still reads as a band when the dark theme
      is on — there it goes a shade deeper than the page instead. */
   --ink: oklch(0.2 0.01 50);
+  --ink-muted: oklch(0.3 0.012 50);
   --ink-foreground: oklch(0.985 0.004 75);
   --ink-muted-foreground: oklch(0.76 0.01 60);
   --chart-1: oklch(0.87 0 0);
@@ -153,6 +155,7 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.7 0.12 48);
   --ink: oklch(0.115 0.006 50);
+  --ink-muted: oklch(0.21 0.01 50);
   --ink-foreground: oklch(0.985 0.004 75);
   --ink-muted-foreground: oklch(0.74 0.01 60);
   --chart-1: oklch(0.87 0 0);

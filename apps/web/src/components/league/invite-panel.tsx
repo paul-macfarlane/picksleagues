@@ -5,7 +5,9 @@ import type { Invite } from "@picksleagues/schemas";
 import { useCreateInvite, useLeagueInvites, useRevokeInvite } from "@/api/invites";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { rowClassName } from "@/components/row";
+import { Section } from "@/components/section";
+import { cn } from "@/lib/utils";
 
 const CREATE_LOCKED_REASON_ID = "invite-create-locked-reason";
 
@@ -26,51 +28,49 @@ export function InvitePanel({
   const revokeInvite = useRevokeInvite(leagueId);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Invites</CardTitle>
-        {/* Phrased for the phase (FB-22): once the league starts this panel
-            exists to revoke leaked links, and "share a link so others can
-            join" / "no invites yet" both promise a joining that is closed. */}
-        <CardDescription>
-          {started
-            ? "Joining is closed for this season — existing links can only be revoked."
-            : "Share a link so others can join."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <QueryState
-          isPending={invites.isPending}
-          pendingFallback={
-            <RowsSkeleton label="Loading invites" rows={2} rowClassName="h-14 w-full" />
-          }
-          isError={invites.isError}
-          onRetry={() => void invites.refetch()}
-          errorMessage="Couldn't load invites."
-          isEmpty={invites.data?.invites.length === 0}
-          emptyMessage={started ? "No invite links are outstanding." : "No invites yet."}
-        >
-          <ul className="flex flex-col gap-3">
-            {invites.data?.invites.map((invite) => (
-              <InviteRow
-                key={invite.code}
-                invite={invite}
-                onRevoke={() => revokeInvite.mutate(invite.code)}
-                isRevoking={revokeInvite.isPending && revokeInvite.variables === invite.code}
-              />
-            ))}
-          </ul>
-        </QueryState>
-        {/* The panel itself survives the start — revoking a leaked link stays
+    // Phrased for the phase (FB-22): once the league starts this panel exists
+    // to revoke leaked links, and "share a link so others can join" / "no
+    // invites yet" both promise a joining that is closed.
+    <Section
+      title="Invites"
+      description={
+        started
+          ? "Joining is closed for this season — existing links can only be revoked."
+          : "Share a link so others can join."
+      }
+      className="gap-4"
+    >
+      <QueryState
+        isPending={invites.isPending}
+        pendingFallback={
+          <RowsSkeleton label="Loading invites" rows={2} rowClassName="h-14 w-full" />
+        }
+        isError={invites.isError}
+        onRetry={() => void invites.refetch()}
+        errorMessage="Couldn't load invites."
+        isEmpty={invites.data?.invites.length === 0}
+        emptyMessage={started ? "No invite links are outstanding." : "No invites yet."}
+      >
+        <ul className="flex flex-col">
+          {invites.data?.invites.map((invite) => (
+            <InviteRow
+              key={invite.code}
+              invite={invite}
+              onRevoke={() => revokeInvite.mutate(invite.code)}
+              isRevoking={revokeInvite.isPending && revokeInvite.variables === invite.code}
+            />
+          ))}
+        </ul>
+      </QueryState>
+      {/* The panel itself survives the start — revoking a leaked link stays
             available for as long as the link does (ADR-0029). Only minting a
             new one closes, and it says so rather than vanishing. */}
-        <NewInviteButton
-          onCreate={() => createInvite.mutate()}
-          isPending={createInvite.isPending}
-          locked={started}
-        />
-      </CardContent>
-    </Card>
+      <NewInviteButton
+        onCreate={() => createInvite.mutate()}
+        isPending={createInvite.isPending}
+        locked={started}
+      />
+    </Section>
   );
 }
 
@@ -84,7 +84,7 @@ function InviteRow({
   isRevoking: boolean;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm">
+    <li className={cn(rowClassName, "flex flex-col gap-2 text-sm")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Every listed invite is active — the list excludes revoked codes and
             revocation is the only lifecycle left (ADR-0032), so there is no

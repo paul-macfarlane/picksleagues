@@ -5,7 +5,7 @@ import { useWeekSlate } from "@/api/weeks";
 import { isClosedToPicks } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
@@ -57,10 +57,7 @@ function selectionOf(pick: SurvivorPick | null): SurvivorSelection | null {
 
 function SurvivorPicksSkeleton() {
   return (
-    <LoadingRegion
-      label="Loading this week's games"
-      className="flex flex-col gap-3 rounded-xl border border-border p-4"
-    >
+    <LoadingRegion label="Loading this week's games" className="flex flex-col gap-3">
       <Skeleton className="h-5 w-32" />
       {Array.from({ length: 4 }, (_unused, index) => (
         <Skeleton key={index} className="h-28 w-full" />
@@ -155,11 +152,9 @@ function PickedGame({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorP
   if (!pick || !game) return null;
 
   return (
-    <CardContent>
-      <ul className="flex flex-col gap-3">
-        <SurvivorPickedGameRow game={game} teamId={pick.teamId} outcome={pick.outcome} />
-      </ul>
-    </CardContent>
+    <ul className="flex flex-col gap-3">
+      <SurvivorPickedGameRow game={game} teamId={pick.teamId} outcome={pick.outcome} />
+    </ul>
   );
 }
 
@@ -185,19 +180,20 @@ function SeasonOverWeek({
   soleWinner: boolean;
 }) {
   return (
-    <Card data-testid="survivor-season-over" data-won={won ? "true" : "false"}>
-      <CardHeader>
-        <CardTitle>{soleWinner ? "You won" : won ? "You made it" : "Season over"}</CardTitle>
-        <CardDescription>
-          {soleWinner
-            ? "You're the last member standing — this season is yours."
-            : won
-              ? "This season is decided and you're one of the members left standing, so there are no more picks to make."
-              : "This league's season is over, so there are no more picks to make."}
-        </CardDescription>
-      </CardHeader>
+    <Section
+      data-testid="survivor-season-over"
+      data-won={won ? "true" : "false"}
+      title={soleWinner ? "You won" : won ? "You made it" : "Season over"}
+      description={
+        soleWinner
+          ? "You're the last member standing — this season is yours."
+          : won
+            ? "This season is decided and you're one of the members left standing, so there are no more picks to make."
+            : "This league's season is over, so there are no more picks to make."
+      }
+    >
       <PickedGame slate={slate} pick={pick} />
-    </Card>
+    </Section>
   );
 }
 
@@ -213,24 +209,15 @@ function SeasonOverWeek({
  */
 function WeekNotOpen({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
   return (
-    <Card data-testid="survivor-week-not-open">
-      <CardHeader>
-        <CardTitle>Not open yet</CardTitle>
-        <CardDescription>
-          This week opens once your current pick resolves with a win or tie. Here&apos;s the slate
-          in the meantime — worth scouting, since every team can only be used once all season.
-        </CardDescription>
-      </CardHeader>
+    <Section
+      data-testid="survivor-week-not-open"
+      title="Not open yet"
+      description="This week opens once your current pick resolves with a win or tie. Here's the slate in the meantime — worth scouting, since every team can only be used once all season."
+    >
       {/* The member's own pick when the rare closed-back-over state holds one
           (see the component comment); the read-only slate otherwise. */}
-      {pick ? (
-        <PickedGame slate={slate} pick={pick} />
-      ) : (
-        <CardContent>
-          <SlatePreview slate={slate} />
-        </CardContent>
-      )}
-    </Card>
+      {pick ? <PickedGame slate={slate} pick={pick} /> : <SlatePreview slate={slate} />}
+    </Section>
   );
 }
 
@@ -244,22 +231,18 @@ function WeekNotOpen({ slate, pick }: { slate: WeekSlateResponse; pick: Survivor
  */
 function EliminatedWeek({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
   return (
-    <Card data-testid="survivor-eliminated">
-      <CardHeader>
-        <CardTitle>You&apos;re out</CardTitle>
-        {/* No cause is named, because this card cannot know it. A missed pick
-            eliminates exactly as a losing one does (spec §Game Mode 2 — Core
-            Rules), and the member's own elimination week isn't on this surface —
-            so "one of your picks lost" was a false statement to anyone who
-            simply never picked. The board names the week; this says what it
-            means for them. */}
-        <CardDescription>
-          You&apos;re eliminated for the season, so there are no more picks to make. You can still
-          follow the league.
-        </CardDescription>
-      </CardHeader>
+    // No cause is named, because this section cannot know it. A missed pick
+    // eliminates exactly as a losing one does (spec §Game Mode 2 — Core
+    // Rules), and the member's own elimination week isn't on this surface —
+    // so "one of your picks lost" was a false statement to anyone who simply
+    // never picked. The board names the week; this says what it means for them.
+    <Section
+      data-testid="survivor-eliminated"
+      title="You're out"
+      description="You're eliminated for the season, so there are no more picks to make. You can still follow the league."
+    >
       <PickedGame slate={slate} pick={pick} />
-    </Card>
+    </Section>
   );
 }
 
@@ -319,52 +302,48 @@ function SurvivorPickSheet({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{slate.label}</CardTitle>
-          <CardDescription>
-            {/* No "come back next week": this sheet holds one week and cannot
-                see whether another follows it, and on the final week of a
-                league's resolved range there is none to come back for. */}
-            {frozen
-              ? "Your pick has kicked off, so this week is set."
-              : openGames.length === 0
-                ? "This week is closed — no games are still open to pick."
-                : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."}
-          </CardDescription>
-          <PickSheetGuideLinks rulesTo="/rules/survivor" rulesLabel="Full Survivor rules" />
-        </CardHeader>
-        {/* Bottom padding clears the fixed action bar below so it never covers
-            the last row's controls when scrolled to the bottom — and is dropped
-            with the bar, since the reserved gap reads as a broken layout with
-            nothing in it. */}
-        <CardContent
-          className={cn("flex flex-col gap-4", canPick && pickSheetActionBarClearanceClassName)}
-        >
-          {!frozen && openGames.length === 0 && !saved && (
-            <p className="text-sm text-muted-foreground">You didn&apos;t make a pick this week.</p>
+      {/* Bottom padding clears the fixed action bar below so it never covers
+          the last row's controls when scrolled to the bottom — and is dropped
+          with the bar, since the reserved gap reads as a broken layout with
+          nothing in it. No "come back next week" in the description: this
+          sheet holds one week and cannot see whether another follows it, and
+          on the final week of a league's resolved range there is none to come
+          back for. */}
+      <Section
+        title={slate.label}
+        description={
+          frozen
+            ? "Your pick has kicked off, so this week is set."
+            : openGames.length === 0
+              ? "This week is closed — no games are still open to pick."
+              : "Pick one team to win. You can change your pick until that team's game kicks off, and each team can only be used once all season."
+        }
+        className={cn(canPick && pickSheetActionBarClearanceClassName)}
+      >
+        <PickSheetGuideLinks rulesTo="/rules/survivor" rulesLabel="Full Survivor rules" />
+        {!frozen && openGames.length === 0 && !saved && (
+          <p className="text-sm text-muted-foreground">You didn&apos;t make a pick this week.</p>
+        )}
+        <ul className="flex flex-col gap-3">
+          {frozen && savedGame && pick ? (
+            // Their own game alone. A slate of teams none of which can be
+            // taken is an offer that isn't there: the write path refuses every
+            // change out of a pick whose game has kicked off, so what is left
+            // to say about this week is how the one pick they hold is doing.
+            <SurvivorPickedGameRow game={savedGame} teamId={pick.teamId} outcome={pick.outcome} />
+          ) : (
+            visibleGames.map((game) => (
+              <SurvivorGameRow
+                key={game.id}
+                game={game}
+                heldTeamId={held?.gameId === game.id ? held.teamId : null}
+                consumedTeamIds={consumed}
+                onSelect={(teamId) => setSelection({ gameId: game.id, teamId })}
+              />
+            ))
           )}
-          <ul className="flex flex-col gap-3">
-            {frozen && savedGame && pick ? (
-              // Their own game alone. A slate of teams none of which can be
-              // taken is an offer that isn't there: the write path refuses every
-              // change out of a pick whose game has kicked off, so what is left
-              // to say about this week is how the one pick they hold is doing.
-              <SurvivorPickedGameRow game={savedGame} teamId={pick.teamId} outcome={pick.outcome} />
-            ) : (
-              visibleGames.map((game) => (
-                <SurvivorGameRow
-                  key={game.id}
-                  game={game}
-                  heldTeamId={held?.gameId === game.id ? held.teamId : null}
-                  consumedTeamIds={consumed}
-                  onSelect={(teamId) => setSelection({ gameId: game.id, teamId })}
-                />
-              ))
-            )}
-          </ul>
-        </CardContent>
-      </Card>
+        </ul>
+      </Section>
 
       {canPick && (
         <PickSheetActionBar>

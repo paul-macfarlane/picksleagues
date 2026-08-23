@@ -1,4 +1,6 @@
 import { SIM_SCENARIO_SOURCE, type SimStateResponse } from "@picksleagues/schemas";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import { useLoadSimScenario } from "@/api/sim";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -21,7 +23,12 @@ function ScenarioRow({
   onLoad: () => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+    <li
+      className={cn(
+        rowClassName,
+        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",
+      )}
+    >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-foreground">{name}</p>
@@ -55,7 +62,7 @@ export function SimScenariosCard({ state }: { state: SimStateResponse }) {
       <CardContent className="flex flex-col gap-4">
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-medium text-foreground">Edge-case scenarios</h3>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col">
             {state.library.map((entry) => {
               const persisted = state.scenarios.find((scenario) => scenario.slug === entry.slug);
               return (
@@ -82,7 +89,7 @@ export function SimScenariosCard({ state }: { state: SimStateResponse }) {
               No seasons imported yet — use the replay import below.
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col">
               {importedSeasons.map((scenario) => (
                 <ScenarioRow
                   key={scenario.slug}

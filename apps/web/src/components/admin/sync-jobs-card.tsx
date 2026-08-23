@@ -1,7 +1,9 @@
 import { NFL_SYNC_JOB, type NflSyncJob } from "@picksleagues/schemas";
+import { cn } from "@/lib/utils";
+import { rowClassName } from "@/components/row";
 import { useRunNflSyncJob } from "@/api/admin";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 
 // Row copy for the manual sync triggers — kept here rather than in the
 // api module since it's page display copy, not part of the mutation's shape.
@@ -30,19 +32,16 @@ const NFL_SYNC_JOB_ROWS: { job: NflSyncJob; label: string; description: string }
 
 export function SyncJobsCard() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>NFL data sync</CardTitle>
-        <CardDescription>
-          Manually trigger the same sync jobs the cron scheduler runs.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <Section
+      title="NFL data sync"
+      description="Manually trigger the same sync jobs the cron scheduler runs."
+    >
+      <div className="flex flex-col">
         {NFL_SYNC_JOB_ROWS.map((row) => (
           <SyncJobRow key={row.job} job={row.job} label={row.label} description={row.description} />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </Section>
   );
 }
 
@@ -58,7 +57,12 @@ function SyncJobRow({
   const runJob = useRunNflSyncJob();
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={cn(
+        rowClassName,
+        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",
+      )}
+    >
       <div className="flex flex-col gap-0.5">
         <p className="text-sm font-medium text-foreground">{label}</p>
         <p className="text-sm text-muted-foreground">{description}</p>

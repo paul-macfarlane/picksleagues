@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/section";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import {
@@ -145,18 +145,13 @@ export function PickemPicks({
  */
 function WeekNotOpen({ slate }: { slate: WeekSlateResponse }) {
   return (
-    <Card data-testid="pickem-week-not-open">
-      <CardHeader>
-        <CardTitle>{slate.label}</CardTitle>
-        <CardDescription>
-          This week isn&apos;t open for picks yet — it opens once all of your current picks resolve.
-          Here&apos;s the slate in the meantime.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <SlatePreview slate={slate} />
-      </CardContent>
-    </Card>
+    <Section
+      data-testid="pickem-week-not-open"
+      title={slate.label}
+      description="This week isn't open for picks yet — it opens once all of your current picks resolve. Here's the slate in the meantime."
+    >
+      <SlatePreview slate={slate} />
+    </Section>
   );
 }
 
@@ -188,26 +183,21 @@ function SubmittedWeek({
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{slate.label}</CardTitle>
-        <CardDescription>
-          {`${picked.length} ${picked.length === 1 ? "pick" : "picks"} in. This week is submitted — picks can't be changed.`}
-        </CardDescription>
-        {credit && (
-          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
-            {credit}
-          </p>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <ul className="flex flex-col gap-3">
-          {picked.map(({ game, pick }) => (
-            <SubmittedPickRow key={pick.id} game={game} pick={pick} pickType={pickType} />
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
+    <Section
+      title={slate.label}
+      description={`${picked.length} ${picked.length === 1 ? "pick" : "picks"} in. This week is submitted — picks can't be changed.`}
+    >
+      {credit && (
+        <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+          {credit}
+        </p>
+      )}
+      <ul className="flex flex-col gap-3">
+        {picked.map(({ game, pick }) => (
+          <SubmittedPickRow key={pick.id} game={game} pick={pick} pickType={pickType} />
+        ))}
+      </ul>
+    </Section>
   );
 }
 
@@ -304,59 +294,54 @@ function PickSheet({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{slate.label}</CardTitle>
-          <CardDescription>
-            {openGames.length === 0
-              ? "This week is closed."
-              : awaitingLines
-                ? "No spreads are posted for this week yet — picks open as soon as the lines are up."
-                : `Pick ${required} ${required === 1 ? "game" : "games"}, then submit. Your picks are final once submitted, and each locks at its own kickoff.`}
-          </CardDescription>
-          {credit && (
-            <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
-              {credit}
-            </p>
-          )}
-          <PickSheetGuideLinks rulesTo="/rules/pickem" rulesLabel="Full Pick'em rules" />
-        </CardHeader>
-        {/* Bottom padding clears the fixed action bar below so it never
-            covers the last game row's controls when scrolled to the bottom
-            (verified at 375px) — and is dropped with the bar, since the
-            reserved gap reads as a broken layout with nothing in it. */}
-        <CardContent
-          className={cn(
-            "flex flex-col gap-4",
-            openGames.length > 0 && !awaitingLines && pickSheetActionBarClearanceClassName,
-          )}
-        >
-          {/* Reachable once the week has closed around a member who submitted
-              nothing. Without it the card renders as an empty box, which reads
-              as a load failure rather than an answer (spec §Screens). */}
-          {openGames.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              You didn&apos;t make any picks this week.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {openGames.map((game) => {
-                const selectedSide = selections.get(game.id);
-                return (
-                  <SheetGameRow
-                    key={game.id}
-                    game={game}
-                    pickType={pickType}
-                    selectedSide={selectedSide}
-                    buttonsDisabled={selectedSide === undefined && selections.size >= required}
-                    onToggle={(side) => toggle(game.id, side)}
-                  />
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {/* Bottom padding clears the fixed action bar below so it never
+          covers the last game row's controls when scrolled to the bottom
+          (verified at 375px) — and is dropped with the bar, since the
+          reserved gap reads as a broken layout with nothing in it. */}
+      <Section
+        title={slate.label}
+        description={
+          openGames.length === 0
+            ? "This week is closed."
+            : awaitingLines
+              ? "No spreads are posted for this week yet — picks open as soon as the lines are up."
+              : `Pick ${required} ${required === 1 ? "game" : "games"}, then submit. Your picks are final once submitted, and each locks at its own kickoff.`
+        }
+        className={cn(
+          openGames.length > 0 && !awaitingLines && pickSheetActionBarClearanceClassName,
+        )}
+      >
+        {credit && (
+          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+            {credit}
+          </p>
+        )}
+        <PickSheetGuideLinks rulesTo="/rules/pickem" rulesLabel="Full Pick'em rules" />
+        {/* Reachable once the week has closed around a member who submitted
+            nothing. Without it the section renders as a bare title, which reads
+            as a load failure rather than an answer (spec §Screens). */}
+        {openGames.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            You didn&apos;t make any picks this week.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {openGames.map((game) => {
+              const selectedSide = selections.get(game.id);
+              return (
+                <SheetGameRow
+                  key={game.id}
+                  game={game}
+                  pickType={pickType}
+                  selectedSide={selectedSide}
+                  buttonsDisabled={selectedSide === undefined && selections.size >= required}
+                  onToggle={(side) => toggle(game.id, side)}
+                />
+              );
+            })}
+          </ul>
+        )}
+      </Section>
 
       {openGames.length > 0 && !awaitingLines && (
         <PickSheetActionBar>
