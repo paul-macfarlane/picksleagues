@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { useForm, useStore } from "@tanstack/react-form";
 import { toastSuccess } from "@/lib/toast";
 import {
@@ -9,7 +8,7 @@ import {
   type MeResponse,
   type UpdateMeRequest,
 } from "@picksleagues/schemas";
-import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
+import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { useSignOut } from "@/lib/sign-out";
 import { isTheme, THEME_OPTIONS, type Theme } from "@/lib/theme";
@@ -92,8 +91,6 @@ function ProfileForm({
   profile: MeResponse;
   refetchSession: () => Promise<void>;
 }) {
-  const queryClient = useQueryClient();
-
   const update = useUpdateMe({
     // Taken is field-level feedback, not a toast — mirrors claim-username.
     onUsernameTaken: () =>
@@ -102,7 +99,6 @@ function ProfileForm({
       }),
     onSuccess: async () => {
       toastSuccess("Profile updated");
-      await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       await refetchSession();
     },
     errorToastMessage: "Couldn't update your profile — please try again.",

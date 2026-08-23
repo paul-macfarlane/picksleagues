@@ -28,12 +28,15 @@ export function useMe() {
  * stays thin and takes those as options rather than assuming a form or a
  * particular success action. 409 is field-level feedback, never a toast —
  * `onUsernameTaken` is the caller's `form.setErrorMap`, not moved in here.
+ * The `/me` invalidation *is* in here: it is the fan-out every caller needs,
+ * and a caller that forgets it renders a stale profile.
  */
 export function useUpdateMe(options: {
   onUsernameTaken: () => void;
   onSuccess: (data: MeResponse) => void | Promise<void>;
   errorToastMessage: string;
 }) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body: UpdateMeRequest) => {
       const { data, error, response } = await api.PATCH("/api/me", { body });
@@ -49,6 +52,7 @@ export function useUpdateMe(options: {
     },
     onSuccess: async (data) => {
       if (!data) return;
+      await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       await options.onSuccess(data);
     },
     onError: () => {

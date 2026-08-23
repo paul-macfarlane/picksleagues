@@ -13,10 +13,9 @@ import {
   gameStateLead,
   isClosedToPicks,
   matchupNumerals,
-  pickRowState,
-  pickStandingLabel,
   spreadLabel,
 } from "@/lib/game";
+import { pickRowState, pickStandingLabel } from "@/lib/pickem-game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

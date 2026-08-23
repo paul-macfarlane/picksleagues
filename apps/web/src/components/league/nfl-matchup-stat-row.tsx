@@ -1,4 +1,9 @@
-import { NFL_LAST_GAME_RESULT, type NflGameStatsTeamContext } from "@picksleagues/schemas";
+import {
+  GAME_SIDE,
+  type GameSide,
+  NFL_LAST_GAME_RESULT,
+  type NflGameStatsTeamContext,
+} from "@picksleagues/schemas";
 
 /**
  * The matchup sheet's comparison-row primitives (STAT-6/STAT-10): one grid row
@@ -7,7 +12,7 @@ import { NFL_LAST_GAME_RESULT, type NflGameStatsTeamContext } from "@picksleague
  * stays the composition and this stays the row mechanics.
  */
 
-export type AdvantageSide = "away" | "home" | null;
+export type AdvantageSide = GameSide | null;
 
 /**
  * Which side is ahead on one comparable number (STAT-10). Null — no marker —
@@ -73,14 +78,14 @@ export function StatRow({
           where the standings' joined W-L-P record does not. */}
       <span className="type-display flex items-center gap-1.5 text-xl">
         {away}
-        {advantage === "away" && <EdgeDot />}
+        {advantage === GAME_SIDE.AWAY && <EdgeDot />}
       </span>
       <span className="type-eyebrow text-center">
         {label}
         {subLabel && <span className="block normal-case tracking-normal">{subLabel}</span>}
       </span>
       <span className="type-display flex items-center justify-end gap-1.5 text-right text-xl">
-        {advantage === "home" && <EdgeDot />}
+        {advantage === GAME_SIDE.HOME && <EdgeDot />}
         {home}
       </span>
     </div>

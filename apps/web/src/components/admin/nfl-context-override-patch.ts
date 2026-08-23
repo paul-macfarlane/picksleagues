@@ -1,7 +1,8 @@
 import {
-  NflGameStatContextOverrideRequestSchema,
   type AdminNflGameStatContextBlock,
+  GAME_SIDE,
   type NflGameStatContextOverrideRequest,
+  NflGameStatContextOverrideRequestSchema,
   type NflTeamGameContextOverride,
 } from "@picksleagues/schemas";
 import { toNullableNumber } from "@/components/admin/override-input";
@@ -121,7 +122,7 @@ export function buildNflContextOverrideRequest(
     for (const issue of parsed.error.issues) {
       const [side, field] = issue.path;
       if (
-        (side === "home" || side === "away") &&
+        (side === GAME_SIDE.HOME || side === GAME_SIDE.AWAY) &&
         typeof field === "string" &&
         (SIDE_FIELDS as readonly string[]).includes(field)
       ) {

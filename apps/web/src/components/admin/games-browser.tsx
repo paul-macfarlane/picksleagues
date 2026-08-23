@@ -3,13 +3,8 @@ import { rowClassName } from "@/components/row";
 import { type AdminGame } from "@picksleagues/schemas";
 import { useAdminGames } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import {
-  adminGameEffective,
-  gameStateLead,
-  gameStatusLabel,
-  matchupNumerals,
-  scoreText,
-} from "@/lib/game";
+import { adminGameEffective } from "@/lib/admin-game";
+import { gameStateLead, gameStatusLabel, matchupNumerals, scoreText } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { GameOverrideForm } from "@/components/admin/game-override-form";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";

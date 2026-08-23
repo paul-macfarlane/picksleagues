@@ -11,12 +11,12 @@ import { useSurvivorStandings } from "@/api/survivor";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
+import { gameStateLabel } from "@/lib/game";
 import {
-  gameStateLabel,
   survivorPickGrade,
   survivorRevivalStillPossible,
   survivorWeeksSurvived,
-} from "@/lib/game";
+} from "@/lib/survivor-game";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
