@@ -10,7 +10,6 @@ import {
 import { useSurvivorStandings } from "@/api/survivor";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format";
 import { gameStateLabel } from "@/lib/game";
 import {
   survivorPickGrade,
@@ -20,6 +19,7 @@ import {
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
+import { StandingsUpdatedStamp } from "@/components/league/standings-updated-stamp";
 import { QueryState } from "@/components/query-state";
 import { rowClassName, rowRuleClassName } from "@/components/row";
 import { Section } from "@/components/section";
@@ -109,19 +109,10 @@ export function SurvivorBoard({ leagueId }: { leagueId: string }) {
         {standings.data && <BoardRows board={standings.data} />}
       </QueryState>
 
-      {/* The spec requires a "last updated" stamp and forbids claiming
-          real-time freshness — never "live", just when settlement last wrote
-          this board. `data-settled` is the fact the stamp reports, so a
-          journey can assert either state without binding to a sentence. */}
-      <p
+      <StandingsUpdatedStamp
+        updatedAt={standings.data?.updatedAt}
         data-testid="survivor-board-updated-at"
-        data-settled={standings.data?.updatedAt ? "true" : "false"}
-        className="type-eyebrow"
-      >
-        {standings.data?.updatedAt
-          ? `Last updated ${formatDateTime(standings.data.updatedAt)}`
-          : "Nothing has settled yet."}
-      </p>
+      />
     </Section>
   );
 }

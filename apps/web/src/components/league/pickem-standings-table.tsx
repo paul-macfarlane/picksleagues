@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import type { PickemStandingsRow } from "@picksleagues/schemas";
 import { usePickemStandings } from "@/api/pickem";
-import { formatDateTime } from "@/lib/format";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
 import { cn } from "@/lib/utils";
 import {
@@ -17,6 +16,7 @@ import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { StatusPill } from "@/components/status-pill";
 import { UserIdentity } from "@/components/user-identity";
+import { StandingsUpdatedStamp } from "@/components/league/standings-updated-stamp";
 
 export const STANDINGS_SORT_COLUMN = {
   RANK: "rank",
@@ -286,21 +286,7 @@ export function PickemStandingsTable({ leagueId }: { leagueId: string }) {
           </div>
         )}
 
-        {/* The spec requires a "last updated" stamp and forbids claiming
-            real-time freshness — never "live", just when settlement last wrote
-            this board. */}
-        {/* `data-settled` is the fact the stamp reports — whether this board has
-            ever been written — so the merge-gate journey can assert it either
-            way without binding to either sentence. */}
-        <p
-          data-testid="standings-updated-at"
-          data-settled={lastUpdatedAt ? "true" : "false"}
-          className="type-eyebrow"
-        >
-          {lastUpdatedAt
-            ? `Last updated ${formatDateTime(lastUpdatedAt)}`
-            : "Nothing has settled yet."}
-        </p>
+        <StandingsUpdatedStamp updatedAt={lastUpdatedAt} data-testid="standings-updated-at" />
       </div>
     </QueryState>
   );
