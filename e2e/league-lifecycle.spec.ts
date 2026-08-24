@@ -65,6 +65,32 @@ test.describe("league lifecycle", () => {
       // the Members tab.
       await pageA.reload();
       await expect(pageA.getByText(`@${joinerName}`)).toBeVisible();
+
+      // Dues are off until a commissioner sets an amount (ADR-0045), so no
+      // row carries a mark control yet.
+      const markControl = pageA.getByRole("button", { name: /^Mark (paid|unpaid)$/ });
+      await expect(markControl).toHaveCount(0);
+
+      // Commissioner: turn dues on from Settings, then mark the joiner paid.
+      await pageA.getByRole("link", { name: "Settings" }).click();
+      await pageA.getByLabel("Amount per member (USD)").fill("50");
+      await pageA.getByRole("button", { name: "Save dues" }).click();
+      await expect(pageA.getByRole("button", { name: "Stop tracking" })).toBeVisible();
+
+      await pageA.getByRole("link", { name: "Members" }).click();
+      const joinerRow = pageA.getByRole("listitem").filter({ hasText: `@${joinerName}` });
+      await joinerRow.getByRole("button", { name: "Mark paid" }).click();
+      await expect(joinerRow.getByRole("button", { name: "Mark unpaid" })).toBeVisible();
+
+      // Persisted, not merely rendered: a fresh load reads the mark back.
+      await pageA.reload();
+      await expect(joinerRow.getByRole("button", { name: "Mark unpaid" })).toBeVisible();
+      await expect(
+        pageA
+          .getByRole("listitem")
+          .filter({ hasText: `@${commishName}` })
+          .getByRole("button", { name: "Mark paid" }),
+      ).toBeVisible();
     } finally {
       await cleanupFutureSeason();
       await cleanup([commish.id, joiner.id]);
