@@ -1,6 +1,7 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastSuccess } from "@/lib/toast";
+import { pickSavedHaptic } from "@/lib/haptics";
 import { ERROR_CODE, type ErrorResponse, type PickemPickSubmission } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
@@ -173,6 +174,7 @@ export function useSubmitPicks(leagueId: string, weekId: string) {
     },
     onSuccess: async (data) => {
       if (!data) return;
+      pickSavedHaptic();
       toastSuccess("Picks submitted");
       await queryClient.invalidateQueries({ queryKey: pickemWeekPicksQueryKey(leagueId, weekId) });
     },
