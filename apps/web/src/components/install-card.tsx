@@ -21,7 +21,7 @@ export function InstallCard() {
   if (path === INSTALL_PATH.none) return null;
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card>
       <CardHeader>
         <CardTitle>Add to your home screen</CardTitle>
         <CardDescription>
