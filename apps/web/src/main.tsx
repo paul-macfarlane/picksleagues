@@ -11,7 +11,12 @@ import "./index.css";
 import "./lib/install-prompt";
 
 const queryClient = new QueryClient();
-const router = createRouter({ routeTree });
+// Cross-fade between routes (MOB-3) via the browser View Transitions API;
+// unsupported browsers and prefers-reduced-motion (guarded in index.css) get
+// the plain cut. The directional-slide variant was considered and skipped:
+// inferring "forward" vs "back" from history is the whole cost, for a cue the
+// cross-fade already covers.
+const router = createRouter({ routeTree, defaultViewTransition: true });
 
 declare module "@tanstack/react-router" {
   interface Register {
