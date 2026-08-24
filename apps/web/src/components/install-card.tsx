@@ -49,7 +49,7 @@ export function InstallCard() {
           >
             Install app
           </Button>
-        ) : (
+        ) : path === INSTALL_PATH.ios ? (
           <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
             <li>
               Tap <span className="font-medium text-foreground">Share</span> in Safari&apos;s
@@ -58,6 +58,21 @@ export function InstallCard() {
             <li>
               Choose <span className="font-medium text-foreground">Add to Home Screen</span>, then{" "}
               <span className="font-medium text-foreground">Add</span>.
+            </li>
+          </ol>
+        ) : (
+          // One wording for every Android browser (MOB-8, owner 2026-08-23):
+          // the menu item is "Add to Home screen" on Chrome and Samsung
+          // Internet and "Install" on Firefox — naming both beats sniffing
+          // three browsers to save four words.
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+            <li>
+              Open your browser&apos;s menu (<span className="font-medium text-foreground">⋮</span>
+              ).
+            </li>
+            <li>
+              Choose <span className="font-medium text-foreground">Add to Home screen</span> (or{" "}
+              <span className="font-medium text-foreground">Install</span>), then confirm.
             </li>
           </ol>
         )}
