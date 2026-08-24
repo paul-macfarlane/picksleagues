@@ -7,7 +7,11 @@ import { useCallback, useSyncExternalStore } from "react";
  * so the listener lives at module scope and `main.tsx` imports this module
  * for that side effect. iOS Safari never announces anything; the only
  * affordance there is telling the member where Share → Add to Home Screen
- * lives. Everything else renders no affordance at all.
+ * lives. Android gets the same instruction treatment when no prompt was
+ * captured (MOB-8) — Firefox never fires the event, and Chrome holds it back
+ * until its installability heuristics pass, which used to leave a phone that
+ * *can* install the app with no affordance at all. Desktop browsers with
+ * neither path render nothing.
  */
 
 export const INSTALL_PATH = {
@@ -15,6 +19,11 @@ export const INSTALL_PATH = {
   native: "native",
   /** iOS Safari: instructions only. */
   ios: "ios",
+  /**
+   * Android with no captured prompt (Firefox always; Chrome until its
+   * installability heuristics pass): menu instructions only (MOB-8).
+   */
+  android: "android",
   none: "none",
 } as const;
 export type InstallPath = (typeof INSTALL_PATH)[keyof typeof INSTALL_PATH];
@@ -47,10 +56,18 @@ function isStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches;
 }
 
-// iPadOS reports itself as a Mac; the touch-point count is what separates it.
-function isIos(): boolean {
-  const ua = navigator.userAgent;
-  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+/**
+ * Which family of manual install instructions fits this device. Pure so the
+ * UA edge cases stay pinned by unit test — iPadOS reports itself as a Mac,
+ * and the touch-point count is what separates it from one.
+ */
+export function detectInstallPlatform(
+  ua: string,
+  maxTouchPoints: number,
+): "ios" | "android" | "other" {
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouchPoints > 1)) return "ios";
+  if (/Android/.test(ua)) return "android";
+  return "other";
 }
 
 // Guarded like every other device preference: storage throws in some private
@@ -66,7 +83,9 @@ function readDismissed(): boolean {
 function currentPath(): InstallPath {
   if (typeof window === "undefined" || isStandalone() || readDismissed()) return INSTALL_PATH.none;
   if (deferredPrompt) return INSTALL_PATH.native;
-  if (isIos()) return INSTALL_PATH.ios;
+  const platform = detectInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
+  if (platform === "ios") return INSTALL_PATH.ios;
+  if (platform === "android") return INSTALL_PATH.android;
   return INSTALL_PATH.none;
 }
 
