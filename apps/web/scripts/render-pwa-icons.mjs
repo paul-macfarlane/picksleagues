@@ -1,5 +1,6 @@
-// Regenerates the PWA icon PNGs in ../public from the brand mark's geometry
-// (src/components/brand.tsx, public/favicon.svg). Run from the repo root:
+// Regenerates the PWA icon PNGs and the social-preview card (og.png) in
+// ../public from the brand mark's geometry (src/components/brand.tsx,
+// public/favicon.svg). Run from the repo root:
 //   node apps/web/scripts/render-pwa-icons.mjs
 // Committed outputs, not a build step: the mark changes rarely and a build
 // that needs a browser to produce a favicon is a build that fails on a host
@@ -40,6 +41,25 @@ const jobs = [
   ["icon-maskable-512.png", 512, maskable],
 ];
 
+// The tagline is what a shared link previews as, so it names the category
+// the way sign-in and the welcome hero do (FB-33) — never a single mode.
+const OG = { width: 1200, height: 630 };
+const OG_TAGLINE = "Season-long sports leagues with friends";
+function ogCard() {
+  const m = 120;
+  const off = (OG.width - m) / 2;
+  return `<body style="margin:0;background:${DARK_BG};font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
+  <svg xmlns="http://www.w3.org/2000/svg" width="${OG.width}" height="${OG.height}" viewBox="0 0 ${OG.width} ${OG.height}">
+    <rect width="${OG.width}" height="${OG.height}" fill="${DARK_BG}"/>
+    <g transform="translate(${off} 158) scale(${m / 32})">
+      <path d="${BALL}" transform="rotate(-45 16 16)" fill="${BRAND}"/>
+      <path d="${CHECK}" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="600" y="400" text-anchor="middle" fill="#ffffff" font-size="88" font-weight="700">Picks Leagues</text>
+    <text x="600" y="478" text-anchor="middle" fill="#a3a3a3" font-size="34">${OG_TAGLINE}</text>
+  </svg></body>`;
+}
+
 const browser = await chromium.launch();
 for (const [name, size, spec] of jobs) {
   const page = await browser.newPage({
@@ -48,6 +68,12 @@ for (const [name, size, spec] of jobs) {
   });
   await page.setContent(tile({ ...spec, size }));
   await page.screenshot({ path: path.join(out, name) });
+  await page.close();
+}
+{
+  const page = await browser.newPage({ viewport: OG, deviceScaleFactor: 1 });
+  await page.setContent(ogCard());
+  await page.screenshot({ path: path.join(out, "og.png") });
   await page.close();
 }
 await browser.close();

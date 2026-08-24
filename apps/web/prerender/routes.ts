@@ -21,9 +21,9 @@ export interface PrerenderRoute {
 export const PRERENDER_ROUTES: readonly PrerenderRoute[] = [
   {
     path: "/welcome",
-    title: "Picks Leagues — NFL pick'em and survivor leagues with friends",
+    title: "Picks Leagues — Season-long sports leagues with friends",
     description:
-      "Picks Leagues is a free web app for running season-long NFL pick'em and survivor leagues with friends. Create a league, invite your crew with a link, make weekly picks, and follow the standings all season.",
+      "Picks Leagues is a free web app for running season-long sports leagues with friends — NFL pick'em and survivor today, March Madness brackets to come. Create a league, invite your crew with a link, make weekly picks, and follow the standings all season.",
   },
   {
     path: "/rules/pickem",
@@ -52,6 +52,7 @@ export const PRERENDER_ROUTES: readonly PrerenderRoute[] = [
   {
     path: "/terms",
     title: "Terms of Service · Picks Leagues",
-    description: "The terms for using Picks Leagues, a free web app for sports pick'em leagues.",
+    description:
+      "The terms for using Picks Leagues, a free web app for season-long sports leagues with friends.",
   },
 ] as const;
