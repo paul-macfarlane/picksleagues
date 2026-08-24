@@ -1,4 +1,5 @@
 import { MEMBER_ROLE, type LeagueMember, type LeagueResponse } from "@picksleagues/schemas";
+import { useUpdateMemberDues } from "@/api/dues";
 import { useKickMember, useLeaveLeague, useUpdateMemberRole } from "@/api/members";
 import { authClient } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,12 @@ export function MembersSection({
 
   const updateRole = useUpdateMemberRole(leagueId);
   const kickMember = useKickMember(leagueId);
+  const updateDues = useUpdateMemberDues(leagueId);
+
+  // The mark control exists only while the league tracks dues: the server
+  // refuses a mark with no amount set (dues_not_enabled, ADR-0045), and a
+  // league that never collects sees no dues surface anywhere.
+  const canMarkDues = isCommissioner && league.duesAmount !== null;
 
   // Disables a sole commissioner's own Demote up front rather than walking
   // them through a confirmation whose outcome the server can't grant.
@@ -94,8 +101,14 @@ export function MembersSection({
             }
             onDemote={() => updateRole.mutate({ memberId: member.id, role: MEMBER_ROLE.MEMBER })}
             onKick={() => kickMember.mutate(member.id)}
+            onToggleDuesPaid={
+              canMarkDues
+                ? () => updateDues.mutate({ memberId: member.id, paid: member.duesPaidAt === null })
+                : undefined
+            }
             isRolePending={updateRole.isPending && updateRole.variables?.memberId === member.id}
             isKickPending={kickMember.isPending && kickMember.variables === member.id}
+            isDuesPending={updateDues.isPending && updateDues.variables?.memberId === member.id}
           />
         ))}
       </ul>
@@ -154,8 +167,10 @@ function MemberRow({
   onPromote,
   onDemote,
   onKick,
+  onToggleDuesPaid,
   isRolePending,
   isKickPending,
+  isDuesPending,
 }: {
   member: LeagueMember;
   isCommissioner: boolean;
@@ -165,8 +180,11 @@ function MemberRow({
   onPromote: () => void;
   onDemote: () => void;
   onKick: () => void;
+  // Absent while the league isn't tracking dues — no control renders at all.
+  onToggleDuesPaid: (() => void) | undefined;
   isRolePending: boolean;
   isKickPending: boolean;
+  isDuesPending: boolean;
 }) {
   return (
     <li className={cn(rowClassName, "flex flex-wrap items-center justify-between gap-3")}>
@@ -182,6 +200,15 @@ function MemberRow({
       </UserIdentity>
       {isCommissioner && (
         <div className="flex items-center gap-2">
+          {/* One tap either way — the server treats both directions as
+              idempotent, so a stale label can't double-record or error. The
+              label names the commissioner's next action; it is not the
+              status display every member sees (DUES-3). */}
+          {onToggleDuesPaid && (
+            <Button variant="outline" size="sm" disabled={isDuesPending} onClick={onToggleDuesPaid}>
+              {member.duesPaidAt === null ? "Mark paid" : "Mark unpaid"}
+            </Button>
+          )}
           {/* Promote/demote are anytime actions (LEAGUE_ACTION rules) — they
               stay enabled post-start; only Kick below has a window. */}
           {member.role === MEMBER_ROLE.COMMISSIONER ? (
