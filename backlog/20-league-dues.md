@@ -38,8 +38,8 @@ records the addition (ADR + doc touch) rather than silently deviating.
   mutations, member-readable status. Includes the ADR recording where the
   config lives and the SF-3 renewal behavior, plus the v0.4 doc touch.
   _(deps: none)_
-- [ ] **DUES-2** — Commissioner surface: set/clear the dues amount in league
+- [x] **DUES-2** — Commissioner surface: set/clear the dues amount in league
   settings; mark members paid/unpaid from the members list. _(deps: DUES-1)_
-- [ ] **DUES-3** — Member surface: the "who's paid" view in the league —
+- [x] **DUES-3** — Member surface: the "who's paid" view in the league —
   amount, each member's status rendered via `UserIdentity`, nothing rendered
   when dues are off. _(deps: DUES-1)_
