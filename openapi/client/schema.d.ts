@@ -3270,7 +3270,7 @@ export interface operations {
                     "application/json": components["schemas"]["LeagueResponse"];
                 };
             };
-            /** @description A dues amount outside 1–10000 */
+            /** @description A dues amount outside 1–10000, a malformed body, or a non-uuid path param */
             400: {
                 headers: {
                     [name: string]: unknown;

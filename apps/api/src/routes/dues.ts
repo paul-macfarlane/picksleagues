@@ -36,7 +36,7 @@ const putDues = createRoute({
       description: "The updated league (null amount = dues tracking off)",
       content: { "application/json": { schema: LeagueResponseSchema } },
     },
-    400: errorResponse("A dues amount outside 1–10000"),
+    400: errorResponse("A dues amount outside 1–10000, a malformed body, or a non-uuid path param"),
     401: UNAUTHENTICATED_401,
     403: NOT_COMMISSIONER_403,
     404: LEAGUE_NOT_FOUND_404,

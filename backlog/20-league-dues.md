@@ -33,7 +33,7 @@ passes — Survivor uses them unchanged). The feature is post-MVP and
 `docs/mvp-spec.md` / `docs/architecture.md` are locked at v0.4, so DUES-1
 records the addition (ADR + doc touch) rather than silently deviating.
 
-- [~] **DUES-1** — Dues schema + API: optional flat amount on the
+- [x] **DUES-1** — Dues schema + API: optional flat amount on the
   league-season, per-member paid ledger (paid flag + marked-at), commissioner-only
   mutations, member-readable status. Includes the ADR recording where the
   config lives and the SF-3 renewal behavior, plus the v0.4 doc touch.

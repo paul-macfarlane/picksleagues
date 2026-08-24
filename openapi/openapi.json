@@ -5956,7 +5956,7 @@
             }
           },
           "400": {
-            "description": "A dues amount outside 1–10000",
+            "description": "A dues amount outside 1–10000, a malformed body, or a non-uuid path param",
             "content": {
               "application/json": {
                 "schema": {
