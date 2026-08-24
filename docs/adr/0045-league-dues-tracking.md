@@ -38,8 +38,12 @@ collected in week 3 too.
 - **`MANAGE_DUES`** joins the `LEAGUE_ACTION` matrix: commissioner-only, no
   window. Marking a member paid while `dues_amount` is null is refused
   (`dues_not_enabled`, 409) — the mark would be invisible everywhere.
-- **Clearing the amount keeps the ledger.** Off-and-on again restores who had
-  paid; forgetting real-money facts on a settings toggle is the worse failure.
+- **Clearing the amount keeps the ledger — but takes it off the wire.**
+  Off-and-on again restores who had paid (forgetting real-money facts on a
+  settings toggle is the worse failure), yet while dues are off every
+  `duesPaidAt` serializes null: retained marks are held back in serialization,
+  never left for the client to filter (evaluator finding, 2026-08-23 — the
+  response is the visibility boundary for dues as for picks).
 - **Wire shape rides the league read**: `duesAmount` on `LeagueResponse`,
   `duesPaidAt` on `LeagueMember`. Every member already receives both, which
   *is* the visibility rule — no separate endpoint, no commissioner-scoped

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { leagueDuesPayments } from "@picksleagues/db";
+import { leagueDuesPayments, leagueMembers } from "@picksleagues/db";
 import { ERROR_CODE, MEMBER_ROLE, type LeagueResponse } from "@picksleagues/schemas";
 import { createAuthenticatedUser } from "./setup/auth-helpers";
 import { insertLeague, membersOf, seasonIdFor, seedSeason } from "./setup/league-helpers";
@@ -119,11 +119,19 @@ describe("PUT /leagues/:id/dues", () => {
     );
   });
 
-  it("refuses an out-of-range amount at the boundary (400)", async () => {
+  it("draws the amount bound exactly: 0/10001 refused, 1/10000 accepted", async () => {
     const { commish, league } = await seedLeague();
 
     expect((await putDues(commish.cookie, league.id, 0)).status).toBe(400);
     expect((await putDues(commish.cookie, league.id, 10001)).status).toBe(400);
+    expect((await putDues(commish.cookie, league.id, 1)).status).toBe(200);
+    expect((await putDues(commish.cookie, league.id, 10000)).status).toBe(200);
+  });
+
+  it("requires a session (401)", async () => {
+    const { league } = await seedLeague();
+
+    expect((await putDues(undefined, league.id, 20)).status).toBe(401);
   });
 });
 
@@ -183,17 +191,65 @@ describe("PUT /leagues/:id/dues/members/:memberId", () => {
     expect(((await unknown.json()) as { error: string }).error).toBe(ERROR_CODE.MEMBER_NOT_FOUND);
   });
 
-  it("keeps marks through an off-and-on toggle of the amount", async () => {
+  it("requires a session (401)", async () => {
+    const { member, league, memberIds } = await seedLeague(20);
+
+    const res = await putMemberDues(
+      undefined,
+      league.id,
+      memberIds.get(member.user.id) as string,
+      true,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("keeps marks through an off-and-on toggle — and off the wire while off", async () => {
     const { commish, member, league, memberIds } = await seedLeague(20);
     const memberRowId = memberIds.get(member.user.id) as string;
     await putMemberDues(commish.cookie, league.id, memberRowId, true);
 
-    await putDues(commish.cookie, league.id, null);
+    // While off, the retained mark must not reach the wire (ADR-0045): the
+    // ledger row survives in the DB, the response says nothing.
+    const cleared = await putDues(commish.cookie, league.id, null);
+    const clearedBody = (await cleared.json()) as LeagueResponse;
+    expect(clearedBody.members.map((m) => m.duesPaidAt)).toEqual([null, null]);
+
     await putDues(commish.cookie, league.id, 25);
 
     const seen = await getLeague(commish.cookie, league.id);
     expect(seen.duesAmount).toBe(25);
     expect(seen.members.find((m) => m.userId === member.user.id)?.duesPaidAt).toBe(
+      PRE_START_NOW.toISOString(),
+    );
+  });
+});
+
+describe("dues across membership churn", () => {
+  it("kick leaves no trace in the response; a rejoin restores the mark", async () => {
+    const { commish, member, league, memberIds } = await seedLeague(20);
+    const memberRowId = memberIds.get(member.user.id) as string;
+    await putMemberDues(commish.cookie, league.id, memberRowId, true);
+
+    const kicked = await app.request(`/api/leagues/${league.id}/members/${memberRowId}`, {
+      method: "DELETE",
+      headers: withCookie(commish.cookie),
+    });
+    expect(kicked.status).toBe(204);
+
+    const afterKick = await getLeague(commish.cookie, league.id);
+    expect(afterKick.members.map((m) => m.userId)).toEqual([commish.user.id]);
+
+    // Rejoin (arranged directly — the join path is pinned elsewhere): the
+    // ledger is keyed by user (ADR-0045), so the mark comes back with them.
+    await db.insert(leagueMembers).values({
+      leagueId: league.id,
+      userId: member.user.id,
+      role: MEMBER_ROLE.MEMBER,
+      createdAt: PRE_START_NOW,
+      updatedAt: PRE_START_NOW,
+    });
+    const afterRejoin = await getLeague(commish.cookie, league.id);
+    expect(afterRejoin.members.find((m) => m.userId === member.user.id)?.duesPaidAt).toBe(
       PRE_START_NOW.toISOString(),
     );
   });

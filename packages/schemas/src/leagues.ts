@@ -131,8 +131,8 @@ export const LeagueMemberSchema = z
      * When a commissioner marked this member's dues paid; null = unpaid.
      * Serialized to every member — "everyone sees who's paid" is the product
      * rule (ADR-0045), so this is deliberately not commissioner-scoped.
-     * Meaningless (always null-or-stale) while the league's `duesAmount` is
-     * null; the UI renders no dues surface then.
+     * Always null while the league's `duesAmount` is null: marks retained
+     * across an off-toggle are held back server-side, never client-filtered.
      */
     duesPaidAt: z.iso.datetime().nullable(),
   })

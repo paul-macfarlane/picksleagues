@@ -5955,6 +5955,16 @@
               }
             }
           },
+          "400": {
+            "description": "A dues amount outside 1–10000",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No valid session",
             "content": {
@@ -6034,6 +6044,16 @@
         "responses": {
           "204": {
             "description": "Ledger updated (no-op if it already matched)"
+          },
+          "400": {
+            "description": "Malformed body or non-uuid path param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "No valid session",

@@ -3270,6 +3270,15 @@ export interface operations {
                     "application/json": components["schemas"]["LeagueResponse"];
                 };
             };
+            /** @description A dues amount outside 1–10000 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description No valid session */
             401: {
                 headers: {
@@ -3330,6 +3339,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Malformed body or non-uuid path param */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description No valid session */
             401: {

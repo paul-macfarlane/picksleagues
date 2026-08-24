@@ -171,7 +171,11 @@ export async function readAndSerializeLeague(
     season.settings,
   );
   const members = await loadMembers(db, leagueId);
-  const duesPaidByUserId = await loadDuesPaidByUser(db, season.id);
+  // Ledger marks retained while dues are off stay off the wire entirely
+  // (ADR-0045): held back here, in serialization, never by a client-side
+  // filter — a response is the visibility boundary for dues as for picks.
+  const duesPaidByUserId =
+    season.duesAmount === null ? new Map<string, Date>() : await loadDuesPaidByUser(db, season.id);
   const latestYear = await latestSeasonYearForSport(db, sportForMode(league.mode));
   return serializeLeague(
     league,

@@ -68,8 +68,8 @@ export function serializeLeague(
   status: LeagueStatus,
   seasonYear: number,
   settings: LeagueSettings,
-  // Null = this league doesn't track dues (ADR-0045); the ledger map may then
-  // still carry retained marks, which serialize but mean nothing to the UI.
+  // Null = this league doesn't track dues (ADR-0045); the caller then passes
+  // an empty ledger map, so retained marks never reach the wire while off.
   duesAmount: number | null,
   duesPaidByUserId: Map<string, Date>,
   startsAt: Date | null,

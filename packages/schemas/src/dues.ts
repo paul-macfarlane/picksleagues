@@ -10,10 +10,9 @@ export const MAX_DUES_AMOUNT = 10000;
 
 /**
  * Whole US dollars (owner, 2026-08-23 — friends-league dues are round
- * numbers). Deliberately NOT `.openapi()`-registered: the response fields
- * carry it nullable, and registering the base would make every inline
- * `.nullable()` fold null into the shared component (engineering rules
- * §Contract & codegen).
+ * numbers). Deliberately NOT `.openapi()`-registered: the request field below
+ * wraps it in `.nullable()` inline, which on a registered schema would fold
+ * null into the shared component (engineering rules §Contract & codegen).
  */
 export const DuesAmountSchema = z.number().int().min(1).max(MAX_DUES_AMOUNT);
 
