@@ -158,58 +158,69 @@ export async function updateFixtureGame(
   gameId: string,
   patch: UpdateSimFixtureGameRequest,
 ): Promise<UpdateFixtureGameResult> {
-  const [existing] = await db.select().from(simFixtureGames).where(eq(simFixtureGames.id, gameId));
-  if (!existing) {
-    return { ok: false, reason: ERROR_CODE.FIXTURE_NOT_FOUND };
-  }
+  return db.transaction(async (tx): Promise<UpdateFixtureGameResult> => {
+    // FOR UPDATE: coherence is judged on the merged row, so two concurrent
+    // patches that each pass the check against the same pre-image (one nulling
+    // a score, one setting `final`) would land exactly the final+null-score
+    // state the check refuses. The lock makes the second merge against the
+    // first's committed row instead (engineering rules §Data).
+    const [existing] = await tx
+      .select()
+      .from(simFixtureGames)
+      .where(eq(simFixtureGames.id, gameId))
+      .for("update");
+    if (!existing) {
+      return { ok: false, reason: ERROR_CODE.FIXTURE_NOT_FOUND };
+    }
 
-  // A patch is partial, so coherence can only be judged on the merged row: a
-  // caller can null one score while `finalStatus` stays `final` in the stored
-  // row and never appears in the request.
-  const merged = {
-    finalStatus: patch.finalStatus ?? existing.finalStatus,
-    finalHomeScore:
-      patch.finalHomeScore !== undefined ? patch.finalHomeScore : existing.finalHomeScore,
-    finalAwayScore:
-      patch.finalAwayScore !== undefined ? patch.finalAwayScore : existing.finalAwayScore,
-  };
-  // `final` with a missing score would ingest as a `games` row at status final
-  // with null scores — the one state ingestion guarantees cannot occur
-  // (ingest-season.ts) and that settlement would have to defend against. The
-  // replay importer refuses to produce it too; the hand-edit path must agree.
-  if (
-    merged.finalStatus === SIM_FINAL_STATUS.FINAL &&
-    (merged.finalHomeScore === null || merged.finalAwayScore === null)
-  ) {
-    return {
-      ok: false,
-      reason: ERROR_CODE.VALIDATION,
-      // Names only the two escapes that exist: `finalStatus` is non-nullable
-      // and its other members are `cancelled`/`postponed`, so "clear the
-      // status" — what this used to advise — is not something any caller can
-      // express.
-      message:
-        "A final fixture needs both scores. Supply both, or set the status to cancelled or postponed.",
+    // A patch is partial, so coherence can only be judged on the merged row: a
+    // caller can null one score while `finalStatus` stays `final` in the stored
+    // row and never appears in the request.
+    const merged = {
+      finalStatus: patch.finalStatus ?? existing.finalStatus,
+      finalHomeScore:
+        patch.finalHomeScore !== undefined ? patch.finalHomeScore : existing.finalHomeScore,
+      finalAwayScore:
+        patch.finalAwayScore !== undefined ? patch.finalAwayScore : existing.finalAwayScore,
     };
-  }
+    // `final` with a missing score would ingest as a `games` row at status final
+    // with null scores — the one state ingestion guarantees cannot occur
+    // (ingest-season.ts) and that settlement would have to defend against. The
+    // replay importer refuses to produce it too; the hand-edit path must agree.
+    if (
+      merged.finalStatus === SIM_FINAL_STATUS.FINAL &&
+      (merged.finalHomeScore === null || merged.finalAwayScore === null)
+    ) {
+      return {
+        ok: false,
+        reason: ERROR_CODE.VALIDATION,
+        // Names only the two escapes that exist: `finalStatus` is non-nullable
+        // and its other members are `cancelled`/`postponed`, so "clear the
+        // status" — what this used to advise — is not something any caller can
+        // express.
+        message:
+          "A final fixture needs both scores. Supply both, or set the status to cancelled or postponed.",
+      };
+    }
 
-  const [updated] = await db
-    .update(simFixtureGames)
-    .set({
-      ...(patch.kickoffAt !== undefined ? { kickoffAt: new Date(patch.kickoffAt) } : {}),
-      ...(patch.weekType !== undefined ? { weekType: patch.weekType } : {}),
-      ...(patch.weekNumber !== undefined ? { weekNumber: patch.weekNumber } : {}),
-      ...(patch.spread !== undefined ? { spread: patch.spread } : {}),
-      ...(patch.finalStatus !== undefined ? { finalStatus: patch.finalStatus } : {}),
-      ...(patch.finalHomeScore !== undefined ? { finalHomeScore: patch.finalHomeScore } : {}),
-      ...(patch.finalAwayScore !== undefined ? { finalAwayScore: patch.finalAwayScore } : {}),
-      updatedAt: clock.now(),
-    })
-    .where(eq(simFixtureGames.id, gameId))
-    .returning();
+    const [updated] = await tx
+      .update(simFixtureGames)
+      .set({
+        ...(patch.kickoffAt !== undefined ? { kickoffAt: new Date(patch.kickoffAt) } : {}),
+        ...(patch.weekType !== undefined ? { weekType: patch.weekType } : {}),
+        ...(patch.weekNumber !== undefined ? { weekNumber: patch.weekNumber } : {}),
+        ...(patch.spread !== undefined ? { spread: patch.spread } : {}),
+        ...(patch.finalStatus !== undefined ? { finalStatus: patch.finalStatus } : {}),
+        ...(patch.finalHomeScore !== undefined ? { finalHomeScore: patch.finalHomeScore } : {}),
+        ...(patch.finalAwayScore !== undefined ? { finalAwayScore: patch.finalAwayScore } : {}),
+        updatedAt: clock.now(),
+      })
+      .where(eq(simFixtureGames.id, gameId))
+      .returning();
 
-  if (!updated) {
-    return { ok: false, reason: ERROR_CODE.FIXTURE_NOT_FOUND };
-  }
-  return { ok: true, game: serializeFixtureGame(updated, clock) };
+    if (!updated) {
+      return { ok: false, reason: ERROR_CODE.FIXTURE_NOT_FOUND };
+    }
+    return { ok: true, game: serializeFixtureGame(updated, clock) };
+  });
 }

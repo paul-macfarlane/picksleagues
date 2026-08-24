@@ -272,4 +272,15 @@
   table {
     font-variant-numeric: tabular-nums;
   }
+  /* Route cross-fade (MOB-3) honours reduced motion by neutering the
+     transition's animations rather than by branching in the router: the
+     media query is re-evaluated live, where a JS branch reads the setting
+     once at router creation. */
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
+    }
+  }
 }

@@ -1,15 +1,13 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { isSimEnabled } from "@picksleagues/core";
 import {
-  APP_ROLE,
   AccountDeletionBlockersResponseSchema,
   ERROR_CODE,
   ErrorResponseSchema,
   MeResponseSchema,
   UpdateMeRequestSchema,
-  type MeResponse,
 } from "@picksleagues/schemas";
-import { getSimState, type Db, type users } from "@picksleagues/db";
+import type { Db } from "@picksleagues/db";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
 import { requireDbAndClock, requireSession, type DepsVariables } from "../lib/require-deps";
@@ -19,35 +17,10 @@ import {
   deleteAccount,
   getUser,
   listAccountDeletionBlockingLeagues,
-  resolveUserImage,
+  readMeCapabilities,
+  serializeMe,
   updateProfile,
 } from "../services/users";
-
-function serializeMe(
-  user: typeof users.$inferSelect,
-  capabilities: { simEnabled: boolean; simClockOffsetMs: number },
-  now: Date,
-): MeResponse {
-  return {
-    id: user.id,
-    username: user.username,
-    displayName: user.display_name,
-    email: user.email,
-    image: resolveUserImage(user),
-    // The only surface carrying the raw override alongside the resolved value:
-    // this is the caller's own profile, and the editor needs to tell "unset,
-    // inheriting" from "set" (ADR-0022).
-    imageOverride: user.imageOverride,
-    providerImage: user.image,
-    // Admin capability is the user's own role column (ADR-0013), so it travels
-    // with the row rather than being resolved from env alongside `simEnabled`.
-    isAdmin: user.appRole === APP_ROLE.ADMIN,
-    ...capabilities,
-    // Read per response, never cached: the simulator can move the clock
-    // between two requests in the same session.
-    now: now.toISOString(),
-  };
-}
 
 const getMe = createRoute({
   method: "get",
@@ -143,15 +116,7 @@ export function meRoutes(deps: AppDeps) {
   // whether to render sim surfaces — it grants nothing.
   const simEnabled = deps.env ? isSimEnabled(deps.env) : false;
 
-  // `simEnabled` plus how far the clock is shifted (FB-38) — the second is what
-  // lets a non-admin's banner say "now isn't real" without reaching for the
-  // admin-only sim state route. Read per response, not once at startup: the
-  // offset changes whenever an operator moves the clock, and it costs a query
-  // only where the simulator exists at all.
-  const readCapabilities = async (db: Db) => ({
-    simEnabled,
-    simClockOffsetMs: simEnabled ? (await getSimState(db)).offsetMs : 0,
-  });
+  const readCapabilities = (db: Db) => readMeCapabilities(db, simEnabled);
 
   app.openapi(getMe, async (c) => {
     const db = c.get("db");

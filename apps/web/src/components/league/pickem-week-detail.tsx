@@ -11,14 +11,8 @@ import {
 } from "@picksleagues/schemas";
 import { usePickemStandings, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import {
-  gameStateAsOfLabel,
-  gameStateLead,
-  matchupNumerals,
-  pickStandingLabel,
-  spreadLabel,
-  spreadSourceCredit,
-} from "@/lib/game";
+import { gameStateAsOfLabel, gameStateLead, matchupNumerals, spreadLabel } from "@/lib/game";
+import { pickemPickGrade, pickStandingLabel, spreadSourceCredit } from "@/lib/pickem-game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { rankLabel, sharedRankCounts } from "@/lib/standings";
@@ -30,6 +24,7 @@ import { UserIdentity } from "@/components/user-identity";
 import { GameStatePill } from "@/components/league/game-state";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
+import { StandingsUpdatedStamp } from "@/components/league/standings-updated-stamp";
 
 // One pick per row on the row tier: the matchup line, then the pick's own
 // facts beneath it, each a line of its own so none ever wraps into another's
@@ -171,6 +166,17 @@ export function PickemWeekDetail({
           </div>
         )}
       </QueryState>
+      {/* The collapsed page is the weekly leaderboard (PKM-12), so it carries
+          the same stamp as the other boards. Gated on the standings response
+          rather than rendered from its absence: standings are this screen's
+          decoration (see above), and on a failed query "Nothing has settled
+          yet." would be a claim about data that never arrived. */}
+      {weekStandings.data && (
+        <StandingsUpdatedStamp
+          updatedAt={weekStandings.data.lastUpdatedAt}
+          data-testid="week-standings-updated-at"
+        />
+      )}
     </Section>
   );
 }
@@ -300,15 +306,14 @@ function PickRow({
   // hold the score — but from `pick.spread`, never `game.spread`, should a
   // row ever be rendered for a game the sync hasn't moved off `scheduled`.
   const numerals = matchupNumerals(game, showSpread ? pick.spread : null);
-  // Literally the same rule as the pick editor's rows, via the same function.
-  // Shown for every member's revealed pick, not just the viewer's — a pick
-  // visible here has kicked off, so this discloses nothing the visibility rule
-  // doesn't already allow.
-  const standing = pickStandingLabel(
-    game,
-    { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome },
-    pickType,
-  );
+  // Literally the same rules as the pick editor's rows, via the same
+  // functions. Shown for every member's revealed pick, not just the viewer's —
+  // a pick visible here has kicked off, so the standing and the derived grade
+  // (PKM-11, computed from the game's own final score) disclose nothing the
+  // visibility rule doesn't already allow.
+  const gradable = { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome };
+  const grade = pickemPickGrade(game, gradable, pickType);
+  const standing = pickStandingLabel(game, gradable, pickType);
   const emphasisFor = (side: PickemPickSide) => (pick.side === side ? "taken" : "other");
 
   return (
@@ -321,7 +326,7 @@ function PickRow({
       data-away-team={game.awayTeam.abbreviation}
       data-home-team={game.homeTeam.abbreviation}
       data-picked-team={pickedTeam.abbreviation}
-      className={cn(PICK_ROW_CLASS_NAME, pickOutcomeAccentClassName(pick.outcome))}
+      className={cn(PICK_ROW_CLASS_NAME, pickOutcomeAccentClassName(grade))}
     >
       {/* The side they took in ink, the other muted — not orange, since
           another member's choice is nothing the viewer can act on (ADR-0043
@@ -367,7 +372,8 @@ function PickRow({
         </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <GameStatePill status={game.status} />
-          {pick.outcome && <PickOutcomeBadge outcome={pick.outcome} />}
+          {/* Settled or derived (PKM-11), same as the pick editor's rows. */}
+          {grade && <PickOutcomeBadge outcome={grade} />}
         </span>
       </div>
     </li>

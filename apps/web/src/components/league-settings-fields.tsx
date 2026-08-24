@@ -119,7 +119,7 @@ export function PickemSettingsFields({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold text-foreground">Pick&apos;em settings</h2>
+      <h2 className="text-sm">Pick&apos;em settings</h2>
       <NflSeasonRangeReadout seasonRange={seasonRange} />
       <RadioField
         legend="Pick type"
@@ -150,14 +150,16 @@ export function PickemSettingsFields({
 export function SurvivorSettingsFields({ seasonRange }: { seasonRange?: NflSeasonRange }) {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold text-foreground">Survivor settings</h2>
+      <h2 className="text-sm">Survivor settings</h2>
       <NflSeasonRangeReadout seasonRange={seasonRange} />
     </div>
   );
 }
 
-// Scoring is standard doubling only (ADR-0034) — max brackets is the one
-// setting the mode has.
+/**
+ * Scoring is standard doubling only (ADR-0034) — max brackets is the one
+ * setting the mode has.
+ */
 export function MarchMadnessSettingsFields({
   maxBrackets,
   onMaxBracketsChange,
@@ -167,7 +169,7 @@ export function MarchMadnessSettingsFields({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold text-foreground">March Madness Pool settings</h2>
+      <h2 className="text-sm">March Madness Pool settings</h2>
       <NumberField
         id="mm-max-brackets"
         label="Max brackets per member"

@@ -118,7 +118,7 @@ export function NflMatchupResultsBody({ game }: { game: SlateGame }) {
 
           return (
             <div className="flex flex-col gap-2" data-testid="nfl-matchup-results-body">
-              <p className="text-xs text-muted-foreground">
+              <p className="type-eyebrow">
                 {sharedSeasonYear && home ? `${home.seasonYear} season results` : "Season results"}
                 {updatedAt && ` · updated ${formatDateTime(updatedAt)}`}
               </p>

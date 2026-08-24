@@ -1,4 +1,6 @@
 import {
+  GAME_SIDE,
+  type GameSide,
   NFL_LAST_GAME_RESULT,
   type NflInjuryReportEntry,
   type NflLastFiveGame,
@@ -190,7 +192,7 @@ const FPI_MAX = 95;
  * has no line, exercising the UI's omission path exactly where ESPN would
  * (its predictor is also absent when it has nothing to say).
  */
-export function deriveFpiWinPct(spread: number | null, side: "home" | "away"): number | null {
+export function deriveFpiWinPct(spread: number | null, side: GameSide): number | null {
   if (spread === null) return null;
   // Negative spread = home favored, so the home probability rises as it drops.
   // Rounded once, on the home side, and the away side complements the rounded
@@ -198,7 +200,7 @@ export function deriveFpiWinPct(spread: number | null, side: "home" | "away"): n
   // that doesn't add up reads as a bug on the one surface it appears.
   const homePct =
     Math.round(Math.min(FPI_MAX, Math.max(FPI_MIN, 50 - spread * FPI_POINTS_PER_PCT)) * 10) / 10;
-  return side === "home" ? homePct : Math.round((100 - homePct) * 10) / 10;
+  return side === GAME_SIDE.HOME ? homePct : Math.round((100 - homePct) * 10) / 10;
 }
 
 // Fictional-name pools for mocked injuries. Deliberately name-shaped (the UI

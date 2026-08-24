@@ -3,6 +3,7 @@ import type { Db } from "@picksleagues/db";
 import { leagueMembers, leagueSeasons, leagues } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   LEAGUE_ACTION,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
@@ -33,6 +34,7 @@ import {
   countActiveCommissionerships,
   countMembers,
   getMembership,
+  type LeagueActionRefusal,
 } from "./authz";
 import {
   currentLeagueSeason,
@@ -48,7 +50,11 @@ export type CreateLeagueResult =
   | { ok: true; league: LeagueResponse }
   | {
       ok: false;
-      reason: "mode_unavailable" | "no_active_season" | "cap_exceeded" | "start_week_passed";
+      reason:
+        | typeof ERROR_CODE.MODE_UNAVAILABLE
+        | typeof ERROR_CODE.NO_ACTIVE_SEASON
+        | typeof ERROR_CODE.CAP_EXCEEDED
+        | typeof ERROR_CODE.START_WEEK_PASSED;
     };
 
 class CapExceededError extends Error {}
@@ -62,14 +68,14 @@ export async function createLeague(
   // Server-side gate, not just a hidden form option (LNCH-12): the contract
   // still accepts the value and the SPA is not the only thing that may speak it.
   if (!(OFFERED_LEAGUE_MODES as readonly LeagueMode[]).includes(input.mode)) {
-    return { ok: false, reason: "mode_unavailable" };
+    return { ok: false, reason: ERROR_CODE.MODE_UNAVAILABLE };
   }
 
   // Latest ingested season for the mode's sport — leagues bind to a season at
   // creation so cutoffs/windows know which games to derive from.
   const season = await latestSeasonForSport(db, sportForMode(input.mode));
   if (!season) {
-    return { ok: false, reason: "no_active_season" };
+    return { ok: false, reason: ERROR_CODE.NO_ACTIVE_SEASON };
   }
 
   // Second line of defense behind the route's discriminated union; also
@@ -95,7 +101,7 @@ export async function createLeague(
     settings,
   );
   if (!isPreStart(startsAtPreCheck, clock)) {
-    return { ok: false, reason: "start_week_passed" };
+    return { ok: false, reason: ERROR_CODE.START_WEEK_PASSED };
   }
 
   const now = clock.now();
@@ -158,7 +164,7 @@ export async function createLeague(
     return { ok: true, league: serialized };
   } catch (error) {
     if (error instanceof CapExceededError) {
-      return { ok: false, reason: "cap_exceeded" };
+      return { ok: false, reason: ERROR_CODE.CAP_EXCEEDED };
     }
     throw error;
   }
@@ -166,13 +172,14 @@ export async function createLeague(
 
 export type UpdateLeagueResult =
   | { ok: true; league: LeagueResponse }
+  | LeagueActionRefusal
   | {
       ok: false;
-      reason: "league_not_found" | "not_commissioner" | "league_started" | "start_week_passed";
+      reason: typeof ERROR_CODE.LEAGUE_STARTED | typeof ERROR_CODE.START_WEEK_PASSED;
     }
-  | { ok: false; reason: "invalid_settings"; message: string }
-  | { ok: false; reason: "max_members_below_member_count" }
-  | { ok: false; reason: "picks_locked" };
+  | { ok: false; reason: typeof ERROR_CODE.VALIDATION; message: string }
+  | { ok: false; reason: typeof ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT }
+  | { ok: false; reason: typeof ERROR_CODE.PICKS_LOCKED };
 
 /**
  * Commissioner edits (spec §Commissioner Powers): name is cosmetic and
@@ -222,7 +229,7 @@ export async function updateLeague(
     // Read the current instance inside the same tx AFTER the lock so the
     // window/roster invariants below stay serialized against concurrent joins.
     const current = await getLeagueWithCurrentSeason(tx, leagueId);
-    if (!current) return { ok: false, reason: "league_not_found" };
+    if (!current) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
     const { league, season } = current;
 
     if (requestedActions.some(leagueActionIsPreStartOnly)) {
@@ -232,7 +239,7 @@ export async function updateLeague(
         season.settings,
       );
       if (!isPreStart(startsAt, clock)) {
-        return { ok: false, reason: "league_started" };
+        return { ok: false, reason: ERROR_CODE.LEAGUE_STARTED };
       }
     }
 
@@ -242,7 +249,7 @@ export async function updateLeague(
       // silently accepting an unenforceable cap.
       const memberCount = await countMembers(tx, leagueId);
       if (input.maxMembers < memberCount) {
-        return { ok: false, reason: "max_members_below_member_count" };
+        return { ok: false, reason: ERROR_CODE.MAX_MEMBERS_BELOW_MEMBER_COUNT };
       }
     }
 
@@ -261,7 +268,7 @@ export async function updateLeague(
         input.settings,
       );
       if (!resolved.ok) {
-        return { ok: false, reason: "invalid_settings", message: resolved.message };
+        return { ok: false, reason: ERROR_CODE.VALIDATION, message: resolved.message };
       }
       const nextSettings = resolved.settings;
       // The gate above checked the OLD start week; the new settings must not
@@ -273,7 +280,7 @@ export async function updateLeague(
         nextSettings,
       );
       if (!isPreStart(newStartsAt, clock)) {
-        return { ok: false, reason: "start_week_passed" };
+        return { ok: false, reason: ERROR_CODE.START_WEEK_PASSED };
       }
       // A rule change can strand picks made under the old rules (a pick with no
       // spread in a now-ATS league is unsettleable), so clearing them commits
@@ -344,7 +351,7 @@ export async function updateLeague(
 }
 
 export type DeleteLeagueResult =
-  { ok: true } | { ok: false; reason: "league_not_found" | "not_commissioner" | "league_started" };
+  { ok: true } | LeagueActionRefusal | { ok: false; reason: typeof ERROR_CODE.LEAGUE_STARTED };
 
 /** Pre-start only (spec §Commissioner Powers); FK cascades sweep settings/members/invites. */
 export async function deleteLeague(
@@ -358,7 +365,7 @@ export async function deleteLeague(
     if (!gate.ok) return gate;
 
     const current = await getLeagueWithCurrentSeason(tx, leagueId);
-    if (!current) return { ok: false, reason: "league_not_found" as const };
+    if (!current) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
 
     if (leagueActionIsPreStartOnly(LEAGUE_ACTION.DELETE_LEAGUE)) {
       const startsAt = await leagueStartAt(
@@ -367,7 +374,7 @@ export async function deleteLeague(
         current.season.settings,
       );
       if (!isPreStart(startsAt, clock)) {
-        return { ok: false, reason: "league_started" as const };
+        return { ok: false, reason: ERROR_CODE.LEAGUE_STARTED };
       }
     }
 

@@ -16,6 +16,7 @@ import {
   type PickemSettingsInput,
   type PickemWeekPicksResponse,
   type WeekSlateResponse,
+  type PickemPickSide,
 } from "@picksleagues/schemas";
 import { rebuildLeagueSeason } from "../src/services/settlement";
 import { settlePickemLeagueSeasonWeeks } from "../src/services/pickem/settlement";
@@ -724,24 +725,26 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     expect(asB.members.find((m) => m.userId === memberA.user.id)?.isViewer).toBe(false);
   });
 
-  it("caps picksAllowed at min(picksPerWeek, slate size) — normal case", async () => {
-    const { league, weekIds, memberA } = await seedPickemLeague({
-      settings: { ...DEFAULT_PICKEM_SETTINGS, picksPerWeek: 2 },
-    });
-    const res = await getPicks(memberA.cookie, league.id, weekIds.get("regular:1")!);
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as PickemWeekPicksResponse).picksAllowed).toBe(2);
-  });
-
-  it("caps picksAllowed at min(picksPerWeek, slate size) — short week", async () => {
-    const { league, weekIds, memberA } = await seedPickemLeague({
-      settings: { ...DEFAULT_PICKEM_SETTINGS, picksPerWeek: 5 },
+  it.each([
+    { name: "normal week", picksPerWeek: 2, weeks: undefined, expected: 2 },
+    {
+      name: "short week",
+      picksPerWeek: 5,
       weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
-    });
-    const res = await getPicks(memberA.cookie, league.id, weekIds.get("regular:1")!);
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as PickemWeekPicksResponse).picksAllowed).toBe(1);
-  });
+      expected: 1,
+    },
+  ])(
+    "caps picksAllowed at min(picksPerWeek, slate size) — $name",
+    async ({ picksPerWeek, weeks, expected }) => {
+      const { league, weekIds, memberA } = await seedPickemLeague({
+        settings: { ...DEFAULT_PICKEM_SETTINGS, picksPerWeek },
+        ...(weeks ? { weeks } : {}),
+      });
+      const res = await getPicks(memberA.cookie, league.id, weekIds.get("regular:1")!);
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as PickemWeekPicksResponse).picksAllowed).toBe(expected);
+    },
+  );
 
   it("excludes a cancelled game from picksAllowed — a 3-game week with 1 cancelled caps at 2", async () => {
     const { league, weekIds, gameIds, memberA } = await seedPickemLeague({
@@ -823,6 +826,31 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
     )!;
     expect(own.picks).toHaveLength(3);
     expect(own.picks.every((p) => p.side === PICKEM_PICK_SIDE.HOME)).toBe(true);
+  });
+
+  it("admits exactly one of two concurrent submissions — the member-row lock, not the clock, decides", async () => {
+    const { league, weekIds, gameIds, memberA } = await seedPickemLeague();
+    const weekId = weekIds.get("regular:1")!;
+    const fullSet = (side: PickemPickSide) =>
+      gameIds.get("regular:1")!.map((gameId) => ({ gameId: gameId!, side, spread: null }));
+
+    // Both requests pass every pre-check (unlocked games, legal set, nothing
+    // submitted yet) — only the transaction's row lock can refuse the second,
+    // so this is the one test that proves submit-once is enforced *inside* the
+    // write rather than by the read that preceded it (ADR-0018, arch D11).
+    const [home, away] = await Promise.all([
+      putPicks(memberA.cookie, league.id, weekId, { picks: fullSet(PICKEM_PICK_SIDE.HOME) }),
+      putPicks(memberA.cookie, league.id, weekId, { picks: fullSet(PICKEM_PICK_SIDE.AWAY) }),
+    ]);
+    expect([home.status, away.status].sort()).toEqual([200, 409]);
+
+    const after = await getPicks(memberA.cookie, league.id, weekId);
+    const own = ((await after.json()) as PickemWeekPicksResponse).members.find(
+      (m) => m.userId === memberA.user.id,
+    )!;
+    expect(own.picks).toHaveLength(3);
+    // Whichever won, the sides are one submission's, never a blend of both.
+    expect(new Set(own.picks.map((p) => p.side)).size).toBe(1);
   });
 
   it("400s pick_set_incomplete when the set is smaller than the week requires", async () => {

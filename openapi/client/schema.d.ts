@@ -1091,10 +1091,10 @@ export interface components {
                 startsAt: string | null;
             };
             joinable: boolean;
-            reason: components["schemas"]["JoinBlockedReason"];
+            reason: components["schemas"]["NullableJoinBlockedReason"];
         };
         /** @enum {string|null} */
-        JoinBlockedReason: "invite_revoked" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
+        NullableJoinBlockedReason: "invite_revoked" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
         UpdateMemberRoleRequest: {
             role: components["schemas"]["MemberRole"];
         };

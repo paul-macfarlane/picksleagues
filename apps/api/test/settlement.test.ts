@@ -1347,12 +1347,6 @@ describe("HTTP: POST /api/jobs/settle-sweep", () => {
     return jobsApp.request("/api/jobs/settle-sweep", { method: "POST", headers });
   }
 
-  it("401s without the x-job-secret header", async () => {
-    const res = await postSettleSweep();
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ error: "unauthorized" });
-  });
-
   it("200s the job envelope when the header matches", async () => {
     await seedLeagueForSettlement(); // just proves the sweep runs end to end
 

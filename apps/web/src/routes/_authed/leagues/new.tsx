@@ -111,8 +111,8 @@ function NewLeague() {
     (mode === LEAGUE_MODE.MARCH_MADNESS && numberFieldInvalid(mmMaxBrackets, 1, 10));
 
   return (
-    <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
-      <Card className="w-full max-w-lg">
+    <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+      <Card className="w-full max-w-lg self-center">
         <CardHeader>
           <CardTitle>Create a league</CardTitle>
           <CardDescription>

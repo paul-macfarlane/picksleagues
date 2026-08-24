@@ -77,7 +77,7 @@ succeeded and the recovery when it didn't, capping staleness at ~12h instead of
 
 `settle-sweep` takes no query params — it derives its own scope (every active league
 season). It is a **safety net, not the main path**: `nfl-sync-scores` already settles a
-game's picks within ~5 minutes of it going final, so a missed sweep costs freshness of
+game's picks within ~15 minutes of it going final (ADR-0044), so a missed sweep costs freshness of
 late corrections, never correctness of the day's results.
 
 ### Why `sync-odds` covers two weeks
@@ -105,7 +105,7 @@ it**, found by start time so regular week 18 pulls in the Wild Card round.
 Naming a week (`?week=`) still targets that week alone — the manual/simulator path stays
 narrow so a one-week backfill never rewrites a neighbour.
 
-Future jobs (`ncaamb-sync-bracket`, every 5 min on tournament days) follow the same
+Future jobs (`ncaamb-sync-bracket`, every 15 min on tournament days) follow the same
 pattern and get added here when their epics land.
 
 ### Failure alerting & recovery
@@ -147,7 +147,12 @@ curl -X POST -H "x-job-secret: $JOB_SECRET" \
 ```
 
 The guard hook in `.claude/hooks/` prompts before job calls against non-local hosts.
-The admin page (ADM epic) will add button-press triggers using the same endpoints.
+The admin page's Jobs tab has button-press triggers for the four NFL syncs and the
+settlement sweep (`ADM-6`), backed by the session-gated `/api/admin/jobs/*` twins of
+these endpoints. The per-league rebuild (`POST /api/admin/leagues/:id/rebuild`) is
+deliberately button-less (owner re-verdict on `ADM-6`, 2026-08-23) — it is
+admin-session-gated, not secret-gated, so invoke it with a signed-in browser session's
+cookie (locally, mint one per `docs/runbooks/verification.md`).
 
 ## Reading a run
 
@@ -181,7 +186,7 @@ is idempotent and the next tick self-heals):
    moment scheduled runs 401 until step 3.
 3. Update the `x-job-secret` header on **every** cron-job.org job (there is no shared
    header store; each job carries its own copy).
-4. Confirm recovery: either wait for the next `nfl-sync-scores` tick (≤5 minutes) to
+4. Confirm recovery: either wait for the next `nfl-sync-scores` tick (≤15 minutes) to
    succeed in cron-job.org's execution history, or fire one job manually with the new
    secret (§Manual triggering) against production.
 

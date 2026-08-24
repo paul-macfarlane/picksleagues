@@ -9,6 +9,7 @@ import {
   type PickemPickSide,
   type PickType,
 } from "@picksleagues/schemas";
+import { pickOutcomeForMargin } from "./pick-outcome";
 
 /**
  * Pick'em settlement (spec §Game Mode 1 — Scoring, Standings, Cancellations).
@@ -212,7 +213,8 @@ function marginForPick(
 }
 
 function gradedOutcome(pick: PickemPickInput, margin: number): PickemPickOutcome {
-  if (margin === 0) {
+  const outcome = pickOutcomeForMargin(margin);
+  if (outcome === PICK_OUTCOME.PUSH) {
     return pushOutcome(pick);
   }
 
@@ -220,8 +222,8 @@ function gradedOutcome(pick: PickemPickInput, margin: number): PickemPickOutcome
     pickId: pick.pickId,
     memberId: pick.memberId,
     gameId: pick.gameId,
-    outcome: margin > 0 ? PICK_OUTCOME.CORRECT : PICK_OUTCOME.INCORRECT,
-    points: margin > 0 ? CORRECT_POINTS : INCORRECT_POINTS,
+    outcome,
+    points: outcome === PICK_OUTCOME.CORRECT ? CORRECT_POINTS : INCORRECT_POINTS,
   };
 }
 

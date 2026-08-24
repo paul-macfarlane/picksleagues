@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { adminAudit, createDb, games } from "@picksleagues/db";
+import { adminAudit, games } from "@picksleagues/db";
 import { FixedClock, type ProviderGame, type ProviderSeasonStructure } from "@picksleagues/core";
 import {
   ADMIN_AUDIT_ACTION,
@@ -12,12 +12,10 @@ import {
   type GameOverrideRequest,
   type WeekType,
 } from "@picksleagues/schemas";
-import { createApp } from "../src/app";
 import { BaseFakeProvider } from "./setup/fake-provider";
-import { createAuth } from "../src/auth";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { settlePicksForGames } from "../src/services/settlement";
-import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
+import { createAuthenticatedUser } from "./setup/auth-helpers";
 import {
   insertPick,
   pickResultsFor,
@@ -28,8 +26,7 @@ import {
 import { seedPickemLeague } from "./setup/pickem-league";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
 import { resetDb } from "./setup/reset-db";
-import { getTestDatabaseUrl } from "./setup/test-database-url";
-import { makeTestEnv } from "./setup/test-env";
+import { makeFixedAppHarness, withCookie } from "./setup/fixed-app";
 
 /**
  * `PUT /admin/games/{id}/override` (ADM-2, arch §Manual Sports Data Overrides,
@@ -44,8 +41,7 @@ const NOW = new Date("2026-09-20T00:00:00.000Z");
 const PAST_KICKOFF = new Date("2026-09-13T17:00:00.000Z");
 const FUTURE_KICKOFF = new Date("2026-09-27T17:00:00.000Z");
 
-const db = createDb(getTestDatabaseUrl());
-const auth = createAuth({ env: makeTestEnv(), db });
+const { db, auth, appAt, adminCaller } = makeFixedAppHarness();
 const clock = new FixedClock(NOW);
 
 /** Mutable in-memory provider — only the re-sync test drives it. */
@@ -68,13 +64,7 @@ class FakeProvider extends BaseFakeProvider {
 const provider = new FakeProvider();
 
 function buildApp() {
-  return createApp({
-    auth,
-    db,
-    env: makeTestEnv(),
-    clock: async () => clock,
-    provider: async () => provider,
-  });
+  return appAt(clock.now(), { provider: async () => provider });
 }
 
 type App = ReturnType<typeof buildApp>;
@@ -87,7 +77,7 @@ function putOverride(
 ) {
   return app.request(`/api/admin/games/${gameId}/override`, {
     method: "PUT",
-    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    headers: { "content-type": "application/json", ...withCookie(cookie) },
     body: JSON.stringify(body),
   });
 }
@@ -104,12 +94,6 @@ async function readGame(
   const game = rows.find((row) => row.id === gameId);
   if (!game) throw new Error(`game ${gameId} missing from the week listing`);
   return game;
-}
-
-async function adminCaller() {
-  const { user, cookie } = await createAuthenticatedUser(auth);
-  await grantAdmin(db, user.id);
-  return { app: buildApp(), cookie, userId: user.id };
 }
 
 function auditRows() {
@@ -165,7 +149,7 @@ describe("PUT /api/admin/games/{gameId}/override — access", () => {
   });
 
   it("404s for an unknown game", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
 
     const res = await putOverride(app, cookie, UNKNOWN_GAME_ID, { homeScore: 24 });
 
@@ -174,32 +158,20 @@ describe("PUT /api/admin/games/{gameId}/override — access", () => {
     expect(await auditRows()).toHaveLength(0);
   });
 
-  it("400s on an empty body", async () => {
-    const { app, cookie } = await adminCaller();
+  it.each([
+    { name: "an empty body", body: {} },
+    { name: "a score outside its range", body: { homeScore: 500 } },
+    { name: "a status outside GAME_STATUS", body: { status: "delayed" } },
+  ])("400s on $name", async ({ body }) => {
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureGameId } = await seedGames();
 
-    const res = await putOverride(app, cookie, futureGameId, {});
-
-    expect(res.status).toBe(400);
-  });
-
-  it("400s on a score outside its range", async () => {
-    const { app, cookie } = await adminCaller();
-    const { futureGameId } = await seedGames();
-
-    const res = await putOverride(app, cookie, futureGameId, { homeScore: 500 });
-
-    expect(res.status).toBe(400);
-  });
-
-  it("400s on a status outside GAME_STATUS", async () => {
-    const { app, cookie } = await adminCaller();
-    const { futureGameId } = await seedGames();
-
+    // Raw request, not `putOverride`: the third case is malformed on purpose,
+    // and the helper's typed body would refuse it at compile time.
     const res = await app.request(`/api/admin/games/${futureGameId}/override`, {
       method: "PUT",
       headers: { "content-type": "application/json", cookie },
-      body: JSON.stringify({ status: "delayed" }),
+      body: JSON.stringify(body),
     });
 
     expect(res.status).toBe(400);
@@ -213,7 +185,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
   // saying the game was played may never be left on an unlocked game (the lock
   // boundary block below).
   it("sets every field and resolves override ?? provider on the read path", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { futureWeekId, futureGameId } = await seedGames();
 
     const res = await putOverride(app, cookie, futureGameId, {
@@ -252,7 +224,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
   });
 
   it("leaves omitted fields alone and applies only the ones supplied", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
 
     await putOverride(app, cookie, pastGameId, {
@@ -271,7 +243,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
   });
 
   it("clears one field back to provider truth without touching the others", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     await setGame(db, pastGameId, {
       status: GAME_STATUS.FINAL,
@@ -297,7 +269,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
    * the scores: set, cleared, and resolved through the read serializer.
    */
   it("sets and clears the period and clock overrides, resolving override ?? provider", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     await setGame(db, pastGameId, {
       status: GAME_STATUS.IN_PROGRESS,
@@ -330,7 +302,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
   });
 
   it("accepts an overtime period and rejects one past the bound", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
 
     expect((await putOverride(app, cookie, pastGameId, { period: 5 })).status).toBe(200);
@@ -343,7 +315,7 @@ describe("PUT /api/admin/games/{gameId}/override — precedence", () => {
   });
 
   it("clearing the last override leaves a row indistinguishable from an uncorrected one", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     await setGame(db, pastGameId, {
       status: GAME_STATUS.FINAL,
@@ -401,7 +373,7 @@ describe("PUT /api/admin/games/{gameId}/override — ingestion never clobbers a 
   }
 
   it("survives a re-sync that rewrites every provider field", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     await syncWith(
       providerGame({
         providerGameId: "evt-1",
@@ -452,7 +424,7 @@ describe("PUT /api/admin/games/{gameId}/override — ingestion never clobbers a 
 
 describe("PUT /api/admin/games/{gameId}/override — audit trail", () => {
   it("records the prior override values, not the new ones", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
 
     await putOverride(app, cookie, pastGameId, { homeScore: 24, status: GAME_STATUS.FINAL });
@@ -490,7 +462,7 @@ describe("PUT /api/admin/games/{gameId}/override — audit trail", () => {
    * the live-state pair (DATA-8).
    */
   it("records the prior period and clock overrides too", async () => {
-    const { app, cookie, userId } = await adminCaller();
+    const { app, cookie, userId } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
 
     await putOverride(app, cookie, pastGameId, { period: 3, clockSeconds: 421 });
@@ -513,7 +485,7 @@ describe("PUT /api/admin/games/{gameId}/override — audit trail", () => {
   });
 
   it("writes no audit row when the override is refused", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
     await setGame(db, pastGameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 17 });
 
@@ -576,7 +548,7 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
   }
 
   it("re-grades results and standings when a final score is corrected", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { leagueSeasonId, gameId, homePicker, awayPicker } = await seedSettledLeague();
 
     expect(await outcomesByMember(leagueSeasonId)).toEqual(
@@ -605,7 +577,7 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
   });
 
   it("re-settles on a status correction, pushing a cancelled game's picks", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { leagueSeasonId, gameId, homePicker, awayPicker } = await seedSettledLeague();
 
     await putOverride(app, cookie, gameId, { status: GAME_STATUS.CANCELLED });
@@ -619,7 +591,7 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
   });
 
   it("is idempotent — a second identical override lands on identical state", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { leagueSeasonId, gameId } = await seedSettledLeague();
 
     await putOverride(app, cookie, gameId, { homeScore: 10, awayScore: 24 });
@@ -636,7 +608,7 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
   });
 
   it("clearing an override re-settles back to provider truth", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { leagueSeasonId, gameId, homePicker, awayPicker } = await seedSettledLeague();
 
     await putOverride(app, cookie, gameId, { homeScore: 10, awayScore: 24 });
@@ -665,7 +637,7 @@ describe("PUT /api/admin/games/{gameId}/override — settlement recompute", () =
  */
 describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary", () => {
   it("refuses a status correction that leaves an unlocked game final, with no kickoff edit at all", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureWeekId, futureGameId } = await seedGames();
 
     // The provider had the kickoff wrong (says Sunday, the game played
@@ -691,7 +663,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("refuses a score-only write that would leave an unlocked game showing an outcome", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureWeekId, futureGameId } = await seedGames();
 
     // The likeliest real action on the override form: its status select
@@ -710,7 +682,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("refuses the kickoff half of the same attack split across two requests", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
 
     // Scoring a locked game is legitimate on its own...
@@ -728,7 +700,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("still allows score and spread corrections on a row the provider already left violating", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureWeekId, futureGameId } = await seedGames();
     // Provider bug, no override in sight: kickoff in the future on a game it
     // reports final. The row already violates the invariant, so this write
@@ -751,7 +723,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("refuses the last of three requests that would otherwise land on the same unlocked-final state", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     // Unscored on purpose: a provider score would refuse step (b) on its own,
     // and the point of this case is the *status* clear at step (c).
@@ -787,7 +759,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("refuses a kickoff that would re-open picks on a started game", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
     await setGame(db, pastGameId, { status: GAME_STATUS.IN_PROGRESS, homeScore: 7, awayScore: 3 });
 
@@ -800,7 +772,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("refuses a *clear* that would re-open picks on a started game", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureGameId } = await seedGames();
     // Provider kickoff is in the future; a prior override pulled it into the
     // past, and the game went final there.
@@ -814,7 +786,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("refuses `postponed` over a scored game — a status that isn't 'started' still renders the outcome", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     await setGame(db, pastGameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -834,7 +806,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("allows a genuine postponement — no score anywhere, so nothing is knowable", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     // The real-world shape: the provider marked it postponed and has no score,
     // and the game is genuinely rescheduled into the future.
@@ -855,7 +827,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("allows re-opening a game the provider still reports as scheduled", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
 
     const res = await putOverride(app, cookie, pastGameId, {
@@ -868,7 +840,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("allows the escape hatch: correcting the status back to scheduled in the same edit", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     // The provider fault the hatch exists for: a `final` it never scored (the
     // same fault sync-scores counts as `settledUnsettled`). Nothing about the
@@ -889,7 +861,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("allows the escape hatch when the scores were an override, nulled out in the same edit", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastWeekId, pastGameId } = await seedGames();
     // An earlier correction wrote the outcome; this one retracts the whole
     // thing — status back to scheduled AND both scores nulled, or the score
@@ -933,7 +905,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
    * kickoff, not re-opening it.
    */
   it("cannot re-open a game the PROVIDER scored — nulling the override falls back to that score", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { pastGameId } = await seedGames();
     await setGame(db, pastGameId, { status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 10 });
 
@@ -955,7 +927,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
    * this predicate).
    */
   it("allows live-state corrections on an unlocked game — a clock is not an outcome", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureWeekId, futureGameId } = await seedGames();
 
     const res = await putOverride(app, cookie, futureGameId, { period: 2, clockSeconds: 300 });
@@ -966,7 +938,7 @@ describe("PUT /api/admin/games/{gameId}/override — the kickoff lock boundary",
   });
 
   it("allows moving a kickoff earlier, which only ever locks", async () => {
-    const { app, cookie } = await adminCaller();
+    const { app, cookie } = await adminCaller(buildApp());
     const { futureWeekId, futureGameId } = await seedGames();
 
     const res = await putOverride(app, cookie, futureGameId, {

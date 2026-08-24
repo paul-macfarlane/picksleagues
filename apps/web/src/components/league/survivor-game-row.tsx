@@ -1,11 +1,14 @@
 import {
+  GAME_SIDE,
   GAME_STATUS,
+  type GameSide,
   isUnplayedStatus,
   type PickOutcome,
   type SlateGame,
   type SlateTeam,
 } from "@picksleagues/schemas";
-import { gameStateLead, matchupNumerals, survivorProvisionalOutcome } from "@/lib/game";
+import { gameStateLead, matchupNumerals } from "@/lib/game";
+import { survivorProvisionalOutcome } from "@/lib/survivor-game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -92,7 +95,7 @@ function TeamButton({
 }: {
   team: SlateTeam;
   numeral: string | null;
-  side: "away" | "home";
+  side: GameSide;
   held: boolean;
   consumed: boolean;
   reason: string | null;
@@ -112,7 +115,7 @@ function TeamButton({
       data-team={team.abbreviation}
       className={cn(
         TEAM_BUTTON_CLASS_NAME,
-        side === "home" && "flex-row-reverse",
+        side === GAME_SIDE.HOME && "flex-row-reverse",
         // A held team spends the rest of the week disabled once its game kicks
         // off, so it lifts out of the standard disabled dimming enough to stay
         // readable beside its outline sibling (same treatment as Pick'em's held
@@ -220,7 +223,7 @@ function HeldTeamButton({
 }: {
   team: SlateTeam;
   numeral: string | null;
-  side: "away" | "home";
+  side: GameSide;
   held: boolean;
   outcome: PickOutcome | null;
 }) {
@@ -236,7 +239,7 @@ function HeldTeamButton({
       title={team.name}
       className={cn(
         TEAM_BUTTON_CLASS_NAME,
-        side === "home" && "flex-row-reverse",
+        side === GAME_SIDE.HOME && "flex-row-reverse",
         // This control spends its whole life disabled, so a held one lifts out
         // of the standard disabled dimming enough to stay readable beside its
         // outline sibling (same treatment as Pick'em's held side).

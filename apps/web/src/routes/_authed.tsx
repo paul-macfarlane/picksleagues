@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/app-header";
 import { AppTabBar, appTabBarClearanceClassName } from "@/components/app-tab-bar";
 import { LegalFooter } from "@/components/legal-footer";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 
 /**
  * Pathless layout gating every signed-in route (mvp-spec has no anonymous browsing):
@@ -36,6 +37,7 @@ function AuthedLayout() {
   return (
     <div className={cn("flex min-h-svh flex-col", appTabBarClearanceClassName)}>
       <AppHeader />
+      <PullToRefresh />
       {/* Every authed page inherits this one column — pages never set their own
           page width, only intentionally-narrow content (single-card states,
           forms) centered inside it. */}

@@ -79,6 +79,19 @@ export async function resolveNflJobDeps(
 }
 
 /**
+ * The provider-less sibling of `resolveNflJobDeps` for jobs that only read and
+ * write our own tables (the settlement sweep, a league rebuild). Same null
+ * contract, same single clock resolution per request — the four handlers that
+ * restated `if (!db || !resolveClock)` inline each had to remember that rule
+ * on their own.
+ */
+export async function resolveJobDeps(deps: AppDeps): Promise<{ db: Db; clock: Clock } | null> {
+  const { db, clock: resolveClock } = deps;
+  if (!db || !resolveClock) return null;
+  return { db, clock: await resolveClock() };
+}
+
+/**
  * Deviates from the me.ts idiom (which 500s with ErrorResponseSchema): job
  * endpoints keep exactly one 500 shape in the contract — the `JobRunResponse`
  * failure envelope — so a missing-deps 500 and a job-failure 500 are the same

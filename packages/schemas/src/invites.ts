@@ -4,6 +4,13 @@ import { LeagueNameSchema } from "./leagues";
 import { LeagueVisibilitySchema } from "./league-visibility";
 
 /**
+ * An invite code is 16 random bytes as base64url (22 chars). The bound exists
+ * for the one route that reads the code outside zod — the HTML unfurl preview
+ * — so an unbounded string from a public, cacheable URL never reaches a query.
+ */
+export const InviteCodeSchema = z.string().min(1).max(64);
+
+/**
  * An invite is a bare opaque code (spec §Invites, ADR-0032): no expiry, no
  * use cap, no create-time options at all. Revocation is its only lifecycle,
  * and it carries no wire status: both serialization paths — creation, and a
@@ -13,7 +20,7 @@ import { LeagueVisibilitySchema } from "./league-visibility";
 export const InviteSchema = z
   .object({
     id: z.string(),
-    code: z.string(),
+    code: InviteCodeSchema,
     useCount: z.number().int(),
     createdAt: z.iso.datetime(),
     // Null when the creating commissioner's account was deleted (FK set null).
@@ -54,6 +61,13 @@ export type JoinBlockedReason = (typeof JOIN_BLOCKED_REASON)[keyof typeof JOIN_B
 
 export const JoinBlockedReasonSchema = z.enum(JOIN_BLOCKED_REASON).openapi("JoinBlockedReason");
 
+// Registered under its own component name: an inline `.nullable()` would fold
+// `null` into the shared `JoinBlockedReason` component and widen every other
+// `$ref` to it (engineering rules §Contract).
+const NullableJoinBlockedReasonSchema = JoinBlockedReasonSchema.nullable().openapi(
+  "NullableJoinBlockedReason",
+);
+
 /**
  * One home for refusal copy so the API's 409 message and the join screen's
  * pre-flight explanation can't drift.
@@ -88,7 +102,7 @@ export const JoinPreviewResponseSchema = z
       startsAt: z.iso.datetime().nullable(),
     }),
     joinable: z.boolean(),
-    reason: JoinBlockedReasonSchema.nullable(),
+    reason: NullableJoinBlockedReasonSchema,
   })
   .openapi("JoinPreviewResponse");
 

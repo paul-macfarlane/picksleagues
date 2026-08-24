@@ -1,10 +1,15 @@
 import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, leagueSeasons } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
-import { LEAGUE_ACTION, LEAGUE_STATUS, type LeagueResponse } from "@picksleagues/schemas";
+import {
+  ERROR_CODE,
+  LEAGUE_ACTION,
+  LEAGUE_STATUS,
+  type LeagueResponse,
+} from "@picksleagues/schemas";
 import { applyLeagueSeasonConclusion } from "./conclusion";
 import { lockLeagueRow, lockLeagueSeasonRow } from "./locks";
-import { authorizeLeagueAction } from "./authz";
+import { authorizeLeagueAction, type LeagueActionRefusal } from "./authz";
 import {
   getLeagueWithCurrentSeason,
   latestSeasonForSport,
@@ -14,7 +19,8 @@ import {
 
 export type RenewLeagueSeasonResult =
   | { ok: true; league: LeagueResponse }
-  | { ok: false; reason: "league_not_found" | "not_commissioner" | "no_newer_season" };
+  | LeagueActionRefusal
+  | { ok: false; reason: typeof ERROR_CODE.NO_NEWER_SEASON };
 
 /**
  * Explicit renewal (ADR-0009): a commissioner mints the league's next season
@@ -47,14 +53,14 @@ export async function renewLeagueSeason(
     // guard and the unique-constraint backstop must see the same serialized
     // snapshot every join/settings mutation does.
     const current = await getLeagueWithCurrentSeason(tx, leagueId);
-    if (!current) return { ok: false, reason: "league_not_found" };
+    if (!current) return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
     const { league, season } = current;
 
     const latest = await latestSeasonForSport(tx, sportForMode(league.mode));
     // Strictly greater — the current instance already being on the latest
     // season is the common no-op, not an error condition worth its own reason.
     if (!latest || latest.year <= season.seasonYear) {
-      return { ok: false, reason: "no_newer_season" };
+      return { ok: false, reason: ERROR_CODE.NO_NEWER_SEASON };
     }
 
     try {
@@ -73,7 +79,7 @@ export async function renewLeagueSeason(
       // Same refusal as an already-latest league — the season it would mint now
       // exists, so there's no newer season left to add.
       if (isUniqueViolation(error, "league_seasons_league_season_unique")) {
-        return { ok: false, reason: "no_newer_season" };
+        return { ok: false, reason: ERROR_CODE.NO_NEWER_SEASON };
       }
       throw error;
     }

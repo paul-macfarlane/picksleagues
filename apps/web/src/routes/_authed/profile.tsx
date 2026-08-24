@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { useForm, useStore } from "@tanstack/react-form";
 import { toastSuccess } from "@/lib/toast";
 import {
@@ -9,7 +8,7 @@ import {
   type MeResponse,
   type UpdateMeRequest,
 } from "@picksleagues/schemas";
-import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe, ME_QUERY_KEY } from "@/api/me";
+import { useDeleteAccount, useDeletionBlockers, useMe, useUpdateMe } from "@/api/me";
 import { authClient } from "@/lib/auth";
 import { useSignOut } from "@/lib/sign-out";
 import { isTheme, THEME_OPTIONS, type Theme } from "@/lib/theme";
@@ -54,7 +53,7 @@ function Profile() {
   const me = useMe();
 
   return (
-    <main className="flex flex-1 flex-col items-center gap-4 p-4 sm:p-6">
+    <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
       <QueryState
         isPending={me.isPending}
         pendingFallback={
@@ -63,7 +62,7 @@ function Profile() {
             className="flex w-full flex-col items-center gap-4"
           >
             <Skeleton className="h-8 w-40 self-start" />
-            <Skeleton className="h-96 w-full max-w-sm" />
+            <Skeleton className="h-96 w-full max-w-sm self-center" />
           </LoadingRegion>
         }
         isError={me.isError}
@@ -92,8 +91,6 @@ function ProfileForm({
   profile: MeResponse;
   refetchSession: () => Promise<void>;
 }) {
-  const queryClient = useQueryClient();
-
   const update = useUpdateMe({
     // Taken is field-level feedback, not a toast — mirrors claim-username.
     onUsernameTaken: () =>
@@ -102,7 +99,6 @@ function ProfileForm({
       }),
     onSuccess: async () => {
       toastSuccess("Profile updated");
-      await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       await refetchSession();
     },
     errorToastMessage: "Couldn't update your profile — please try again.",
@@ -160,7 +156,7 @@ function ProfileForm({
           card below shows *who* you are, which is not the same as naming the
           page for a screen reader landing on it. */}
       <h1 className="self-start text-2xl text-foreground">Your profile</h1>
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm self-center">
         <CardHeader className="items-center text-center">
           <UserIdentity
             displayName={profile.displayName}
@@ -287,7 +283,7 @@ function ProfileForm({
                     className="w-full justify-center"
                     disabled={!hasChanges || update.isPending}
                   >
-                    {update.isPending ? "Saving…" : "Save changes"}
+                    Save changes
                   </Button>
                 );
               }}
@@ -315,7 +311,7 @@ function AppearanceCard() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <Section title="Appearance" className="w-full max-w-sm">
+    <Section title="Appearance" className="w-full max-w-sm self-center">
       <LabeledSelect<Theme>
         id="theme"
         label="Theme"

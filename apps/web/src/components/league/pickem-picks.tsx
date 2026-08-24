@@ -11,7 +11,8 @@ import {
 } from "@picksleagues/schemas";
 import { useSubmitPicks, useWeekPicks } from "@/api/pickem";
 import { useWeekSlate } from "@/api/weeks";
-import { isClosedToPicks, spreadSourceCredit } from "@/lib/game";
+import { isClosedToPicks } from "@/lib/game";
+import { spreadSourceCredit } from "@/lib/pickem-game";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {

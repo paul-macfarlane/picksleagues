@@ -1,5 +1,5 @@
 import { and, asc, count, eq, gt, sql } from "drizzle-orm";
-import type { Db } from "@picksleagues/db";
+import { getSimState, type Db } from "@picksleagues/db";
 import {
   accounts,
   isUniqueViolation,
@@ -11,12 +11,14 @@ import {
 import { currentLeagueSeason, lockUserRow } from "./leagues";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   APP_ROLE,
   DELETED_USER_DISPLAY_NAME,
   MEMBER_ROLE,
   type AppRole,
   type DisplayName,
   type ImageUrl,
+  type MeResponse,
   type Username,
 } from "@picksleagues/schemas";
 
@@ -41,7 +43,8 @@ export function resolveUserImage(user: {
 }
 
 export type UpdateProfileResult =
-  { ok: true; user: typeof users.$inferSelect } | { ok: false; reason: "username_taken" };
+  | { ok: true; user: typeof users.$inferSelect }
+  | { ok: false; reason: typeof ERROR_CODE.USERNAME_TAKEN };
 
 const USERNAME_UNIQUE_CONSTRAINT = "users_username_unique";
 
@@ -86,7 +89,7 @@ export async function updateProfile(
     return { ok: true, user };
   } catch (error) {
     if (isUniqueViolation(error, USERNAME_UNIQUE_CONSTRAINT)) {
-      return { ok: false, reason: "username_taken" };
+      return { ok: false, reason: ERROR_CODE.USERNAME_TAKEN };
     }
     throw error;
   }
@@ -149,7 +152,7 @@ export async function deleteAccount(
     `);
 
     if ((await listAccountDeletionBlockingLeagues(tx, userId)).length > 0) {
-      return { ok: false as const, reason: "last_commissioner" as const };
+      return { ok: false as const, reason: ERROR_CODE.LAST_COMMISSIONER };
     }
 
     await tx
@@ -177,7 +180,8 @@ export async function deleteAccount(
   });
 }
 
-export type DeleteAccountResult = { ok: true } | { ok: false; reason: "last_commissioner" };
+export type DeleteAccountResult =
+  { ok: true } | { ok: false; reason: typeof ERROR_CODE.LAST_COMMISSIONER };
 
 /**
  * The leagues that would be left commissioner-less but not member-less by this
@@ -226,4 +230,48 @@ export async function listAccountDeletionBlockingLeagues(
     .innerJoin(current, and(eq(current.leagueId, leagues.id), eq(current.rank, 1)))
     .where(and(eq(commissionerCount, 1), gt(memberCount, 1)))
     .orderBy(asc(leagues.name));
+}
+
+/**
+ * `simEnabled` plus how far the clock is shifted (FB-38) — the second is what
+ * lets a non-admin's banner say "now isn't real" without reaching for the
+ * admin-only sim state route. Read per response, not once at startup: the
+ * offset changes whenever an operator moves the clock, and it costs a query
+ * only where the simulator exists at all.
+ */
+export async function readMeCapabilities(
+  db: Db,
+  simEnabled: boolean,
+): Promise<{ simEnabled: boolean; simClockOffsetMs: number }> {
+  return {
+    simEnabled,
+    simClockOffsetMs: simEnabled ? (await getSimState(db)).offsetMs : 0,
+  };
+}
+
+/** The caller's own profile on the wire — the one response carrying the raw image override (ADR-0022). */
+export function serializeMe(
+  user: typeof users.$inferSelect,
+  capabilities: { simEnabled: boolean; simClockOffsetMs: number },
+  now: Date,
+): MeResponse {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.display_name,
+    email: user.email,
+    image: resolveUserImage(user),
+    // The only surface carrying the raw override alongside the resolved value:
+    // this is the caller's own profile, and the editor needs to tell "unset,
+    // inheriting" from "set" (ADR-0022).
+    imageOverride: user.imageOverride,
+    providerImage: user.image,
+    // Admin capability is the user's own role column (ADR-0013), so it travels
+    // with the row rather than being resolved from env alongside `simEnabled`.
+    isAdmin: user.appRole === APP_ROLE.ADMIN,
+    ...capabilities,
+    // Read per response, never cached: the simulator can move the clock
+    // between two requests in the same session.
+    now: now.toISOString(),
+  };
 }

@@ -13,10 +13,12 @@ loadE2eEnv();
 const env = loadEnv(process.env);
 const pool = createDb(env.DATABASE_URL).$client;
 
-// A far-future season so the league is pre-start under the dev server's real
-// system clock (fixed dates, not "now" arithmetic — deterministic). League
-// creation binds to the LATEST season for the sport, so 2099 outranks any
-// genuinely synced season.
+/**
+ * A far-future season so the league is pre-start under the dev server's real
+ * system clock (fixed dates, not "now" arithmetic — deterministic). League
+ * creation binds to the LATEST season for the sport, so 2099 outranks any
+ * genuinely synced season.
+ */
 export const E2E_SEASON_YEAR = 2099;
 const KICKOFF = "2099-09-12T17:00:00.000Z";
 const SEED_AT = "2099-01-01T00:00:00.000Z";

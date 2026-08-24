@@ -13,11 +13,11 @@ import {
   gameStateLead,
   isClosedToPicks,
   matchupNumerals,
-  pickRowState,
-  pickStandingLabel,
   spreadLabel,
 } from "@/lib/game";
+import { pickemPickGrade, pickRowState, pickStandingLabel } from "@/lib/pickem-game";
 import { useAppNow } from "@/lib/app-clock";
+import { kickoffDaysAway } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GameStatePill } from "@/components/league/game-state";
@@ -54,12 +54,13 @@ import { StatusPill } from "@/components/status-pill";
  * and `aria-pressed` are the row's answer to "who did I take", and that question
  * outlives the ability to change the answer.
  *
- * A held side carries a glyph only once it has graded, and then it is the
- * *outcome's* glyph. An unsettled pick gets the fill alone: a checkmark on one
- * reads as "you got this right" rather than "you chose this", and on a game
- * that hasn't finished there is no such fact — the app would be claiming an
- * outcome it doesn't have. The fill, the row's rule, and the badge carry
- * "chosen" between them until a result exists.
+ * A held side carries a glyph only once a grade exists — settled, or derived
+ * from the game's own terminal state (PKM-11, `pickemPickGrade`) — and then it
+ * is the *outcome's* glyph. An undecided pick gets the fill alone: a checkmark
+ * on one reads as "you got this right" rather than "you chose this", and on a
+ * game that hasn't finished there is no such fact — the app would be claiming
+ * an outcome it doesn't have. The fill, the row's rule, and the badge carry
+ * "chosen" between them until a verdict exists.
  */
 function SideButton({
   team,
@@ -174,6 +175,7 @@ export function SheetGameRow({
           simulator is months from the browser's. */}
       <MatchupLine
         data-testid="game-state"
+        data-kickoff-days={kickoffDaysAway(game.kickoffAt, now)}
         away={
           <SideButton
             team={game.awayTeam}
@@ -239,40 +241,42 @@ export function SubmittedPickRow({
   const stateAsOf = gameStateAsOfLabel(game);
   // Read off the *pick's* accepted spread, never the game's current one, so it
   // matches what settlement grades on. Which phrasing (a provisional reading
-  // while it runs, the bare magnitude once graded) is the helper's rule, not
-  // this row's.
-  const standing = pickStandingLabel(
-    game,
-    { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome },
-    pickType,
-  );
+  // while it runs, the past tense once graded) is the helper's rule, not this
+  // row's.
+  const gradable = { side: pick.side, spreadAtPick: pick.spread, outcome: pick.outcome };
+  // The settled grade when it exists, else the one derived from the final
+  // score (PKM-11): the two can never disagree for a single pick, so the
+  // member sees their verdict the moment the game ends instead of a sync
+  // interval later.
+  const grade = pickemPickGrade(game, gradable, pickType);
+  const standing = pickStandingLabel(game, gradable, pickType);
   const heldTeam = pick.side === PICKEM_PICK_SIDE.HOME ? game.homeTeam : game.awayTeam;
 
   return (
     <li
       {...gameRowAttributes(game)}
-      // The rule says the most that is known: the grade once there is one,
-      // "selected" in orange while the pick is still the member's live
-      // holding, nothing once the game has closed on an ungraded pick — the
-      // held control still answers "who did I take".
+      // The rule says the most that is known: the grade — settled or derived —
+      // once there is one, "selected" in orange while the pick is still the
+      // member's live holding, nothing once the game has closed with no
+      // derivable verdict (final without scores) — the held control still
+      // answers "who did I take".
       className={cn(
         ROW_CLASS_NAME,
-        pick.outcome
-          ? pickOutcomeAccentClassName(pick.outcome)
-          : rowState === "picked" && "border-l-primary",
+        grade ? pickOutcomeAccentClassName(grade) : rowState === "picked" && "border-l-primary",
       )}
     >
       {/* Spread before the game starts, score after — a member whose pick has
           locked wants to know how it is doing, not what they bought it at. */}
       <MatchupLine
         data-testid="game-state"
+        data-kickoff-days={kickoffDaysAway(game.kickoffAt, now)}
         away={
           <SideButton
             team={game.awayTeam}
             numeral={numerals.away}
             side={PICKEM_PICK_SIDE.AWAY}
             held={pick.side === PICKEM_PICK_SIDE.AWAY}
-            outcome={pick.outcome}
+            outcome={grade}
             disabled
           />
         }
@@ -283,7 +287,7 @@ export function SubmittedPickRow({
             numeral={numerals.home}
             side={PICKEM_PICK_SIDE.HOME}
             held={pick.side === PICKEM_PICK_SIDE.HOME}
-            outcome={pick.outcome}
+            outcome={grade}
             disabled
           />
         }
@@ -299,17 +303,17 @@ export function SubmittedPickRow({
           {stateAsOf && <span className="text-xs text-muted-foreground/70">{stateAsOf}</span>}
         </div>
         {/* One badge, most-informative-wins, and the chain is total because
-            each state strictly implies the next: a settled pick takes the slot
-            from "Locked" (every settled pick is locked, so the lock is implied
-            and the grade is worth more), and an in-progress game takes it from
-            "Locked" too — it has kicked off by definition, and "still being
-            played" is the fact that separates it from the finished games above
-            it and the unstarted ones below. No status badge for unplayable
-            games — the line's centre carries the status for every
-            non-scheduled game, and repeating "Cancelled" twelve pixels apart
-            reads as a rendering bug. */}
-        {pick.outcome ? (
-          <PickOutcomeBadge outcome={pick.outcome} />
+            each state strictly implies the next: a graded pick — settled or
+            derived — takes the slot from "Locked" (every graded pick is
+            locked, so the lock is implied and the grade is worth more), and an
+            in-progress game takes it from "Locked" too — it has kicked off by
+            definition, and "still being played" is the fact that separates it
+            from the finished games above it and the unstarted ones below. No
+            status badge for unplayable games — the line's centre carries the
+            status for every non-scheduled game, and repeating "Cancelled"
+            twelve pixels apart reads as a rendering bug. */}
+        {grade ? (
+          <PickOutcomeBadge outcome={grade} />
         ) : inProgress ? (
           <GameStatePill status={game.status} />
         ) : rowState === "picked" ? (

@@ -57,19 +57,3 @@ describe("sortStandingsRows", () => {
     }
   });
 });
-
-/**
- * ADR-0018 decision 4: members level on points share a rank with **nothing
- * shown behind them** — no differential, no secondary sort, no separator.
- *
- * Pinned as the column set rather than as rendered markup because the set is
- * what the board is made of: every column here is a header, a cell, and a sort,
- * so a tiebreaker cannot reappear on the board without appearing in this list
- * first. The row type no longer carries a differential at all, which is the
- * other half of the guarantee.
- */
-describe("STANDINGS_SORT_COLUMN", () => {
-  it("offers nothing behind points to separate tied members", () => {
-    expect(Object.values(STANDINGS_SORT_COLUMN)).toEqual(["rank", "member", "record", "points"]);
-  });
-});

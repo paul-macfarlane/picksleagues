@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { type GameSide } from "@picksleagues/schemas";
 import { useForm } from "@tanstack/react-form";
 import type {
   AdminNflGameStatContext,
@@ -35,7 +36,7 @@ function SideFields({
   form,
 }: {
   gameId: string;
-  side: "home" | "away";
+  side: GameSide;
   label: string;
   provider: NflGameStatsTeamContext;
   form: ReturnType<typeof useContextForm>;

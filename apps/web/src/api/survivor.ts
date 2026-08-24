@@ -1,6 +1,7 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastSuccess } from "@/lib/toast";
+import { pickSavedHaptic } from "@/lib/haptics";
 import {
   ERROR_CODE,
   type ErrorResponse,
@@ -155,6 +156,7 @@ export function useSubmitSurvivorPick(leagueId: string, weekId: string) {
     },
     onSuccess: async (data) => {
       if (!data) return;
+      pickSavedHaptic();
       toastSuccess("Pick saved");
       await Promise.all([
         queryClient.invalidateQueries({

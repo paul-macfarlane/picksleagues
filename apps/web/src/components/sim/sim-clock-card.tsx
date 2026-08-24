@@ -9,6 +9,7 @@ import {
 import { useAdminGames, useAdminSeasons } from "@/api/admin";
 import { useAdjustSimClock } from "@/api/sim";
 import { formatDateTime, toLocalDateTimeInputValue } from "@/lib/format";
+import { useErrorToast } from "@/lib/use-error-toast";
 import { LabeledDateTimeField } from "@/components/labeled-date-time-field";
 import { LabeledSelect } from "@/components/labeled-select";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,7 @@ function KickoffSlotRow({
   onJump: (input: { kind: typeof SIM_CLOCK_ADJUSTMENT_KIND.INSTANT; instant: string }) => void;
 }) {
   const games = useAdminGames(weekId);
+  useErrorToast(games.isError, "Couldn't load this week's games — please try again.");
   const [slot, setSlot] = useState<string>();
 
   // Distinct kickoff instants with how many games each starts — the count is
@@ -141,6 +143,10 @@ function KickoffSlotRow({
 export function SimClockCard({ state }: { state: SimStateResponse }) {
   const adjust = useAdjustSimClock();
   const seasons = useAdminSeasons(SPORT.NFL);
+  // Otherwise a failed seasons query is indistinguishable from a genuinely
+  // empty database: both render empty selects and a disabled Jump. A query
+  // behind a control toasts (engineering rules §Quality).
+  useErrorToast(seasons.isError, "Couldn't load seasons — please try again.");
   const allSeasons = seasons.data?.seasons ?? [];
 
   const [seasonId, setSeasonId] = useState<string>();
@@ -284,17 +290,6 @@ export function SimClockCard({ state }: { state: SimStateResponse }) {
                 options={ANCHOR_OPTIONS}
               />
             </div>
-            {/* Otherwise a failed seasons query is indistinguishable from a
-                genuinely empty database: both render empty selects and a
-                disabled Jump, with nothing to act on. */}
-            {seasons.isError && (
-              <div className="flex flex-col items-start gap-2">
-                <p className="text-sm text-muted-foreground">Couldn&apos;t load seasons.</p>
-                <Button variant="outline" size="sm" onClick={() => seasons.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            )}
             {!seasons.isError && !seasons.isPending && allSeasons.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 No seasons synced yet — run the schedule sync job first.

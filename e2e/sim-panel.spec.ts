@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
-import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { APP_ROLE } from "../packages/schemas/src/app-role";
 
 // Read-only by design, and it stays that way even though simulator-driven
@@ -13,13 +13,8 @@ import { APP_ROLE } from "../packages/schemas/src/app-role";
 // is the worked example.
 // A username is minted too: an unclaimed session is gated to /claim-username
 // by the _authed layout, so it would never reach the simulator surface at all.
-async function signInAsAdmin(context: BrowserContext) {
-  const { user, cookieForPlaywright } = await mintSession({
-    appRole: APP_ROLE.ADMIN,
-    username: uniqueUsername(),
-  });
-  await context.addCookies([cookieForPlaywright]);
-  return user;
+function signInAsAdmin(context: BrowserContext) {
+  return signInAs(context, { appRole: APP_ROLE.ADMIN, username: uniqueUsername() });
 }
 
 test.describe("simulator", () => {
@@ -110,8 +105,7 @@ test.describe("simulator", () => {
   });
 
   test("a non-admin cannot see the simulator route", async ({ page, context }) => {
-    const { user, cookieForPlaywright } = await mintSession({ username: uniqueUsername() });
-    await context.addCookies([cookieForPlaywright]);
+    const user = await signInAs(context, { username: uniqueUsername() });
 
     try {
       // Deep-linked, not navigated: the nav link is already invisible to a

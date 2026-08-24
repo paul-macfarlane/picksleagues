@@ -10,6 +10,7 @@ import { createAuthenticatedUser, grantAdmin } from "./setup/auth-helpers";
 import { resetDb } from "./setup/reset-db";
 import { getTestDatabaseUrl } from "./setup/test-database-url";
 import { makeTestEnv } from "./setup/test-env";
+import { withCookie } from "./setup/fixed-app";
 
 const testEnv = makeTestEnv();
 
@@ -28,7 +29,7 @@ function getMe(cookie: string | undefined) {
   return app.request("/api/me", {
     method: "GET",
     headers: {
-      ...(cookie ? { cookie } : {}),
+      ...withCookie(cookie),
     },
   });
 }
@@ -38,7 +39,7 @@ function patchMeBody(cookie: string | undefined, body: Record<string, unknown>) 
     method: "PATCH",
     headers: {
       "content-type": "application/json",
-      ...(cookie ? { cookie } : {}),
+      ...withCookie(cookie),
     },
     body: JSON.stringify(body),
   });
@@ -52,7 +53,7 @@ function deleteMe(cookie: string | undefined) {
   return app.request("/api/me", {
     method: "DELETE",
     headers: {
-      ...(cookie ? { cookie } : {}),
+      ...withCookie(cookie),
     },
   });
 }

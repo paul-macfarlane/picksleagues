@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included, plus `LNCH-13`/`LNCH-14`, which production surfaced rather than the plan: Google rejected the app's OAuth branding because the SPA served every URL as an empty shell, so the public routes are now prerendered at build (ADR-0039). The owner-feedback epic (`14`) closed in two rounds (PR #75, PR #78), the scope sweep (`15`) finished triaging on 2026-08-11, game stats (`16`) delivered STAT-1–11 by 2026-08-14, and the pre-honeymoon hardening-and-handoff run (`DATA-10`, `FND-12`, `DATA-11`, `ADM-5`) is merged and promoted to prod. The pre-season tail (`STAT-12` matchup-sheet sizing, `ID-5` avatar theme preview, `LNCH-15` installable PWA, `LNCH-16` install affordance) landed by 2026-08-22 (PRs #97–#100). What remains is the mobile-feel epic (`17`) for the installed PWA, then March Madness (`07`) when its season approaches.
+Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included, plus `LNCH-13`/`LNCH-14`, which production surfaced rather than the plan: Google rejected the app's OAuth branding because the SPA served every URL as an empty shell, so the public routes are now prerendered at build (ADR-0039). The owner-feedback epic (`14`) closed in two rounds (PR #75, PR #78), the scope sweep (`15`) finished triaging on 2026-08-11, game stats (`16`) delivered STAT-1–11 by 2026-08-14, and the pre-honeymoon hardening-and-handoff run (`DATA-10`, `FND-12`, `DATA-11`, `ADM-5`) is merged and promoted to prod. The pre-season tail (`STAT-12` matchup-sheet sizing, `ID-5` avatar theme preview, `LNCH-15` installable PWA, `LNCH-16` install affordance) landed by 2026-08-22 (PRs #97–#100). Mobile-feel round one (`MOB-1`/`MOB-2`/`MOB-4`) and the full visual-identity epic (`18`, VIS-1–8, ADR-0043) followed, and the alignment epic (`19`) closed its sweeps on 2026-08-23: ALN-1/2 (standards, PRs #113–#119), ALN-3/4/5 (spec-vs-app report, owner triage, docs bumped to v0.4 — PRs #120/#121), with `ALN-6` (TS 7) blocked on typescript-eslint. The four fix tasks those sweeps surfaced landed 2026-08-23 (`PKM-11`, `PKM-12`, `ADM-6`, `SIM-11` — PRs #123–#126), and mobile-feel round two (`MOB-3`, `MOB-5`–`MOB-8`) followed. What remains is March Madness (`07`) when its season approaches.
 
 ## Task format
 
@@ -48,6 +48,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `16-game-stats.md`     | `STAT` | Pre-pick matchup stats (records, injuries, team stats, matchup context), tiered basic/advanced UX |
 | `17-mobile-feel.md`    | `MOB`  | Installed-PWA feel: touch targets, bottom tab bar, view transitions |
 | `18-visual-identity.md` | `VIS` | Broadcast-scoreboard visual identity (ADR-0043): type roles, surface tiers, the matchup line, every-screen sweep |
+| `19-alignment.md`      | `ALN`  | Consistency sweeps: code vs. the written standards; documented business logic vs. the app (owner triages differences, then docs align to the app) |
 
 ## Build order
 
@@ -55,9 +56,10 @@ File numbers are historical, not priority — they record the order epics were
 written. This list holds only remaining work; completed rounds are summarized
 below it. The order remaining work is taken (owner, 2026-08-22):
 
-1. **`17-mobile-feel`** (owner, 2026-08-22) — `MOB-1` → `MOB-2` → `MOB-3` first (standalone polish + touch targets, bottom tab bar, view transitions): the "feels like an app" threshold for the installed PWA. `MOB-4`–`7` are a second round after living with the tab bar.
-2. **`18-visual-identity`** (owner, 2026-08-22) — `VIS-1` → `VIS-2` → `VIS-3` in order (tokens and type roles, surface tiers, the signature matchup line); `VIS-4`/`VIS-5` after `VIS-2`, then `VIS-6`, `VIS-7`, and the `VIS-8` coherence audit last. Direction and primitives are ADR-0043.
-3. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+1. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+
+`ALN-6` (TypeScript 6 → 7) stays blocked outside this list until typescript-eslint
+supports TS 7 (peer cap re-verified `<6.1.0`, 2026-08-23).
 
 `10-trust-safety` was in this list until `SWP-2` scrapped it (owner, 2026-08-09) —
 its items are `wontfix` in place. `SWP-3` kept public discovery (owner, 2026-08-11)
@@ -73,7 +75,13 @@ confirmed 2026-08-10), owner feedback (`14`, PR #75), the scope sweep (`15`,
 triage closed 2026-08-11), game stats (`16`, STAT-1–11, last merge PR #90), and
 the pre-honeymoon hardening & handoff (`DATA-10` → `FND-12` → `DATA-11` →
 `ADM-5`, PRs #93–#96, promoted staging → main for the second admin's solo test),
-and the pre-season tail (`STAT-12`, `ID-5`, `LNCH-15`, `LNCH-16`, PRs #97–#100).
+the pre-season tail (`STAT-12`, `ID-5`, `LNCH-15`, `LNCH-16`, PRs #97–#100),
+mobile-feel round one (`MOB-1`/`MOB-2`/`MOB-4`), visual identity (`18`, VIS-1–8,
+ADR-0043), the alignment sweeps (`19`, ALN-1–5 — docs locked at v0.4,
+`docs/sweeps/` holds both reports), the four sweep-surfaced fixes (`PKM-11`,
+`PKM-12`, `ADM-6`, `SIM-11`, PRs #123–#126), and mobile-feel round two
+(`MOB-3`, `MOB-5`–`MOB-8`: view transitions, pull-to-refresh, bottom-sheet
+confirms, pick-save haptic, Android install instructions).
 
 ## Working the backlog
 

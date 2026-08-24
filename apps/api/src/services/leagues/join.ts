@@ -2,6 +2,7 @@ import type { Db } from "@picksleagues/db";
 import { isUniqueViolation, leagueMembers } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   JOIN_BLOCKED_REASON,
   LEAGUE_STATUS,
   LEAGUE_VISIBILITY,
@@ -101,7 +102,7 @@ export async function joinLeagueInTx(
 
 export type JoinResult =
   | { ok: true; league: LeagueResponse }
-  | { ok: false; reason: JoinBlockedReason | "league_not_found" };
+  | { ok: false; reason: JoinBlockedReason | typeof ERROR_CODE.LEAGUE_NOT_FOUND };
 
 /**
  * Direct join for discoverable leagues (spec §Visibility: public leagues are
@@ -120,7 +121,7 @@ export async function joinPublicLeague(
     });
   } catch (error) {
     if (error instanceof LeagueMissingError) {
-      return { ok: false, reason: "league_not_found" };
+      return { ok: false, reason: ERROR_CODE.LEAGUE_NOT_FOUND };
     }
     if (error instanceof JoinRefusedError) {
       return { ok: false, reason: error.reason };

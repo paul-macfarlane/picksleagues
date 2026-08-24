@@ -7,23 +7,19 @@ import {
   jobRunResponses,
   misconfiguredJob,
   NFL_SYNC_JOBS,
+  resolveJobDeps,
   resolveNflJobDeps,
   SyncQuerySchema,
 } from "../lib/nfl-sync-jobs";
+import { errorResponse } from "../lib/route-responses";
 import { jobSecretMiddleware } from "../middleware/job-secret";
 import { SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { settleSweep } from "../services/settlement";
 
 const jobResponses = {
   200: jobRunResponses[200],
-  400: {
-    description: "A supplied query param (season/week) fails its format rule",
-    content: { "application/json": { schema: ErrorResponseSchema } },
-  },
-  401: {
-    description: "Missing or wrong x-job-secret header",
-    content: { "application/json": { schema: ErrorResponseSchema } },
-  },
+  400: errorResponse("A supplied query param (season/week) fails its format rule"),
+  401: errorResponse("Missing or wrong x-job-secret header"),
   500: jobRunResponses[500],
 } as const;
 
@@ -123,9 +119,9 @@ export function jobRoutes(deps: AppDeps) {
   }
 
   app.openapi(settleSweepRoute, async (c) => {
-    const { db, clock: resolveClock } = deps;
-    if (!db || !resolveClock) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
-    const clock = await resolveClock();
+    const resolved = await resolveJobDeps(deps);
+    if (!resolved) return c.json(misconfiguredJob(SETTLE_SWEEP_JOB_NAME), 500);
+    const { db, clock } = resolved;
     return runJob(c, SETTLE_SWEEP_JOB_NAME, () => settleSweep(db, clock));
   });
 

@@ -1,3 +1,4 @@
+import type { BrowserContext } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { createDb } from "../../packages/db/src/client";
 import { loadEnv } from "../../packages/core/src/env";
@@ -73,19 +74,37 @@ export async function mintSession(
   };
 }
 
-// Specs must remove what they create — the E2E database persists between runs
-// rather than being torn down after each. Cascades to sessions/accounts (FK
-// ON DELETE CASCADE), including the anonymized row left behind by a delete-
-// account spec, which by design survives the API call itself.
+/**
+ * Mints a session and drops it straight into the browser's cookie jar — every
+ * spec authenticates this way instead of driving real OAuth (there's no
+ * headless IdP to drive; see e2e/smoke.spec.ts).
+ */
+export async function signInAs(
+  context: BrowserContext,
+  overrides?: Parameters<typeof mintSession>[0],
+): Promise<MintedUser> {
+  const { user, cookieForPlaywright } = await mintSession(overrides);
+  await context.addCookies([cookieForPlaywright]);
+  return user;
+}
+
+/**
+ * Specs must remove what they create — the E2E database persists between runs
+ * rather than being torn down after each. Cascades to sessions/accounts (FK
+ * ON DELETE CASCADE), including the anonymized row left behind by a delete-
+ * account spec, which by design survives the API call itself.
+ */
 export async function cleanup(userIds: string[]): Promise<void> {
   if (userIds.length === 0) return;
   await db.$client.query("DELETE FROM users WHERE id = ANY($1::text[])", [userIds]);
 }
 
-// 3-20 chars, [a-z0-9_] (packages/schemas' UsernameSchema) with enough entropy
-// to never collide across a parallel run — randomUUID's hyphens aren't legal
-// in a username, so strip them. (randomUUID over Date.now() because a whole
-// parallel worker batch can mint within the same millisecond.)
+/**
+ * 3-20 chars, [a-z0-9_] (packages/schemas' UsernameSchema) with enough entropy
+ * to never collide across a parallel run — randomUUID's hyphens aren't legal
+ * in a username, so strip them. (randomUUID over Date.now() because a whole
+ * parallel worker batch can mint within the same millisecond.)
+ */
 export function uniqueUsername(): string {
   return `u_${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }

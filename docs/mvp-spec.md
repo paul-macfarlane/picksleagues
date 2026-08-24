@@ -1,8 +1,8 @@
-# Picks Leagues — MVP Product Spec (v0.3)
+# Picks Leagues — MVP Product Spec (v0.4)
 
-**Status:** Draft for review
+**Status:** Locked; amended by recorded ADRs
 **Companion doc:** *Picks Leagues Architecture* (how it's built)
-**Amendments:** v0.3 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle), ADR-0033 (Survivor's Push/Tie Resolution setting is removed, fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all), and ADR-0034 (March Madness scoring is Standard Doubling only and the pre-deadline seed-correction wipe is an admin-by-hand procedure — both cut before the mode was built) are reflected in the rules below.
+**Amendments:** v0.4 (2026-08-23) is v0.3 reconciled against the shipped app by the alignment sweep (`docs/sweeps/ALN-3-spec-vs-app.md`, whose §ALN-4 verdicts record each change's decision; score freshness is ADR-0044) — the rules themselves are unchanged, the corrections are to promises and screen descriptions the app had deliberately outgrown. v0.4 stays locked and is amended by recorded ADRs rather than re-versioned. ADR-0018 (a Pick'em week is one atomic, immutable submission; push fixed at +0.5; no Pick'em tiebreaker), ADR-0019 (week moves out of scope, in both NFL modes), ADR-0020 (Pick'em's Start Week + End Week settings become one three-option season range, resolved to concrete weeks at league creation; the presets themselves were later retired by ADR-0031), ADR-0023 (Game Mode 2 is named **Survivor**; it was called "Elimination" in this document's original v0.3 text and in every ADR numbered below 0023), ADR-0024 (Survivor has no season-range setting — the server resolves and stores a regular-season range), ADR-0025 (a Survivor member cannot submit a pick once their elimination has settled), ADR-0026 (Survivor is straight-up only — its Pick Type setting is removed; Pick'em keeps its own), ADR-0029 (invite links are generated pre-start only; revoking one stays available anytime), ADR-0031 (Pick'em is regular-season only — the Season Range setting and its Postseason/Full Season presets are removed; the server resolves and stores the regular-season range, as ADR-0024 already does for Survivor), ADR-0032 (invite links are bare opaque codes — the optional expiry and max-use caps are removed; revocation is an invite's only lifecycle), ADR-0033 (Survivor's Push/Tie Resolution setting is removed, fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all), and ADR-0034 (March Madness scoring is Standard Doubling only and the pre-deadline seed-correction wipe is an admin-by-hand procedure — both cut before the mode was built) are reflected in the rules below.
 
 This document is **standalone and complete**: it contains the full MVP rule set for every game mode. No other rules document is required to build the MVP. Features deferred beyond MVP are listed in *Explicitly Out of Scope* and are not specified here.
 
@@ -17,7 +17,7 @@ A web app where friends create and compete in sports pick'em leagues. MVP ships 
 | Game modes | NFL Pick'em (standard scoring), NFL Survivor (1 life), March Madness Pool |
 | Auth | Google + Discord OAuth |
 | Leagues | Private (invite links) + Public (browse/search discovery) |
-| Standings freshness | Scores and standings refresh every ~5 minutes on game days |
+| Standings freshness | Scores and standings refresh every ~15 minutes on game days (ADR-0044) |
 | Notifications | None — users check the app |
 | Platform | Responsive web (mobile-first) |
 | Internal | Season simulator in test environments |
@@ -40,7 +40,7 @@ A web app where friends create and compete in sports pick'em leagues. MVP ships 
 **Account deletion:** permanent and immediate; the profile is **anonymized in place** rather than removed, so picks, results, and standings history survive in every league.
 - Username is released (immediately claimable by others); display name is replaced with a "Deleted User" placeholder; the email is replaced with a non-identifying placeholder; avatar (both the provider value and any member-set override, ADR-0022) is removed, along with OAuth identities and all sessions.
 - Signing in again with the same provider afterward creates a brand-new account — there is no undelete or reconnection.
-- Deletion is **blocked** while the user is the last commissioner of any non-empty active league — they must promote a replacement first (same ≥1-commissioner guard as leaving; ADR-0004).
+- Deletion is **blocked** while the user is the last commissioner of any league that has other members — **active or concluded**, because a concluded league is renewable and renewal is commissioner-only, so deleting its only commissioner would strand the members who'd renew it. They must promote a replacement first (same ≥1-commissioner guard as leaving; ADR-0004). A league where they are the only member never blocks.
 
 ## Leagues (global rules, all game modes)
 
@@ -60,7 +60,7 @@ Any user can create a league (subject to the commissioner cap). Creator becomes 
 - Invite links work for public leagues too (they're just an alternate path to the same join).
 
 ### Membership
-- League size: **2 minimum, 100 maximum**.
+- League size: the commissioner sets a **max members** cap at creation (**2 minimum, 100 maximum**, default 10), editable pre-start but never below the current roster. The minimum is aspirational — see the no-auto-cancellation rule below.
 - Join cutoff: no joins once the league's first week has started (NFL modes) or once the first Round of 64 game has tipped (March Madness). Enforced automatically; not configurable.
   - A Pick'em league created mid-week starts at the next week whose first kickoff is still ahead (ADR-0020's rule, kept by ADR-0031), so between its creation and that kickoff it has a short window in which members can still be invited and join, after which membership freezes at the same cutoff as any other league. That short window is **intended**: it is the existing cutoff meeting a new creation path, not an exception to it.
 - A league that never reaches 2 members by its start simply proceeds; standings with one member are valid but trivially uninteresting. No auto-cancellation.
@@ -73,6 +73,8 @@ A league has **one or more commissioners**, all with identical powers, and must 
 | --- | --- |
 | Edit cosmetic fields (league name) | Anytime |
 | Edit league settings | Pre-start only; settings lock at league start |
+| Edit visibility | Pre-start only — a league cannot flip public/private once it has started |
+| Edit max members | Pre-start only, never below the current roster |
 | Kick members | Pre-start only |
 | Delete league | Pre-start only |
 | Promote a member to commissioner | Anytime (subject to the recipient's cap) |
@@ -83,10 +85,10 @@ A league has **one or more commissioners**, all with identical powers, and must 
 Once a league starts: membership and settings are frozen except cosmetics, commissioner promotion/demotion, and revoking an outstanding invite link. No mid-season kicks, deletes, leaves, settings changes, or new invite links — disputes resolve socially, not in-app.
 
 ### Pick Visibility (all modes)
-A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. Eliminated players (Survivor mode) retain identical visibility rights to active players.
+A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. The **count** of picks a member has in is visible to the league before kickoff ("4 more picks in — not yet revealed") — the fact of having picked discloses no selection, and it is what lets a league see who still owes picks. Eliminated players (Survivor mode) retain identical visibility rights to active players.
 
 ### Public Discovery
-A browse page listing public leagues that have not passed their join cutoff and are not already full, with **search by league name** and a **filter by game mode**. Each entry shows: name, game mode (given visual prominence — it is the attribute that decides whether a member wants the league at all), member count against the cap and the spots remaining, start week (or tournament year), the mode's member-facing settings summary, and a join button.
+A browse page listing public leagues that have not passed their join cutoff and are not already full, with **search by league name** and a **filter by game mode**. Each entry shows: name, game mode (given visual prominence — it is the attribute that decides whether a member wants the league at all), member count against the cap and the spots remaining, the start date (or tournament year) — a date answers "when do I need to have joined" where a week number would not, the mode's member-facing settings summary, and a join button.
 
 The settings summary is per mode and is a *chosen* subset, never the stored settings: Pick'em shows pick type and picks per week — the two settings that decide what the league asks of a member each week — and Survivor shows none, having no member-facing configurable setting. A member must be able to tell what they are signing up for before they join.
 
@@ -234,18 +236,18 @@ When brackets tie on points: closest **absolute difference** between the Champio
 2. **Create a league** — mode → name → visibility → settings → share invite link (blocked past 10-active-commissioner cap)
 3. **Join a league** — invite link or public discovery → confirm → member
 4. **Make picks** — league page → weekly slate (NFL modes) or bracket builder (MM) → submit. Pick'em: the week's full set goes in one confirmed, irreversible submission, which is also where ATS spreads are accepted. Survivor: the week's pick can be changed until its game kicks off. March Madness: a bracket can be revised until the first Round of 64 tip, then freezes.
-5. **Check results** — scores and standings refresh every ~5 minutes on game days
+5. **Check results** — scores and standings refresh every ~15 minutes on game days (ADR-0044)
 6. **Commission** — settings pre-start, invite links generated pre-start and revocable anytime, kick/delete pre-start, promote/demote commissioners anytime
 
 ## Screens (MVP inventory)
 
 - **Dashboard** — my leagues with pick-status at a glance (picks in / picks needed / locked), each card naming when the league starts or, once it has, the week it is on; the create and browse entry points sit together here, since getting into a league is one job with two answers
 - **Discovery** — public league browse, name search, and mode filter (ADR-0037)
-- **League home** — standings (primary view: season standings for Pick'em (ADR-0035 — weekly boards live on the League Picks screen), the survivor board for Survivor, bracket leaderboard for MM), members, league info, commissioner tools
+- **League home** — the home panel is standings only (primary view: season standings for Pick'em (ADR-0035 — weekly boards live on the League Picks screen), the survivor board for Survivor, bracket leaderboard for MM); league info lives in the league header band above every league screen, and members and commissioner tools are sibling tabs of the same league layout, one tap away
 - **Pick entry** — weekly slate picker (Pick'em/Survivor) or bracket builder (MM); each NFL game row opens its **matchup stats sheet** (below)
 - **Week/pick detail** — all members' picks for a week/round, revealed per game at kickoff
 
-Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "All Picks" — the latter's route is `league-picks`, and this document and the ADRs call the screen League Picks). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from.
+Pick entry and week/pick detail are **sibling sections of a league, each week-scoped on its own** ("My Picks" / "All Picks" — the latter's route is `league-picks`, and this document and the ADRs call the screen League Picks). Entering your own picks and reading the league's are different tasks on different cadences, and neither may be reachable only as a side effect of another surface's control. Each defaults to the current week rather than inheriting one from wherever the member came from. **League Picks is Pick'em's screen**: Survivor's all-members view is the survivor board on league home, whose per-kickoff pick history already answers the same question week by week, so the mode carries no second week-scoped detail screen.
 
 **Pick entry has two states, and shows what each one is for.** An unsubmitted week is an editable sheet the member assembles: the games they can still pick, a save control that stays inactive until the sheet holds the week's full required set, and an explicit confirmation that submitting is irreversible before anything lands. A submitted week is **read-only** — their picks, with the spreads they accepted, which is the week in review rather than a slate to scan past. A member who picked nothing sees a stated empty result, never a blank card.
 
@@ -257,25 +259,25 @@ Pick entry and week/pick detail are **sibling sections of a league, each week-sc
 
 **UI conventions:** all kickoff times, deadlines, and timestamps display in the **user's local timezone** (browser-detected). Standings pages show a "last updated" timestamp. The UI never claims real-time freshness.
 
-**Upcoming kickoffs and deadlines read relative to now** — "Today 1:00 PM", "Tomorrow 8:20 PM", "Sun 1:00 PM" — falling back to the absolute stamp a week out, where a weekday name stops distinguishing itself from today. A week's slate is nearly always inside that window, so the relative form is the one that answers "when do I need to have picked". It is scoped to things that have *not happened*: settled kickoffs, "last updated" stamps, and audit rows keep the precise instant, because "yesterday" beside a final score is less use than a date.
+**Upcoming kickoffs and deadlines read relative to now** — "Today 1:00 PM", "Tomorrow 8:20 PM", "Sun 1:00 PM" — falling back to the absolute stamp a week out, where a weekday name stops distinguishing itself from today. A week's slate is nearly always inside that window, so the relative form is the one that answers "when do I need to have picked". It is scoped to things that have *not happened*: settled kickoffs, "last updated" stamps, and audit rows keep the precise instant, because "yesterday" beside a final score is less use than a date. Two edges: a game still marked scheduled after its kickoff has passed reads "Yesterday 1:00 PM" until the sync moves it — still an un-happened thing as far as the data says — and a league's start line stays absolute ("Starts 9/4, 8:20 PM"), since a join deadline is read days out where the relative form has already fallen back.
 
 That "now" is the **application's clock, never the browser's** (architecture D13). Under the simulator the two sit at different instants, so a browser-clock label would announce that a game the API has already locked kicks off tomorrow. The clock reaches the client on the session bootstrap response, and the client keeps the *offset* so time continues to move between fetches.
 
 Scores are always shown with **each number attached to its team** (`NE 19 – SEA 21`), never as a bare pair — away-first order is a convention a member should not have to know to read their own pick.
 
-**Provisional pick standing.** While a game is in progress, a pick shows where it currently stands against the score of the last sync: in ATS, its margin relative to the spread it accepted; in straight-up, its margin on the scoreboard. This is a **reading, not a verdict**, and the distinction is enforced in the presentation:
+**Provisional pick standing (Pick'em only).** While a game is in progress, a **Pick'em** pick shows where it currently stands against the score of the last sync: in ATS, its margin relative to the spread it accepted; in straight-up, its margin on the scoreboard. A Survivor pick shows no provisional reading — its stake is survive-or-die, not a margin, so a mid-game number would only dress up a coin still in the air. This is a **reading, not a verdict**, and the distinction is enforced in the presentation:
 
 - It is stated as a signed magnitude ("covering by 7.5", "short by 2.5", "up 4"), never as an outcome word ("winning", "correct") — a magnitude reads as a snapshot, and a snapshot is what it is.
 - It never borrows the settled outcome's colour or iconography. A graded pick's badge is the only thing in the app that asserts a result.
 - It is computed from the **same function settlement grades on**, so a provisional reading can never contradict the outcome that replaces it.
 - It appears only while the game is in progress, alongside the existing "as of" timestamp, and is **never aggregated** — there is no live projected score, standing, or leaderboard. Standings continue to update only as games go final.
 
-This is not a live feed and does not change the freshness model below: it is a derivation over already-ingested data, refreshed on the same ~5-minute cadence as everything else.
+This is not a live feed and does not change the freshness model below: it is a derivation over already-ingested data, refreshed on the same ~15-minute cadence as everything else.
 
 **Settled pick margin.** Once a pick has graded, the row states the size of the result in the **past tense of the reading it replaces** — "covering by 7.5" becomes "covered by 7.5", "up 4" becomes "won by 4". A bare magnitude is not enough: a lone number does not say what it measures, and what it measures differs by pick type (points against an accepted spread, or points on the scoreboard). Tense is what keeps it from reading as a second verdict beside the outcome badge — one sentence resolving, not a new vocabulary appearing. Three consequences:
 
 - A **push shows no margin.** There is no number to qualify, so the badge carries it alone — this is the one case where the words would be pure duplication.
-- A game that has ended but whose pick has **not graded yet** shows nothing. The settlement sweep is a job, so that window is real, and a reading with no badge beside it to confirm it is worse than silence.
+- A game that has ended but whose pick has **not graded yet** shows the outcome derived client-side from the final score — the same arithmetic settlement will confirm, so it can never be contradicted by the grade that replaces it. Settlement rides a sync job's cadence, so that window is real (up to ~15 minutes), and leaving a decided game blank for it reads as the app not knowing something the scoreboard already says. Survivor has done this since FB-23; Pick'em adopts it per the ALN-4 verdict on the sweep's row P3 (`PKM-11`).
 - The number is the **same measurement the in-progress reading showed**, now taken over a final score — which is what lets the tense do the work: one sentence resolving, not a new one appearing. It states the size of the result this member just got on this pick, and nothing more: it is never summed, and standings are points alone.
 
 **Matchup stats sheet (ADR-0040).** Every NFL game row — pick entry in both modes, and the read-only slate preview — opens a per-game sheet of ingested stats, **tiered so help never becomes a wall of numbers**: the **basic** tier (default) shows each team's record, streak, points scored/allowed per game, and key injuries (statuses other than Questionable); the **advanced** tier, one explicit toggle away, adds league scoring ranks, home/road splits, point differential, last-five form, ATS record, the full injury report, and ESPN's FPI win probability — the one *prediction* on the surface, shown only here and always attributed to ESPN FPI. Stats carry the ingestion's "as of" stamp (freshness model below); until the current season has games, team stats fall back to last season's, labeled with the season they describe; whatever the provider hasn't published yet (early-season ATS, a missing injury report) is omitted, never faked. A third **results** segment (STAT-9) shows both teams' season game logs side by side — week, opponent, score, W/L, newest first, an in-progress game carried as a dated live score — served entirely from already-ingested games, with the same labeled prior-season fallback until a team has started games.
@@ -284,12 +286,12 @@ No standalone stats pages, head-to-head views, or historical archives — the ma
 
 ## Data Freshness & Expectations
 
-- Game scores refresh approximately every **5 minutes** during game days; pick outcomes, eliminations, and standings update on the same cadence as games go final.
-- The app is not real-time within those 5-minute windows — the UI shows a "last updated" timestamp and users refresh/reload to see the latest, with no live push.
+- Game scores refresh approximately every **15 minutes** during game days (ADR-0044); pick outcomes, eliminations, and standings update on the same cadence as games go final.
+- The app is not real-time within those 15-minute windows — the UI shows a "last updated" timestamp and users refresh/reload to see the latest, with no live push.
 - Spreads refresh several times daily; the spread shown and accepted at pick time is the spread of record for that Pick'em pick. Survivor is straight up and stores no spread (ADR-0026).
 - Schedule changes (cancellations, postponements) are reflected by the next daily schedule sync; a cancelled game's picks show as pushes shortly after.
 - Team stats and injury reports (the matchup stats sheet) refresh **daily**; the sheet shows its own "as of" stamp rather than implying game-day freshness (ADR-0040).
-- A nightly reconciliation pass re-verifies all results and standings, so any late stat corrections are reflected by the next morning.
+- A nightly reconciliation pass re-verifies every **active** league season's results and standings, so any late stat corrections are reflected by the next morning. A concluded season is recomputed only by the admin rebuild — the sweep's active-only scope is what bounds its cost over years (ADR-0030), and a correction that reaches a concluded season's picks still triggers its resettle.
 
 ## Testing & Internal Tooling (non-production)
 

@@ -231,6 +231,65 @@ describe("PATCH /api/sim/fixtures/games/{gameId}", () => {
     });
   });
 
+  // Regression (SIM-11 sweep finding): the coherence check runs inside one
+  // transaction that locks the row FOR UPDATE. Without the lock, two
+  // concurrent patches — one nulling a score, one setting `final` — each judge
+  // the merge against the same pre-image, both pass, and their writes combine
+  // into the final+null-score state the check exists to refuse. The first
+  // writer is played by a hand-held transaction rather than a second PATCH so
+  // the interleaving is forced, not left to scheduler luck.
+  it("two concurrent edits cannot combine into a final fixture missing a score", async () => {
+    const { app, cookie } = await adminCaller();
+    const fixtures = await loadedFixtures(app, cookie);
+    const target = fixtures[0]!;
+
+    // cancelled with both scores kept: each racing patch below is coherent on
+    // its own; only their combination is not.
+    const clearRes = await patchJson(
+      app,
+      `/api/sim/fixtures/games/${target.id}`,
+      { finalStatus: "cancelled" },
+      cookie,
+    );
+    expect(clearRes.status).toBe(200);
+
+    let pending: ReturnType<typeof patchJson> | undefined;
+    await db.transaction(async (tx) => {
+      await tx
+        .select()
+        .from(simFixtureGames)
+        .where(eq(simFixtureGames.id, target.id))
+        .for("update");
+      await tx
+        .update(simFixtureGames)
+        .set({ finalHomeScore: null })
+        .where(eq(simFixtureGames.id, target.id));
+      pending = patchJson(
+        app,
+        `/api/sim/fixtures/games/${target.id}`,
+        { finalStatus: "final" },
+        cookie,
+      );
+      // Long enough for the PATCH to reach its read while this row lock is
+      // still held; the commit when this callback returns is what unblocks it.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+
+    const res = await pending!;
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "validation" });
+
+    const [stored] = await db
+      .select()
+      .from(simFixtureGames)
+      .where(eq(simFixtureGames.id, target.id));
+    expect(stored).toMatchObject({
+      finalStatus: "cancelled",
+      finalHomeScore: null,
+      finalAwayScore: target.finalAwayScore,
+    });
+  });
+
   it("the legitimate path still works: clear the status first, then set final with both scores", async () => {
     const { app, cookie } = await adminCaller();
     const fixtures = await loadedFixtures(app, cookie);

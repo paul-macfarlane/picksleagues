@@ -1,13 +1,14 @@
-# Picks Leagues — Software Architecture (v0.3)
+# Picks Leagues — Software Architecture (v0.4)
 
-**Status:** Draft for review
-**Companion doc:** *Picks Leagues MVP Product Spec v0.3* (what we're building — standalone and authoritative for product behavior)
+**Status:** Locked; amended by recorded ADRs
+**Companion doc:** *Picks Leagues MVP Product Spec v0.4* (what we're building — standalone and authoritative for product behavior)
+**Amendments:** v0.4 (2026-08-23) is v0.3 reconciled against the shipped system by the alignment sweep (`docs/sweeps/ALN-3-spec-vs-app.md` §ALN-4 verdicts; score freshness is ADR-0044) — job cadences, admin-surface inventory, and override-field lists now state what runs, and the D-entries keep their original reasoning with amendments noted in place.
 **Scope:** MVP = NFL Pick'em (standard scoring), NFL Survivor (1 life), March Madness Pool. Post-MVP modes and deferred rule features are accounted for structurally but not built.
 
 ## Design Constraints (agreed)
 
 - Web SPA for MVP; mobile app is a future possibility → API-first, language-agnostic contract
-- Score freshness: **~5 minutes during game days**; standings recompute on the same cadence (no reason to lag them). No websockets/push — the server stays fresh via polling ESPN; clients get current data on load/refetch
+- Score freshness: **~15 minutes during game days** (ADR-0044 — originally ~5; the promise moved to what production actually runs); standings recompute on the same cadence (no reason to lag them). No websockets/push — the server stays fresh via polling ESPN; clients get current data on load/refetch
 - Sports data budget: free tiers only → ESPN unofficial API as sole provider, all environments
 - Audience year one: friends, <50 users → optimize for simplicity and operability, not scale
 - Language: TypeScript end to end
@@ -82,10 +83,10 @@ Three layers, weighted by where bugs actually live (per Paulitakes experience: e
 
 ESPN's unofficial feed will occasionally be wrong (bad final score, stuck status, missed cancellation) and there is no vendor SLA — the correction path is an app-admin override, available in **all environments including production**.
 
-**Admin role:** app admins (initially just the owner) hold `admin` in `users.app_role`, the sole authorization source (ADR-0013). The role is granted by a direct database update (`UPDATE users SET app_role = 'admin' WHERE email = …`) — there is no env-var allowlist and no in-app promotion surface, so no configuration path can grant the capability behind the database's back. Admins get an admin page: job triggers, standings rebuild, game data editing, and browsers over reference data (teams, seasons/weeks, games). The simulator control panel is a **separate top-level section** (`/sim`, sectioned into clock / scenarios / fixtures / reset) rather than a tab on that page: it carries a second gate — it exists only where `isSimEnabled` holds, and its routes are not registered otherwise (ADR-0011, ADR-0014) — so presenting it as one more admin tab implied a peer of surfaces that are always present. Overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly; team *display* fields (name, abbreviation, location, logos) are correctable through the override layer (ADR-0042) while identity keys and seasons stay view-only. Operational tooling is invisible to users (they just see corrected data).
+**Admin role:** app admins (initially just the owner) hold `admin` in `users.app_role`, the sole authorization source (ADR-0013). The role is granted by a direct database update (`UPDATE users SET app_role = 'admin' WHERE email = …`) — there is no env-var allowlist and no in-app promotion surface, so no configuration path can grant the capability behind the database's back. Admins get an admin page: job triggers (the four NFL syncs plus the settlement sweep — `ADM-6`; the per-league standings rebuild stays curl-only by owner re-verdict on `ADM-6`, 2026-08-23), game data editing, and browsers over reference data (teams and games; the separate seasons/weeks browser was removed by owner decision 2026-08-22 — the games browser's week picker consumes the same endpoint). The simulator control panel is a **separate top-level section** (`/sim`, sectioned into clock / scenarios / fixtures / reset) rather than a tab on that page: it carries a second gate — it exists only where `isSimEnabled` holds, and its routes are not registered otherwise (ADR-0011, ADR-0014) — so presenting it as one more admin tab implied a peer of surfaces that are always present. Overrides remain the only prod-facing edit path — provider-synced rows are never mutated directly; team *display* fields (name, abbreviation, location, logos) are correctable through the override layer (ADR-0042) while identity keys and seasons stay view-only. Operational tooling is invisible to users (they just see corrected data).
 
 **Override semantics:**
-- Overridable per game: home/away final score, game status (`scheduled | final | cancelled | postponed`), kickoff time, and current spread
+- Overridable per game: home/away final score, game status (any of the five statuses, `in_progress` included — there is no admin-only status), kickoff time, current spread, and the live-state pair `period`/`clock_seconds` (DATA-8). An edit whose *resulting* state would leave a game unlocked while its outcome is already knowable is refused (`override_unlocks_game`)
 - Stored as explicit parallel fields alongside provider-synced fields (`override_home_score`, `override_status`, …, plus `overridden_by` / `overridden_at`) — synced values are never mutated
 - **Precedence:** reads and settlement resolve `override_* ?? provider_*`. Ingestion writes only provider fields — a re-sync can never clobber a correction, and clearing an override cleanly reverts to provider truth
 - Applying or clearing an override triggers settlement recompute for affected leagues — the existing rebuild capability makes corrections retroactive and safe
@@ -136,7 +137,7 @@ Paid providers are the only way to get contractual stability, and they're out pe
 
 **Alternatives:** Vercel Cron (Hobby: 2 jobs, daily only) · Inngest / Upstash QStash (retries, step functions, observability) · cron-job.org → HTTP endpoints ✅
 
-Vercel Cron's Hobby limits (two jobs, daily granularity) can't cover a 5-minute score sync. Inngest/QStash add real value (retries, durability) but also a new platform dependency and mental model for what remains a handful of idempotent HTTP endpoints. cron-job.org is free, familiar, supports minute-level scheduling and retry-on-failure. Idempotent job design means a missed or doubled trigger is harmless — a missed 5-minute tick just means the next one does the work.
+Vercel Cron's Hobby limits (two jobs, daily granularity) can't cover a sub-daily score sync (5-minute as designed; 15-minute as run — ADR-0044). Inngest/QStash add real value (retries, durability) but also a new platform dependency and mental model for what remains a handful of idempotent HTTP endpoints. cron-job.org is free, familiar, supports minute-level scheduling and retry-on-failure. Idempotent job design means a missed or doubled trigger is harmless — a missed 5-minute tick just means the next one does the work.
 
 ### D8. Database: Neon over Supabase / Turso
 
@@ -156,7 +157,7 @@ A single table looks DRY but the three MVP modes have genuinely different shapes
 
 **Alternatives:** Event-driven push infrastructure (webhooks/websockets, incremental-only state) · Nightly batch only (simplest, but stale on game days) · 5-minute polling with incremental settlement + nightly full-recompute sweep ✅
 
-The 5-minute freshness target rules out nightly-only, but doesn't justify push infrastructure: polling ESPN every 5 minutes and settling games as they go final delivers the requirement with plain cron + idempotent jobs. The critical property is preserved from the batch design: each mode's result and standings tables remain *pure derivations* of (picks, results, settings) — the incremental path is an optimization, and the nightly sweep (plus on-demand rebuild) recomputes from scratch, catching stat corrections, admin overrides, and any missed sync. Purely event-driven systems make that historical recomputation much harder; this design gets live-ish updates *and* keeps the recompute escape hatch.
+The minutes-not-hours freshness target (5 at design time, 15 as run — ADR-0044) rules out nightly-only, but doesn't justify push infrastructure: polling ESPN on that cadence and settling games as they go final delivers the requirement with plain cron + idempotent jobs. The critical property is preserved from the batch design: each mode's result and standings tables remain *pure derivations* of (picks, results, settings) — the incremental path is an optimization, and the nightly sweep (plus on-demand rebuild) recomputes from scratch, catching stat corrections, admin overrides, and any missed sync. Purely event-driven systems make that historical recomputation much harder; this design gets live-ish updates *and* keeps the recompute escape hatch.
 
 ### D11. Locking: query-time derivation over scheduled state flips
 
@@ -226,17 +227,19 @@ All jobs are HTTP endpoints under `/api/jobs/*`, protected by a shared-secret he
 
 | Job | Schedule | Work |
 | --- | --- | --- |
-| `nfl-sync-schedule` | Daily 6am ET | Upsert NFL weeks (regular + postseason, Pro Bowl excluded — ADR-0007), games, kickoff times; pick up postponements and cancellations (pick impact derives from game state at settlement) |
-| `nfl-sync-odds` | 3×/day (in season) | Idempotently update the current spread on unstarted games |
-| `nfl-sync-scores` | **Every 5 min** | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
-| `nfl-sync-stats` | Daily (in season) | Idempotently upsert team season records (bulk standings, one request) and per-game matchup context (injuries, FPI, ATS, last five — one summary request per unstarted game in the pick window) for the matchup stats sheet (ADR-0040) |
-| `settle-sweep` | Daily 3am ET | Full reconciliation pass: recompute all active leagues from stored results; catches anything the incremental path missed (late stat corrections, overrides, missed syncs) |
-| `ncaamb-sync-bracket` | Every 5 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots |
+| `nfl-sync-schedule` | 2×/day (DATA-11) | Upsert NFL weeks (regular + postseason, Pro Bowl excluded — ADR-0007), games, kickoff times; pick up postponements and cancellations (pick impact derives from game state at settlement; a cancellation immediately resettles affected leagues) |
+| `nfl-sync-odds` | 3×/day (in season) | Idempotently update the current spread on unstarted games in the current week **and the next** — the pick window ADR-0036 opens (SIMP-16; `docs/runbooks/jobs.md`) |
+| `nfl-sync-scores` | **Every 15 min** (ADR-0044) | Fetch live/final scores; when any game reaches final, resolve its picks via `packages/scoring` and rebuild standings for affected leagues — scores and standings move together |
+| `nfl-sync-stats` | 2×/day (in season, DATA-11) | Idempotently upsert team season records (bulk standings, one request) and per-game matchup context (injuries, FPI, ATS, last five — one summary request per unstarted game in the pick window, current week + next) for the matchup stats sheet (ADR-0040) |
+| `settle-sweep` | 2×/day (DATA-11) | Full reconciliation pass: recompute all active leagues from stored results; catches anything the incremental path missed (late stat corrections, overrides, missed syncs). Active-only by design — a concluded season is recomputed only by the admin rebuild (ADR-0030) |
+| `ncaamb-sync-bracket` | Every 15 min (March, tournament days) | Ingest tournament results; process auto-advance on vacated slots (lands with epic 07) |
+
+Exact cron expressions and the reasoning per cadence live in `docs/runbooks/jobs.md`, which is the operational source of truth — nothing in code encodes a schedule.
 
 Sport-specific jobs carry the sport in their route (`/api/jobs/nfl/*`) and service names
 (ADR-0007); operational setup lives in `docs/runbooks/jobs.md`.
 
-`sync-scores` runs every 5 minutes around the clock and **no-ops in milliseconds** when no games are in progress or recently final — cheaper and more robust than encoding NFL/NCAA game windows into cron schedules. cron-job.org supports minute-level scheduling on its free tier. Standings therefore update within ~5 minutes of a game going final; in-progress scores are also stored and can be surfaced in the UI with a "live as of" timestamp.
+`sync-scores` runs every 15 minutes around the clock and **no-ops in milliseconds** when no games are in progress or recently final — cheaper and more robust than encoding NFL/NCAA game windows into cron schedules. cron-job.org supports minute-level scheduling on its free tier. Standings therefore update within ~15 minutes of a game going final; in-progress scores are also stored and surfaced in the UI with an "as of" timestamp.
 
 Settlement is **recompute-friendly** (see D10). Vercel function limits are a non-issue at <50 users; if settlement ever approaches a timeout, the endpoint processes per-league with a cursor and cron retries until drained.
 
@@ -314,7 +317,7 @@ Spec-driven notes:
 - Public leagues are discoverable and joinable without a code; private leagues require one
 - Join cutoff (first week started / Round of 64 tipped) derived from game timestamps — same query-time pattern as pick locking. Enforced at the join endpoint, and at invite *creation* (ADR-0029), so a commissioner can't mint a link the cutoff would refuse every use of; revoking stays available past the cutoff
 
-## MVP Rule Scope (finalized — mirrors spec v0.3)
+## MVP Rule Scope (finalized — mirrors spec v0.4)
 
 All rule-scope decisions are settled in the MVP spec; recorded here only for their architectural consequences. Deferred features are enforced by **omission from the MVP settings schemas and scoring functions** — no table shapes fork when they ship later.
 
@@ -388,9 +391,15 @@ PUT    /leagues/:id/survivor/weeks/:weekId/pick
 GET    /leagues/:id/survivor/weeks/:weekId/picks own always; others' filtered by kickoff
 POST   /leagues/:id/bracket/entries      submit bracket (all 63 + tiebreaker)
 GET/PATCH /me                            username claim/change, display name
+GET    /me/deletion-blockers             leagues whose sole-commissionership blocks deletion
 DELETE /me                               account deletion: anonymize in place (guarded by ADR-0004 once leagues exist)
+GET    /invite-preview/:code             sessionless HTML unfurl for invite links (ADR-0038; outside OpenAPI)
 POST   /jobs/*                           secret-protected job triggers (prod cron)
 POST   /admin/jobs/nfl/:job              manual sync trigger from the admin page (ADR-0011)
+POST   /admin/jobs/settle-sweep          manual reconciliation trigger (admin page — ADM-6)
+GET    /admin/games/anomalies            unlocked ∧ outcome-knowable games (detection, ADM-3)
+GET    /admin/audit                      the admin_audit trail (ADM-3)
+PUT    /admin/teams/:id/override         team display-identity overrides (ADR-0042; audited)
 GET    /admin/teams                      ?sport= — read-only reference-data browsers
 GET    /admin/seasons                    ?sport= — seasons + weeks + per-week game counts
 GET    /admin/games                      ?weekId= — provider, override, and resolved values
@@ -399,16 +408,16 @@ GET    /admin/nfl-stats                  ?season= — team season stats, all thr
 PUT    /admin/nfl-stats/:id/override     three-state patch on record facts (audited)
 GET    /admin/nfl-stat-contexts          ?weekId= — per-game context, all three layers (ADR-0041)
 PUT    /admin/nfl-stat-contexts/:gameId/override  replace the sparse context override layer (audited)
-POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings
+POST   /admin/leagues/:id/rebuild        wipe + recompute results/standings (curl-only — owner re-verdict on ADM-6)
 POST   /sim/*                            simulator (non-prod only, admin role; see Simulator section)
 GET    /openapi.json                     generated spec
 ```
 
 ## Reconciliation Status
 
-Architecture v0.3 is reconciled against MVP Spec v0.3. Every spec requirement maps to a design element: environments and simulator (Environments, Simulator & Time, D12–D13), automated testing (Automated Testing, D14), operational data corrections (Manual Sports Data Overrides, D15), rule scope (MVP Rule Scope table), identity and caps (Domain Model notes), rules guide (static SPA content), and freshness expectations (Background Jobs). No open questions remain in either document.
+Architecture v0.4 is reconciled against MVP Spec v0.4 — and both against the shipped app, via the ALN-3 sweep and the ALN-4 verdicts (`docs/sweeps/ALN-3-spec-vs-app.md`, 2026-08-23). Every spec requirement maps to a design element: environments and simulator (Environments, Simulator & Time, D12–D13), automated testing (Automated Testing, D14), operational data corrections (Manual Sports Data Overrides, D15), rule scope (MVP Rule Scope table), identity and caps (Domain Model notes), rules guide (static SPA content), and freshness expectations (Background Jobs). No open questions remain in either document.
 
-**Both documents stay locked at v0.3 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule), **ADR-0025** (Survivor persistence: team consumption is a partial unique index over a settlement-maintained `released` flag so a cancellation returns the team, `survivor_state` is a settlement-maintained ledger carrying `eliminated_week_id` and `revived_count`, and Survivor settles per completed week in prefix order), **ADR-0026** (Survivor is straight-up only — its Pick Type setting, `survivor_picks.spread_at_pick`, and its spread-acceptance handshake are all removed, since a changeable pick graded at the spread it was made against rewards re-picking; Pick'em is untouched), **ADR-0031** (Pick'em is regular-season only — ADR-0020's presets are retired, the Season Range setting is removed, and the server resolves and stores the regular-season range under the same mid-week rule ADR-0024 applies for Survivor; postseason ingestion is unchanged), **ADR-0032** (invite links are bare opaque codes — the optional expiry and max-use caps, their columns, and their derived statuses are removed; revocation is an invite's only lifecycle), **ADR-0033** (Survivor's Push/Tie Resolution is fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all; the scoring package takes no settings), and **ADR-0034** (March Madness scoring is Standard Doubling only — `MarchMadnessSettings` is `{ maxBracketsPerMember }` — and the pre-deadline seed-correction wipe is an admin-by-hand procedure, both cut before the mode was built). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
+**Both documents stay locked at v0.4 and are amended by recorded ADRs rather than re-versioned.** The Pick'em rule surface described here and in the spec is the v0.3 text as amended by **ADR-0018** (a week's picks are one atomic, immutable submission; push fixed at +0.5 with no tiebreaker; only the latest spread is kept), **ADR-0019** (week moves out of scope, with an admin `cancelled` override as the operational remedy), **ADR-0020** (Pick'em's Start Week / End Week settings collapse into one three-option season range, resolved against the bound season and the injected Clock at league creation and stored as the concrete `startWeek`/`endWeek` refs everything already computes on), **ADR-0023** (Game Mode 2 is named **Survivor**; every "Elimination" in this document's original v0.3 text and in the ADRs numbered below 0023 names this same mode), **ADR-0024** (Survivor has no range setting at all — the server resolves and stores a regular-season range under ADR-0020's mid-week rule), **ADR-0025** (Survivor persistence: team consumption is a partial unique index over a settlement-maintained `released` flag so a cancellation returns the team, `survivor_state` is a settlement-maintained ledger carrying `eliminated_week_id` and `revived_count`, and Survivor settles per completed week in prefix order), **ADR-0026** (Survivor is straight-up only — its Pick Type setting, `survivor_picks.spread_at_pick`, and its spread-acceptance handshake are all removed, since a changeable pick graded at the spread it was made against rewards re-picking; Pick'em is untouched), **ADR-0031** (Pick'em is regular-season only — ADR-0020's presets are retired, the Season Range setting is removed, and the server resolves and stores the regular-season range under the same mid-week rule ADR-0024 applies for Survivor; postseason ingestion is unchanged), **ADR-0032** (invite links are bare opaque codes — the optional expiry and max-use caps, their columns, and their derived statuses are removed; revocation is an invite's only lifecycle), **ADR-0033** (Survivor's Push/Tie Resolution is fixed at its default — a tie advances with the team consumed — leaving Survivor with no league settings at all; the scoring package takes no settings), and **ADR-0034** (March Madness scoring is Standard Doubling only — `MarchMadnessSettings` is `{ maxBracketsPerMember }` — and the pre-deadline seed-correction wipe is an admin-by-hand procedure, both cut before the mode was built). Where any of these ADRs and the v0.3 text disagree, the ADR is the decision and the text is the defect.
 
 ## Mobile Path (later, zero rework)
 
@@ -416,4 +425,4 @@ Generate a client for Expo/React Native (or native) directly from the OpenAPI sp
 
 ## Deliberate MVP Exclusions
 
-No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a role-gated admin page with job triggers, rebuild buttons, and data browsers, plus — in non-prod only — a separate simulator section), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
+No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a role-gated admin page with job triggers and data browsers, plus — in non-prod only — a separate simulator section), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).

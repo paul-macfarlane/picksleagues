@@ -30,7 +30,7 @@ function SignIn() {
   const { redirect: redirectParam } = Route.useSearch();
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-4 sm:p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <BrandMark className="mx-auto size-12" />

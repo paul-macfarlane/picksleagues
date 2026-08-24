@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { GAME_SIDE, type GameSide } from "@picksleagues/schemas";
 import { cn } from "@/lib/utils";
 import { TeamLogo } from "@/components/team-logo";
 
@@ -77,7 +78,7 @@ export function MatchupSide({
 }: {
   team: MatchupSideTeam;
   numeral: string | null;
-  side: "away" | "home";
+  side: GameSide;
   emphasis?: "taken" | "other";
   className?: string;
 }) {
@@ -85,7 +86,7 @@ export function MatchupSide({
     <span
       className={cn(
         "flex min-w-0 items-center gap-1.5",
-        side === "home" && "flex-row-reverse",
+        side === GAME_SIDE.HOME && "flex-row-reverse",
         emphasis === "other" && "text-muted-foreground",
         className,
       )}
@@ -102,7 +103,7 @@ export function MatchupSide({
       <span
         className={cn(
           "type-display min-w-[3ch] text-xl",
-          side === "away" ? "text-left" : "text-right",
+          side === GAME_SIDE.AWAY ? "text-left" : "text-right",
         )}
       >
         {numeral}

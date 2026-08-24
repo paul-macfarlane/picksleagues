@@ -10,18 +10,18 @@ import {
 import { useSurvivorStandings } from "@/api/survivor";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format";
+import { gameStateLabel } from "@/lib/game";
 import {
-  gameStateLabel,
   survivorPickGrade,
   survivorRevivalStillPossible,
   survivorWeeksSurvived,
-} from "@/lib/game";
+} from "@/lib/survivor-game";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
+import { StandingsUpdatedStamp } from "@/components/league/standings-updated-stamp";
 import { QueryState } from "@/components/query-state";
-import { rowClassName } from "@/components/row";
+import { rowClassName, rowRuleClassName } from "@/components/row";
 import { Section } from "@/components/section";
 import { StatusPill } from "@/components/status-pill";
 import { TeamLogo } from "@/components/team-logo";
@@ -109,19 +109,10 @@ export function SurvivorBoard({ leagueId }: { leagueId: string }) {
         {standings.data && <BoardRows board={standings.data} />}
       </QueryState>
 
-      {/* The spec requires a "last updated" stamp and forbids claiming
-          real-time freshness — never "live", just when settlement last wrote
-          this board. `data-settled` is the fact the stamp reports, so a
-          journey can assert either state without binding to a sentence. */}
-      <p
+      <StandingsUpdatedStamp
+        updatedAt={standings.data?.updatedAt}
         data-testid="survivor-board-updated-at"
-        data-settled={standings.data?.updatedAt ? "true" : "false"}
-        className="type-eyebrow"
-      >
-        {standings.data?.updatedAt
-          ? `Last updated ${formatDateTime(standings.data.updatedAt)}`
-          : "Nothing has settled yet."}
-      </p>
+      />
     </Section>
   );
 }
@@ -335,17 +326,19 @@ function CurrentWeekPick({
       // the two homes (row level vs history) the board gave it.
       data-week={pick?.weekId}
       data-team={team?.abbreviation}
-      // Same frame and outcome rule as every other pick row in the app (FB-42),
-      // so this week's pick and the history entries below read as one list
-      // rather than two designs.
+      // The row tier's left rule and outcome colour (ADR-0043 §2), the same
+      // frame as every other pick row in the app (FB-42), so this week's pick
+      // and the history entries below read as one list rather than two designs
+      // — and no box, since this already sits inside the member's row.
       className={cn(
-        "flex flex-col gap-1 rounded-md border-l-2 bg-muted/40 py-2 pr-2 pl-2.5 text-sm",
+        "flex flex-col gap-1 py-2 text-sm",
+        rowRuleClassName,
         pickOutcomeAccentClassName(grade),
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <span className="text-xs font-medium text-muted-foreground">This week</span>
+          <span className="type-eyebrow">This week</span>
           {team && (
             <>
               <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
@@ -386,7 +379,7 @@ function ConsumedTeams({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-medium text-muted-foreground">Teams used</p>
+      <p className="type-eyebrow">Teams used</p>
       <ul className="flex flex-wrap gap-1.5">
         {member.consumedTeamIds.map((teamId) => {
           const team = teams.get(teamId);
@@ -437,10 +430,10 @@ function PickHistory({
 
   return (
     <details className="group">
-      <summary className="touch-hit cursor-pointer list-none text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+      <summary className="type-eyebrow touch-hit cursor-pointer list-none outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
         Pick history ({picks.length})
       </summary>
-      <ul className="mt-2 flex flex-col gap-1.5">
+      <ul className="mt-2 flex flex-col">
         {picks.map((pick) => {
           const team = pick.teamId ? teams.get(pick.teamId) : null;
           // Settled or derived (FB-25), same as everywhere else on the board.
@@ -452,15 +445,15 @@ function PickHistory({
               data-week={pick.weekId}
               data-team={team?.abbreviation}
               className={cn(
-                "flex flex-col gap-1 rounded-md border-l-2 bg-muted/40 py-2 pr-2 pl-2.5 text-sm",
+                "flex flex-col gap-1 text-sm",
+                rowClassName,
+                rowRuleClassName,
                 pickOutcomeAccentClassName(grade),
               )}
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="flex items-center gap-1.5 font-medium text-foreground">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {weekLabels.get(pick.weekId)}
-                  </span>
+                  <span className="type-eyebrow">{weekLabels.get(pick.weekId)}</span>
                   {team && (
                     <>
                       <TeamLogo

@@ -27,6 +27,13 @@ Decisions (owner, 2026-08-22):
   (MOB-2, 2026-08-22.)
 - **Order:** MOB-1 → MOB-2 → MOB-3 are the "feels like an app" threshold and
   go first; MOB-4–7 are a second round after living with the tab bar.
+- Round two decisions (owner, 2026-08-23): MOB-6 narrowed to destructive
+  confirmations — its other two named surfaces no longer exist (MOB-2 removed
+  the league switcher; the theme picker became a profile-page Select). MOB-5
+  refreshes by invalidating with no key filter — only the current view's
+  active queries refetch, and no per-route key registry exists to go stale.
+  MOB-3 ships the cross-fade only; the directional slide wasn't worth the
+  history bookkeeping. MOB-8 appended: the install card's Android gap.
 - **Not in scope:** offline shell / service worker (an offline pick screen is a
   lock-state hazard under the Clock rule — stale "now"); Web Push (its own
   epic if ever; needs a subscription table, VAPID keys, a job); gesture-only
@@ -64,7 +71,7 @@ against it rather than hardcoding.
   clearing padding adds both heights. Desktop header nav unchanged. E2E: the
   phone-width pick journey still reaches Submit with the tab bar present.
   _(deps: MOB-1)_
-- [ ] **MOB-3** — Route view transitions. TanStack Router's
+- [x] **MOB-3** — Route view transitions. TanStack Router's
   `defaultViewTransition` (or a `startViewTransition` wrapper) for a cross-fade
   on navigation, with a directional slide only if it stays under ~20 lines;
   `prefers-reduced-motion` disables it; no library. Skeleton/`QueryState`
@@ -79,15 +86,26 @@ against it rather than hardcoding.
   the never-used Seasons tab was removed, leaving five fitted tabs. The
   Simulator bar (five) is fitted too. Edge fades stay out until someone
   actually works those panels from a phone. _(deps: MOB-2)_
-- [ ] **MOB-5** — Pull-to-refresh on query-backed views (standings, games,
-  dashboard): a touch-start-at-scrollTop-0 gesture invalidates the route's
-  query keys via the `apps/web/src/api/*` modules (no key literals in
-  components), with a visible spinner affordance. Makes refresh explicit
-  rather than claiming real-time freshness. _(deps: MOB-2)_
-- [ ] **MOB-6** — Bottom sheets on phone for the dialogs a thumb reaches for:
+- [x] **MOB-5** — Pull-to-refresh on query-backed views (standings, games,
+  dashboard): a touch-start-at-scrollTop-0 gesture refreshes the current
+  view, with a visible spinner affordance. Shipped as one shell-level gesture
+  invalidating with no key filter rather than the per-route key wiring first
+  sketched here (owner, 2026-08-23 — see round-two decisions above). Makes
+  refresh explicit rather than claiming real-time freshness. _(deps: MOB-2)_
+- [x] **MOB-6** — Bottom sheets on phone for the dialogs a thumb reaches for:
   destructive confirmations, the league switcher, the theme picker. shadcn
   `Sheet side="bottom"` with safe-area padding; desktop keeps centered
-  dialogs. _(deps: MOB-1)_
-- [ ] **MOB-7** — Haptic on a successful pick save (`navigator.vibrate(10)`,
+  dialogs. Narrowed to destructive confirmations (owner, 2026-08-23 — see
+  round-two decisions above): the shared `AlertDialogContent` renders as a
+  bottom sheet below `sm`, covering every confirm call site at once.
+  _(deps: MOB-1)_
+- [x] **MOB-7** — Haptic on a successful pick save (`navigator.vibrate(10)`,
   no-op where unsupported), fired from the mutation hook's success path so
   every pick surface gets it once. _(deps: none)_
+- [x] **MOB-8** — Android install instructions (owner, 2026-08-23). LNCH-16's
+  install card knew two paths — Chromium's captured prompt and iOS Share
+  steps — so an Android browser holding the event back (Firefox always,
+  Chrome until its heuristics pass) showed no affordance at all. An `android`
+  install path shows generic menu steps ("⋮ → Add to Home screen / Install"),
+  one wording for all Android browsers; the native Install button still wins
+  whenever the prompt was captured. _(deps: none)_

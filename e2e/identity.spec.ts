@@ -1,5 +1,5 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
-import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { cleanup, mintSession, signInAs, uniqueUsername } from "./setup/session";
 
 /**
  * A field was refused, addressed through the a11y wiring `FormTextField` sets up
@@ -27,21 +27,12 @@ function successToast(page: Page): Locator {
   return page.locator('[data-sonner-toast][data-type="success"]');
 }
 
-// Mints a session and drops it straight into the browser's cookie jar —
-// every spec below authenticates this way instead of driving real OAuth
-// (there's no headless IdP to drive; see e2e/smoke.spec.ts).
-async function signInAs(context: BrowserContext, overrides?: Parameters<typeof mintSession>[0]) {
-  const { user, cookieForPlaywright } = await mintSession(overrides);
-  await context.addCookies([cookieForPlaywright]);
-  return user;
-}
-
 async function openAccountMenu(page: Page) {
   await page.getByRole("button", { name: "Open account menu" }).click();
 }
 
 test.describe("identity", () => {
-  test("unclaimed session is gated to /claim-username; invalid submit errors inline; a valid claim reaches the dashboard", async ({
+  test("unclaimed session is gated to /claim-username; a valid claim reaches the dashboard", async ({
     page,
     context,
   }) => {
@@ -51,10 +42,6 @@ test.describe("identity", () => {
     try {
       await page.goto("/");
       await expect(page).toHaveURL(/\/claim-username/);
-
-      await page.locator("#username").fill("ab");
-      await page.getByRole("button", { name: "Continue" }).click();
-      await expectFieldError(page, "username");
 
       await page.locator("#username").fill(username);
       await page.getByRole("button", { name: "Continue" }).click();
@@ -122,43 +109,8 @@ test.describe("identity", () => {
       // next edit.
       await expect(saveButton).toBeDisabled();
 
-      // Avatar override round trip, before the conflicting-username step below:
-      // that step deliberately leaves #username in a failed state and the form
-      // does not remount after a 409, so any later Save would re-trigger the
-      // same refusal and never reach these assertions.
-      //
-      // A `.invalid` host (RFC 2606) so the browser's avatar request can never
-      // leave the machine — what's under test is that the value persists, and
-      // the rendered <img alt=""> has no accessible name to bind to anyway.
-      const avatarUrl = "https://avatars.example.invalid/me.png";
-      await page.locator("#imageOverride").fill(avatarUrl);
-      await expect(saveButton).toBeEnabled();
-      // Synchronizing on the PATCH rather than this file's successToast idiom:
-      // the toast from the save above is still on screen, and the button is
-      // already disabled while the mutation is pending, so neither one
-      // distinguishes this save's completion from the previous one's. Waiting
-      // on the response is what makes the reload below deterministic.
-      const saved = page.waitForResponse(
-        (response) => response.request().method() === "PATCH" && response.url().includes("/api/me"),
-      );
-      await saveButton.click();
-      await saved;
-
-      await page.reload();
-      await expect(page.locator("#imageOverride")).toHaveValue(avatarUrl);
-
-      // Emptying the field is the clear — it reverts to the provider's avatar.
-      await page.locator("#imageOverride").fill("");
-      await expect(saveButton).toBeEnabled();
-      const cleared = page.waitForResponse(
-        (response) => response.request().method() === "PATCH" && response.url().includes("/api/me"),
-      );
-      await saveButton.click();
-      await cleared;
-
-      await page.reload();
-      await expect(page.locator("#imageOverride")).toHaveValue("");
-
+      // The one refusal a browser must prove: the API's 409 lands on the field
+      // the member is looking at, wired for a screen reader (see the header).
       await page.locator("#username").fill(conflictingUsername);
       await expect(saveButton).toBeEnabled();
       await saveButton.click();

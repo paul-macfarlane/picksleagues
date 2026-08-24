@@ -3,6 +3,7 @@ import type { Db } from "@picksleagues/db";
 import { games, pickemPicks, survivorPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
 import {
+  ERROR_CODE,
   LEAGUE_MODE,
   LEAGUE_SETTINGS_SCHEMAS,
   pickemSettingsInvalidatePicks,
@@ -32,7 +33,7 @@ import { effectiveKickoffAtSql } from "../games";
  */
 
 export type SettingsPickResetResult =
-  { ok: true; cleared: number } | { ok: false; reason: "picks_locked" };
+  { ok: true; cleared: number } | { ok: false; reason: typeof ERROR_CODE.PICKS_LOCKED };
 
 /**
  * The per-mode pick tables this module clears. They agree on the three columns
@@ -79,7 +80,7 @@ async function clearPicks(
   clock: Clock,
 ): Promise<SettingsPickResetResult> {
   if (await hasLockedPick(tx, picks, leagueSeasonId, clock)) {
-    return { ok: false, reason: "picks_locked" };
+    return { ok: false, reason: ERROR_CODE.PICKS_LOCKED };
   }
 
   const deleted = await tx

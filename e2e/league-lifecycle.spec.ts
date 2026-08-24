@@ -1,12 +1,6 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
-import { cleanup, mintSession, uniqueUsername } from "./setup/session";
+import { expect, test } from "@playwright/test";
+import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { cleanupFutureSeason, latestInviteCode, seedFutureSeason } from "./setup/league-seed";
-
-async function signInAs(context: BrowserContext, overrides?: Parameters<typeof mintSession>[0]) {
-  const { user, cookieForPlaywright } = await mintSession(overrides);
-  await context.addCookies([cookieForPlaywright]);
-  return user;
-}
 
 test.describe("league lifecycle", () => {
   test("create → invite → second user joins → both appear on league home", async ({ browser }) => {
