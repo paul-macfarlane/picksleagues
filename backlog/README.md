@@ -57,8 +57,7 @@ File numbers are historical, not priority — they record the order epics were
 written. This list holds only remaining work; completed rounds are summarized
 below it. The order remaining work is taken (owner, 2026-08-22):
 
-1. **`20-league-dues`** — optional dues tracking (owner, 2026-08-23). Small and wanted while leagues are actually collecting: dues change hands around NFL kickoff (Sept 2026), so it precedes the mode not needed until spring.
-2. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+1. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `ALN-6` (TypeScript 6 → 7) stays blocked outside this list until typescript-eslint
 supports TS 7 (peer cap re-verified `<6.1.0`, 2026-08-23).
@@ -83,7 +82,7 @@ ADR-0043), the alignment sweeps (`19`, ALN-1–5 — docs locked at v0.4,
 `docs/sweeps/` holds both reports), the four sweep-surfaced fixes (`PKM-11`,
 `PKM-12`, `ADM-6`, `SIM-11`, PRs #123–#126), and mobile-feel round two
 (`MOB-3`, `MOB-5`–`MOB-8`: view transitions, pull-to-refresh, bottom-sheet
-confirms, pick-save haptic, Android install instructions).
+confirms, pick-save haptic, Android install instructions). `DUES` was also completed.
 
 ## Working the backlog
 
