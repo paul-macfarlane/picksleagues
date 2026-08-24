@@ -14,7 +14,7 @@ import {
 import { resolvePickemViewerStandings } from "../pickem/viewer-standing";
 import { resolveSurvivorViewerStandings } from "../survivor/viewer-standing";
 import { isPreStart, leagueStartAt } from "./start";
-import { loadMembers, serializeLeague, type LeagueRow } from "./serialize";
+import { loadDuesPaidByUser, loadMembers, serializeLeague, type LeagueRow } from "./serialize";
 
 /** The sport whose seasons a mode's leagues bind to (create + renewal). */
 export function sportForMode(mode: LeagueMode): Sport {
@@ -77,6 +77,9 @@ export interface CurrentLeagueSeason {
   seasonId: string;
   seasonYear: number;
   settings: LeagueSettings;
+  // Whole dollars; null = dues off (ADR-0045). Per-instance like settings, so
+  // renewal copies it and the next season's ledger starts empty.
+  duesAmount: number | null;
   status: LeagueStatus;
 }
 
@@ -102,6 +105,7 @@ export async function getLeagueWithCurrentSeason(
       instanceId: leagueSeasons.id,
       seasonId: leagueSeasons.seasonId,
       settings: leagueSeasons.settings,
+      duesAmount: leagueSeasons.duesAmount,
       status: leagueSeasons.status,
       seasonYear: sportSeasons.year,
     })
@@ -119,6 +123,7 @@ export async function getLeagueWithCurrentSeason(
       seasonId: row.seasonId,
       seasonYear: row.seasonYear,
       settings: row.settings,
+      duesAmount: row.duesAmount,
       status: row.status,
     },
   };
@@ -166,12 +171,15 @@ export async function readAndSerializeLeague(
     season.settings,
   );
   const members = await loadMembers(db, leagueId);
+  const duesPaidByUserId = await loadDuesPaidByUser(db, season.id);
   const latestYear = await latestSeasonYearForSport(db, sportForMode(league.mode));
   return serializeLeague(
     league,
     season.status,
     season.seasonYear,
     season.settings,
+    season.duesAmount,
+    duesPaidByUserId,
     startsAt,
     members,
     viewerId,

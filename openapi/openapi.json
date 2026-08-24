@@ -244,6 +244,12 @@
           "maxMembers": {
             "type": "integer"
           },
+          "duesAmount": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "myRole": {
             "$ref": "#/components/schemas/MemberRole"
           },
@@ -271,6 +277,7 @@
           "startsAt",
           "renewable",
           "maxMembers",
+          "duesAmount",
           "myRole",
           "members",
           "myPickemStanding",
@@ -480,6 +487,13 @@
           "joinedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "duesPaidAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
         "required": [
@@ -489,7 +503,8 @@
           "displayName",
           "image",
           "role",
-          "joinedAt"
+          "joinedAt",
+          "duesPaidAt"
         ]
       },
       "NullablePickemViewerStanding": {
@@ -951,6 +966,33 @@
         },
         "required": [
           "role"
+        ]
+      },
+      "UpdateLeagueDuesRequest": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "amount"
+        ]
+      },
+      "UpdateMemberDuesRequest": {
+        "type": "object",
+        "properties": {
+          "paid": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "paid"
         ]
       },
       "DiscoveryResponse": {
@@ -5857,6 +5899,174 @@
           },
           "409": {
             "description": "The league has started (league_started), or the kick would leave zero commissioners (last_commissioner)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/dues": {
+      "put": {
+        "operationId": "updateLeagueDues",
+        "summary": "Set or clear the league's dues amount, anytime (commissioner; ADR-0045)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLeagueDuesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated league (null amount = dues tracking off)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such league, or the caller is not a member — indistinguishable so private leagues stay hidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{leagueId}/dues/members/{memberId}": {
+      "put": {
+        "operationId": "updateMemberDues",
+        "summary": "Mark a member's dues paid or unpaid (commissioner; ADR-0045)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberDuesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Ledger updated (no-op if it already matched)"
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a member but not a commissioner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "League or member not found (or caller not a member of the league)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The league isn't tracking dues (dues_not_enabled)",
             "content": {
               "application/json": {
                 "schema": {

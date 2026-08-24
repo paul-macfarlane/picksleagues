@@ -20,6 +20,7 @@ export const LEAGUE_ACTION = {
   MANAGE_INVITES: "manage_invites",
   LEAVE_LEAGUE: "leave_league",
   RENEW_SEASON: "renew_season",
+  MANAGE_DUES: "manage_dues",
 } as const;
 
 export type LeagueAction = (typeof LEAGUE_ACTION)[keyof typeof LEAGUE_ACTION];
@@ -52,6 +53,10 @@ const LEAGUE_ACTION_RULES: Record<
   // a commissioner action with no window — it only becomes reachable once a
   // newer season exists, which by definition is after the current one started.
   [LEAGUE_ACTION.RENEW_SEASON]: { commissionerOnly: true, preStartOnly: false },
+  // Dues are informational, never competitive (ADR-0045): nothing about
+  // fairness locks at kickoff, and money is collected all season, so unlike
+  // mode settings there is no window.
+  [LEAGUE_ACTION.MANAGE_DUES]: { commissionerOnly: true, preStartOnly: false },
 };
 
 /** Role axis alone — the API maps its failure to 403 (vs 409 for windows). */

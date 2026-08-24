@@ -301,6 +301,40 @@ export interface paths {
         patch: operations["updateMemberRole"];
         trace?: never;
     };
+    "/api/leagues/{leagueId}/dues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear the league's dues amount, anytime (commissioner; ADR-0045) */
+        put: operations["updateLeagueDues"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/leagues/{leagueId}/dues/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a member's dues paid or unpaid (commissioner; ADR-0045) */
+        put: operations["updateMemberDues"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/discovery": {
         parameters: {
             query?: never;
@@ -929,6 +963,7 @@ export interface components {
             startsAt: string | null;
             renewable: boolean;
             maxMembers: number;
+            duesAmount: number | null;
             myRole: components["schemas"]["MemberRole"];
             members: components["schemas"]["LeagueMember"][];
             myPickemStanding: components["schemas"]["NullablePickemViewerStanding"];
@@ -986,6 +1021,8 @@ export interface components {
             role: components["schemas"]["MemberRole"];
             /** Format: date-time */
             joinedAt: string;
+            /** Format: date-time */
+            duesPaidAt: string | null;
         };
         NullablePickemViewerStanding: {
             rank: number;
@@ -1097,6 +1134,12 @@ export interface components {
         NullableJoinBlockedReason: "invite_revoked" | "already_member" | "league_concluded" | "join_closed" | "league_full" | null;
         UpdateMemberRoleRequest: {
             role: components["schemas"]["MemberRole"];
+        };
+        UpdateLeagueDuesRequest: {
+            amount: number | null;
+        };
+        UpdateMemberDuesRequest: {
+            paid: boolean;
         };
         DiscoveryResponse: {
             leagues: components["schemas"]["DiscoveryLeague"][];
@@ -3184,6 +3227,138 @@ export interface operations {
                 };
             };
             /** @description Promotion past the recipient's 10-active-league cap (cap_exceeded), or a demotion that would leave zero commissioners (last_commissioner) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateLeagueDues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateLeagueDuesRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated league (null amount = dues tracking off) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is a member but not a commissioner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such league, or the caller is not a member — indistinguishable so private leagues stay hidden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateMemberDues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateMemberDuesRequest"];
+            };
+        };
+        responses: {
+            /** @description Ledger updated (no-op if it already matched) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The caller is a member but not a commissioner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description League or member not found (or caller not a member of the league) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The league isn't tracking dues (dues_not_enabled) */
             409: {
                 headers: {
                     [name: string]: unknown;

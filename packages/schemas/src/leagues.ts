@@ -127,6 +127,14 @@ export const LeagueMemberSchema = z
     image: z.string().nullable(),
     role: MemberRoleSchema,
     joinedAt: z.iso.datetime(),
+    /**
+     * When a commissioner marked this member's dues paid; null = unpaid.
+     * Serialized to every member — "everyone sees who's paid" is the product
+     * rule (ADR-0045), so this is deliberately not commissioner-scoped.
+     * Meaningless (always null-or-stale) while the league's `duesAmount` is
+     * null; the UI renders no dues surface then.
+     */
+    duesPaidAt: z.iso.datetime().nullable(),
   })
   .openapi("LeagueMember");
 
@@ -155,6 +163,13 @@ export const LeagueResponseSchema = z
     // still lives server-side (RENEW_SEASON is commissioner-only).
     renewable: z.boolean(),
     maxMembers: z.number().int(),
+    /**
+     * Whole dollars per member for the current season instance; null = this
+     * league doesn't track dues (ADR-0045) and no dues surface renders.
+     * Mode-agnostic, so it sits beside maxMembers rather than inside the
+     * per-mode settings.
+     */
+    duesAmount: z.number().int().nullable(),
     myRole: MemberRoleSchema,
     members: z.array(LeagueMemberSchema),
     /**
