@@ -67,9 +67,12 @@ test.describe("league lifecycle", () => {
       await expect(pageA.getByText(`@${joinerName}`)).toBeVisible();
 
       // Dues are off until a commissioner sets an amount (ADR-0045), so no
-      // row carries a mark control yet.
+      // row carries a mark control yet — and no dues surface renders for the
+      // member at all (DUES-3).
       const markControl = pageA.getByRole("button", { name: /^Mark (paid|unpaid)$/ });
       await expect(markControl).toHaveCount(0);
+      await expect(pageB.getByTestId("dues-amount")).toHaveCount(0);
+      await expect(pageB.getByTestId("dues-status")).toHaveCount(0);
 
       // Commissioner: turn dues on from Settings, then mark the joiner paid.
       await pageA.getByRole("link", { name: "Settings" }).click();
@@ -91,6 +94,26 @@ test.describe("league lifecycle", () => {
           .filter({ hasText: `@${commishName}` })
           .getByRole("button", { name: "Mark paid" }),
       ).toBeVisible();
+
+      // DUES-3: the non-commissioner member sees the amount, the paid rollup,
+      // and each row's status — asserted on the machine value (data-paid), not
+      // the pill's word — while the mark control stays commissioner-only.
+      await pageB.reload();
+      await expect(pageB.getByTestId("dues-amount")).toHaveText("$50");
+      await expect(pageB.getByTestId("dues-paid-count")).toHaveText("1 of 2");
+      await expect(
+        pageB
+          .getByRole("listitem")
+          .filter({ hasText: `@${joinerName}` })
+          .getByTestId("dues-status"),
+      ).toHaveAttribute("data-paid", "true");
+      await expect(
+        pageB
+          .getByRole("listitem")
+          .filter({ hasText: `@${commishName}` })
+          .getByTestId("dues-status"),
+      ).toHaveAttribute("data-paid", "false");
+      await expect(pageB.getByRole("button", { name: /^Mark (paid|unpaid)$/ })).toHaveCount(0);
     } finally {
       await cleanupFutureSeason();
       await cleanup([commish.id, joiner.id]);
