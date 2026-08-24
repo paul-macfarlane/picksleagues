@@ -4,6 +4,7 @@ import {
   adminAudit,
   appState,
   games,
+  leagueDuesPayments,
   leagueInvites,
   leagueMembers,
   leagueSeasons,
@@ -41,6 +42,9 @@ export async function resetDb(db: Db): Promise<void> {
   await db.delete(survivorPicks);
   await db.delete(leagueInvites);
   await db.delete(leagueMembers);
+  // Before users even though league_seasons would cascade it: the user FK is
+  // RESTRICT, so a leaked row must never outlive this line.
+  await db.delete(leagueDuesPayments);
   await db.delete(leagueSeasons);
   await db.delete(leagues);
   // nfl_game_stat_context cascades from games; nfl_team_season_stats RESTRICTs teams.

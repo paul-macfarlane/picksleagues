@@ -156,151 +156,157 @@ function ProfileForm({
           card below shows *who* you are, which is not the same as naming the
           page for a screen reader landing on it. */}
       <h1 className="self-start text-2xl text-foreground">Your profile</h1>
-      <Card className="w-full max-w-sm self-center">
-        <CardHeader className="items-center text-center">
-          <UserIdentity
-            displayName={profile.displayName}
-            username={profile.username}
-            image={preview.src}
-            avatarSize="lg"
-            className="flex-col"
-          />
-        </CardHeader>
-        <CardContent>
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              void form.handleSubmit();
-            }}
-            noValidate
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={profile.email} disabled readOnly />
-            </div>
-            <form.Field
-              name="displayName"
-              validators={{
-                // Unchanged is always valid — only a real edit must pass DisplayNameSchema.
-                onSubmit: ({ value }) => {
-                  if (value.trim() === profile.displayName) return undefined;
-                  const parsed = DisplayNameSchema.safeParse(value);
-                  return parsed.success
-                    ? undefined
-                    : (parsed.error.issues[0]?.message ?? "Invalid display name.");
-                },
+      {/* One column owns the width for everything below the heading, so no
+          section can drift to the page edge while its neighbours sit centred
+          — which is exactly what happened when each set its own `max-w-sm`. */}
+      <div className="flex w-full max-w-sm flex-col gap-4 self-center">
+        <Card>
+          <CardHeader className="items-center text-center">
+            <UserIdentity
+              displayName={profile.displayName}
+              username={profile.username}
+              image={preview.src}
+              avatarSize="lg"
+              className="flex-col"
+            />
+          </CardHeader>
+          <CardContent>
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void form.handleSubmit();
               }}
+              noValidate
             >
-              {(field) => <FormTextField field={field} label="Display name" />}
-            </form.Field>
-            <form.Field
-              name="username"
-              validators={{
-                // Unchanged is always valid — only a real edit must pass UsernameSchema.
-                onSubmit: ({ value }) => {
-                  const trimmed = value.trim().toLowerCase();
-                  if (trimmed === (profile.username ?? "")) return undefined;
-                  const parsed = UsernameSchema.safeParse(trimmed);
-                  return parsed.success
-                    ? undefined
-                    : (parsed.error.issues[0]?.message ?? "Invalid username.");
-                },
-              }}
-            >
-              {(field) => (
-                <FormTextField
-                  field={field}
-                  label="Username"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              )}
-            </form.Field>
-            <form.Field
-              name="imageOverride"
-              validators={{
-                // Unchanged is valid, and so is empty — emptying the field is
-                // how the member reverts to the provider's avatar.
-                onSubmit: ({ value }) => {
-                  const trimmed = value.trim();
-                  if (trimmed === (profile.imageOverride ?? "") || trimmed === "") return undefined;
-                  const parsed = ImageUrlSchema.safeParse(trimmed);
-                  return parsed.success
-                    ? undefined
-                    : (parsed.error.issues[0]?.message ?? "Enter an https image URL.");
-                },
-              }}
-            >
-              {(field) => (
-                <FormTextField
-                  field={field}
-                  label="Avatar image URL"
-                  type="url"
-                  inputMode="url"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="https://…"
-                  hint="Comes from your sign-in provider unless you set one here. Clear the field to go back."
-                />
-              )}
-            </form.Field>
-            {/* The avatar silently holding at its old image is ambiguous — it
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" value={profile.email} disabled readOnly />
+              </div>
+              <form.Field
+                name="displayName"
+                validators={{
+                  // Unchanged is always valid — only a real edit must pass DisplayNameSchema.
+                  onSubmit: ({ value }) => {
+                    if (value.trim() === profile.displayName) return undefined;
+                    const parsed = DisplayNameSchema.safeParse(value);
+                    return parsed.success
+                      ? undefined
+                      : (parsed.error.issues[0]?.message ?? "Invalid display name.");
+                  },
+                }}
+              >
+                {(field) => <FormTextField field={field} label="Display name" />}
+              </form.Field>
+              <form.Field
+                name="username"
+                validators={{
+                  // Unchanged is always valid — only a real edit must pass UsernameSchema.
+                  onSubmit: ({ value }) => {
+                    const trimmed = value.trim().toLowerCase();
+                    if (trimmed === (profile.username ?? "")) return undefined;
+                    const parsed = UsernameSchema.safeParse(trimmed);
+                    return parsed.success
+                      ? undefined
+                      : (parsed.error.issues[0]?.message ?? "Invalid username.");
+                  },
+                }}
+              >
+                {(field) => (
+                  <FormTextField
+                    field={field}
+                    label="Username"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                )}
+              </form.Field>
+              <form.Field
+                name="imageOverride"
+                validators={{
+                  // Unchanged is valid, and so is empty — emptying the field is
+                  // how the member reverts to the provider's avatar.
+                  onSubmit: ({ value }) => {
+                    const trimmed = value.trim();
+                    if (trimmed === (profile.imageOverride ?? "") || trimmed === "")
+                      return undefined;
+                    const parsed = ImageUrlSchema.safeParse(trimmed);
+                    return parsed.success
+                      ? undefined
+                      : (parsed.error.issues[0]?.message ?? "Enter an https image URL.");
+                  },
+                }}
+              >
+                {(field) => (
+                  <FormTextField
+                    field={field}
+                    label="Avatar image URL"
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="https://…"
+                    hint="Comes from your sign-in provider unless you set one here. Clear the field to go back."
+                  />
+                )}
+              </form.Field>
+              {/* The avatar silently holding at its old image is ambiguous — it
                 reads as "the preview is slow" when it actually means the URL
                 won't render for anyone. `role="status"` so it's announced,
                 since the preview itself is purely visual. */}
-            {/* Only while the URL is being changed: the header avatar already
+              {/* Only while the URL is being changed: the header avatar already
                 shows the saved image in the current theme, and the question
                 the swatches answer — does this read on *both* grounds — is one
                 the member asks before saving, not after. */}
-            {draftImage.trim() !== (profile.imageOverride ?? "") && (
-              <AvatarThemePreview image={preview.src} displayName={profile.displayName} />
-            )}
-            {preview.failed && (
-              <p role="status" className="text-xs text-muted-foreground">
-                We couldn&apos;t load that image. Saving it will show your initials instead.
-              </p>
-            )}
-            <form.Subscribe selector={(state) => state.values}>
-              {(values) => {
-                // Compare trimmed: the server stores the trimmed value, so a
-                // whitespace-only edit must not enable Save or fire an
-                // identical re-save.
-                const displayNameChanged = values.displayName.trim() !== profile.displayName;
-                const usernameChanged =
-                  values.username.trim().toLowerCase() !== (profile.username ?? "");
-                // Comparing against "" for an unset override is what enables
-                // Save when the member *empties* a field that had a value.
-                const imageOverrideChanged =
-                  values.imageOverride.trim() !== (profile.imageOverride ?? "");
-                const hasChanges = displayNameChanged || usernameChanged || imageOverrideChanged;
+              {draftImage.trim() !== (profile.imageOverride ?? "") && (
+                <AvatarThemePreview image={preview.src} displayName={profile.displayName} />
+              )}
+              {preview.failed && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  We couldn&apos;t load that image. Saving it will show your initials instead.
+                </p>
+              )}
+              <form.Subscribe selector={(state) => state.values}>
+                {(values) => {
+                  // Compare trimmed: the server stores the trimmed value, so a
+                  // whitespace-only edit must not enable Save or fire an
+                  // identical re-save.
+                  const displayNameChanged = values.displayName.trim() !== profile.displayName;
+                  const usernameChanged =
+                    values.username.trim().toLowerCase() !== (profile.username ?? "");
+                  // Comparing against "" for an unset override is what enables
+                  // Save when the member *empties* a field that had a value.
+                  const imageOverrideChanged =
+                    values.imageOverride.trim() !== (profile.imageOverride ?? "");
+                  const hasChanges = displayNameChanged || usernameChanged || imageOverrideChanged;
 
-                return (
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full justify-center"
-                    disabled={!hasChanges || update.isPending}
-                  >
-                    Save changes
-                  </Button>
-                );
-              }}
-            </form.Subscribe>
-          </form>
-        </CardContent>
-      </Card>
-      {/* One page, sectioned (owner, 2026-08-22) rather than a /settings
+                  return (
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className="w-full justify-center"
+                      disabled={!hasChanges || update.isPending}
+                    >
+                      Save changes
+                    </Button>
+                  );
+                }}
+              </form.Subscribe>
+            </form>
+          </CardContent>
+        </Card>
+        {/* One page, sectioned (owner, 2026-08-22) rather than a /settings
           split: on phones this tab is the whole account surface — the header
           menu that used to hold theme and sign-out is gone below `sm` — and
           a second route would add navigation a friends-scale app doesn't
           need yet. */}
-      <AppearanceCard />
-      <InstallCard />
-      <AccountCard />
-      <AboutCard />
-      <DangerZone />
+        <AppearanceCard />
+        <InstallCard />
+        <AccountCard />
+        <AboutCard />
+        <DangerZone />
+      </div>
     </>
   );
 }
@@ -311,7 +317,7 @@ function AppearanceCard() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <Section title="Appearance" className="w-full max-w-sm self-center">
+    <Section title="Appearance">
       <LabeledSelect<Theme>
         id="theme"
         label="Theme"
@@ -327,7 +333,7 @@ function AccountCard() {
   const signOut = useSignOut();
 
   return (
-    <Section title="Account" className="w-full max-w-sm">
+    <Section title="Account">
       <Button
         type="button"
         variant="outline"
@@ -343,7 +349,7 @@ function AccountCard() {
 
 function AboutCard() {
   return (
-    <Section title="About" className="w-full max-w-sm">
+    <Section title="About">
       <LegalLinks className="text-sm text-muted-foreground" />
     </Section>
   );
@@ -363,7 +369,6 @@ function DangerZone() {
     <Section
       title={<span className="text-destructive">Danger zone</span>}
       description="Deleting your account is permanent and immediate."
-      className="w-full max-w-sm"
     >
       {blocked && (
         <p data-testid="deletion-blocked-reason" className="text-sm text-muted-foreground">

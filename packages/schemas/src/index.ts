@@ -4,6 +4,7 @@ export * from "./admin-nfl-stats";
 export * from "./app-role";
 export * from "./discovery";
 export * from "./display-name";
+export * from "./dues";
 export * from "./error";
 export * from "./nfl-game-stats";
 export * from "./game-status";

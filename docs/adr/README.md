@@ -53,3 +53,5 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0041](0041-stats-overrides-outlive-resync.md) | Stats tables carry override parallels after all | Accepted |
 | [0042](0042-team-identity-overrides.md) | Team identity gets override parallels, resolved in one serialization home | Accepted |
 | [0043](0043-visual-identity-broadcast-scoreboard.md) | Visual identity: the broadcast scoreboard | Accepted |
+| [0044](0044-score-freshness-fifteen-minutes.md) | Score freshness is ~15 minutes, not ~5 | Accepted |
+| [0045](0045-league-dues-tracking.md) | League dues: a per-season column and a presence ledger, tracking only | Accepted |

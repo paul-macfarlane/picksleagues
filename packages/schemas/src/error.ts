@@ -74,6 +74,10 @@ export const ERROR_CODE = {
   // sync hasn't written a context payload for it, so there is nothing to
   // override yet — correction, never creation (ADR-0041).
   GAME_STAT_CONTEXT_NOT_FOUND: "game_stat_context_not_found",
+  // Marking a member paid in a league whose current instance has no dues
+  // amount set (ADR-0045) — the mark would be invisible on every surface, so
+  // it's a conflict, not a silent latent write.
+  DUES_NOT_ENABLED: "dues_not_enabled",
   // Survivor's three own refusals (spec §Game Mode 2). The rest of its
   // vocabulary — locking, spreads, week range, league mode — is the shared set
   // above; a mode-specific synonym for any of them would just make the same

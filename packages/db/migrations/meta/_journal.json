@@ -218,6 +218,13 @@
       "when": 1786713003568,
       "tag": "0030_empty_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787537221154,
+      "tag": "0031_worried_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

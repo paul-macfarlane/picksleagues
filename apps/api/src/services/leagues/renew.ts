@@ -70,6 +70,9 @@ export async function renewLeagueSeason(
         // Copied verbatim (ADR-0009) — a per-season snapshot, editable pre-start
         // like any settings.
         settings: season.settings,
+        // The dues amount renews with the league; the ledger does not — it is
+        // keyed by instance, so the new season starts everyone unpaid (ADR-0045).
+        duesAmount: season.duesAmount,
         status: LEAGUE_STATUS.ACTIVE,
         createdAt: now,
         updatedAt: now,
