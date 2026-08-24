@@ -48,13 +48,17 @@ import {
 } from "@/lib/league-settings";
 import { useErrorToast } from "@/lib/use-error-toast";
 
+/**
+ * The commissioner's settings editor. The route renders it on the role axis
+ * alone — members get `LeagueSettingsSummary` instead — so nothing in here
+ * gates on who is looking; `started` is the only remaining axis (which fields
+ * are still open).
+ */
 export function LeagueSettingsSection({
   league,
-  canEdit,
   started,
 }: {
   league: LeagueResponse;
-  canEdit: boolean;
   started: boolean;
 }) {
   return (
@@ -66,12 +70,7 @@ export function LeagueSettingsSection({
             syncing each one via a `useEffect` (the effect-free idiom
             number-field.tsx uses for a single prop, applied once for the
             whole merged form). */}
-      <SettingsForm
-        key={settingsFingerprint(league)}
-        league={league}
-        canEdit={canEdit}
-        started={started}
-      />
+      <SettingsForm key={settingsFingerprint(league)} league={league} started={started} />
     </Section>
   );
 }
@@ -80,15 +79,7 @@ function settingsFingerprint(league: LeagueResponse): string {
   return `${league.name}|${league.visibility}|${league.maxMembers}|${JSON.stringify(league.settings)}`;
 }
 
-function SettingsForm({
-  league,
-  canEdit,
-  started,
-}: {
-  league: LeagueResponse;
-  canEdit: boolean;
-  started: boolean;
-}) {
+function SettingsForm({ league, started }: { league: LeagueResponse; started: boolean }) {
   const updateLeague = useUpdateLeague(league.id);
 
   // The forms rule's per-mode carve-out (engineering rules §Quality), which
@@ -123,8 +114,9 @@ function SettingsForm({
   const survivorSettings = survivorSettingsOf(league);
   const marchMadnessSettings = marchMadnessSettingsOf(league);
 
-  // Fetched only for the editing commissioner of a Pick'em league — an ordinary
-  // member has no use for the count (403 otherwise), and neither other mode has
+  // Fetched only for a Pick'em league (this form is commissioner-only by the
+  // route's role branch, so the endpoint's 403 for ordinary members is
+  // unreachable from here), and neither other mode has
   // a settings change this form can make that strands picks: March Madness
   // stores none, and Survivor's only invalidating change is a server-side
   // re-resolution of its start week, which no field here expresses (ADR-0026
@@ -132,7 +124,7 @@ function SettingsForm({
   // fieldset is locked, so the warning this feeds can no longer fire — no point
   // fetching the count. The other two modes leave `wouldInvalidatePicks` false,
   // and nothing below reads this unless it's true.
-  const pickSummary = usePickemPickSummary(league.id, isPickem && canEdit && !started);
+  const pickSummary = usePickemPickSummary(league.id, isPickem && !started);
 
   // All three modes' fields are declared unconditionally (only the active
   // mode's fieldset renders) — a league's mode never changes post-create, but
@@ -280,9 +272,8 @@ function SettingsForm({
   // `pickSummaryPending` (a query that no longer even fetches, see above) may
   // gate it.
   const canSave = started
-    ? canEdit && anyDirty && nameParsed.success && !updateLeague.isPending
-    : canEdit &&
-      anyDirty &&
+    ? anyDirty && nameParsed.success && !updateLeague.isPending
+    : anyDirty &&
       nameParsed.success &&
       !hasInvalidNumberField &&
       !updateLeague.isPending &&
@@ -321,15 +312,10 @@ function SettingsForm({
 
   return (
     <>
-      {/* Field.Root cascades `disabled` to every descendant Base UI control
-          (Input, Select, Radio) through context — including the ones nested
-          inside the shared per-mode fieldsets (league-settings-fields.tsx) —
-          without those components needing to forward a `disabled` prop
-          themselves. That's the read-only gate for non-editors. Name
-          gets its own root because EDIT_NAME has no window: a
-          commissioner keeps it editable after the league starts even though
-          the group below locks. */}
-      <Field.Root disabled={!canEdit} className="flex flex-col gap-1.5">
+      {/* Name sits outside the lockable Field.Root below because EDIT_NAME
+          has no window: a commissioner keeps it editable after the league
+          starts even though the group beneath locks. */}
+      <div className="flex flex-col gap-1.5">
         <Label htmlFor="league-name">League name</Label>
         <Input
           id="league-name"
@@ -343,9 +329,14 @@ function SettingsForm({
             {nameParsed.error.issues[0]?.message}
           </p>
         )}
-      </Field.Root>
+      </div>
 
-      <Field.Root disabled={!canEdit || started} className="flex flex-col gap-6">
+      {/* Field.Root cascades `disabled` to every descendant Base UI control
+          (Input, Select, Radio) through context — including the ones nested
+          inside the shared per-mode fieldsets (league-settings-fields.tsx) —
+          without those components needing to forward a `disabled` prop
+          themselves. That's the post-start lock. */}
+      <Field.Root disabled={started} className="flex flex-col gap-6">
         <RadioField
           legend="Visibility"
           name="league-visibility"
@@ -384,70 +375,64 @@ function SettingsForm({
         )}
       </Field.Root>
 
-      {canEdit && (
-        <>
-          {/* Not a client-computed lock — the server's 409 (league_started)
-              is the real enforcement; this is the disable-with-reason hint
-              derived from the same `started` the Field.Root
-              above disables on. Editors only: read-only viewers can't act on
-              it. */}
-          <p className="text-sm text-muted-foreground">
-            {started
-              ? "Visibility, max members, and game settings are locked — the league has started. League name can still be changed."
-              : "Visibility, max members, and game settings lock once the league starts. League name can be changed anytime."}
-          </p>
+      {/* Not a client-computed lock — the server's 409 (league_started)
+          is the real enforcement; this is the disable-with-reason hint
+          derived from the same `started` the Field.Root above disables on. */}
+      <p className="text-sm text-muted-foreground">
+        {started
+          ? "Visibility, max members, and game settings are locked — the league has started. League name can still be changed."
+          : "Visibility, max members, and game settings lock once the league starts. League name can be changed anytime."}
+      </p>
 
-          {/* Only rendered with a real, nonzero count OR an unknown one
+      {/* Only rendered with a real, nonzero count OR an unknown one
               (engineering rules §UI: no arbitrary color — destructive is a
               theme token) — a warning that could fire with nothing at stake
               would train commissioners to click through it, but an unknown
               count must still warn (fail safe, see pickSummaryUnknown above). */}
-          {pickWarningActive && (
-            <p className="text-sm text-destructive">
-              {pickSummaryUnknown
-                ? "Saving will permanently delete every pick already submitted — we couldn't check how many, but this can't be undone."
-                : `Saving will permanently delete ${pickCount} ${pickCount === 1 ? "pick" : "picks"} from ${memberCount} ${memberCount === 1 ? "member" : "members"} — this can't be undone.`}
-            </p>
-          )}
+      {pickWarningActive && (
+        <p className="text-sm text-destructive">
+          {pickSummaryUnknown
+            ? "Saving will permanently delete every pick already submitted — we couldn't check how many, but this can't be undone."
+            : `Saving will permanently delete ${pickCount} ${pickCount === 1 ? "pick" : "picks"} from ${memberCount} ${memberCount === 1 ? "member" : "members"} — this can't be undone.`}
+        </p>
+      )}
 
-          {pickWarningActive ? (
-            <AlertDialog>
-              <AlertDialogTrigger
-                render={<Button size="sm" className="self-start" disabled={!canSave} />}
+      {pickWarningActive ? (
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={<Button size="sm" className="self-start" disabled={!canSave} />}
+          >
+            Save changes
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {pickSummaryUnknown
+                  ? "Delete every submitted pick?"
+                  : `Delete ${pickCount} ${pickCount === 1 ? "pick" : "picks"}?`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pickSummaryUnknown
+                  ? "This change clears every pick already submitted on this league — we couldn't check how many. This can't be undone."
+                  : `This change clears ${pickCount} ${pickCount === 1 ? "pick" : "picks"} from ${memberCount} ${memberCount === 1 ? "member" : "members"}. This can't be undone.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={updateLeague.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={updateLeague.isPending}
+                onClick={handleSave}
               >
                 Save changes
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {pickSummaryUnknown
-                      ? "Delete every submitted pick?"
-                      : `Delete ${pickCount} ${pickCount === 1 ? "pick" : "picks"}?`}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {pickSummaryUnknown
-                      ? "This change clears every pick already submitted on this league — we couldn't check how many. This can't be undone."
-                      : `This change clears ${pickCount} ${pickCount === 1 ? "pick" : "picks"} from ${memberCount} ${memberCount === 1 ? "member" : "members"}. This can't be undone.`}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={updateLeague.isPending}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    disabled={updateLeague.isPending}
-                    onClick={handleSave}
-                  >
-                    Save changes
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <Button size="sm" className="self-start" disabled={!canSave} onClick={handleSave}>
-              Save changes
-            </Button>
-          )}
-        </>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : (
+        <Button size="sm" className="self-start" disabled={!canSave} onClick={handleSave}>
+          Save changes
+        </Button>
       )}
     </>
   );

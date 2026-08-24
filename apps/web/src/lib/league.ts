@@ -7,6 +7,7 @@ import {
   type LeagueMode,
   type LeagueResponse,
   type MemberRole,
+  type NflSeasonRange,
   type PickType,
 } from "@picksleagues/schemas";
 import { formatDateTime } from "@/lib/format";
@@ -33,6 +34,13 @@ const PICK_TYPE_LABELS: Record<PickType, string> = {
 
 export function pickTypeLabel(pickType: PickType): string {
   return PICK_TYPE_LABELS[pickType];
+}
+
+// One home for the resolved-range→human-label mapping, consumed by the
+// settings fieldsets' readout and the member settings summary — two phrasings
+// of the same range would drift into disagreeing about what the league covers.
+export function nflSeasonRangeLabel(seasonRange: NflSeasonRange): string {
+  return `Regular season, weeks ${seasonRange.startWeek.number}–${seasonRange.endWeek.number}`;
 }
 
 // One home for the role→human-label mapping, consumed by the league home
