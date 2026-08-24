@@ -87,10 +87,11 @@ against it rather than hardcoding.
   Simulator bar (five) is fitted too. Edge fades stay out until someone
   actually works those panels from a phone. _(deps: MOB-2)_
 - [x] **MOB-5** — Pull-to-refresh on query-backed views (standings, games,
-  dashboard): a touch-start-at-scrollTop-0 gesture invalidates the route's
-  query keys via the `apps/web/src/api/*` modules (no key literals in
-  components), with a visible spinner affordance. Makes refresh explicit
-  rather than claiming real-time freshness. _(deps: MOB-2)_
+  dashboard): a touch-start-at-scrollTop-0 gesture refreshes the current
+  view, with a visible spinner affordance. Shipped as one shell-level gesture
+  invalidating with no key filter rather than the per-route key wiring first
+  sketched here (owner, 2026-08-23 — see round-two decisions above). Makes
+  refresh explicit rather than claiming real-time freshness. _(deps: MOB-2)_
 - [x] **MOB-6** — Bottom sheets on phone for the dialogs a thumb reaches for:
   destructive confirmations, the league switcher, the theme picker. shadcn
   `Sheet side="bottom"` with safe-area padding; desktop keeps centered

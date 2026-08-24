@@ -44,10 +44,13 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
 // content-sized popup moves the toggle and close button under the member's
 // thumb on every flip — short views show spare space inside a stable frame
 // instead.
+// AlertDialogContent mirrors the bottom variant's phone-sheet/sm-centered
+// split (MOB-6) with its own centering and fit-to-content height — a change
+// to this recipe (edges, animations, safe area) should consider both files.
 const SHEET_SIDE_CLASS_NAME = {
   left: "inset-y-0 left-0 h-full w-3/4 max-w-xs data-open:slide-in-from-left data-closed:slide-out-to-left",
   bottom:
-    "inset-x-0 bottom-0 mx-auto h-[85dvh] w-full rounded-t-xl data-open:slide-in-from-bottom data-closed:slide-out-to-bottom sm:inset-0 sm:m-auto sm:h-[min(40rem,85dvh)] sm:max-w-lg sm:rounded-xl sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95",
+    "inset-x-0 bottom-0 mx-auto h-[85dvh] w-full rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))] data-open:slide-in-from-bottom data-closed:slide-out-to-bottom sm:inset-0 sm:m-auto sm:h-[min(40rem,85dvh)] sm:max-w-lg sm:rounded-xl sm:pb-4 sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95",
 } as const;
 
 function SheetContent({

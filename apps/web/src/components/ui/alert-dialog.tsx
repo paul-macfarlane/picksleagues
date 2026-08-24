@@ -41,8 +41,11 @@ function AlertDialogContent({
       <AlertDialogOverlay />
       {/* Below `sm` the popup is a bottom sheet (MOB-6): the confirm a thumb
           must reach sits where the thumb already is, not mid-screen. Same
-          phone/desktop split the Sheet primitive uses; from `sm` up this is
-          the centered dialog it always was. */}
+          phone/desktop split the Sheet primitive uses (see the coupling note
+          in sheet.tsx); from `sm` up this is the centered dialog it always
+          was. The sheet form assumes a footer as the last child — the footer
+          is what absorbs the home-indicator inset, so a footer-less confirm
+          would sit under it. */}
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         data-size={size}

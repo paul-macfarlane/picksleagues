@@ -18,11 +18,25 @@ describe("detectInstallPlatform", () => {
       5,
       "ios",
     ],
+    // The > 1 boundary itself, both sides: any drift in the threshold flips
+    // one of these two rows.
+    [
+      "Mac reporting a single touch point",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+      1,
+      "none",
+    ],
+    [
+      "Mac-UA device at the two-touch-point threshold",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+      2,
+      "ios",
+    ],
     [
       "actual Mac desktop Safari",
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
       0,
-      "other",
+      "none",
     ],
     [
       "Android Chrome",
@@ -40,7 +54,7 @@ describe("detectInstallPlatform", () => {
       "Windows desktop Chrome",
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
       0,
-      "other",
+      "none",
     ],
   ])("%s → %s", (_label, ua, maxTouchPoints, expected) => {
     expect(detectInstallPlatform(ua, maxTouchPoints)).toBe(expected);

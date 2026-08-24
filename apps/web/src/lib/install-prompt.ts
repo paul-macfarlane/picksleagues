@@ -34,6 +34,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISSED_STORAGE_KEY = "picksleagues-install-dismissed";
+const INSTALLED_STORAGE_KEY = "picksleagues-install-completed";
 
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
@@ -48,6 +49,15 @@ if (typeof window !== "undefined") {
   });
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
+    // Persisted, not just in-memory: this browser tab never becomes
+    // standalone, so without a durable record the Android path would offer
+    // manual install instructions for an app the member just installed —
+    // on this visit and every one after.
+    try {
+      localStorage.setItem(INSTALLED_STORAGE_KEY, "1");
+    } catch {
+      // The in-memory prompt reset still hides the card for this visit.
+    }
     notify();
   });
 }
@@ -57,36 +67,42 @@ function isStandalone(): boolean {
 }
 
 /**
- * Which family of manual install instructions fits this device. Pure so the
- * UA edge cases stay pinned by unit test — iPadOS reports itself as a Mac,
- * and the touch-point count is what separates it from one.
+ * Which family of manual install instructions fits this device, as the
+ * `INSTALL_PATH` member to serve when no deferred prompt outranks it (a
+ * parallel platform vocabulary would alias these values one-for-one). Pure so
+ * the UA edge cases stay pinned by unit test — iPadOS reports itself as a
+ * Mac, and the touch-point count is what separates it from one.
  */
 export function detectInstallPlatform(
   ua: string,
   maxTouchPoints: number,
-): "ios" | "android" | "other" {
-  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouchPoints > 1)) return "ios";
-  if (/Android/.test(ua)) return "android";
-  return "other";
+): typeof INSTALL_PATH.ios | typeof INSTALL_PATH.android | typeof INSTALL_PATH.none {
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouchPoints > 1))
+    return INSTALL_PATH.ios;
+  if (/Android/.test(ua)) return INSTALL_PATH.android;
+  return INSTALL_PATH.none;
 }
 
 // Guarded like every other device preference: storage throws in some private
 // modes, and a profile card must not take the page down with it.
-function readDismissed(): boolean {
+function readFlag(key: string): boolean {
   try {
-    return localStorage.getItem(DISMISSED_STORAGE_KEY) === "1";
+    return localStorage.getItem(key) === "1";
   } catch {
     return false;
   }
 }
 
 function currentPath(): InstallPath {
-  if (typeof window === "undefined" || isStandalone() || readDismissed()) return INSTALL_PATH.none;
+  if (
+    typeof window === "undefined" ||
+    isStandalone() ||
+    readFlag(DISMISSED_STORAGE_KEY) ||
+    readFlag(INSTALLED_STORAGE_KEY)
+  )
+    return INSTALL_PATH.none;
   if (deferredPrompt) return INSTALL_PATH.native;
-  const platform = detectInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
-  if (platform === "ios") return INSTALL_PATH.ios;
-  if (platform === "android") return INSTALL_PATH.android;
-  return INSTALL_PATH.none;
+  return detectInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
 }
 
 function subscribe(listener: () => void) {

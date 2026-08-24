@@ -16,7 +16,17 @@ const queryClient = new QueryClient();
 // the plain cut. The directional-slide variant was considered and skipped:
 // inferring "forward" vs "back" from history is the whole cost, for a cue the
 // cross-fade already covers.
-const router = createRouter({ routeTree, defaultViewTransition: true });
+const router = createRouter({
+  routeTree,
+  defaultViewTransition: {
+    // Path changes only: a search-param navigation (the week selector, list
+    // filters) re-renders in place, and a whole-document snapshot there adds
+    // an input-inert cross-fade to the app's most frequent taps. Browsers
+    // without view-transition *types* support skip this filter and cross-fade
+    // every navigation — the plain boolean behavior, not a breakage.
+    types: ({ pathChanged }) => (pathChanged ? [] : false),
+  },
+});
 
 declare module "@tanstack/react-router" {
   interface Register {
