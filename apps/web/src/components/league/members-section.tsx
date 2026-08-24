@@ -17,8 +17,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Figures } from "@/components/figures";
 import { rowClassName } from "@/components/row";
 import { Section } from "@/components/section";
+import { StatusPill } from "@/components/status-pill";
 import { UserIdentity } from "@/components/user-identity";
 
 const KICK_LOCKED_REASON_ID = "kick-locked-reason";
@@ -42,10 +44,16 @@ export function MembersSection({
   const kickMember = useKickMember(leagueId);
   const updateDues = useUpdateMemberDues(leagueId);
 
-  // The mark control exists only while the league tracks dues: the server
-  // refuses a mark with no amount set (dues_not_enabled, ADR-0045), and a
-  // league that never collects sees no dues surface anywhere.
-  const canMarkDues = isCommissioner && league.duesAmount !== null;
+  // Every dues surface below — the summary figures and the per-row status —
+  // exists only while the league tracks dues: a league that never collects
+  // sees no dues surface anywhere (ADR-0045). While dues are off the server
+  // serializes every duesPaidAt as null, so there is no status to show anyway.
+  const duesOn = league.duesAmount !== null;
+  const paidCount = league.members.filter((member) => member.duesPaidAt !== null).length;
+
+  // The mark control additionally needs the role: the server refuses a mark
+  // with no amount set (dues_not_enabled, ADR-0045).
+  const canMarkDues = isCommissioner && duesOn;
 
   // Disables a sole commissioner's own Demote up front rather than walking
   // them through a confirmation whose outcome the server can't grant.
@@ -87,11 +95,29 @@ export function MembersSection({
         </p>
       )}
 
+      {league.duesAmount !== null && (
+        <Figures
+          figures={[
+            {
+              label: "Dues",
+              value: `$${league.duesAmount.toLocaleString()}`,
+              testId: "dues-amount",
+            },
+            {
+              label: "Paid",
+              value: `${paidCount} of ${league.members.length}`,
+              testId: "dues-paid-count",
+            },
+          ]}
+        />
+      )}
+
       <ul className="flex flex-col">
         {league.members.map((member) => (
           <MemberRow
             key={member.id}
             member={member}
+            showDuesStatus={duesOn}
             isCommissioner={isCommissioner}
             isOwnRow={member.userId === myUserId}
             demoteLocked={soleCommissioner}
@@ -160,6 +186,7 @@ export function MembersSection({
 
 function MemberRow({
   member,
+  showDuesStatus,
   isCommissioner,
   isOwnRow,
   demoteLocked,
@@ -173,6 +200,8 @@ function MemberRow({
   isDuesPending,
 }: {
   member: LeagueMember;
+  /** False while the league isn't tracking dues — no status renders at all. */
+  showDuesStatus: boolean;
   isCommissioner: boolean;
   isOwnRow: boolean;
   demoteLocked: boolean;
@@ -198,109 +227,132 @@ function MemberRow({
           {memberRoleLabel(member.role)} · Joined {formatDate(member.joinedAt)}
         </span>
       </UserIdentity>
-      {isCommissioner && (
+      {(showDuesStatus || isCommissioner) && (
         <div className="flex items-center gap-2">
-          {/* One tap either way — the server treats both directions as
+          {/* The record every member reads; the commissioner's Mark button
+              beside it is the action on it. `strong`, not `success`: the
+              outcome colours stay reserved for settled pick grades
+              (ADR-0043), and paid-vs-unpaid separates the way Commissioner
+              separates from the muted tags around it. */}
+          {showDuesStatus && (
+            <StatusPill
+              tone={member.duesPaidAt !== null ? "strong" : "neutral"}
+              data-testid="dues-status"
+              data-paid={member.duesPaidAt !== null ? "true" : "false"}
+            >
+              {member.duesPaidAt !== null ? "Paid" : "Unpaid"}
+            </StatusPill>
+          )}
+          {isCommissioner && (
+            <>
+              {/* One tap either way — the server treats both directions as
               idempotent, so a stale label can't double-record or error. The
-              label names the commissioner's next action; it is not the
-              status display every member sees (DUES-3). */}
-          {onToggleDuesPaid && (
-            <Button variant="outline" size="sm" disabled={isDuesPending} onClick={onToggleDuesPaid}>
-              {member.duesPaidAt === null ? "Mark paid" : "Mark unpaid"}
-            </Button>
-          )}
-          {/* Promote/demote are anytime actions (LEAGUE_ACTION rules) — they
-              stay enabled post-start; only Kick below has a window. */}
-          {member.role === MEMBER_ROLE.COMMISSIONER ? (
-            isOwnRow ? (
-              // Self-demotion alone gets a confirmation: it's the one role
-              // change the actor can't undo from their own UI — the moment it
-              // lands they have no Promote button, and only another
-              // commissioner can restore them. Demoting someone else stays one
-              // click because the actor keeps the power to reverse it. A sole
-              // commissioner's trigger is disabled outright (same idiom as
-              // Kick's locked state): the server refuses that demotion
-              // (≥1-commissioner invariant, ADR-0004), so a dialog could only
-              // confirm an action that must fail.
-              <AlertDialog>
-                <AlertDialogTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isRolePending || demoteLocked}
-                      aria-describedby={demoteLocked ? DEMOTE_LOCKED_REASON_ID : undefined}
-                    />
-                  }
+              label names the commissioner's next action; the pill above is
+              the status display every member sees (DUES-3). */}
+              {onToggleDuesPaid && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isDuesPending}
+                  onClick={onToggleDuesPaid}
                 >
-                  Demote
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Step down as commissioner?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      You&apos;ll lose commissioner tools immediately, and only another commissioner
-                      can re-promote you.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isRolePending}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      variant="destructive"
-                      disabled={isRolePending}
-                      onClick={onDemote}
+                  {member.duesPaidAt === null ? "Mark paid" : "Mark unpaid"}
+                </Button>
+              )}
+              {/* Promote/demote are anytime actions (LEAGUE_ACTION rules) — they
+              stay enabled post-start; only Kick below has a window. */}
+              {member.role === MEMBER_ROLE.COMMISSIONER ? (
+                isOwnRow ? (
+                  // Self-demotion alone gets a confirmation: it's the one role
+                  // change the actor can't undo from their own UI — the moment it
+                  // lands they have no Promote button, and only another
+                  // commissioner can restore them. Demoting someone else stays one
+                  // click because the actor keeps the power to reverse it. A sole
+                  // commissioner's trigger is disabled outright (same idiom as
+                  // Kick's locked state): the server refuses that demotion
+                  // (≥1-commissioner invariant, ADR-0004), so a dialog could only
+                  // confirm an action that must fail.
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isRolePending || demoteLocked}
+                          aria-describedby={demoteLocked ? DEMOTE_LOCKED_REASON_ID : undefined}
+                        />
+                      }
                     >
-                      Step down
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : (
-              <Button variant="outline" size="sm" disabled={isRolePending} onClick={onDemote}>
-                Demote
-              </Button>
-            )
-          ) : (
-            <Button variant="outline" size="sm" disabled={isRolePending} onClick={onPromote}>
-              Promote
-            </Button>
-          )}
-          {!isOwnRow && (
-            <AlertDialog>
-              {/* Scoped to this row's kick (isKickPending already keys off
+                      Demote
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Step down as commissioner?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You&apos;ll lose commissioner tools immediately, and only another
+                          commissioner can re-promote you.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isRolePending}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
+                          disabled={isRolePending}
+                          onClick={onDemote}
+                        >
+                          Step down
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button variant="outline" size="sm" disabled={isRolePending} onClick={onDemote}>
+                    Demote
+                  </Button>
+                )
+              ) : (
+                <Button variant="outline" size="sm" disabled={isRolePending} onClick={onPromote}>
+                  Promote
+                </Button>
+              )}
+              {!isOwnRow && (
+                <AlertDialog>
+                  {/* Scoped to this row's kick (isKickPending already keys off
                   `mutation.variables`): confirming closes the dialog, so the
                   trigger is the only thing left to block a second submit. */}
-              <AlertDialogTrigger
-                render={
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={kickLocked || isKickPending}
-                    aria-describedby={kickLocked ? KICK_LOCKED_REASON_ID : undefined}
-                  />
-                }
-              >
-                Kick
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove {member.displayName}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    They&apos;ll be removed from the league immediately.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isKickPending}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    disabled={isKickPending}
-                    onClick={onKick}
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={kickLocked || isKickPending}
+                        aria-describedby={kickLocked ? KICK_LOCKED_REASON_ID : undefined}
+                      />
+                    }
                   >
-                    Remove
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    Kick
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove {member.displayName}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        They&apos;ll be removed from the league immediately.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isKickPending}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        variant="destructive"
+                        disabled={isKickPending}
+                        onClick={onKick}
+                      >
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </>
           )}
         </div>
       )}

@@ -40,6 +40,6 @@ records the addition (ADR + doc touch) rather than silently deviating.
   _(deps: none)_
 - [x] **DUES-2** — Commissioner surface: set/clear the dues amount in league
   settings; mark members paid/unpaid from the members list. _(deps: DUES-1)_
-- [ ] **DUES-3** — Member surface: the "who's paid" view in the league —
+- [x] **DUES-3** — Member surface: the "who's paid" view in the league —
   amount, each member's status rendered via `UserIdentity`, nothing rendered
   when dues are off. _(deps: DUES-1)_
