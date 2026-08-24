@@ -2,7 +2,7 @@
 
 Work split by epic to keep context small, one file per epic. Season timing sets the outer bound: **NFL modes first** (season starts Sept 2026), March Madness last (not needed until Feb/March 2027) — all bracket/NCAAMB work lives in `07-march-madness.md`. Within that, see **Build order** below for the sequence actually being worked; the file numbers only record the order epics were written.
 
-Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included, plus `LNCH-13`/`LNCH-14`, which production surfaced rather than the plan: Google rejected the app's OAuth branding because the SPA served every URL as an empty shell, so the public routes are now prerendered at build (ADR-0039). The owner-feedback epic (`14`) closed in two rounds (PR #75, PR #78), the scope sweep (`15`) finished triaging on 2026-08-11, game stats (`16`) delivered STAT-1–11 by 2026-08-14, and the pre-honeymoon hardening-and-handoff run (`DATA-10`, `FND-12`, `DATA-11`, `ADM-5`) is merged and promoted to prod. The pre-season tail (`STAT-12` matchup-sheet sizing, `ID-5` avatar theme preview, `LNCH-15` installable PWA, `LNCH-16` install affordance) landed by 2026-08-22 (PRs #97–#100). Mobile-feel round one (`MOB-1`/`MOB-2`/`MOB-4`) and the full visual-identity epic (`18`, VIS-1–8, ADR-0043) followed, and the alignment epic (`19`) closed its sweeps on 2026-08-23: ALN-1/2 (standards, PRs #113–#119), ALN-3/4/5 (spec-vs-app report, owner triage, docs bumped to v0.4 — PRs #120/#121), with `ALN-6` (TS 7) blocked on typescript-eslint. The four fix tasks those sweeps surfaced landed 2026-08-23 (`PKM-11`, `PKM-12`, `ADM-6`, `SIM-11` — PRs #123–#126), and mobile-feel round two (`MOB-3`, `MOB-5`–`MOB-8`) followed. What remains is March Madness (`07`) when its season approaches.
+Both NFL modes ship today end-to-end (epics 00–06, 11), tails included (`PKM-10`, `ELM-11`), on the simplified rule surface epic 12 delivered and the de-brittled test suites epic 13 left behind. Launch (`09`) is complete — `LNCH-12`'s mode gate included, plus `LNCH-13`/`LNCH-14`, which production surfaced rather than the plan: Google rejected the app's OAuth branding because the SPA served every URL as an empty shell, so the public routes are now prerendered at build (ADR-0039). The owner-feedback epic (`14`) closed in two rounds (PR #75, PR #78), the scope sweep (`15`) finished triaging on 2026-08-11, game stats (`16`) delivered STAT-1–11 by 2026-08-14, and the pre-honeymoon hardening-and-handoff run (`DATA-10`, `FND-12`, `DATA-11`, `ADM-5`) is merged and promoted to prod. The pre-season tail (`STAT-12` matchup-sheet sizing, `ID-5` avatar theme preview, `LNCH-15` installable PWA, `LNCH-16` install affordance) landed by 2026-08-22 (PRs #97–#100). Mobile-feel round one (`MOB-1`/`MOB-2`/`MOB-4`) and the full visual-identity epic (`18`, VIS-1–8, ADR-0043) followed, and the alignment epic (`19`) closed its sweeps on 2026-08-23: ALN-1/2 (standards, PRs #113–#119), ALN-3/4/5 (spec-vs-app report, owner triage, docs bumped to v0.4 — PRs #120/#121), with `ALN-6` (TS 7) blocked on typescript-eslint. The four fix tasks those sweeps surfaced landed 2026-08-23 (`PKM-11`, `PKM-12`, `ADM-6`, `SIM-11` — PRs #123–#126), and mobile-feel round two (`MOB-3`, `MOB-5`–`MOB-8`) followed. What remains is league dues (`20`, added 2026-08-23) ahead of the season, then March Madness (`07`) when its season approaches.
 
 ## Task format
 
@@ -49,6 +49,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `17-mobile-feel.md`    | `MOB`  | Installed-PWA feel: touch targets, bottom tab bar, view transitions |
 | `18-visual-identity.md` | `VIS` | Broadcast-scoreboard visual identity (ADR-0043): type roles, surface tiers, the matchup line, every-screen sweep |
 | `19-alignment.md`      | `ALN`  | Consistency sweeps: code vs. the written standards; documented business logic vs. the app (owner triages differences, then docs align to the app) |
+| `20-league-dues.md`    | `DUES` | Optional dues tracking: flat amount per league season, commissioner-marked paid/unpaid, member-visible list |
 
 ## Build order
 
@@ -56,7 +57,8 @@ File numbers are historical, not priority — they record the order epics were
 written. This list holds only remaining work; completed rounds are summarized
 below it. The order remaining work is taken (owner, 2026-08-22):
 
-1. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+1. **`20-league-dues`** — optional dues tracking (owner, 2026-08-23). Small and wanted while leagues are actually collecting: dues change hands around NFL kickoff (Sept 2026), so it precedes the mode not needed until spring.
+2. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `ALN-6` (TypeScript 6 → 7) stays blocked outside this list until typescript-eslint
 supports TS 7 (peer cap re-verified `<6.1.0`, 2026-08-23).

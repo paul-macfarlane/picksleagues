@@ -14,6 +14,7 @@ import { jobRoutes } from "./routes/jobs";
 import { inviteRoutes } from "./routes/invites";
 import { invitePreviewRoutes } from "./routes/invite-preview";
 import { leagueRoutes } from "./routes/leagues";
+import { duesRoutes } from "./routes/dues";
 import { memberRoutes } from "./routes/members";
 import { pickemRoutes } from "./routes/pickem";
 import { meRoutes } from "./routes/me";
@@ -63,6 +64,7 @@ export function createApp(deps: AppDeps = {}) {
   // not JSON to the SPA.
   app.route("/", invitePreviewRoutes(deps));
   app.route("/", memberRoutes(deps));
+  app.route("/", duesRoutes(deps));
   app.route("/", discoveryRoutes(deps));
   app.route("/", weekRoutes(deps));
   app.route("/", gameRoutes(deps));

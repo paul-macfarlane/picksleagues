@@ -230,6 +230,7 @@ export async function insertLeague(
     status = LEAGUE_STATUS.ACTIVE,
     maxMembers = 100,
     settings = DEFAULT_PICKEM_SETTINGS,
+    duesAmount = null,
     members = [],
   }: {
     seasonId: string;
@@ -239,6 +240,7 @@ export async function insertLeague(
     status?: LeagueStatus;
     maxMembers?: number;
     settings?: LeagueSettings;
+    duesAmount?: number | null;
     members?: Array<{ userId: string; role: MemberRole }>;
   },
 ) {
@@ -259,6 +261,7 @@ export async function insertLeague(
     leagueId: league.id,
     seasonId,
     settings,
+    duesAmount,
     status,
     createdAt: SEED_AT,
     updatedAt: SEED_AT,

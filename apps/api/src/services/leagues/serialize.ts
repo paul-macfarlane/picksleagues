@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
-import { leagueMembers, leagues, users } from "@picksleagues/db";
+import { leagueDuesPayments, leagueMembers, leagues, users } from "@picksleagues/db";
 import {
   MEMBER_ROLE,
   type LeagueMember,
@@ -26,10 +26,29 @@ export async function loadMembers(
     .orderBy(asc(leagueMembers.createdAt));
 }
 
-function serializeMember(row: {
-  member: typeof leagueMembers.$inferSelect;
-  user: typeof users.$inferSelect;
-}): LeagueMember {
+/**
+ * The current instance's dues ledger as marked-at by user id (ADR-0045).
+ * Keyed by user, not membership row, mirroring the table: a rejoining member's
+ * mark survives their old membership row.
+ */
+export async function loadDuesPaidByUser(
+  db: Db,
+  leagueSeasonId: string,
+): Promise<Map<string, Date>> {
+  const rows = await db
+    .select({ userId: leagueDuesPayments.userId, paidAt: leagueDuesPayments.createdAt })
+    .from(leagueDuesPayments)
+    .where(eq(leagueDuesPayments.leagueSeasonId, leagueSeasonId));
+  return new Map(rows.map((r) => [r.userId, r.paidAt]));
+}
+
+function serializeMember(
+  row: {
+    member: typeof leagueMembers.$inferSelect;
+    user: typeof users.$inferSelect;
+  },
+  duesPaidAt: Date | undefined,
+): LeagueMember {
   return {
     id: row.member.id,
     userId: row.user.id,
@@ -38,6 +57,7 @@ function serializeMember(row: {
     image: resolveUserImage(row.user),
     role: row.member.role,
     joinedAt: row.member.createdAt.toISOString(),
+    duesPaidAt: duesPaidAt ? duesPaidAt.toISOString() : null,
   };
 }
 
@@ -48,6 +68,10 @@ export function serializeLeague(
   status: LeagueStatus,
   seasonYear: number,
   settings: LeagueSettings,
+  // Null = this league doesn't track dues (ADR-0045); the caller then passes
+  // an empty ledger map, so retained marks never reach the wire while off.
+  duesAmount: number | null,
+  duesPaidByUserId: Map<string, Date>,
   startsAt: Date | null,
   members: Array<{ member: typeof leagueMembers.$inferSelect; user: typeof users.$inferSelect }>,
   viewerId: string,
@@ -76,8 +100,9 @@ export function serializeLeague(
     startsAt: startsAt ? startsAt.toISOString() : null,
     renewable,
     maxMembers: league.maxMembers,
+    duesAmount,
     myRole,
-    members: members.map(serializeMember),
+    members: members.map((m) => serializeMember(m, duesPaidByUserId.get(m.user.id))),
     myPickemStanding: standing.myPickemStanding,
     mySurvivorStanding: standing.mySurvivorStanding,
   };

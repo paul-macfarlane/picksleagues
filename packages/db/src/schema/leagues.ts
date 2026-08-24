@@ -81,6 +81,10 @@ export const leagueSeasons = pgTable(
     // Shape per the league's mode, validated by that mode's Zod schema
     // (LEAGUE_SETTINGS_SCHEMAS) on every write — the DB stores, the schema gates.
     settings: jsonb("settings").$type<LeagueSettings>().notNull(),
+    // Whole dollars; null = the league doesn't track dues (ADR-0045). A column,
+    // not a settings key: settings are per-mode shaped and lock at league
+    // start, while dues are mode-agnostic and editable anytime (MANAGE_DUES).
+    duesAmount: integer("dues_amount"),
     status: text("status").$type<LeagueStatus>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -91,6 +95,45 @@ export const leagueSeasons = pgTable(
     unique("league_seasons_league_season_unique").on(table.leagueId, table.seasonId),
     // Serves the current-instance lookup (join a league to its seasons).
     index("league_seasons_league_id_idx").on(table.leagueId),
+    // 1 and 10000 are intentionally duplicated from MAX_DUES_AMOUNT
+    // (packages/schemas) — SQL DDL can't import a TS constant. If that
+    // constant changes, this literal must move with it via a new migration.
+    check(
+      "league_seasons_dues_amount_range",
+      sql`${table.duesAmount} is null or ${table.duesAmount} between 1 and 10000`,
+    ),
+  ],
+);
+
+/**
+ * The dues ledger (ADR-0045): a row means the member has paid the instance's
+ * `dues_amount`; no row means unpaid. `created_at` is the marked-at instant
+ * (Clock-supplied, arch D13) — there is no separate flag or timestamp to
+ * drift from row presence. Keyed by user, not membership row, so a member who
+ * leaves and rejoins keeps their paid mark; keyed by season instance, so
+ * renewal (ADR-0009) starts the next season's ledger empty by construction.
+ */
+export const leagueDuesPayments = pgTable(
+  "league_dues_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueSeasonId: uuid("league_season_id")
+      .notNull()
+      .references(() => leagueSeasons.id, { onDelete: "cascade" }),
+    // Restrict: users are anonymized in place, never deleted (ID-3), matching
+    // league_members — a ledger row must never dangle or vanish with a user.
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Paid is a fact, not a count — the DB refuses a double mark so the
+    // service's idempotent re-mark can't mint a second row.
+    unique("league_dues_payments_season_user_unique").on(table.leagueSeasonId, table.userId),
+    // Serves the league serializer's ledger load for the current instance.
+    index("league_dues_payments_league_season_id_idx").on(table.leagueSeasonId),
   ],
 );
 

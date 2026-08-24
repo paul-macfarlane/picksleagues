@@ -81,8 +81,13 @@ A league has **one or more commissioners**, all with identical powers, and must 
 | Demote a commissioner (including stepping down) | Anytime, while at least one commissioner remains |
 | Generate invite links | Pre-start only (a link minted after the start could never be used) |
 | Revoke invite links | Anytime (a pre-start link outlives the start, so it stays killable) |
+| Manage dues (set/clear the amount, mark members paid) | Anytime — dues are informational, not competitive (ADR-0045) |
 
-Once a league starts: membership and settings are frozen except cosmetics, commissioner promotion/demotion, and revoking an outstanding invite link. No mid-season kicks, deletes, leaves, settings changes, or new invite links — disputes resolve socially, not in-app.
+Once a league starts: membership and settings are frozen except cosmetics, commissioner promotion/demotion, revoking an outstanding invite link, and dues management. No mid-season kicks, deletes, leaves, settings changes, or new invite links — disputes resolve socially, not in-app.
+
+### League Dues (optional, all game modes — ADR-0045)
+
+A commissioner may set one flat whole-dollar dues amount per season; until they do, the league has no dues surface at all. The app **tracks** dues, it never moves money: commissioners mark each member paid or unpaid, every member sees who has paid (social pressure does the collecting), and unpaid status blocks nothing — no pick restrictions, no nags. Payouts stay outside the app. Renewal carries the amount into the new season with everyone unpaid again.
 
 ### Pick Visibility (all modes)
 A member's picks become visible to other league members **per game, at that game's kickoff/tipoff**. Before kickoff, only the picking member can see their own pick. The **count** of picks a member has in is visible to the league before kickoff ("4 more picks in — not yet revealed") — the fact of having picked discloses no selection, and it is what lets a league see who still owes picks. Eliminated players (Survivor mode) retain identical visibility rights to active players.

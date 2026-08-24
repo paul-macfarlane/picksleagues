@@ -249,8 +249,11 @@ Settlement is **recompute-friendly** (see D10). Vercel function limits are a non
 users                       # Better Auth + username (citext unique), display_name, app_role (ADR-0013)
 leagues                     # identity only: mode discriminator, visibility, name, max_members (ADR-0009)
 league_seasons              # per-season instance: league FK + season FK (unique pair), settings JSONB
-                            #   (per-mode Zod schema), status; a league's newest instance is current
+                            #   (per-mode Zod schema), status, dues_amount? (whole dollars, null = dues
+                            #   off; copied by renewal — ADR-0045); a league's newest instance is current
 league_members              # role (commissioner/member), joined_at; ≥1 commissioner per league (ADR-0004)
+league_dues_payments        # dues ledger (ADR-0045): unique (league_season FK, user FK); row = paid,
+                            #   created_at = marked-at; tracking only — never read by scoring or locks
 league_invites              # invite code, created_by, revoked_at?, use_count (informational — ADR-0032)
 
 sport_seasons               # NFL 2026, NCAAMB 2027, ...; upcoming season exists (possibly
