@@ -3,6 +3,7 @@ import { MEMBER_ROLE } from "@picksleagues/schemas";
 import { DangerZoneSection } from "@/components/league/danger-zone";
 import { DuesSection } from "@/components/league/dues-section";
 import { LeagueSettingsSection } from "@/components/league/settings-section";
+import { LeagueSettingsSummary } from "@/components/league/settings-summary";
 import { useLeague } from "@/api/leagues";
 import { useAppNow } from "@/lib/app-clock";
 import { leagueHasStarted } from "@/lib/league";
@@ -20,24 +21,31 @@ function LeagueSettings() {
 
   if (!league.data) return null;
 
-  // Danger Zone renders on the role axis alone: a commissioner
-  // whose window closed still sees it, with Delete disabled + a reason —
-  // rendering nothing here would erase the explanation that's the ticket's
-  // point.
   const isCommissioner = league.data.myRole === MEMBER_ROLE.COMMISSIONER;
+
+  // The role axis splits the whole tab, not just the Save button: a member
+  // gets the settings stated as values (settings-summary.tsx says why a
+  // disabled form isn't that), and the commissioner-only sections below fall
+  // away with the form instead of being gated one by one. Dues and Leave
+  // league already reach members on the Members tab.
+  if (!isCommissioner) {
+    return <LeagueSettingsSummary league={league.data} />;
+  }
+
   const started = leagueHasStarted(league.data, now);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Settings are visible (read-only) to every member — canEdit gates
-          only whether inputs are editable and whether Save renders. */}
-      <LeagueSettingsSection league={league.data} canEdit={isCommissioner} started={started} />
+      <LeagueSettingsSection league={league.data} started={started} />
 
       {/* Dues are commissioner-set with no start window (ADR-0045), so the
-          section renders on the role axis alone — no `started` to pass. */}
-      {isCommissioner && <DuesSection league={league.data} />}
+          section takes no `started`. */}
+      <DuesSection league={league.data} />
 
-      {isCommissioner && <DangerZoneSection league={league.data} started={started} />}
+      {/* Danger Zone survives the window closing: a commissioner whose window
+          closed still sees it, with Delete disabled + a reason — rendering
+          nothing would erase the explanation that's the section's point. */}
+      <DangerZoneSection league={league.data} started={started} />
     </div>
   );
 }

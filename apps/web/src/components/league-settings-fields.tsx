@@ -6,7 +6,7 @@ import {
   type NflSeasonRange,
   type PickType,
 } from "@picksleagues/schemas";
-import { pickTypeLabel } from "@/lib/league";
+import { nflSeasonRangeLabel, pickTypeLabel } from "@/lib/league";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { NumberField } from "@/components/number-field";
@@ -97,7 +97,7 @@ function NflSeasonRangeReadout({ seasonRange }: { seasonRange?: NflSeasonRange }
       <h3 className="text-sm font-medium text-foreground">Season range</h3>
       <p className="text-sm text-muted-foreground">
         {seasonRange
-          ? `Regular season, weeks ${seasonRange.startWeek.number}–${seasonRange.endWeek.number}.`
+          ? `${nflSeasonRangeLabel(seasonRange)}.`
           : `Regular season, through week ${NFL_REGULAR_SEASON_RANGE.endWeek.number} — starting at the first week that hasn't kicked off yet.`}
       </p>
     </div>
