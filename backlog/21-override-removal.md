@@ -42,7 +42,7 @@ inventory) rides with the closing task rather than ahead of the code.
   collapse to direct column reads; the two admin-nfl-stats PUT routes and the
   teams PUT route, their services, forms, patch helpers, tests, and the three
   audit actions go. Columns stay in the schema until OVR-4. _(deps: none)_
-- [ ] **OVR-2** — Remove game overrides: `PUT /admin/games/{id}/override`, the
+- [x] **OVR-2** — Remove game overrides: `PUT /admin/games/{id}/override`, the
   `override_unlocks_game` guard, re-settle-on-write, `mergeOverrideField`,
   `resolveGameOverrides` and its SQL twins (readers go straight to provider
   columns — league-weeks, slate, both settlements, the sim clock's
