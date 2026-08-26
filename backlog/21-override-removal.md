@@ -49,7 +49,7 @@ inventory) rides with the closing task rather than ahead of the code.
   `least/greatest` kickoff bounds, `spreadSource` suppression), the game
   override form and patch helper, and the `game_override` audit action.
   Evaluator round mandatory (lock + settlement). _(deps: OVR-1)_
-- [ ] **OVR-3** — Retire the detectors and views that only made sense beside a
+- [x] **OVR-3** — Retire the detectors and views that only made sense beside a
   fix path: `GET /admin/games/anomalies` and its card; the "provider / override
   / resolved" three-layer rendering in the admin browsers becomes one value.
   Decide whether the audit-log view stays for `league_rebuild` alone.

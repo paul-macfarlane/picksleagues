@@ -1,40 +1,20 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, or, type SQL } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { resolveCurrentWeekId } from "./league-weeks";
 import type { Db } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
-import {
-  adminAudit,
-  games,
-  leagueSeasons,
-  leagues,
-  sportSeasons,
-  teams,
-  users,
-  weeks,
-} from "@picksleagues/db";
-import {
-  ADMIN_AUDIT_TARGET_TABLE,
-  STARTED_GAME_STATUSES,
-  type AdminAuditEntry,
-  type AdminAuditTargetTable,
-  type AdminGame,
-  type AdminSeason,
-  type AdminTeam,
-  type Sport,
-} from "@picksleagues/schemas";
+import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
+import type { AdminGame, AdminSeason, AdminTeam, Sport } from "@picksleagues/schemas";
 import { teamLabelColumns } from "./teams";
 
 /**
- * Queries behind the admin page's read-only reference-data browsers and the
- * audit view. Read-only by construction: nothing here writes, and the browsers
- * double as the verification surface for the sync jobs (a week with zero
- * games, a game with no spread are both visible here).
+ * Queries behind the admin page's read-only reference-data browsers. Read-only
+ * by construction: nothing here writes, and the browsers double as the
+ * verification surface for the sync jobs (a week with zero games, a game with
+ * no spread are both visible here).
  *
- * Each reference-data list is bounded by its own domain (one sport's teams, one
- * sport's seasons, one week's games), so those don't paginate. `admin_audit`
- * has no such bound — it only grows — which is why the audit read is the one
- * paginated query here.
+ * Each list is bounded by its own domain (one sport's teams, one sport's
+ * seasons, one week's games), so none paginates.
  */
 
 function serializeAdminTeam(team: typeof teams.$inferSelect): AdminTeam {
@@ -117,16 +97,11 @@ export async function listSeasons(db: Db, clock: Clock, sport: Sport): Promise<A
   });
 }
 
-/**
- * The joined shape both game reads below project from. Extracted so the
- * anomaly list and the week list can't drift on which columns the `AdminGame`
- * block is built from.
- */
-function selectAdminGameRows(db: Db, where: SQL | undefined) {
+export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]> {
   const homeTeams = alias(teams, "home_teams");
   const awayTeams = alias(teams, "away_teams");
 
-  return db
+  const rows = await db
     .select({
       game: games,
       homeTeam: teamLabelColumns(homeTeams),
@@ -135,14 +110,10 @@ function selectAdminGameRows(db: Db, where: SQL | undefined) {
     .from(games)
     .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
     .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-    .where(where)
+    .where(eq(games.weekId, weekId))
     .orderBy(asc(games.kickoffAt), asc(games.providerGameId));
-}
 
-type AdminGameRow = Awaited<ReturnType<typeof selectAdminGameRows>>[number];
-
-function serializeAdminGame({ game, homeTeam, awayTeam }: AdminGameRow): AdminGame {
-  return {
+  return rows.map(({ game, homeTeam, awayTeam }) => ({
     id: game.id,
     weekId: game.weekId,
     providerGameId: game.providerGameId,
@@ -155,144 +126,5 @@ function serializeAdminGame({ game, homeTeam, awayTeam }: AdminGameRow): AdminGa
     period: game.period,
     clockSeconds: game.clockSeconds,
     spread: game.spread,
-  };
-}
-
-export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]> {
-  const rows = await selectAdminGameRows(db, eq(games.weekId, weekId));
-  return rows.map(serializeAdminGame);
-}
-
-/**
- * Games left unlocked while their outcome is already knowable — a started
- * status or a score against a kickoff still ahead, which only a provider bug
- * produces. Detection rather than admission control: ingestion must never fail
- * on account of what it was handed.
- *
- * In SQL because the candidate set is every game in the database; the status
- * set comes from `packages/schemas` so this can't drift from what "started"
- * means everywhere else. `now` is bound as a parameter (arch D13) — a SQL
- * `now()` here would read a clock the rest of the app, and the simulator, do
- * not share.
- */
-export async function listAnomalousGames(db: Db, now: Date): Promise<AdminGame[]> {
-  const rows = await selectAdminGameRows(
-    db,
-    and(
-      // Strictly greater: lock state is `kickoff <= now` (arch D11), so a game
-      // kicking off at exactly this instant is locked and consistent. A `>=`
-      // would match the guard on every other case and only ever be wrong at the
-      // boundary.
-      gt(games.kickoffAt, now),
-      or(
-        inArray(games.status, [...STARTED_GAME_STATUSES]),
-        // Not redundant with the status disjunct: a postponed or scheduled game
-        // carrying a score is knowable without ever having started, and the
-        // score is on the wire for every status.
-        isNotNull(games.homeScore),
-        isNotNull(games.awayScore),
-      ),
-    ),
-  );
-
-  return rows.map(serializeAdminGame);
-}
-
-function targetKey(targetTable: AdminAuditTargetTable, targetId: string) {
-  return `${targetTable}:${targetId}`;
-}
-
-/**
- * Human labels for a page of audit rows, resolved as a lookup *applied to* rows
- * already fetched rather than as a join in the list query. An audit row outlives
- * its target — a deleted league keeps every rebuild recorded against it — so a
- * join would silently drop exactly the rows that record what happened to
- * something now gone. A target with no row left simply gets no entry here, and
- * the caller serializes `targetLabel: null`.
- *
- * One query per target table, keyed by an `inArray` over the page's ids, so the
- * cost is fixed regardless of page size.
- */
-async function resolveTargetLabels(
-  db: Db,
-  rows: ReadonlyArray<{ targetTable: AdminAuditTargetTable; targetId: string }>,
-): Promise<Map<string, string>> {
-  const labels = new Map<string, string>();
-  const idsFor = (targetTable: AdminAuditTargetTable) => [
-    ...new Set(rows.filter((row) => row.targetTable === targetTable).map((row) => row.targetId)),
-  ];
-
-  const leagueSeasonIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS);
-  if (leagueSeasonIds.length > 0) {
-    const seasonRows = await db
-      .select({ id: leagueSeasons.id, name: leagues.name, year: sportSeasons.year })
-      .from(leagueSeasons)
-      .innerJoin(leagues, eq(leagues.id, leagueSeasons.leagueId))
-      .innerJoin(sportSeasons, eq(sportSeasons.id, leagueSeasons.seasonId))
-      .where(inArray(leagueSeasons.id, leagueSeasonIds));
-    for (const season of seasonRows) {
-      // The year disambiguates a league that has renewed (ADR-0009): two
-      // instances of one league otherwise label identically.
-      labels.set(
-        targetKey(ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS, season.id),
-        `${season.name} ${season.year}`,
-      );
-    }
-  }
-
-  return labels;
-}
-
-/**
- * One page of the admin action log, newest first. `id` desc breaks ties on
- * `createdAt` so a page boundary can't drop or repeat a row when several
- * actions share an instant — which they do routinely, since `createdAt` comes
- * from the injected Clock and the simulator's is fixed for a whole request.
- *
- * `total` is its own `count(*)` over the whole table rather than a
- * `count(*) OVER ()` on the page: the window form ties the total's correctness
- * to the page's `where`, and the two questions ("how much is there" and "which
- * slice am I looking at") are deliberately independent here.
- */
-export async function listAuditEntries(
-  db: Db,
-  { limit, offset }: { limit: number; offset: number },
-): Promise<{ entries: AdminAuditEntry[]; total: number }> {
-  const [totalRow] = await db.select({ value: count() }).from(adminAudit);
-
-  const rows = await db
-    .select({
-      id: adminAudit.id,
-      action: adminAudit.action,
-      targetTable: adminAudit.targetTable,
-      targetId: adminAudit.targetId,
-      priorValue: adminAudit.priorValue,
-      createdAt: adminAudit.createdAt,
-      displayName: users.display_name,
-      username: users.username,
-    })
-    .from(adminAudit)
-    // Safe as a join, unlike the target labels: the actor FK is restrict and
-    // accounts are anonymized in place rather than deleted, so this can never
-    // drop a row.
-    .innerJoin(users, eq(users.id, adminAudit.adminUserId))
-    .orderBy(desc(adminAudit.createdAt), desc(adminAudit.id))
-    .limit(limit)
-    .offset(offset);
-
-  const labels = await resolveTargetLabels(db, rows);
-
-  return {
-    total: totalRow?.value ?? 0,
-    entries: rows.map((row) => ({
-      id: row.id,
-      admin: { displayName: row.displayName, username: row.username },
-      action: row.action,
-      targetTable: row.targetTable,
-      targetId: row.targetId,
-      targetLabel: labels.get(targetKey(row.targetTable, row.targetId)) ?? null,
-      priorValue: row.priorValue,
-      createdAt: row.createdAt.toISOString(),
-    })),
-  };
+  }));
 }

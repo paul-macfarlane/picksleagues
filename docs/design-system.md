@@ -228,11 +228,10 @@ game, a standings line, a member, an audit entry, a fixture, a sim scenario's
 games are all rows. A row's state lives on its *left edge*, `rowRuleClassName`
 (3px, the narrowest that stays visible beside the hairline at 390px):
 `pickOutcomeAccentClassName` once a pick is graded, `border-l-primary` for the
-one the member has selected, `destructive` on an integrity-list anomaly, and
-transparent otherwise so content stays aligned with its neighbours'. A row's
-detail block is a stack of `LabeledValue` lines (eyebrow beside the value;
-`ResolvedField` adds the provider's value when an override masks it), and
-`RowEditor` is the disclosure every inline editor opens from.
+one the member has selected, and transparent otherwise so content stays
+aligned with its neighbours'. A row's detail block is a stack of
+`LabeledValue` lines (eyebrow beside the value), and `RowEditor` is the
+disclosure every inline editor opens from.
 
 **Not for:** a box. A row never draws its own border or fill — that is the
 nesting the tiers exist to remove.
@@ -370,8 +369,6 @@ the screen is new except the settings schema and the scoring module.
 not a league, and the route's `h1` is its page title. The panel is a
 `Section` with a title and an `action` slot for its sync or refresh button;
 its list is a `<ul>` of rows, each a `MatchupLine` if it is a game or a
-`LabeledValue` stack if it is a record, with `OverriddenTag` on a corrected
-row and `RowEditor` as the disclosure any inline edit opens from. A count the
-operator reads at a glance (rows synced, anomalies open) is `Figures` at
-`text-xl`. The danger colour marks an anomaly's left rule; the only orange is
-the button.
+`LabeledValue` stack if it is a record, with `RowEditor` as the disclosure any
+inline edit opens from. A count the operator reads at a glance (rows synced)
+is `Figures` at `text-xl`. The only orange is the button.

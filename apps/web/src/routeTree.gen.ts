@@ -26,7 +26,6 @@ import { Route as RulesPickemRouteImport } from './routes/rules/pickem'
 import { Route as RulesSimulatorRouteImport } from './routes/rules/simulator'
 import { Route as RulesSurvivorRouteImport } from './routes/rules/survivor'
 import { Route as AuthedAdminIndexRouteImport } from './routes/_authed/admin/index'
-import { Route as AuthedAdminAuditRouteImport } from './routes/_authed/admin/audit'
 import { Route as AuthedAdminGamesRouteImport } from './routes/_authed/admin/games'
 import { Route as AuthedAdminStatsRouteImport } from './routes/_authed/admin/stats'
 import { Route as AuthedAdminTeamsRouteImport } from './routes/_authed/admin/teams'
@@ -126,11 +125,6 @@ const AuthedAdminIndexRoute = AuthedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedAdminRouteRoute,
 } as any)
-const AuthedAdminAuditRoute = AuthedAdminAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => AuthedAdminRouteRoute,
-} as any)
 const AuthedAdminGamesRoute = AuthedAdminGamesRouteImport.update({
   id: '/games',
   path: '/games',
@@ -225,7 +219,6 @@ export interface FileRoutesByFullPath {
   '/rules/simulator': typeof RulesSimulatorRoute
   '/rules/survivor': typeof RulesSurvivorRoute
   '/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
-  '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
   '/admin/stats': typeof AuthedAdminStatsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
@@ -255,7 +248,6 @@ export interface FileRoutesByTo {
   '/rules/simulator': typeof RulesSimulatorRoute
   '/rules/survivor': typeof RulesSurvivorRoute
   '/': typeof AuthedIndexRoute
-  '/admin/audit': typeof AuthedAdminAuditRoute
   '/admin/games': typeof AuthedAdminGamesRoute
   '/admin/stats': typeof AuthedAdminStatsRoute
   '/admin/teams': typeof AuthedAdminTeamsRoute
@@ -290,7 +282,6 @@ export interface FileRoutesById {
   '/rules/survivor': typeof RulesSurvivorRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/leagues/$leagueId': typeof AuthedLeaguesLeagueIdRouteRouteWithChildren
-  '/_authed/admin/audit': typeof AuthedAdminAuditRoute
   '/_authed/admin/games': typeof AuthedAdminGamesRoute
   '/_authed/admin/stats': typeof AuthedAdminStatsRoute
   '/_authed/admin/teams': typeof AuthedAdminTeamsRoute
@@ -325,7 +316,6 @@ export interface FileRouteTypes {
     | '/rules/simulator'
     | '/rules/survivor'
     | '/leagues/$leagueId'
-    | '/admin/audit'
     | '/admin/games'
     | '/admin/stats'
     | '/admin/teams'
@@ -355,7 +345,6 @@ export interface FileRouteTypes {
     | '/rules/simulator'
     | '/rules/survivor'
     | '/'
-    | '/admin/audit'
     | '/admin/games'
     | '/admin/stats'
     | '/admin/teams'
@@ -389,7 +378,6 @@ export interface FileRouteTypes {
     | '/rules/survivor'
     | '/_authed/'
     | '/_authed/leagues/$leagueId'
-    | '/_authed/admin/audit'
     | '/_authed/admin/games'
     | '/_authed/admin/stats'
     | '/_authed/admin/teams'
@@ -540,13 +528,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminIndexRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
-    '/_authed/admin/audit': {
-      id: '/_authed/admin/audit'
-      path: '/audit'
-      fullPath: '/admin/audit'
-      preLoaderRoute: typeof AuthedAdminAuditRouteImport
-      parentRoute: typeof AuthedAdminRouteRoute
-    }
     '/_authed/admin/games': {
       id: '/_authed/admin/games'
       path: '/games'
@@ -649,7 +630,6 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedAdminRouteRouteChildren {
-  AuthedAdminAuditRoute: typeof AuthedAdminAuditRoute
   AuthedAdminGamesRoute: typeof AuthedAdminGamesRoute
   AuthedAdminStatsRoute: typeof AuthedAdminStatsRoute
   AuthedAdminTeamsRoute: typeof AuthedAdminTeamsRoute
@@ -657,7 +637,6 @@ interface AuthedAdminRouteRouteChildren {
 }
 
 const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
-  AuthedAdminAuditRoute: AuthedAdminAuditRoute,
   AuthedAdminGamesRoute: AuthedAdminGamesRoute,
   AuthedAdminStatsRoute: AuthedAdminStatsRoute,
   AuthedAdminTeamsRoute: AuthedAdminTeamsRoute,

@@ -120,16 +120,6 @@ function AdminGuide() {
           </section>
 
           <section>
-            <h2>Audit</h2>
-            <p>
-              Two things live here. The <strong>data integrity</strong> card flags games whose
-              kickoff is still ahead while their status or score already gives the outcome away —
-              members can still pick those, so re-run the scores sync when one appears. Below it,
-              the <strong>audit log</strong> is the permanent trail of every admin rebuild.
-            </p>
-          </section>
-
-          <section>
             <h2>When something looks wrong</h2>
             <ul>
               <li>
