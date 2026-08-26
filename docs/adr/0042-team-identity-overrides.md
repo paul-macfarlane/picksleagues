@@ -1,6 +1,6 @@
 # 0042. Team identity gets override parallels, resolved in one serialization home
 
-- **Status:** Accepted
+- **Status:** Superseded by [0046](0046-remove-sports-data-overrides.md)
 - **Date:** 2026-08-14
 - **Related:** architecture.md §Manual Sports Data Overrides / D15 (§Admin role wording updated), backlog STAT-8, [0041](0041-stats-overrides-outlive-resync.md)
 

@@ -1,6 +1,6 @@
 # 0019. Week moves are out of scope; an admin `cancelled` override covers the real case
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by [0046](0046-remove-sports-data-overrides.md): the `cancelled` override remedy becomes a documented SQL edit)
 - **Date:** 2026-08-04
 - **Supersedes in part:** [0015](0015-pickem-pick-entry-semantics.md) rule 2, insofar as it
   names `moved` as an unplayable status alongside `cancelled`

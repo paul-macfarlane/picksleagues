@@ -1,6 +1,6 @@
 # 0041. Stats tables carry override parallels after all
 
-- **Status:** Accepted (amends [0040](0040-game-stats-are-ingested-display-data.md))
+- **Status:** Superseded by [0046](0046-remove-sports-data-overrides.md) (amended [0040](0040-game-stats-are-ingested-display-data.md))
 - **Date:** 2026-08-13
 - **Related:** architecture.md §Manual Sports Data Overrides / D15, backlog STAT-7
 

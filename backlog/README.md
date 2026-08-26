@@ -50,6 +50,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `18-visual-identity.md` | `VIS` | Broadcast-scoreboard visual identity (ADR-0043): type roles, surface tiers, the matchup line, every-screen sweep |
 | `19-alignment.md`      | `ALN`  | Consistency sweeps: code vs. the written standards; documented business logic vs. the app (owner triages differences, then docs align to the app) |
 | `20-league-dues.md`    | `DUES` | Optional dues tracking: flat amount per league season, commissioner-marked paid/unpaid, member-visible list |
+| `21-override-removal.md` | `OVR` | Remove the manual sports-data override layer (ADR-0046): the DB is a provider cache; correction is re-sync or a documented SQL edit |
 
 ## Build order
 
@@ -57,7 +58,8 @@ File numbers are historical, not priority — they record the order epics were
 written. This list holds only remaining work; completed rounds are summarized
 below it. The order remaining work is taken (owner, 2026-08-22):
 
-1. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+1. **`21-override-removal`** — OVR-1 → OVR-5 in order (ADR-0046, owner 2026-08-26): the display-only families first, game overrides under an evaluator round, then detectors, the gated column drop, and the v0.4 doc amendment.
+2. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
 `ALN-6` (TypeScript 6 → 7) stays blocked outside this list until typescript-eslint
 supports TS 7 (peer cap re-verified `<6.1.0`, 2026-08-23).
