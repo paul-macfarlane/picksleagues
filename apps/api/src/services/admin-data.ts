@@ -8,8 +8,6 @@ import {
   games,
   leagueSeasons,
   leagues,
-  nflGameStatContext,
-  nflTeamSeasonStats,
   sportSeasons,
   teams,
   users,
@@ -32,7 +30,7 @@ import {
   effectiveStatusSql,
   resolveGameOverrides,
 } from "./games";
-import { effectiveTeamColumns, resolveTeamIdentity } from "./teams";
+import { teamLabelColumns } from "./teams";
 
 /**
  * Queries behind the admin page's read-only reference-data browsers and the
@@ -48,9 +46,6 @@ import { effectiveTeamColumns, resolveTeamIdentity } from "./teams";
  */
 
 function serializeAdminTeam(team: typeof teams.$inferSelect): AdminTeam {
-  // Resolved through the one precedence home (ADR-0042) so the "effective"
-  // block shows exactly what every member surface serves.
-  const effective = resolveTeamIdentity(team);
   return {
     id: team.id,
     sport: team.sport,
@@ -60,18 +55,6 @@ function serializeAdminTeam(team: typeof teams.$inferSelect): AdminTeam {
     location: team.location,
     logoLightUrl: team.logoLightUrl,
     logoDarkUrl: team.logoDarkUrl,
-    overrideName: team.overrideName,
-    overrideAbbreviation: team.overrideAbbreviation,
-    overrideLocation: team.overrideLocation,
-    overrideLogoLightUrl: team.overrideLogoLightUrl,
-    overrideLogoDarkUrl: team.overrideLogoDarkUrl,
-    overriddenBy: team.overriddenBy,
-    overriddenAt: team.overriddenAt?.toISOString() ?? null,
-    effectiveName: effective.name,
-    effectiveAbbreviation: effective.abbreviation,
-    effectiveLocation: effective.location,
-    effectiveLogoLightUrl: effective.logoLightUrl,
-    effectiveLogoDarkUrl: effective.logoDarkUrl,
     updatedAt: team.updatedAt.toISOString(),
   };
 }
@@ -81,17 +64,9 @@ export async function listTeams(db: Db, sport: Sport): Promise<AdminTeam[]> {
     .select()
     .from(teams)
     .where(eq(teams.sport, sport))
-    // Ordered by the abbreviation the member surfaces display, so a corrected
-    // team sorts where an operator scanning the list will look for it.
-    .orderBy(asc(effectiveTeamColumns(teams).abbreviation));
+    .orderBy(asc(teams.abbreviation));
 
   return rows.map(serializeAdminTeam);
-}
-
-/** The override write's response read (see `setTeamIdentityOverride`). */
-export async function loadAdminTeam(db: Db, teamId: string): Promise<AdminTeam | null> {
-  const [row] = await db.select().from(teams).where(eq(teams.id, teamId));
-  return row ? serializeAdminTeam(row) : null;
 }
 
 export async function listSeasons(db: Db, clock: Clock, sport: Sport): Promise<AdminSeason[]> {
@@ -158,18 +133,13 @@ export async function listSeasons(db: Db, clock: Clock, sport: Sport): Promise<A
 function selectAdminGameRows(db: Db, where: SQL | undefined) {
   const homeTeams = alias(teams, "home_teams");
   const awayTeams = alias(teams, "away_teams");
-  // Effective identity even on this admin surface (ADR-0042): the game rows'
-  // team labels are orientation, and orientation must match what the member
-  // surfaces call the team. The teams browser is where the layers show.
-  const homeCols = effectiveTeamColumns(homeTeams);
-  const awayCols = effectiveTeamColumns(awayTeams);
 
   return (
     db
       .select({
         game: games,
-        homeTeam: { id: homeCols.id, abbreviation: homeCols.abbreviation, name: homeCols.name },
-        awayTeam: { id: awayCols.id, abbreviation: awayCols.abbreviation, name: awayCols.name },
+        homeTeam: teamLabelColumns(homeTeams),
+        awayTeam: teamLabelColumns(awayTeams),
       })
       .from(games)
       .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
@@ -303,10 +273,8 @@ async function resolveTargetLabels(
     const gameRows = await db
       .select({
         id: games.id,
-        // Effective abbreviations (ADR-0042), so the trail reads like the
-        // slate the correction changed — same for every label block below.
-        homeAbbreviation: effectiveTeamColumns(homeTeams).abbreviation,
-        awayAbbreviation: effectiveTeamColumns(awayTeams).abbreviation,
+        homeAbbreviation: homeTeams.abbreviation,
+        awayAbbreviation: awayTeams.abbreviation,
       })
       .from(games)
       .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
@@ -319,62 +287,6 @@ async function resolveTargetLabels(
         // product, so the trail reads like the slate it corrected.
         `${game.awayAbbreviation} @ ${game.homeAbbreviation}`,
       );
-    }
-  }
-
-  const statsIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.NFL_TEAM_SEASON_STATS);
-  if (statsIds.length > 0) {
-    const statsRows = await db
-      .select({
-        id: nflTeamSeasonStats.id,
-        abbreviation: effectiveTeamColumns(teams).abbreviation,
-        seasonYear: nflTeamSeasonStats.seasonYear,
-      })
-      .from(nflTeamSeasonStats)
-      .innerJoin(teams, eq(teams.id, nflTeamSeasonStats.teamId))
-      .where(inArray(nflTeamSeasonStats.id, statsIds));
-    for (const stats of statsRows) {
-      // The year names which season's record was corrected — a team keeps one
-      // row per season, so the abbreviation alone is ambiguous.
-      labels.set(
-        targetKey(ADMIN_AUDIT_TARGET_TABLE.NFL_TEAM_SEASON_STATS, stats.id),
-        `${stats.abbreviation} ${stats.seasonYear}`,
-      );
-    }
-  }
-
-  const contextIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.NFL_GAME_STAT_CONTEXT);
-  if (contextIds.length > 0) {
-    const homeTeams = alias(teams, "context_home_teams");
-    const awayTeams = alias(teams, "context_away_teams");
-    const contextRows = await db
-      .select({
-        id: nflGameStatContext.id,
-        homeAbbreviation: effectiveTeamColumns(homeTeams).abbreviation,
-        awayAbbreviation: effectiveTeamColumns(awayTeams).abbreviation,
-      })
-      .from(nflGameStatContext)
-      .innerJoin(games, eq(games.id, nflGameStatContext.gameId))
-      .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
-      .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-      .where(inArray(nflGameStatContext.id, contextIds));
-    for (const context of contextRows) {
-      labels.set(
-        targetKey(ADMIN_AUDIT_TARGET_TABLE.NFL_GAME_STAT_CONTEXT, context.id),
-        // Away-first like the games labels — the trail reads like the slate.
-        `${context.awayAbbreviation} @ ${context.homeAbbreviation}`,
-      );
-    }
-  }
-
-  const teamIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.TEAMS);
-  if (teamIds.length > 0) {
-    const teamRows = await db
-      .select({ id: teams.id, abbreviation: effectiveTeamColumns(teams).abbreviation })
-      .from(teams)
-      .where(inArray(teams.id, teamIds));
-    for (const team of teamRows) {
-      labels.set(targetKey(ADMIN_AUDIT_TARGET_TABLE.TEAMS, team.id), team.abbreviation);
     }
   }
 

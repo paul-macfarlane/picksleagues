@@ -92,6 +92,11 @@ export async function seedSeason(
       sport,
       abbreviation: "HOM",
       name: "Home Team",
+      // Every display field distinct, so a slate projection that transposes
+      // two columns fails an equality rather than shipping green.
+      location: "Home City",
+      logoLightUrl: "https://example.com/hom-light.png",
+      logoDarkUrl: "https://example.com/hom-dark.png",
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
     })
@@ -107,6 +112,9 @@ export async function seedSeason(
       sport,
       abbreviation: "AWY",
       name: "Away Team",
+      location: "Away City",
+      logoLightUrl: "https://example.com/awy-light.png",
+      logoDarkUrl: "https://example.com/awy-dark.png",
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
     })

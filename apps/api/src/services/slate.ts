@@ -10,7 +10,7 @@ import {
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
 import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
-import { effectiveTeamColumns } from "./teams";
+import { teamDisplayColumns } from "./teams";
 
 /**
  * The weekly slate every *request* surface reads from — the pick page and the
@@ -78,10 +78,8 @@ export async function loadResolvedWeekGames(
   const rows = await db
     .select({
       game: games,
-      // Identity precedence resolved through its one home (ADR-0042), like
-      // the game overrides below — the two resolvers travel together.
-      homeTeam: effectiveTeamColumns(homeTeams),
-      awayTeam: effectiveTeamColumns(awayTeams),
+      homeTeam: teamDisplayColumns(homeTeams),
+      awayTeam: teamDisplayColumns(awayTeams),
     })
     .from(games)
     .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))

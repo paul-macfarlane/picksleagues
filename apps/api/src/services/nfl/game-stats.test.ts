@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  resolveNflGameStatContext,
-  resolveNflTeamSeasonStatsOverrides,
-  scoringRank,
-} from "./game-stats";
-import type { NflTeamGameContext } from "@picksleagues/schemas";
+import { scoringRank } from "./game-stats";
 
 type StatsRow = Parameters<typeof scoringRank>[0][number];
 
@@ -76,92 +71,5 @@ describe("scoringRank league-size denominator", () => {
     expect(scoringRank(partial, "A", "offense", 32)).toBeNull();
     // The same pool IS the whole league in a 2-team world (integration seeds).
     expect(scoringRank(partial, "A", "offense", 2)).toBe(1);
-  });
-});
-
-describe("resolveNflTeamSeasonStatsOverrides", () => {
-  const dbRow = {
-    id: "row-1",
-    teamId: "team-1",
-    seasonYear: 2026,
-    wins: 4,
-    losses: 2,
-    ties: 0,
-    homeWins: 2,
-    homeLosses: 1,
-    homeTies: 0,
-    roadWins: 2,
-    roadLosses: 1,
-    roadTies: 0,
-    streak: 2,
-    pointsFor: 150,
-    pointsAgainst: 120,
-    overrideWins: null,
-    overrideLosses: null,
-    overrideTies: null,
-    overrideHomeWins: null,
-    overrideHomeLosses: null,
-    overrideHomeTies: null,
-    overrideRoadWins: null,
-    overrideRoadLosses: null,
-    overrideRoadTies: null,
-    overrideStreak: null,
-    overridePointsFor: null,
-    overridePointsAgainst: null,
-    overriddenBy: null,
-    overriddenAt: null,
-    createdAt: new Date(0),
-    updatedAt: new Date(0),
-  };
-
-  it("serves provider facts where no override is set", () => {
-    const resolved = resolveNflTeamSeasonStatsOverrides(dbRow);
-    expect(resolved.wins).toBe(4);
-    expect(resolved.pointsAgainst).toBe(120);
-  });
-
-  it("an override wins field by field, leaving unset fields on provider truth", () => {
-    const resolved = resolveNflTeamSeasonStatsOverrides({
-      ...dbRow,
-      overrideWins: 5,
-      overrideStreak: -1,
-    });
-    expect(resolved.wins).toBe(5);
-    expect(resolved.streak).toBe(-1);
-    // Untouched fields keep tracking the provider.
-    expect(resolved.losses).toBe(2);
-    expect(resolved.pointsFor).toBe(150);
-  });
-
-  it("an override of 0 wins — falsy is not absent", () => {
-    const resolved = resolveNflTeamSeasonStatsOverrides({ ...dbRow, overrideStreak: 0 });
-    expect(resolved.streak).toBe(0);
-  });
-});
-
-describe("resolveNflGameStatContext", () => {
-  const side = (fpi: number | null): NflTeamGameContext => ({
-    injuries: [{ athleteName: "A. Player", position: "QB", status: "Out", injuryType: "Ankle" }],
-    fpiWinPct: fpi,
-    atsSummary: "3-2",
-    lastFive: [],
-  });
-  const payload = { home: side(60), away: side(40) };
-
-  it("serves the provider payload untouched when there is no override", () => {
-    expect(resolveNflGameStatContext(payload, null)).toEqual(payload);
-  });
-
-  it("a present field replaces whole; absent fields fall through per side", () => {
-    const resolved = resolveNflGameStatContext(payload, {
-      home: { injuries: [] },
-    });
-    // The overridden list replaces the provider's — masking a wrong report.
-    expect(resolved.home.injuries).toEqual([]);
-    // Sparse: the same side's other fields keep tracking the provider…
-    expect(resolved.home.fpiWinPct).toBe(60);
-    expect(resolved.home.atsSummary).toBe("3-2");
-    // …and the other side is untouched entirely.
-    expect(resolved.away).toEqual(payload.away);
   });
 });
