@@ -165,7 +165,7 @@ describe("GET /api/weeks/:weekId/games", () => {
     });
   });
 
-  it("orders games by effective kickoff and locks true at/after kickoff (half-open boundary)", async () => {
+  it("orders games by kickoff and locks true at/after kickoff (half-open boundary)", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedPickemLeague();
     const weekId = weekIds.get("regular:1")!;

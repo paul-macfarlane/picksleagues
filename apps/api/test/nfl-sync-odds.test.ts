@@ -261,9 +261,8 @@ describe("syncNflOdds", () => {
   });
 
   /**
-   * PKM-9: written in the same `set()` as `spread`, never as an `override_*`
-   * (arch D15) — asserted directly against the row since `spreadsByProviderId`
-   * only tracks the number.
+   * PKM-9: written in the same `set()` as `spread` — asserted directly against
+   * the row since `spreadsByProviderId` only tracks the number.
    */
   describe("spread_source (PKM-9)", () => {
     it("writes the book alongside the spread", async () => {
@@ -350,8 +349,6 @@ describe("syncNflOdds", () => {
     });
   });
 
-  // Arch D15: ingestion writes provider columns only, so a correction outlives
-  // every re-sync — and the resolved number an operator sees stays theirs.
   it("pre-season: with no in-progress week, falls back to the next upcoming week and prices it", async () => {
     await seedSchedule([
       providerGame({

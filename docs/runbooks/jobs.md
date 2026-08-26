@@ -167,6 +167,10 @@ correction is a hand edit of the provider column:
 UPDATE games SET status = 'cancelled', updated_at = now() WHERE provider_game_id = '<id>';
 ```
 
+Production-facing: `now()` is the wall clock, which is right for a hand edit in
+prod but wrong under the simulator, where `updated_at` is served as the slate's
+`stateAsOf` — there, edit the scenario fixture instead.
+
 Then run the settlement sweep (Jobs tab, or `POST /api/jobs/settle-sweep`) so
 results and standings re-derive from the corrected row. The edit survives later
 syncs because ESPN also reports the game as gone from that week; if ESPN starts
