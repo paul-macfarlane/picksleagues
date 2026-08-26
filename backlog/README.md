@@ -34,7 +34,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `01-identity.md`       | `ID`   | Username claim, profile, onboarding                         |
 | `02-game-data.md`      | `DATA` | Seasons/weeks/games schema, ESPN provider, sync jobs        |
 | `03-leagues.md`        | `LG`   | Leagues, settings, invites, membership, discovery           |
-| `04-simulator-admin.md` | `SIM`/`ADM` | Admin page + simulator: data browsers, sim clock/replay UI, overrides, audit (merged per ADR-0011) |
+| `04-simulator-admin.md` | `SIM`/`ADM` | Admin page + simulator: data browsers, sim clock/replay UI, overrides and audit (since removed — ADR-0046) (merged per ADR-0011) |
 | `05-pickem.md`         | `PKM`  | Pick'em mode + shared settlement core (results, standings)  |
 | `06-survivor.md`       | `ELM`  | Survivor mode, survivor board                               |
 | `07-march-madness.md`  | `MM`   | Bracket ingestion, builder, scoring, pool leaderboard       |

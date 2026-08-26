@@ -25,7 +25,7 @@ Manual time is worth spending where the safety net is thin. It is **not** thin h
 | `packages/scoring` (`pickem.test.ts`, `standings.test.ts`)                      | Whether a cover / non-cover / push / tie / cancellation grades correctly in the abstract, that a push is a fixed 0.5, and that members level on points share a rank                                                    |
 | `apps/api/test/pickem-picks.test.ts`                                           | The submission refusal matrix (`already_submitted`, `pick_set_incomplete`, `too_many_picks`, `pick_locked`, `spread_stale`, `spread_unavailable`, `duplicate_pick`), required-set sizing, `picksAllowed` caps, visibility filtering |
 | `apps/api/test/pickem-picks.test.ts` §settings reset                            | Which settings changes clear picks, and the `picks_locked` refusal once one has locked                                                                                                                                 |
-| `apps/api/test/settlement.test.ts`                                             | Settlement idempotency, re-settling, the nightly sweep, concurrent settlement, override precedence, and a `cancelled` status override turning a pick into a push                                                       |
+| `apps/api/test/settlement.test.ts`                                             | Settlement idempotency, re-settling, the nightly sweep, concurrent settlement, a score correction re-settling in place, and a `cancelled` status turning a pick into a push                                                       |
 | `apps/api/test/pickem-standings.test.ts`                                       | Weekly vs season boards, W/L/P counts, shared ranks, `lastUpdatedAt`                                                                                                                                                  |
 | `apps/api/test/leagues.test.ts` §`pickemPickStatus`                            | The dashboard glance's states: picks needed, still needed after the first kickoff while a later game is open, picks in, week closed (at the kickoff instant itself and after it), a week whose schedule hasn't been ingested, an ATS week with no lines yet, a concluded season, a league whose season holds no week it plays, and several leagues of both modes resolved in one payload |
 | `e2e/pickem-journey.sim.spec.ts` (`mixed-week`, **straight-up**, 2 members, 1 week) | The happy path end to end: create → join → assemble → confirm → freeze → lock → reveal → settle, a cap shorter than the slate, two tied members sharing a rank with nothing rendered behind them, and the dashboard glance flipping from picks-needed to picks-in across the submission |
@@ -96,19 +96,21 @@ number on screen is internally consistent — which is exactly why nothing catch
   browser's network tab if you don't have the log to hand.
 - **Admin → Games.** Confirms which game now sits in which week.
 
-**The remedy is one override.** Admin → Games → the moved game → status override →
-**Cancelled**. A cancelled game's pick resolves as a push and the push stands
-(ADR-0018 decision 3), so every affected member is made whole by one action on one
-row, and the override writes its `admin_audit` entry like any other correction. It
-works whether or not the game has been played — settlement resolves
-`override_status ?? status` before it looks at scores — so a later re-settle repairs
-an already-graded week.
+**The remedy is one row edit.** There is no in-app override (ADR-0046): set the
+moved game's `status` to `cancelled` by hand, per the procedure in
+`docs/runbooks/jobs.md`, then run the settlement sweep. A cancelled game's pick
+resolves as a push and the push stands (ADR-0018 decision 3), so every affected
+member is made whole by one edit on one row. It works whether or not the game has
+been played — settlement checks status before it looks at scores — so the
+re-settle repairs an already-graded week.
 
 **Rehearse it once**, so the log line is familiar rather than novel on the day:
 Sim → Fixtures → change a game's **week** → Sync schedule → read `weekMoves: 1` →
-apply the `cancelled` override → `/sim/settle` → the pick reads Push. Note what does
-*not* happen along the way: no row on the member's week says anything, and no badge
-changes, until the override lands.
+set the fixture's status to `cancelled` → Sync scores → `/sim/settle` → the pick
+reads Push. (Under the simulator the fixture is the thing to edit, not the `games`
+row — the next sync would overwrite it.) Note what does *not* happen along the way:
+no row on the member's week says anything, and no badge changes, until the
+correction lands.
 
 ---
 
@@ -281,7 +283,7 @@ and where a postponed game was unpickable until the odds sync learned about it:
 to the fixture editor hides the picks tab, and coming back refetches the new spread onto
 the sheet, so the number you submit is already current and the refusal never fires.
 
-The one ATS path that overrides-driven testing cannot produce, because it needs the
+The one ATS path that fixture-driven testing cannot produce, because it needs the
 line to move *between* load and submit. There is no re-pricing and no accept-latest
 bar left to check: one write, one handshake (ADR-0018).
 
@@ -371,16 +373,12 @@ Assert:
 
 Stated so the checklist isn't mistaken for full coverage:
 
-- **Real provider ingestion.** Every score here comes from a simulated provider or an
-  override. The live `sync-scores` path — provider columns, real ESPN payloads —
+- **Real provider ingestion.** Every score here comes from a simulated provider. The
+  live `sync-scores` path — provider columns, real ESPN payloads —
   first runs for real on an actual game day.
 - **A week move nobody reviews.** The operator note above is the entire mitigation
   (ADR-0019). There is no click that would have caught it, which is why the note is
   a procedure rather than a pass.
-- **A known unreachable state.** A game can end up unlocked with its outcome already
-  knowable, with no admin at fault: a legal later-kickoff override, then `sync-scores`
-  writing a final score off the *provider* kickoff. Ingestion cannot consult the
-  override guard by design. Detection and repair are filed against ADM-3.
 - **Scale.** Every pass is 2 members over one week. Season-long accumulation, rank
   ties across a full season, and a 10-member league are untested by anything.
 

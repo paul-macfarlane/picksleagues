@@ -189,8 +189,7 @@ screens (ADR-0043 §Revisit if).
 `components/section.tsx`. Eyebrow, a real `h2`, a description, and an action
 slot, separated from its neighbours by whitespace alone. This is the default
 container: standings, the week's games, members, a settings group, every
-admin panel (`Games`, `Teams`, `Data integrity`, `NFL data sync`,
-`Audit log`), the Survivor sheet's outcome notices (`You made it`, `You're
+admin panel (`Jobs`, `Games`, `Teams`, `Stats`), the Survivor sheet's outcome notices (`You made it`, `You're
 out`). The page's `h1` is its band's subject or its page title, so a section's
 title is an `h2` and the sections are the screen's outline; a section with no
 title renders no header. The `action` slot is where a section-scoped control
@@ -263,8 +262,7 @@ trigger sit on the line beneath.
 (`pickem-week-detail` — the taken side is ink via `emphasis`, the other muted,
 never orange, since another member's choice isn't the viewer's to act on), the
 slate preview (no line; a score once there is one), and every operator
-view — the admin games browser (override-resolved values), the integrity
-list, the stat context browser, the sim fixtures — with the kickoff in the
+view — the admin games browser, the stat context browser, the sim fixtures — with the kickoff in the
 centre where the row is about *which* slate rather than a game's state.
 
 **Not for:** two things that aren't rivals. A bracket slot in March Madness is

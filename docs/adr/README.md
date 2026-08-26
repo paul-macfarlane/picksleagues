@@ -49,7 +49,7 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0037](0037-discovery-is-filtered-sorted-and-paged.md) | Discovery gains a settings summary, a mode filter, fullest-first ordering, and paging | Accepted |
 | [0038](0038-invite-links-unfurl-with-the-league-name.md) | Invite links unfurl with the league's name, from a sessionless read | Accepted |
 | [0039](0039-public-routes-are-prerendered-at-build.md) | Public routes are prerendered at build | Accepted |
-| [0040](0040-game-stats-are-ingested-display-data.md) | Game stats are ingested display data with a tiered surface | Accepted; amended by 0041 |
+| [0040](0040-game-stats-are-ingested-display-data.md) | Game stats are ingested display data with a tiered surface | Accepted (0041's amendment undone by 0046) |
 | [0041](0041-stats-overrides-outlive-resync.md) | Stats tables carry override parallels after all | Superseded by 0046 |
 | [0042](0042-team-identity-overrides.md) | Team identity gets override parallels, resolved in one serialization home | Superseded by 0046 |
 | [0043](0043-visual-identity-broadcast-scoreboard.md) | Visual identity: the broadcast scoreboard | Accepted |
