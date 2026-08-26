@@ -177,7 +177,8 @@ syncs because ESPN also reports the game as gone from that week; if ESPN starts
 reporting the game again in its original week, the next schedule sync restores
 its status and the picks re-grade — which is the correct outcome. Record the
 edit in the PR or ops note that prompted it; `admin_audit` records rebuilds,
-not hand edits.
+not hand edits, and is read from the same console (`SELECT * FROM admin_audit
+ORDER BY created_at DESC`) — no admin view serves it (ADR-0046).
 
 ## Reading a run
 

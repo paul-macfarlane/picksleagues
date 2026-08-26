@@ -59,7 +59,10 @@ is the cost).
   the procedure says so.
 - **`admin_audit` survives for `league_rebuild`**; the four override actions
   leave `ADMIN_AUDIT_ACTION`. The anomaly detector goes with the guard it
-  mirrored.
+  mirrored. The audit *view* (`GET /admin/audit`, the Audit tab) goes too
+  (owner, 2026-08-26): with one action left it mostly recorded corrections
+  that no longer exist, and the rebuild trail is read with SQL — the same
+  console the correction procedure now assumes.
 - **The member avatar override (`users.image_override`, ADR-0022) is
   untouched** — a member preference over an OAuth default, not an operator
   correction of provider data.
