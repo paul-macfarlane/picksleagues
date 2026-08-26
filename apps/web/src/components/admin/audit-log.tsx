@@ -26,18 +26,15 @@ import { UserIdentity } from "@/components/user-identity";
 // of comparisons, so adding an action is a compile error here instead of a row
 // that renders its raw slug.
 const ACTION_LABEL: Record<AdminAuditAction, string> = {
-  [ADMIN_AUDIT_ACTION.GAME_OVERRIDE]: "Game override",
   [ADMIN_AUDIT_ACTION.LEAGUE_REBUILD]: "League rebuild",
 };
 
 const TARGET_TABLE_LABEL: Record<AdminAuditTargetTable, string> = {
-  [ADMIN_AUDIT_TARGET_TABLE.GAMES]: "Game",
   [ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS]: "League season",
 };
 
 /**
- * The admin action log (arch §Manual Sports Data Overrides: "who, what, when,
- * previous value"), paged. Timestamps are absolute rather than relative to the
+ * The admin action log — who, what, when, previous value — paged. Timestamps are absolute rather than relative to the
  * app clock — the spec keeps the precise instant on audit rows, and "yesterday"
  * beside a correction is worse than a date.
  *
@@ -57,7 +54,7 @@ export function AuditLog({
   return (
     <Section
       title="Audit log"
-      description="Every admin override and rebuild — who did it, what it targeted, and what stood there before."
+      description="Every admin rebuild — who did it, which league season it targeted, and what stood there before."
     >
       <QueryState
         isPending={audit.isPending}
@@ -131,14 +128,21 @@ function AuditRow({ entry }: { entry: AdminAuditEntry }) {
           showAvatar={false}
         />
       </TableCell>
-      <TableCell className="text-foreground">{ACTION_LABEL[entry.action]}</TableCell>
+      {/* Rows written under a retired action (ADR-0046) outlive its enum
+          member; they render their stored slug rather than a blank cell, since
+          the trail's whole job is saying what happened. */}
+      <TableCell className="text-foreground">
+        {ACTION_LABEL[entry.action] ?? entry.action}
+      </TableCell>
       {/* Two stacked lines, so this cell opts out of the primitive's
           `whitespace-nowrap`. */}
       <TableCell className="whitespace-normal">
         {/* A null label means the target row is gone — audit rows outlive their
             targets by design, so this is expected state, not missing data. */}
         <span className="text-foreground">{entry.targetLabel ?? "No longer exists"}</span>
-        <span className="block text-muted-foreground">{TARGET_TABLE_LABEL[entry.targetTable]}</span>
+        <span className="block text-muted-foreground">
+          {TARGET_TABLE_LABEL[entry.targetTable] ?? entry.targetTable}
+        </span>
       </TableCell>
       <TableCell className="whitespace-normal">
         {/* Collapsed by default: the shape differs per action and a row is

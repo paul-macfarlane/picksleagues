@@ -69,8 +69,7 @@ function formatOffset(ms: number): string {
  * times. A hardcoded 1:00pm is wrong for an international kickoff, a
  * Thursday/Saturday slate, or a holiday window, and it would offer the operator
  * an instant no game occupies. Reading the games instead means the list is
- * exactly the slate that exists — and it reads `effectiveKickoffAt`, so an
- * admin's kickoff override moves the slot with it (arch D15).
+ * exactly the slate that exists.
  *
  * Lands *on* the kickoff, which is the instant those games lock (`kickoff <=
  * now`, arch D11) and the state an operator jumping to a slate wants to be in.
@@ -93,8 +92,7 @@ function KickoffSlotRow({
   const slots = [
     ...(games.data?.games ?? [])
       .reduce(
-        (acc, game) =>
-          acc.set(game.effectiveKickoffAt, (acc.get(game.effectiveKickoffAt) ?? 0) + 1),
+        (acc, game) => acc.set(game.kickoffAt, (acc.get(game.kickoffAt) ?? 0) + 1),
         new Map<string, number>(),
       )
       .entries(),

@@ -205,7 +205,7 @@ function SeasonOverWeek({
  * the authority — re-deriving the window here would drift from the write
  * path's refusal, and under the simulator would be derived at the wrong
  * instant. A pick is still shown if one exists (a window can close back over
- * a made pick when an admin override reopens the prior week's game).
+ * a made pick when a correction reopens the prior week's game).
  */
 function WeekNotOpen({ slate, pick }: { slate: WeekSlateResponse; pick: SurvivorPick | null }) {
   return (

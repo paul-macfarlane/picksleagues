@@ -19,9 +19,9 @@ import { pickMargin, terminalPickOutcome } from "@picksleagues/scoring";
  * disagree — there is no second copy of the mapping here to drift.
  *
  * Null when there is no verdict to show: the game is still ahead or in play,
- * it is final without scores (the provider fault an admin score override
- * corrects — settlement refuses that one too), or an ATS pick carries no
- * spread to measure against.
+ * it is final without scores (a provider fault the next sync corrects —
+ * settlement refuses that one too), or an ATS pick carries no spread to
+ * measure against.
  */
 export function pickemPickGrade(
   game: { status: GameStatus; homeScore: number | null; awayScore: number | null },
@@ -151,10 +151,8 @@ export function provisionalMarginLabel(margin: number, pickType: PickType): stri
  * provider response and a per-row credit would repeat the same string.
  *
  * Null in SU leagues (no spread shown at all) and when none of the given games
- * carries a source: suppression is per-game server-side (null on an unpriced
- * game, and under an admin's `override_spread`, arch D15), and the credit line
- * composes that as "show it while at least one displayed game still has one" —
- * a whole slate's credit must not vanish because one game was corrected.
+ * carries a source: an unpriced game has none server-side, and the credit line
+ * composes that as "show it while at least one displayed game still has one".
  */
 export function spreadSourceCredit(
   games: readonly { spreadSource: string | null }[],
