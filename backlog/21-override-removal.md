@@ -60,7 +60,7 @@ inventory) rides with the closing task rather than ahead of the code.
   the result in the PR — a live row is a correction the drop destroys and must
   be re-applied to the provider column (or let lapse) before merge.
   Regenerate the contract. _(deps: OVR-3)_ _(ready-for-human)_
-- [ ] **OVR-5** — Docs and rules: amend `docs/architecture.md` v0.4 (the
+- [x] **OVR-5** — Docs and rules: amend `docs/architecture.md` v0.4 (the
   override section, D15, D13's exception, admin inventory, the integration-test
   list), `.claude/rules/engineering.md` (delete the precedence rule and the
   `mergeOverrideField`/`admin-overrides.ts` citations; drop "override

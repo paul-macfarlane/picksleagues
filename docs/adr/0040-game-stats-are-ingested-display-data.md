@@ -1,6 +1,6 @@
 # 0040. Game stats are ingested display data with a tiered surface
 
-- **Status:** Accepted; amended by [0041](0041-stats-overrides-outlive-resync.md) (the "no `override_*` parallels" decision below is superseded — both tables now carry an audited override layer)
+- **Status:** Accepted; amended by [0041](0041-stats-overrides-outlive-resync.md), whose override layer [0046](0046-remove-sports-data-overrides.md) removed — the "no `override_*` parallels" decision below stands again
 - **Date:** 2026-08-12
 - **Related:** architecture.md §External Data / D6–D7 / D10–D11, mvp-spec.md §Screens (amended here), backlog STAT-1…STAT-6
 
