@@ -626,9 +626,9 @@ describe("PUT /api/leagues/:leagueId/survivor/weeks/:weekId/pick", () => {
       });
       expect(refused.status).toBe(409);
 
-      // …and an admin score correction says it won (override_* ?? provider_*,
-      // arch D15) — the window must follow the corrected result.
-      await setGame(db, week1Game1, { overrideHomeScore: 30, overrideAwayScore: 24 });
+      // …and a score correction says it won — the window must follow the
+      // corrected result.
+      await setGame(db, week1Game1, { homeScore: 30, awayScore: 24 });
       const allowed = await putSurvivorPick(memberA.cookie, league.id, week2, {
         gameId: week2Game1,
         teamId: teamIds.away,

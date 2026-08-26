@@ -382,11 +382,10 @@ describe("settlePickemLeagueSeasonWeeks — results correctness", () => {
       weekId: week2Id,
     });
     await setGame(db, g2!, {
-      status: GAME_STATUS.FINAL,
+      status: GAME_STATUS.CANCELLED,
       homeScore: 30,
       awayScore: 10,
       weekId: week2Id,
-      overrideStatus: GAME_STATUS.CANCELLED,
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
@@ -405,36 +404,7 @@ describe("settlePickemLeagueSeasonWeeks — results correctness", () => {
     expect(byGame.get(g2!)).toMatchObject({ outcome: PICK_OUTCOME.PUSH, points: 0.5 });
   });
 
-  it("prefers override_home_score/override_away_score over the provider score", async () => {
-    const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement();
-    const weekId = weekIds.get("regular:1")!;
-    const [g1] = gameIds.get("regular:1")!;
-    const memberId = members.get(users[0]!.user.id)!;
-
-    await insertPick(db, {
-      leagueSeasonId,
-      leagueMemberId: memberId,
-      weekId,
-      gameId: g1!,
-      side: PICKEM_PICK_SIDE.HOME,
-    });
-    // Provider score says home lost by 10; the override flips it to a home win.
-    await setGame(db, g1!, {
-      status: GAME_STATUS.FINAL,
-      homeScore: 10,
-      awayScore: 20,
-      overrideHomeScore: 30,
-      overrideAwayScore: 20,
-    });
-
-    const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
-    await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
-
-    const [result] = await pickResultsFor(db, leagueSeasonId);
-    expect(result).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
-  });
-
-  it("an override_status of cancelled turns a final game's pick into a push", async () => {
+  it("a cancelled status turns a scored game's pick into a push", async () => {
     const { leagueSeasonId, weekIds, gameIds, members, users } = await seedLeagueForSettlement();
     const weekId = weekIds.get("regular:1")!;
     const [g1] = gameIds.get("regular:1")!;
@@ -448,10 +418,9 @@ describe("settlePickemLeagueSeasonWeeks — results correctness", () => {
       side: PICKEM_PICK_SIDE.HOME,
     });
     await setGame(db, g1!, {
-      status: GAME_STATUS.FINAL,
+      status: GAME_STATUS.CANCELLED,
       homeScore: 30,
       awayScore: 10,
-      overrideStatus: GAME_STATUS.CANCELLED,
     });
 
     const clock = new FixedClock(new Date("2026-09-20T00:00:00.000Z"));
@@ -878,8 +847,8 @@ describe("settlement idempotency (arch D10)", () => {
     expect(before).toHaveLength(1);
     expect(before[0]).toMatchObject({ outcome: PICK_OUTCOME.CORRECT, points: 1 });
 
-    // An admin corrects the final score, flipping the outcome.
-    await setGame(db, gameId, { overrideHomeScore: 5, overrideAwayScore: 20 });
+    // A late score correction flips the outcome.
+    await setGame(db, gameId, { homeScore: 5, awayScore: 20 });
     await settlePickemLeagueSeasonWeeks(db, clock, leagueSeasonId, [weekId]);
 
     const after = await pickResultsFor(db, leagueSeasonId);
@@ -1051,7 +1020,7 @@ describe("league season conclusion (ADR-0030)", () => {
     await rebuildLeagueSeason(db, clock(), leagueSeasonId);
     expect(await statusOf(leagueSeasonId)).toBe(LEAGUE_STATUS.CONCLUDED);
 
-    await setGame(db, week2Game, { overrideStatus: GAME_STATUS.POSTPONED });
+    await setGame(db, week2Game, { status: GAME_STATUS.POSTPONED });
     await rebuildLeagueSeason(db, clock(), leagueSeasonId);
 
     // Written in both directions, which is what keeps the column a derivation an

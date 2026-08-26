@@ -16,7 +16,6 @@ import {
   type NflWeekRef,
   type WeekType,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql } from "../games";
 
 function weekRefOf(type: WeekType, number: number): NflWeekRef {
   return type === WEEK_TYPE.REGULAR
@@ -35,10 +34,10 @@ function weekRefOf(type: WeekType, number: number): NflWeekRef {
  *   passed, settings frozen — before anyone was invited.
  * - **end** = the nominal end, unadjusted.
  *
- * A week **with** games is still ahead until its first *effective* kickoff
- * (`override_kickoff_at ?? kickoff_at`, arch D15) via the same expression
- * `leagueStartAt` and the lock derivation use, so resolution can never disagree
- * with them about which week has begun. A week **without** games is still ahead
+ * A week **with** games is still ahead until its first kickoff — the same
+ * instant `leagueStartAt` and the lock derivation compare against, so
+ * resolution can never disagree with them about which week has begun. A week
+ * **without** games is still ahead
  * until its own `ends_at` (ADR-0021): an unseeded playoff round has no games to
  * compare, and treating it as invisible would make a Postseason league
  * uncreatable for the days between one round kicking off and the next being
@@ -67,7 +66,7 @@ export async function resolveNflSeasonRange(
 
   // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
   // string), so the aggregate maps its own value back to a Date.
-  const firstKickoffAt = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+  const firstKickoffAt = sql`min(${games.kickoffAt})`.mapWith((value): Date | null =>
     value === null ? null : new Date(value as string),
   );
   // Left join, not inner: a week whose round the provider hasn't seeded yet has

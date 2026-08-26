@@ -451,50 +451,6 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     }
   });
 
-  it("never clobbers admin override fields on re-sync (arch D15)", async () => {
-    seedBaselineProvider();
-    await runOk();
-
-    const overriddenAt = new Date("2026-09-16T00:00:00.000Z");
-    const overrideKickoff = new Date("2026-12-25T00:00:00.000Z");
-    await db
-      .update(games)
-      .set({
-        overrideStatus: GAME_STATUS.CANCELLED,
-        overrideKickoffAt: overrideKickoff,
-        overrideHomeScore: 42,
-        overriddenAt,
-      })
-      .where(eq(games.providerGameId, "g1"));
-
-    // Provider data for g1 changes across the board.
-    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
-      providerGame({
-        providerGameId: "g1",
-        weekNumber: 1,
-        status: GAME_STATUS.FINAL,
-        kickoffAt: new Date("2026-09-13T18:00:00.000Z"),
-        homeScore: 21,
-        awayScore: 17,
-      }),
-      providerGame({ providerGameId: "g2", weekNumber: 1 }),
-    ]);
-
-    await runOk();
-
-    const [g1] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
-    // Provider fields followed the re-sync...
-    expect(g1?.status).toBe(GAME_STATUS.FINAL);
-    expect(g1?.homeScore).toBe(21);
-    expect(g1?.awayScore).toBe(17);
-    expect(g1?.kickoffAt).toEqual(new Date("2026-09-13T18:00:00.000Z"));
-    // ...while every override_* field stayed byte-identical.
-    expect(g1?.overrideStatus).toBe(GAME_STATUS.CANCELLED);
-    expect(g1?.overrideKickoffAt).toEqual(overrideKickoff);
-    expect(g1?.overrideHomeScore).toBe(42);
-    expect(g1?.overriddenAt).toEqual(overriddenAt);
-  });
-
   it("narrows to a single week when ?week= is given (only that week's games are fetched)", async () => {
     seedBaselineProvider();
 
@@ -912,12 +868,10 @@ describe("sync-schedule re-settles affected weeks immediately (no separate settl
 
     expect(await pickResultFor(pickId)).toBeUndefined();
 
-    // An admin correcting the move the only way the product offers — a
-    // `cancelled` status override — makes the member whole on the next settle.
-    await db
-      .update(games)
-      .set({ overrideStatus: GAME_STATUS.CANCELLED })
-      .where(eq(games.id, g1!.id));
+    // An operator correcting the move the only way the product offers — a hand
+    // SQL edit to `cancelled` (ADR-0046) — makes the member whole on the next
+    // settle.
+    await db.update(games).set({ status: GAME_STATUS.CANCELLED }).where(eq(games.id, g1!.id));
     await settlePicksForGames(db, new FixedClock(FIXED_NOW), [g1!.id]);
 
     expect(await pickResultFor(pickId)).toMatchObject({

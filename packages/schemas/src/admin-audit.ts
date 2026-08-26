@@ -1,17 +1,16 @@
 import { z } from "@hono/zod-openapi";
 
 /**
- * The actions recorded in `admin_audit` (arch §Manual Sports Data Overrides:
- * "every override is recorded in an `admin_audit` table — who, what, when,
- * previous value"; engineering rules §Data: "every override/rebuild writes
- * `admin_audit`").
+ * The actions recorded in `admin_audit` — who, what, when, previous value. Only
+ * the rebuild remains (ADR-0046 retired the override actions), and the value
+ * set stays because a second recorded action gets a slot here rather than a
+ * raw slug.
  *
  * Lives here rather than in `packages/db` because the audit view (ADM-3)
  * serializes it on the wire, and a value set gets one definition (engineering
  * rules §Quality).
  */
 export const ADMIN_AUDIT_ACTION = {
-  GAME_OVERRIDE: "game_override",
   LEAGUE_REBUILD: "league_rebuild",
 } as const;
 
@@ -23,7 +22,6 @@ export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTION)[keyof typeof ADMIN_AU
  * row is a plain equality lookup.
  */
 export const ADMIN_AUDIT_TARGET_TABLE = {
-  GAMES: "games",
   // A rebuild's target is the league *season* whose derived state it wipes and
   // recomputes, not the league: per-mode sibling tables (survivor, March
   // Madness) hang off the same row without a second vocabulary.
@@ -40,8 +38,8 @@ export const AdminAuditTargetTableSchema = z
   .openapi("AdminAuditTargetTable");
 
 /**
- * One row of the admin action log as the audit view reads it (arch §Manual
- * Sports Data Overrides: "who, what, when, previous value").
+ * One row of the admin action log as the audit view reads it — who, what,
+ * when, previous value.
  *
  * The actor and the target arrive resolved rather than as bare ids, because a
  * page of UUIDs answers "what happened" for nobody. `username` is a plain
@@ -56,8 +54,8 @@ export const AdminAuditTargetTableSchema = z
  * targets by design — the restrict FK is on the actor, not the target — so a
  * deleted league's rebuild rows still render, unlabelled.
  *
- * `priorValue` stays untyped JSON: its shape is per-action (a game override's
- * override block, a rebuild's pre-wipe summary), which is the same reason the
+ * `priorValue` stays untyped JSON: its shape is per-action (a rebuild's
+ * pre-wipe summary today), which is the same reason the
  * column is JSONB, and the view renders it as formatted JSON rather than
  * pretending to type it.
  */

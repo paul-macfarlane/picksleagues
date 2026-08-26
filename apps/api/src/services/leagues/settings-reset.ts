@@ -1,4 +1,4 @@
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, pickemPicks, survivorPicks } from "@picksleagues/db";
 import type { Clock } from "@picksleagues/core";
@@ -11,7 +11,6 @@ import {
   type LeagueMode,
   type LeagueSettings,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql } from "../games";
 
 /**
  * Settings are editable pre-start (spec §Commissioner Powers), but picks are
@@ -62,12 +61,7 @@ async function hasLockedPick(
     .select({ id: picks.id })
     .from(picks)
     .innerJoin(games, eq(games.id, picks.gameId))
-    .where(
-      and(
-        eq(picks.leagueSeasonId, leagueSeasonId),
-        lte(effectiveKickoffAtSql, sql`${clock.now()}`),
-      ),
-    )
+    .where(and(eq(picks.leagueSeasonId, leagueSeasonId), lte(games.kickoffAt, clock.now())))
     .limit(1);
   return row !== undefined;
 }

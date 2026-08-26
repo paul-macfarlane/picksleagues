@@ -67,7 +67,6 @@ export const ERROR_CODE = {
   PICKS_LOCKED: "picks_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
-  OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
   // Marking a member paid in a league whose current instance has no dues
   // amount set (ADR-0045) — the mark would be invisible on every surface, so
   // it's a conflict, not a silent latent write.

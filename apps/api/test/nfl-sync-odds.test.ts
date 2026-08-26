@@ -15,7 +15,6 @@ import {
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import { BaseFakeProvider } from "./setup/fake-provider";
-import { resolveGameOverrides } from "../src/services/games";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
@@ -353,24 +352,6 @@ describe("syncNflOdds", () => {
 
   // Arch D15: ingestion writes provider columns only, so a correction outlives
   // every re-sync — and the resolved number an operator sees stays theirs.
-  it("never clobbers an override_spread, and the override still wins after the re-sync", async () => {
-    await seedSchedule([
-      providerGame({
-        providerGameId: "g2",
-        weekNumber: 1,
-        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
-        spread: 2.5,
-      }),
-    ]);
-    await db.update(games).set({ overrideSpread: -7 });
-
-    await syncNflOdds(db, oddsClock, provider, {});
-
-    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
-    expect(g2).toMatchObject({ spread: 2.5, overrideSpread: -7 });
-    expect(resolveGameOverrides(g2!).spread).toBe(-7);
-  });
-
   it("pre-season: with no in-progress week, falls back to the next upcoming week and prices it", async () => {
     await seedSchedule([
       providerGame({

@@ -615,7 +615,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Browse a week's games with provider, override, and resolved values */
+        /** Browse a week's games as synced from the provider */
         get: operations["listAdminGames"];
         put?: never;
         post?: never;
@@ -649,26 +649,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Browse the admin action log — overrides and rebuilds, newest first */
+        /** Browse the admin action log — rebuilds, newest first */
         get: operations["listAdminAudit"];
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/games/{gameId}/override": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set or clear a game's manual overrides */
-        put: operations["setAdminGameOverride"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1435,33 +1418,12 @@ export interface components {
             period: number | null;
             clockSeconds: number | null;
             spread: number | null;
-            /** Format: date-time */
-            overrideKickoffAt: string | null;
-            overrideStatus: components["schemas"]["NullableGameStatus"];
-            overrideHomeScore: number | null;
-            overrideAwayScore: number | null;
-            overrideSpread: number | null;
-            overridePeriod: number | null;
-            overrideClockSeconds: number | null;
-            overriddenBy: string | null;
-            /** Format: date-time */
-            overriddenAt: string | null;
-            /** Format: date-time */
-            effectiveKickoffAt: string;
-            effectiveStatus: components["schemas"]["GameStatus"];
-            effectiveHomeScore: number | null;
-            effectiveAwayScore: number | null;
-            effectiveSpread: number | null;
-            effectivePeriod: number | null;
-            effectiveClockSeconds: number | null;
         };
         AdminGameTeam: {
             id: string;
             abbreviation: string;
             name: string;
         };
-        /** @enum {string|null} */
-        NullableGameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled" | null;
         AdminAuditResponse: {
             entries: components["schemas"]["AdminAuditEntry"][];
             total: number;
@@ -1485,23 +1447,9 @@ export interface components {
             createdAt: string;
         };
         /** @enum {string} */
-        AdminAuditAction: "game_override" | "league_rebuild";
+        AdminAuditAction: "league_rebuild";
         /** @enum {string} */
-        AdminAuditTargetTable: "games" | "league_seasons";
-        GameOverrideResponse: {
-            game: components["schemas"]["AdminGame"];
-            resettled: boolean;
-        };
-        GameOverrideRequest: {
-            /** Format: date-time */
-            kickoffAt?: string | null;
-            status?: components["schemas"]["NullableGameStatus"];
-            homeScore?: number | null;
-            awayScore?: number | null;
-            spread?: number | null;
-            period?: number | null;
-            clockSeconds?: number | null;
-        };
+        AdminAuditTargetTable: "league_seasons";
         AdminNflTeamSeasonStatsResponse: {
             seasonYears: number[];
             seasonYear: number | null;
@@ -3306,7 +3254,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The week and its games, override-resolved, ordered by kickoff */
+            /** @description The week and its games, ordered by kickoff */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4250,7 +4198,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The week's games ordered by resolved kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet */
+            /** @description The week's games ordered by kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4306,7 +4254,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Games whose resolved kickoff is still ahead of the server clock while their resolved status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is an override on exactly these rows. */
+            /** @description Games whose kickoff is still ahead of the server clock while their status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is a correction to exactly these rows. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4394,86 +4342,6 @@ export interface operations {
             };
             /** @description The caller is signed in but does not hold the admin role */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    setAdminGameOverride: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                gameId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["GameOverrideRequest"];
-            };
-        };
-        responses: {
-            /** @description The corrected game with provider, override, and resolved values, plus whether the affected leagues were re-settled (a false `resettled` still means the override itself committed) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GameOverrideResponse"];
-                };
-            };
-            /** @description No fields supplied, or a field fails its format rule (score range, status, spread range) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The caller is signed in but does not hold the admin role */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No such game */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game) */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };

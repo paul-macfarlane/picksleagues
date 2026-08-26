@@ -144,8 +144,8 @@ export async function settlePicksForGames(
 
 /**
  * Nightly reconciliation (arch §Background Jobs, D10): recompute every active
- * league season from stored results, catching late stat corrections, admin
- * overrides, and any tick the incremental path missed.
+ * league season from stored results, catching late stat corrections, hand SQL
+ * edits, and any tick the incremental path missed.
  *
  * **The `active` filter is what bounds this job's cost over years** (ADR-0030).
  * Settlement retires a season by writing `concluded`, and Survivor's replay is

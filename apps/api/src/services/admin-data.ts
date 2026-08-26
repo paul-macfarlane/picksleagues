@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, or, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { resolveCurrentWeekId } from "./league-weeks";
 import type { Db } from "@picksleagues/db";
@@ -23,21 +23,13 @@ import {
   type AdminTeam,
   type Sport,
 } from "@picksleagues/schemas";
-import {
-  effectiveAwayScoreSql,
-  effectiveHomeScoreSql,
-  effectiveKickoffAtSql,
-  effectiveStatusSql,
-  resolveGameOverrides,
-} from "./games";
 import { teamLabelColumns } from "./teams";
 
 /**
  * Queries behind the admin page's read-only reference-data browsers and the
- * audit view (arch §Manual Sports Data Overrides). Read-only by construction:
- * nothing here writes, and the browsers double as the verification surface for
- * the sync jobs (a week with zero games, a game with no spread, an override
- * that survived a re-sync are all visible here).
+ * audit view. Read-only by construction: nothing here writes, and the browsers
+ * double as the verification surface for the sync jobs (a week with zero
+ * games, a game with no spread are both visible here).
  *
  * Each reference-data list is bounded by its own domain (one sport's teams, one
  * sport's seasons, one week's games), so those don't paginate. `admin_audit`
@@ -127,34 +119,29 @@ export async function listSeasons(db: Db, clock: Clock, sport: Sport): Promise<A
 
 /**
  * The joined shape both game reads below project from. Extracted so the
- * one-game read (the override write's response) and the week list can't drift
- * on which columns the `AdminGame` block is built from.
+ * anomaly list and the week list can't drift on which columns the `AdminGame`
+ * block is built from.
  */
 function selectAdminGameRows(db: Db, where: SQL | undefined) {
   const homeTeams = alias(teams, "home_teams");
   const awayTeams = alias(teams, "away_teams");
 
-  return (
-    db
-      .select({
-        game: games,
-        homeTeam: teamLabelColumns(homeTeams),
-        awayTeam: teamLabelColumns(awayTeams),
-      })
-      .from(games)
-      .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
-      .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-      .where(where)
-      // Ordered by the kickoff the app actually uses, so a corrected game sorts
-      // where an operator expects to find it.
-      .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId))
-  );
+  return db
+    .select({
+      game: games,
+      homeTeam: teamLabelColumns(homeTeams),
+      awayTeam: teamLabelColumns(awayTeams),
+    })
+    .from(games)
+    .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
+    .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
+    .where(where)
+    .orderBy(asc(games.kickoffAt), asc(games.providerGameId));
 }
 
 type AdminGameRow = Awaited<ReturnType<typeof selectAdminGameRows>>[number];
 
 function serializeAdminGame({ game, homeTeam, awayTeam }: AdminGameRow): AdminGame {
-  const effective = resolveGameOverrides(game);
   return {
     id: game.id,
     weekId: game.weekId,
@@ -168,22 +155,6 @@ function serializeAdminGame({ game, homeTeam, awayTeam }: AdminGameRow): AdminGa
     period: game.period,
     clockSeconds: game.clockSeconds,
     spread: game.spread,
-    overrideKickoffAt: game.overrideKickoffAt?.toISOString() ?? null,
-    overrideStatus: game.overrideStatus,
-    overrideHomeScore: game.overrideHomeScore,
-    overrideAwayScore: game.overrideAwayScore,
-    overrideSpread: game.overrideSpread,
-    overridePeriod: game.overridePeriod,
-    overrideClockSeconds: game.overrideClockSeconds,
-    overriddenBy: game.overriddenBy,
-    overriddenAt: game.overriddenAt?.toISOString() ?? null,
-    effectiveKickoffAt: effective.kickoffAt.toISOString(),
-    effectiveStatus: effective.status,
-    effectiveHomeScore: effective.homeScore,
-    effectiveAwayScore: effective.awayScore,
-    effectiveSpread: effective.spread,
-    effectivePeriod: effective.period,
-    effectiveClockSeconds: effective.clockSeconds,
   };
 }
 
@@ -193,31 +164,16 @@ export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]
 }
 
 /**
- * One game in the same shape the browser lists, so the override write can
- * answer with the row an operator was just editing — provider, override, and
- * resolved values side by side. Null when the game doesn't exist.
- */
-export async function loadAdminGame(db: Db, gameId: string): Promise<AdminGame | null> {
-  const [row] = await selectAdminGameRows(db, eq(games.id, gameId));
-  if (!row) return null;
-
-  return serializeAdminGame(row);
-}
-
-/**
- * Games left unlocked while their outcome is already knowable — the state
- * `leavesOutcomeKnowableButUnlocked` (`services/admin-overrides.ts`) refuses to
- * create but cannot prevent. Two routes reach it with no admin at fault: a
- * provider bug, and a legitimately allowed later-kickoff override followed by
- * score ingestion writing the final against the *provider* kickoff. Ingestion
- * must never fail on account of a correction, so it cannot consult the guard,
- * which makes this detection and repair rather than admission control.
+ * Games left unlocked while their outcome is already knowable — a started
+ * status or a score against a kickoff still ahead, which only a provider bug
+ * produces. Detection rather than admission control: ingestion must never fail
+ * on account of what it was handed.
  *
- * In SQL because the candidate set is every game in the database; the coalesces
- * come from `services/games.ts` and the status set from `packages/schemas` so
- * this can't drift from the predicate it backstops. `now` is bound as a
- * parameter (arch D13) — a SQL `now()` here would read a clock the rest of the
- * app, and the simulator, do not share.
+ * In SQL because the candidate set is every game in the database; the status
+ * set comes from `packages/schemas` so this can't drift from what "started"
+ * means everywhere else. `now` is bound as a parameter (arch D13) — a SQL
+ * `now()` here would read a clock the rest of the app, and the simulator, do
+ * not share.
  */
 export async function listAnomalousGames(db: Db, now: Date): Promise<AdminGame[]> {
   const rows = await selectAdminGameRows(
@@ -227,14 +183,14 @@ export async function listAnomalousGames(db: Db, now: Date): Promise<AdminGame[]
       // kicking off at exactly this instant is locked and consistent. A `>=`
       // would match the guard on every other case and only ever be wrong at the
       // boundary.
-      gt(effectiveKickoffAtSql, sql`${now}`),
+      gt(games.kickoffAt, now),
       or(
-        inArray(effectiveStatusSql, [...STARTED_GAME_STATUSES]),
+        inArray(games.status, [...STARTED_GAME_STATUSES]),
         // Not redundant with the status disjunct: a postponed or scheduled game
         // carrying a score is knowable without ever having started, and the
         // score is on the wire for every status.
-        isNotNull(effectiveHomeScoreSql),
-        isNotNull(effectiveAwayScoreSql),
+        isNotNull(games.homeScore),
+        isNotNull(games.awayScore),
       ),
     ),
   );
@@ -254,8 +210,8 @@ function targetKey(targetTable: AdminAuditTargetTable, targetId: string) {
  * something now gone. A target with no row left simply gets no entry here, and
  * the caller serializes `targetLabel: null`.
  *
- * One query per target table, both keyed by an `inArray` over the page's ids, so
- * the cost is fixed regardless of page size.
+ * One query per target table, keyed by an `inArray` over the page's ids, so the
+ * cost is fixed regardless of page size.
  */
 async function resolveTargetLabels(
   db: Db,
@@ -265,30 +221,6 @@ async function resolveTargetLabels(
   const idsFor = (targetTable: AdminAuditTargetTable) => [
     ...new Set(rows.filter((row) => row.targetTable === targetTable).map((row) => row.targetId)),
   ];
-
-  const gameIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.GAMES);
-  if (gameIds.length > 0) {
-    const homeTeams = alias(teams, "label_home_teams");
-    const awayTeams = alias(teams, "label_away_teams");
-    const gameRows = await db
-      .select({
-        id: games.id,
-        homeAbbreviation: homeTeams.abbreviation,
-        awayAbbreviation: awayTeams.abbreviation,
-      })
-      .from(games)
-      .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
-      .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-      .where(inArray(games.id, gameIds));
-    for (const game of gameRows) {
-      labels.set(
-        targetKey(ADMIN_AUDIT_TARGET_TABLE.GAMES, game.id),
-        // Away-first, matching how a matchup is named everywhere else in the
-        // product, so the trail reads like the slate it corrected.
-        `${game.awayAbbreviation} @ ${game.homeAbbreviation}`,
-      );
-    }
-  }
 
   const leagueSeasonIds = idsFor(ADMIN_AUDIT_TARGET_TABLE.LEAGUE_SEASONS);
   if (leagueSeasonIds.length > 0) {

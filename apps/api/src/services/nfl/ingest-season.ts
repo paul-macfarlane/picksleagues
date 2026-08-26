@@ -381,9 +381,8 @@ export async function ingestSeasonSnapshot(
         );
       }
 
-      // Provider fields only — every override_* column is deliberately absent
-      // (arch D15). Scores are included so a game can never sit at status=final
-      // with null scores between job cadences.
+      // Scores are included so a game can never sit at status=final with null
+      // scores between job cadences.
       const providerFields = {
         weekId,
         kickoffAt: game.kickoffAt,

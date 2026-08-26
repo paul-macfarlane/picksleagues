@@ -24,8 +24,8 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   // The member's own avatar URL (ADR-0022), overriding the provider's `image`
-  // above by the repo's `override_* ?? provider_*` convention: every read
-  // resolves `image_override ?? image`, so clearing this column reverts to
+  // above: every read resolves `image_override ?? image`, so clearing this
+  // column reverts to
   // whatever the OAuth provider supplied rather than to no avatar. Better Auth
   // owns `image` and rewrites it on its own update-user route, which is
   // precisely why the member's value cannot live there.

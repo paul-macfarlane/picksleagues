@@ -237,32 +237,6 @@ describe("POST /api/leagues — Pick'em's range is resolved, never chosen", () =
     expect(startsAt).toBe(WEEK2_KICKOFF.toISOString());
   });
 
-  it("advances past a week whose kickoff was corrected forward, using the effective kickoff", async () => {
-    // Week 1's real kickoff is in the past, but a correction (arch D15) moved
-    // it ahead of the clock — so week 1 has NOT begun and the league starts
-    // there. Resolution reads the same effective kickoff the lock derivation
-    // does; disagreeing would mean a league whose start week is already locked.
-    const corrected = new Date(WEEK1_KICKOFF.getTime() + 2 * 24 * 60 * 60 * 1000);
-    await seedSeason(db, {
-      year: 2026,
-      weeks: [
-        {
-          weekNumber: 1,
-          kickoffs: [{ kickoffAt: WEEK1_KICKOFF, overrideKickoffAt: corrected }],
-        },
-        { weekNumber: 2, kickoffs: [{ kickoffAt: WEEK2_KICKOFF }] },
-      ],
-    });
-    const { cookie } = await createAuthenticatedUser(auth);
-
-    const res = await postLeague(cookie, { pickType: "straight_up" }, appAfterKickoff);
-    expect(res.status).toBe(201);
-    const { id, startsAt } = (await res.json()) as LeagueResponse;
-
-    expect(await storedSettings(id)).toMatchObject({ startWeek: regular(1) });
-    expect(startsAt).toBe(corrected.toISOString());
-  });
-
   it("falls back to regular week 1 on a provisional season whose weeks hold no games", async () => {
     // The offseason path (ADR-0009): leagues are creatable most of the year
     // against a season with no schedule yet, so there is no kickoff to compare

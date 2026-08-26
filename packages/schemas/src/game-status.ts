@@ -1,10 +1,9 @@
 import { z } from "@hono/zod-openapi";
 
 /**
- * Domain game status (arch §Overrides, §Domain Model). Provider ingestion
- * writes all five, and admin `override_status` chooses among the same five —
- * there is no admin-only status. A real provider week move is handled by an
- * admin `cancelled` override (ADR-0019), which is the rule members already
+ * Domain game status (arch §Domain Model). Provider ingestion writes all five.
+ * A real provider week move is handled by a hand SQL edit to `cancelled`
+ * (ADR-0019, amended by ADR-0046), which is the rule members already
  * understand, rather than by a sixth status only settlement knew how to read.
  */
 export const GAME_STATUS = {
@@ -18,16 +17,6 @@ export const GAME_STATUS = {
 export type GameStatus = (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
 
 export const GameStatusSchema = z.enum(GAME_STATUS).openapi("GameStatus");
-
-/**
- * Registered under its own component name for the same reason as
- * `NullableUsername` (me.ts): `.nullable()` on an already-registered node folds
- * `null` into that shared component instead of producing a nullable $ref, and
- * the generated client then types the field as an unusable intersection. Used
- * wherever "no override recorded" is a value — the override block on AdminGame
- * and the clear half of GameOverrideRequest.
- */
-export const NullableGameStatusSchema = GameStatusSchema.nullable().openapi("NullableGameStatus");
 
 /**
  * Statuses meaning the game will never be played in this week — the spec's
@@ -51,19 +40,16 @@ export function isUnplayedStatus(status: GameStatus): boolean {
  * in this week"), and not its inverse: `scheduled` and `postponed` are neither,
  * because such a game is still ahead of us and picks on it are legitimate.
  *
- * The admin override guard is the caller: a game in one of these must never be
- * left unlocked (arch D11, D15), or every member could pick against an outcome
- * the same page is already showing them. That guard pairs this with a resolved-
- * score check rather than folding "has a score" in here — `postponed` carrying
- * a score is knowable without ever having started, and this constant means what
- * it says.
+ * A game in one of these must never be left unlocked (arch D11), or every
+ * member could pick against an outcome the same page is already showing them.
+ * The anomaly detector pairs this with a score check rather than folding "has
+ * a score" in here — `postponed` carrying a score is knowable without ever
+ * having started, and this constant means what it says.
  *
  * Exported as the list *as well as* behind `isStartedStatus`, unlike
- * `UNPLAYED_GAME_STATUSES`: the admin anomaly query re-expresses that same guard
- * in SQL over every game in the database, and a SQL `inArray` cannot push a
- * predicate down. Restating the two values there would let the detection query
- * and the guard it exists to backstop disagree about what "started" means, which
- * is the one drift neither side would report.
+ * `UNPLAYED_GAME_STATUSES`: the admin anomaly query expresses the predicate in
+ * SQL over every game in the database, and a SQL `inArray` cannot push a
+ * predicate down.
  */
 export const STARTED_GAME_STATUSES: readonly GameStatus[] = [
   GAME_STATUS.IN_PROGRESS,

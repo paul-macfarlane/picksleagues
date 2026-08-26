@@ -11,17 +11,15 @@ import {
   type NflGameResultsResponse,
   type NflTeamGameLog,
 } from "@picksleagues/schemas";
-import { resolveGameOverrides } from "../games";
 
 /**
  * The Results segment read (STAT-9): both teams' season game logs, served
  * entirely from our `games` rows — zero new ingestion. Like the stats read it
  * is deliberately clockless (freshness is the stored `updated_at` the response
- * carries), and every fact comes through `resolveGameOverrides` so a corrected
- * score logs as corrected (arch D15).
+ * carries).
  */
 
-/** One candidate log game, already override-resolved. */
+/** One candidate log game. */
 export type ResolvedLogGame = {
   seasonYear: number;
   weekLabel: string;
@@ -137,22 +135,19 @@ export async function getNflGameResults(
       ),
     );
 
-  const resolved: (ResolvedLogGame & { updatedAt: Date })[] = rows.map((row) => {
-    const effective = resolveGameOverrides(row.game);
-    return {
-      seasonYear: row.seasonYear,
-      weekLabel: row.weekLabel,
-      kickoffAt: effective.kickoffAt,
-      status: effective.status,
-      homeTeamId: row.game.homeTeamId,
-      awayTeamId: row.game.awayTeamId,
-      homeAbbr: row.homeAbbr,
-      awayAbbr: row.awayAbbr,
-      homeScore: effective.homeScore,
-      awayScore: effective.awayScore,
-      updatedAt: row.game.updatedAt,
-    };
-  });
+  const resolved: (ResolvedLogGame & { updatedAt: Date })[] = rows.map((row) => ({
+    seasonYear: row.seasonYear,
+    weekLabel: row.weekLabel,
+    kickoffAt: row.game.kickoffAt,
+    status: row.game.status,
+    homeTeamId: row.game.homeTeamId,
+    awayTeamId: row.game.awayTeamId,
+    homeAbbr: row.homeAbbr,
+    awayAbbr: row.awayAbbr,
+    homeScore: row.game.homeScore,
+    awayScore: row.game.awayScore,
+    updatedAt: row.game.updatedAt,
+  }));
 
   const home = buildNflTeamGameLog(resolved, game.homeTeamId, game.seasonYear);
   const away = buildNflTeamGameLog(resolved, game.awayTeamId, game.seasonYear);

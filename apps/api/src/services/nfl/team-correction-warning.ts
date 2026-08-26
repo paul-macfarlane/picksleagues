@@ -11,7 +11,7 @@ import { logWarn } from "../../lib/logger";
  * still applies the correction, because refusing it would leave the game row
  * permanently wrong; this only surfaces the case where picks were already
  * riding on the old assignment, so a human can decide whether the affected
- * league-week needs an override.
+ * league-week needs a rebuild.
  *
  * No in-app alerting by design (ADR-0007) — the warning goes to the log the
  * job's own failure notifications already surface.

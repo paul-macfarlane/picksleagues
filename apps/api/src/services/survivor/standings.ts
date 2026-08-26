@@ -19,7 +19,6 @@ import {
   type SurvivorStandingsPick,
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
-import { resolveGameOverrides } from "../games";
 import { teamDisplayColumns } from "../teams";
 import { resolveCurrentWeekId } from "../league-weeks";
 // Deep import by design: `serialize` is module-public so sibling domains can
@@ -44,7 +43,7 @@ import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
  * The two visibility rules the query layer owns, both enforced below and never
  * left to a client (arch §Locking Model):
  * - a member's pick for a week reaches the rest of the league only once that
- *   pick's own game has kicked off — the same `isLocked`-on-effective-kickoff
+ *   pick's own game has kicked off — the same `isLocked`-on-kickoff
  *   rule the week read path applies (arch D11), computed here from the one
  *   game read the pick's state block also serializes from;
  * - **another member's consumed-team list is built from their revealed picks
@@ -136,8 +135,8 @@ export async function getSurvivorStandings(
   // The game rows behind the picks — one read serving both the reveal gate and
   // the state block each revealed pick carries (FB-25). Locks derive from the
   // same rows rather than a second `resolveLockStates` query: two reads of the
-  // same table leave a window where a kickoff override lands between them and
-  // the gate and the block disagree about the same game.
+  // same table leave a window where a schedule sync lands between them and the
+  // gate and the block disagree about the same game.
   const gameRows =
     picks.length === 0
       ? []
@@ -147,9 +146,7 @@ export async function getSurvivorStandings(
           .where(inArray(games.id, [...new Set(picks.map((pick) => pick.gameId))]));
   const gamesById = new Map(gameRows.map((row) => [row.id, row]));
   const now = clock.now();
-  const lockedByGame = new Map(
-    gameRows.map((row) => [row.id, isLocked(resolveGameOverrides(row).kickoffAt, now)]),
-  );
+  const lockedByGame = new Map(gameRows.map((row) => [row.id, isLocked(row.kickoffAt, now)]));
 
   const results = await db
     .select()
@@ -207,36 +204,34 @@ export async function getSurvivorStandings(
     const history: SurvivorStandingsPick[] = own
       .map((pick) => {
         const visible = revealed.get(pick.id) === true;
-        const gameRow = visible ? gamesById.get(pick.gameId) : undefined;
-        const game = gameRow ? resolveGameOverrides(gameRow) : null;
+        const game = visible ? gamesById.get(pick.gameId) : undefined;
         if (visible) {
           disclosedTeamIds.add(pick.teamId);
           // Both sides of a revealed pick's game, so the shared lookup can label
           // its score — the opponent may appear nowhere else in the response. A
           // withheld pick discloses neither (its game alone narrows the hidden
           // pick to two teams).
-          if (gameRow) {
-            disclosedTeamIds.add(gameRow.homeTeamId);
-            disclosedTeamIds.add(gameRow.awayTeamId);
+          if (game) {
+            disclosedTeamIds.add(game.homeTeamId);
+            disclosedTeamIds.add(game.awayTeamId);
           }
         }
         return {
           weekId: pick.weekId,
           teamId: visible ? pick.teamId : null,
           outcome: visible ? (outcomeByPickId.get(pick.id) ?? null) : null,
-          game:
-            game && gameRow
-              ? {
-                  status: game.status,
-                  kickoffAt: game.kickoffAt.toISOString(),
-                  homeTeamId: gameRow.homeTeamId,
-                  awayTeamId: gameRow.awayTeamId,
-                  homeScore: game.homeScore,
-                  awayScore: game.awayScore,
-                  period: game.period,
-                  clockSeconds: game.clockSeconds,
-                }
-              : null,
+          game: game
+            ? {
+                status: game.status,
+                kickoffAt: game.kickoffAt.toISOString(),
+                homeTeamId: game.homeTeamId,
+                awayTeamId: game.awayTeamId,
+                homeScore: game.homeScore,
+                awayScore: game.awayScore,
+                period: game.period,
+                clockSeconds: game.clockSeconds,
+              }
+            : null,
         };
       })
       .reverse();

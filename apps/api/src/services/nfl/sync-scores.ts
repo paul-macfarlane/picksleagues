@@ -34,9 +34,7 @@ const ACTIVE_STATUSES = [GAME_STATUS.SCHEDULED, GAME_STATUS.IN_PROGRESS];
  *
  * Idempotent (engineering rules §Jobs): re-running with identical provider data
  * changes nothing (`gamesUpdated: 0`), so a missed or double-fired tick is
- * harmless. Load-bearing invariant (arch D15): only provider-synced fields are
- * written — never any `override_*` column — so a re-sync can never clobber an
- * admin correction.
+ * harmless.
  */
 export async function syncNflScores(
   db: Db,
@@ -163,8 +161,7 @@ export async function syncNflScores(
 
       await tx
         .update(games)
-        // Provider fields only — every override_* column is deliberately absent
-        // (arch D15). kickoff/schedule changes are schedule-sync's job.
+        // kickoff/schedule changes are schedule-sync's job.
         .set({
           status: providerGame.status,
           homeScore: providerGame.homeScore,
@@ -210,7 +207,7 @@ export async function syncNflScores(
     settledLeagueSeasons: settled.leagueSeasons,
     settledResults: settled.results,
     // Surfaced because a non-zero value here usually means a final game carries
-    // no score — the provider fault an admin override exists to correct.
+    // no score — a provider fault the next sync, or a hand SQL edit, corrects.
     settledUnsettled: settled.unsettled,
   };
 }

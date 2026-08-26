@@ -25,7 +25,6 @@ import { getMembership } from "../leagues/authz";
 import { loadMembers } from "../leagues/serialize";
 import { lockLeagueMemberRow } from "../leagues/locks";
 import { resolveUserImage } from "../users";
-import { resolveGameOverrides } from "../games";
 import { isWeekInsidePickWindow } from "../league-weeks";
 import { getWeek, loadResolvedWeekGames, resolveLockStates } from "../slate";
 import { isSurvivorRangeWeek, resolveSurvivorSeasonState } from "./season";
@@ -161,9 +160,8 @@ async function isWeekInRange(
  * member back: revival is a whole-week answer only settlement can give, and by
  * the time it lands the next week is at most the tail of the current one from
  * becoming current on its own. A missed pick likewise stays closed — there is
- * nothing to resolve. Final-without-scores is the provider fault an admin score
- * override corrects (arch §Overrides); until then it is unresolved, not a free
- * unlock.
+ * nothing to resolve. Final-without-scores is a provider fault the next sync
+ * corrects; until then it is unresolved, not a free unlock.
  */
 async function hasCurrentWeekResolvedForMember(
   db: Db,
@@ -183,9 +181,8 @@ async function hasCurrentWeekResolvedForMember(
     );
   if (!pick) return false;
 
-  const [gameRow] = await db.select().from(games).where(eq(games.id, pick.gameId));
-  if (!gameRow) return false;
-  const game = resolveGameOverrides(gameRow);
+  const [game] = await db.select().from(games).where(eq(games.id, pick.gameId));
+  if (!game) return false;
 
   // A cancellation pushes and hands the team back — the member advances (spec
   // §Game Mode 2 — Cancelled game).
@@ -193,7 +190,7 @@ async function hasCurrentWeekResolvedForMember(
   if (game.status !== GAME_STATUS.FINAL) return false;
   if (game.homeScore === null || game.awayScore === null) return false;
 
-  const pickedHome = pick.teamId === gameRow.homeTeamId;
+  const pickedHome = pick.teamId === game.homeTeamId;
   const own = pickedHome ? game.homeScore : game.awayScore;
   const opposing = pickedHome ? game.awayScore : game.homeScore;
   // A tie advances with the team consumed (ADR-0033), so >= is the test.
