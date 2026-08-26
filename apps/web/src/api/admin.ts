@@ -219,9 +219,9 @@ export function useAdminAudit(offset: number) {
 
 /**
  * The one write on this module's surface (ADM-2, arch §Manual Sports Data
- * Overrides). Variables
- * carry the game id so a row scopes its pending state off
- * `mutation.variables` rather than disabling every row (async-button standard).
+ * Overrides). Variables carry the game id so a row scopes its pending state
+ * off `mutation.variables` rather than disabling every row (async-button
+ * standard).
  */
 export function useSetGameOverride() {
   const queryClient = useQueryClient();

@@ -89,10 +89,11 @@ async function ensureUpcomingNflSeason(
  * §Jobs): re-runs with identical provider data leave every row byte-identical,
  * so a missed or double-fired tick is harmless.
  *
- * Load-bearing invariant (arch D15): this only ever writes provider-synced
- * fields — never any `override_*` column, never `overriddenBy/At`. A re-sync
- * can never clobber an admin correction; reads/settlement resolve
- * `override_* ?? provider_*` elsewhere.
+ * Load-bearing invariant (arch D15) for the `games` half: this only ever
+ * writes provider-synced fields — never any `override_*` column, never
+ * `overriddenBy/At`. A re-sync can never clobber an admin correction;
+ * reads/settlement resolve `override_* ?? provider_*` elsewhere. (The
+ * `teams` override columns are retired, ADR-0046 — nothing resolves them.)
  *
  * A bare no-arg call (the daily cron shape) additionally ensures next year's
  * season exists once the default season concludes (ADR-0009) — explicit

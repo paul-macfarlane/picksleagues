@@ -141,6 +141,30 @@ describe("GET /api/weeks/:weekId/games", () => {
     expect(await res.json()).toMatchObject({ error: "week_not_found" });
   });
 
+  it("serves each side's full display identity straight from the teams row", async () => {
+    const { cookie } = await createAuthenticatedUser(auth);
+    const { weekIds } = await seedPickemLeague();
+    const res = await getSlate(cookie, weekIds.get("regular:1")!);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as WeekSlateResponse;
+    // All six fields on both sides: the slate reads them through a shared
+    // column projection, and a transposed pair there would only surface as a
+    // wrong logo on a phone.
+    expect(body.games[0]?.homeTeam).toEqual({
+      id: expect.any(String),
+      abbreviation: "HOM",
+      name: "Home Team",
+      location: "Home City",
+      logoLightUrl: "https://example.com/hom-light.png",
+      logoDarkUrl: "https://example.com/hom-dark.png",
+    });
+    expect(body.games[0]?.awayTeam).toMatchObject({
+      abbreviation: "AWY",
+      location: "Away City",
+      logoDarkUrl: "https://example.com/awy-dark.png",
+    });
+  });
+
   it("orders games by effective kickoff and locks true at/after kickoff (half-open boundary)", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedPickemLeague();

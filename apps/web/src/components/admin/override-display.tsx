@@ -3,9 +3,9 @@ import { LabeledValue } from "@/components/labeled-value";
 import { StatusPill } from "@/components/status-pill";
 
 /**
- * The presentational halves of the admin override idiom (arch D15), shared
- * by every browser/editor pair (games, teams, NFL stats, stat contexts): a
- * browser row shows the *resolved* value with the provider's beside it when
+ * The presentational halves of the admin game-override idiom (arch D15; the
+ * games browser/editor pair is the only one left, ADR-0046): a browser row
+ * shows the *resolved* value with the provider's beside it when
  * an override is masking it, a tag says the row is overridden at all, and a
  * form field shows the provider value it sits on top of — "what am I
  * overriding?" and "what would clearing restore?".

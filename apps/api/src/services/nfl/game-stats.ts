@@ -21,12 +21,10 @@ import {
  * stored `updated_at` stamps the response carries.
  */
 
-/**
- * The record facts every derivation and serialization downstream consumes —
- * a `nfl_team_season_stats` row satisfies it structurally. Named so the pure
- * ranking can be unit-tested without a whole DB row per case.
- */
-export type NflTeamSeasonStatsFacts = {
+// The record facts every derivation below consumes — a `nfl_team_season_stats`
+// row satisfies it structurally, and the pure ranking's unit tests build only
+// these fields rather than a whole DB row per case.
+type StatsRow = {
   teamId: string;
   seasonYear: number;
   wins: number;
@@ -43,8 +41,6 @@ export type NflTeamSeasonStatsFacts = {
   pointsAgainst: number;
   updatedAt: Date;
 };
-
-type StatsRow = NflTeamSeasonStatsFacts;
 
 function gamesPlayed(row: StatsRow): number {
   return row.wins + row.losses + row.ties;

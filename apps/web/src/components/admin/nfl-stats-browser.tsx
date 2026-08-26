@@ -4,6 +4,7 @@ import type { AdminNflTeamSeasonStats } from "@picksleagues/schemas";
 import { useAdminNflStats } from "@/api/admin-nfl-stats";
 import { formatDateTime } from "@/lib/format";
 import { recordLabel, streakLabel } from "@/lib/nfl-stats";
+import { LabeledValue } from "@/components/labeled-value";
 import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
@@ -79,20 +80,21 @@ function StatsRow({ stats }: { stats: AdminNflTeamSeasonStats }) {
         <span className="text-muted-foreground">{stats.team.name}</span>
       </p>
 
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-foreground">
-        <dt className="text-muted-foreground">Record</dt>
-        <dd>{recordLabel(stats.wins, stats.losses, stats.ties)}</dd>
-        <dt className="text-muted-foreground">Home</dt>
-        <dd>{recordLabel(stats.homeWins, stats.homeLosses, stats.homeTies)}</dd>
-        <dt className="text-muted-foreground">Road</dt>
-        <dd>{recordLabel(stats.roadWins, stats.roadLosses, stats.roadTies)}</dd>
-        <dt className="text-muted-foreground">Streak</dt>
-        <dd>{streakLabel(stats.streak)}</dd>
-        <dt className="text-muted-foreground">Points</dt>
-        <dd>
+      <div className="flex flex-col gap-1 text-xs text-foreground">
+        <LabeledValue label="Record">
+          {recordLabel(stats.wins, stats.losses, stats.ties)}
+        </LabeledValue>
+        <LabeledValue label="Home">
+          {recordLabel(stats.homeWins, stats.homeLosses, stats.homeTies)}
+        </LabeledValue>
+        <LabeledValue label="Road">
+          {recordLabel(stats.roadWins, stats.roadLosses, stats.roadTies)}
+        </LabeledValue>
+        <LabeledValue label="Streak">{streakLabel(stats.streak)}</LabeledValue>
+        <LabeledValue label="Points">
           {stats.pointsFor} for · {stats.pointsAgainst} against
-        </dd>
-      </dl>
+        </LabeledValue>
+      </div>
 
       <p className="type-eyebrow">updated {formatDateTime(stats.updatedAt)}</p>
     </li>

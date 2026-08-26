@@ -8,6 +8,7 @@ import {
   seasonLabel,
   useAdminSeasonWeekSelection,
 } from "@/components/admin/use-season-week-selection";
+import { LabeledValue } from "@/components/labeled-value";
 import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
@@ -130,12 +131,14 @@ function ContextRow({ game }: { game: AdminNflGameStatContext }) {
 
       {block ? (
         <>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-foreground">
-            <dt className="text-muted-foreground">{game.awayTeam.abbreviation}</dt>
-            <dd>{sideSummary(block.payload.away)}</dd>
-            <dt className="text-muted-foreground">{game.homeTeam.abbreviation}</dt>
-            <dd>{sideSummary(block.payload.home)}</dd>
-          </dl>
+          <div className="flex flex-col gap-1 text-xs text-foreground">
+            <LabeledValue label={game.awayTeam.abbreviation}>
+              {sideSummary(block.payload.away)}
+            </LabeledValue>
+            <LabeledValue label={game.homeTeam.abbreviation}>
+              {sideSummary(block.payload.home)}
+            </LabeledValue>
+          </div>
 
           <p className="type-eyebrow">updated {formatDateTime(block.updatedAt)}</p>
         </>
