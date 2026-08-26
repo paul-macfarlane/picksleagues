@@ -54,7 +54,7 @@ inventory) rides with the closing task rather than ahead of the code.
   / resolved" three-layer rendering in the admin browsers becomes one value.
   Decide whether the audit-log view stays for `league_rebuild` alone.
   _(deps: OVR-2)_
-- [ ] **OVR-4** — Drop the columns: every `override_*` plus `overridden_by` /
+- [x] **OVR-4** — Drop the columns: every `override_*` plus `overridden_by` /
   `overridden_at` on the four tables, one migration. Pre-flight (human):
   `SELECT` each table for a non-null `overridden_at` in production and record
   the result in the PR — a live row is a correction the drop destroys and must

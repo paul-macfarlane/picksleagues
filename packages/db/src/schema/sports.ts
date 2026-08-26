@@ -13,7 +13,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { NflGameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
-import { users } from "./auth";
 
 /**
  * Sports data ingested from the provider (ESPN in prod, SimulatedProvider in
@@ -77,15 +76,6 @@ export const teams = pgTable(
     location: text("location"),
     logoLightUrl: text("logo_light_url"),
     logoDarkUrl: text("logo_dark_url"),
-    // Retired override parallels (ADR-0046): nothing reads or writes them;
-    // the columns drop in OVR-4 once production is checked for live values.
-    overrideName: text("override_name"),
-    overrideAbbreviation: text("override_abbreviation"),
-    overrideLocation: text("override_location"),
-    overrideLogoLightUrl: text("override_logo_light_url"),
-    overrideLogoDarkUrl: text("override_logo_dark_url"),
-    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -163,17 +153,6 @@ export const games = pgTable(
     // the moment this clock reading was true (reads serve it as `stateAsOf`).
     period: integer("period"),
     clockSeconds: integer("clock_seconds"),
-    // Retired override parallels (ADR-0046): nothing reads or writes them;
-    // the columns drop in OVR-4 once production is checked for live values.
-    overrideHomeScore: integer("override_home_score"),
-    overrideAwayScore: integer("override_away_score"),
-    overrideStatus: text("override_status").$type<GameStatus>(),
-    overrideKickoffAt: timestamp("override_kickoff_at", { withTimezone: true }),
-    overrideSpread: doublePrecision("override_spread"),
-    overridePeriod: integer("override_period"),
-    overrideClockSeconds: integer("override_clock_seconds"),
-    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -217,22 +196,6 @@ export const nflTeamSeasonStats = pgTable(
     streak: integer("streak").notNull(),
     pointsFor: integer("points_for").notNull(),
     pointsAgainst: integer("points_against").notNull(),
-    // Retired override parallels (ADR-0046): nothing reads or writes them;
-    // the columns drop in OVR-4 once production is checked for live values.
-    overrideWins: integer("override_wins"),
-    overrideLosses: integer("override_losses"),
-    overrideTies: integer("override_ties"),
-    overrideHomeWins: integer("override_home_wins"),
-    overrideHomeLosses: integer("override_home_losses"),
-    overrideHomeTies: integer("override_home_ties"),
-    overrideRoadWins: integer("override_road_wins"),
-    overrideRoadLosses: integer("override_road_losses"),
-    overrideRoadTies: integer("override_road_ties"),
-    overrideStreak: integer("override_streak"),
-    overridePointsFor: integer("override_points_for"),
-    overridePointsAgainst: integer("override_points_against"),
-    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -250,9 +213,6 @@ export const nflTeamSeasonStats = pgTable(
  * instant the UI must show beside it: injuries move daily and this table
  * moves on the sync's schedule, so an unstamped report would read fresher
  * than it is (spec §UI conventions: never claim real-time freshness).
- *
- * The `override_*` columns are retired (ADR-0046): nothing reads or writes
- * them; they drop in OVR-4 once production is checked for live values.
  */
 export const nflGameStatContext = pgTable("nfl_game_stat_context", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -261,9 +221,6 @@ export const nflGameStatContext = pgTable("nfl_game_stat_context", {
     .unique()
     .references(() => games.id, { onDelete: "cascade" }),
   payload: jsonb("payload").$type<NflGameStatContextPayload>().notNull(),
-  overridePayload: jsonb("override_payload").$type<Record<string, unknown>>(),
-  overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-  overriddenAt: timestamp("overridden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });

@@ -225,6 +225,13 @@
       "when": 1787537221154,
       "tag": "0031_worried_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787766872807,
+      "tag": "0032_chilly_epoch",
+      "breakpoints": true
     }
   ]
 }
