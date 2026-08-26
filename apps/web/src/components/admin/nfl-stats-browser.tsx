@@ -4,26 +4,15 @@ import type { AdminNflTeamSeasonStats } from "@picksleagues/schemas";
 import { useAdminNflStats } from "@/api/admin-nfl-stats";
 import { formatDateTime } from "@/lib/format";
 import { recordLabel, streakLabel } from "@/lib/nfl-stats";
-import { NflStatsOverrideForm } from "@/components/admin/nfl-stats-override-form";
-import { nflStatsOverrideFormSeed } from "@/components/admin/nfl-stats-override-patch";
-import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
 import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
-import { RowEditor } from "@/components/row-editor";
-
-function isOverridden(stats: AdminNflTeamSeasonStats): boolean {
-  // `overriddenAt` is set exactly while any override field is (cleared with
-  // the last one, arch D15), so it stands in for checking all twelve.
-  return stats.overriddenAt !== null;
-}
 
 /**
- * The season-stats browser (STAT-7, ADR-0041): what the stats sync wrote per
- * team, with the override layer and the resolved values the matchup sheet
- * serves. Season selection lives in the URL (owned by the route) like the
- * games browser's week — a season worth inspecting is worth sharing.
+ * The season-stats browser (STAT-7): what the stats sync wrote per team.
+ * Season selection lives in the URL (owned by the route) like the games
+ * browser's week — a season worth inspecting is worth sharing.
  */
 export function NflStatsBrowser({
   season,
@@ -37,7 +26,7 @@ export function NflStatsBrowser({
   return (
     <Section
       title="Team season stats"
-      description="Provider, override, and resolved record facts per team. Averages and league ranks on the member surface derive from the resolved values."
+      description="Record facts per team as the stats sync wrote them. Averages and league ranks on the member surface derive from these."
     >
       <QueryState
         isPending={stats.isPending}
@@ -85,72 +74,27 @@ export function NflStatsBrowser({
 function StatsRow({ stats }: { stats: AdminNflTeamSeasonStats }) {
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-foreground">
-          <span className="type-display text-xl">{stats.team.abbreviation}</span>{" "}
-          <span className="text-muted-foreground">{stats.team.name}</span>
-        </p>
-        {isOverridden(stats) && <OverriddenTag />}
-      </div>
+      <p className="text-sm text-foreground">
+        <span className="type-display text-xl">{stats.team.abbreviation}</span>{" "}
+        <span className="text-muted-foreground">{stats.team.name}</span>
+      </p>
 
-      <div className="flex flex-col gap-1 text-xs text-foreground">
-        <ResolvedField
-          label="Record"
-          resolved={recordLabel(stats.effectiveWins, stats.effectiveLosses, stats.effectiveTies)}
-          provider={recordLabel(stats.wins, stats.losses, stats.ties)}
-          showProvider={
-            stats.overrideWins !== null ||
-            stats.overrideLosses !== null ||
-            stats.overrideTies !== null
-          }
-        />
-        <ResolvedField
-          label="Home"
-          resolved={recordLabel(
-            stats.effectiveHomeWins,
-            stats.effectiveHomeLosses,
-            stats.effectiveHomeTies,
-          )}
-          provider={recordLabel(stats.homeWins, stats.homeLosses, stats.homeTies)}
-          showProvider={
-            stats.overrideHomeWins !== null ||
-            stats.overrideHomeLosses !== null ||
-            stats.overrideHomeTies !== null
-          }
-        />
-        <ResolvedField
-          label="Road"
-          resolved={recordLabel(
-            stats.effectiveRoadWins,
-            stats.effectiveRoadLosses,
-            stats.effectiveRoadTies,
-          )}
-          provider={recordLabel(stats.roadWins, stats.roadLosses, stats.roadTies)}
-          showProvider={
-            stats.overrideRoadWins !== null ||
-            stats.overrideRoadLosses !== null ||
-            stats.overrideRoadTies !== null
-          }
-        />
-        <ResolvedField
-          label="Streak"
-          resolved={streakLabel(stats.effectiveStreak)}
-          provider={streakLabel(stats.streak)}
-          showProvider={stats.overrideStreak !== null}
-        />
-        <ResolvedField
-          label="Points"
-          resolved={`${stats.effectivePointsFor} for · ${stats.effectivePointsAgainst} against`}
-          provider={`${stats.pointsFor} for · ${stats.pointsAgainst} against`}
-          showProvider={stats.overridePointsFor !== null || stats.overridePointsAgainst !== null}
-        />
-      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-foreground">
+        <dt className="text-muted-foreground">Record</dt>
+        <dd>{recordLabel(stats.wins, stats.losses, stats.ties)}</dd>
+        <dt className="text-muted-foreground">Home</dt>
+        <dd>{recordLabel(stats.homeWins, stats.homeLosses, stats.homeTies)}</dd>
+        <dt className="text-muted-foreground">Road</dt>
+        <dd>{recordLabel(stats.roadWins, stats.roadLosses, stats.roadTies)}</dd>
+        <dt className="text-muted-foreground">Streak</dt>
+        <dd>{streakLabel(stats.streak)}</dd>
+        <dt className="text-muted-foreground">Points</dt>
+        <dd>
+          {stats.pointsFor} for · {stats.pointsAgainst} against
+        </dd>
+      </dl>
 
       <p className="type-eyebrow">updated {formatDateTime(stats.updatedAt)}</p>
-
-      <RowEditor label="Edit override">
-        <NflStatsOverrideForm key={JSON.stringify(nflStatsOverrideFormSeed(stats))} stats={stats} />
-      </RowEditor>
     </li>
   );
 }
