@@ -79,8 +79,7 @@ export const AdminNflGameStatContextSchema = z
     gameId: z.string(),
     homeTeam: AdminGameTeamSchema,
     awayTeam: AdminGameTeamSchema,
-    // The *resolved* kickoff (`override_kickoff_at ?? kickoff_at`, arch D15) —
-    // orientation only; the games browser is where kickoff itself is inspected.
+    // Orientation only; the games browser is where kickoff itself is inspected.
     kickoffAt: z.iso.datetime(),
     context: NullableAdminNflGameStatContextBlockSchema,
   })

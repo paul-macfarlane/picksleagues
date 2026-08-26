@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 
 /**
- * The inline editor a browser row opens beneath itself — every admin override
- * form and the sim fixture editor. The child is **never rendered hidden**:
+ * The inline editor a browser row opens beneath itself — the sim fixture
+ * editor today. The child is **never rendered hidden**:
  * it mounts on open and unmounts on close, so an editor always seeds from the
  * row's current props rather than from whatever the row held when the page
  * loaded. A caller that keys the child on a fingerprint of its server-side

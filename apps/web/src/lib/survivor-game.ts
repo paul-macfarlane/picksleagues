@@ -16,8 +16,8 @@ import { terminalPickOutcome } from "@picksleagues/scoring";
  * show a verdict the moment a game ends.
  *
  * Null while the game is still ahead or in play, and on a final without scores
- * (the provider fault an admin score override corrects) — the row keeps its
- * ungraded explanation for those.
+ * (a provider fault the next sync corrects) — the row keeps its ungraded
+ * explanation for those.
  */
 export function survivorProvisionalOutcome(
   game: {

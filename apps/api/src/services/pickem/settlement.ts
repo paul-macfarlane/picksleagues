@@ -31,7 +31,6 @@ import {
   type PickemPickInput,
   type ScoredOutcome,
 } from "@picksleagues/scoring";
-import { resolveGameOverrides } from "../games";
 import { applyLeagueSeasonConclusion } from "../leagues/conclusion";
 import { lockLeagueSeasonRow } from "../leagues/locks";
 import { logInfo } from "../../lib/logger";
@@ -101,8 +100,8 @@ async function loadSettleableSeason(
  * §Standings), and a league nobody ever submitted a pick in still has to end.
  * Keying on results would leave such a league running forever.
  *
- * A `final` game with no score is a provider fault an admin override fixes, and
- * it holds the season open until one does — the same bar the grader applies to
+ * A `final` game with no score is a provider fault the next sync fixes, and it
+ * holds the season open until one does — the same bar the grader applies to
  * the pick on it, so conclusion can't outrun the results it describes.
  *
  * **The range is the in-range `weeks` rows that exist**, not the ordinal span
@@ -141,28 +140,21 @@ async function rangePlayedOut(tx: Db, season: SettleableSeason): Promise<boolean
     // finished with nothing to play.
     if (weekGames.length === 0) return false;
     return weekGames.every((row) => {
-      const effective = resolveGameOverrides(row);
       // Cancelled counts as done — it will never be played and the spec already
       // resolves the pick on it as a push (spec §Cancellations & Postponements).
-      if (isUnplayedStatus(effective.status)) return true;
-      return (
-        effective.status === GAME_STATUS.FINAL &&
-        effective.homeScore !== null &&
-        effective.awayScore !== null
-      );
+      if (isUnplayedStatus(row.status)) return true;
+      return row.status === GAME_STATUS.FINAL && row.homeScore !== null && row.awayScore !== null;
     });
   });
 }
 
 /**
- * Builds the pure functions' inputs for one league-week, resolving the one
- * thing only this layer knows about: **override precedence**
- * (`override_* ?? provider_*`, arch D15), via the one home for it.
+ * Builds the pure functions' inputs for one league-week.
  *
  * Games are loaded by `pick.gameId`, never by week. A pick's game therefore
  * always grades by its own status, with no week comparison — week moves are out
- * of scope (ADR-0019) and a real one is corrected by an admin `cancelled`
- * override, which this coalesce already honours.
+ * of scope (ADR-0019) and a real one is corrected by a hand SQL edit to
+ * `cancelled` (ADR-0046), which this read already honours.
  */
 async function loadWeekInputs(
   tx: Db,
@@ -180,15 +172,12 @@ async function loadWeekInputs(
     .from(games)
     .where(inArray(games.id, [...new Set(picks.map((pick) => pick.gameId))]));
 
-  const results: PickemGameResult[] = gameRows.map((game) => {
-    const effective = resolveGameOverrides(game);
-    return {
-      gameId: game.id,
-      status: effective.status,
-      homeScore: effective.homeScore,
-      awayScore: effective.awayScore,
-    };
-  });
+  const results: PickemGameResult[] = gameRows.map((game) => ({
+    gameId: game.id,
+    status: game.status,
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
+  }));
 
   return {
     picks: picks.map((pick) => ({
@@ -216,7 +205,7 @@ async function settleWeekResults(
   });
 
   // Delete-then-insert, not upsert: a pick that stopped being settleable (its
-  // game reverted to scheduled, or an override cleared a score) must lose its
+  // game reverted to scheduled, or a correction cleared a score) must lose its
   // row, which a diff-based write would leave stranded.
   await tx
     .delete(pickemPickResults)
@@ -243,8 +232,9 @@ async function settleWeekResults(
   }
 
   for (const pick of settlement.unsettled) {
-    // A final game with no score is a provider fault an admin override fixes —
-    // worth a log line, unlike the ordinary not-yet-played case.
+    // A final game with no score is a provider fault the next sync (or a hand
+    // SQL edit) fixes — worth a log line, unlike the ordinary not-yet-played
+    // case.
     if (pick.reason !== PICKEM_UNSETTLED_REASON.NOT_YET_PLAYED) {
       logInfo("settlement.unsettleable-pick", {
         leagueSeasonId: season.leagueSeasonId,
@@ -352,8 +342,8 @@ async function weeksWithPicks(db: Db, leagueSeasonId: string): Promise<string[]>
 
 /**
  * Records an admin's rebuild against the league season whose derived state it
- * is about to replace (engineering rules §Data: "every override/rebuild writes
- * `admin_audit`").
+ * is about to replace (engineering rules §Data: an admin rebuild writes
+ * `admin_audit`).
  *
  * The prior value is a summary, not the rows: those are a whole season of a
  * derivation arch D10 already defines as reproducible from (picks, results,

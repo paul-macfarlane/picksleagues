@@ -19,7 +19,6 @@ import {
   type PickemSettings,
   type PickemWeekPicksResponse,
 } from "@picksleagues/schemas";
-import { resolveGameOverrides } from "../games";
 import { isWeekInsidePickWindow } from "../league-weeks";
 import { getLeagueWithCurrentSeason } from "../leagues/current-season";
 import { authorizeLeagueAction, getMembership } from "../leagues/authz";
@@ -161,11 +160,11 @@ async function loadContext(
 /**
  * Whether every game in the member's current-week submission is terminal — the
  * condition that opens the next week (spec §Game Mode 1 — Pick window;
- * ADR-0036). Derived from the games' effective states rather than from result
- * rows, so the window opens when the last of the member's games ends instead of
- * when the settlement job next runs. A member with no submission has nothing to
- * resolve and waits for the week to turn over. Final-without-scores is the
- * provider fault an admin score override corrects; until then it is unresolved.
+ * ADR-0036). Derived from the games' states rather than from result rows, so
+ * the window opens when the last of the member's games ends instead of when the
+ * settlement job next runs. A member with no submission has nothing to resolve
+ * and waits for the week to turn over. Final-without-scores is a provider fault
+ * the next sync corrects; until then it is unresolved.
  */
 async function hasCurrentWeekResolvedForMember(
   db: Db,
@@ -198,8 +197,7 @@ async function hasCurrentWeekResolvedForMember(
     );
   if (gameRows.length !== picks.length) return false;
 
-  return gameRows.every((row) => {
-    const game = resolveGameOverrides(row);
+  return gameRows.every((game) => {
     if (game.status === GAME_STATUS.CANCELLED) return true;
     return game.status === GAME_STATUS.FINAL && game.homeScore !== null && game.awayScore !== null;
   });
@@ -544,10 +542,9 @@ export async function submitPickemPicks(
   // Deliberately no settlement call: this path only ever inserts picks on games
   // it has just verified are unlocked and pickable, and settlement records no
   // result for a game in that state. There is nothing stale for it to rebuild.
-  // (The one way that could stop holding is the ADM-3 hole: an override moving
-  // a kickoff later, then ingestion writing a final score off the provider
-  // kickoff, leaving a scored game unlocked. The nightly sweep repairs it;
-  // adding a settlement round trip to the app's hottest write path to cover it
-  // would not pay.)
+  // (The one way that could stop holding is the ADM-3 hole: a provider bug
+  // writing a final score against a kickoff still ahead, leaving a scored game
+  // unlocked. The nightly sweep repairs it; adding a settlement round trip to
+  // the app's hottest write path to cover it would not pay.)
   return getPickemWeekPicks(db, clock, leagueId, weekId, userId);
 }

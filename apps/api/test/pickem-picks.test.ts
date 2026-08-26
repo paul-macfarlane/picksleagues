@@ -165,7 +165,7 @@ describe("GET /api/weeks/:weekId/games", () => {
     });
   });
 
-  it("orders games by effective kickoff and locks true at/after kickoff (half-open boundary)", async () => {
+  it("orders games by kickoff and locks true at/after kickoff (half-open boundary)", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedPickemLeague();
     const weekId = weekIds.get("regular:1")!;
@@ -189,68 +189,23 @@ describe("GET /api/weeks/:weekId/games", () => {
     expect(byId.get(g3)?.locked).toBe(false);
   });
 
-  it("overrideKickoffAt wins over kickoffAt for both ordering and locked (arch D15)", async () => {
-    const { cookie } = await createAuthenticatedUser(auth);
-    // Game A's raw kickoff is latest, but its override moves it before
-    // Game B's raw (and only) kickoff — both ordering and lock state must
-    // follow the override, not the provider value.
-    const { weekIds } = await seedSeason(db, {
-      year: 2026,
-      weeks: [
-        {
-          weekNumber: 1,
-          kickoffs: [
-            {
-              kickoffAt: new Date(WEEK1_KICKOFF.getTime() + 6 * 60 * 60 * 1000),
-              overrideKickoffAt: new Date(WEEK1_KICKOFF.getTime() - 60 * 60 * 1000),
-            },
-            { kickoffAt: WEEK1_KICKOFF },
-          ],
-        },
-      ],
-    });
-    const weekId = weekIds.get("regular:1")!;
-
-    // At the raw-kickoff-B instant: the override-earlier game (A) must already
-    // be locked (its effective kickoff is an hour before now), while B — whose
-    // raw kickoff is exactly now — is also locked, but ordering must place A
-    // first despite its later raw kickoff.
-    const res = await getSlate(cookie, weekId, appAtKickoff);
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as WeekSlateResponse;
-    expect(body.games).toHaveLength(2);
-    expect(body.games[0]?.locked).toBe(true); // the overridden-earlier game sorts first
-    expect(body.games[1]?.locked).toBe(true); // B locks at its own raw-kickoff boundary
-    // A's effective kickoff (used for ordering) is strictly before B's.
-    expect(new Date(body.games[0]!.kickoffAt).getTime()).toBeLessThan(
-      new Date(body.games[1]!.kickoffAt).getTime(),
-    );
-  });
-
-  /**
-   * Live in-game state on the slate (DATA-8). Precedence is asserted through
-   * the serializer, not the row: `override_* ?? provider_*` (arch D15) has to
-   * hold where a client actually reads it.
-   */
-  it("serializes override-resolved live state with the as-of stamp of the row's last change", async () => {
+  /** Live in-game state on the slate (DATA-8), asserted where a client reads it. */
+  it("serializes live state with the as-of stamp of the row's last change", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedPickemLeague();
     const weekId = weekIds.get("regular:1")!;
-    const [corrected, provided] = gameIds.get("regular:1")! as [string, string, string];
+    const [late, early] = gameIds.get("regular:1")! as [string, string, string];
 
     const observedAt = new Date(WEEK1_KICKOFF.getTime() + 40 * 60 * 1000);
-    // Both games are mid-game per the provider; only the first is corrected.
     await db
       .update(games)
       .set({
         status: GAME_STATUS.IN_PROGRESS,
-        period: 1,
-        clockSeconds: 900,
-        overridePeriod: 3,
-        overrideClockSeconds: 421,
+        period: 3,
+        clockSeconds: 421,
         updatedAt: observedAt,
       })
-      .where(eq(games.id, corrected));
+      .where(eq(games.id, late));
     await db
       .update(games)
       .set({
@@ -259,19 +214,19 @@ describe("GET /api/weeks/:weekId/games", () => {
         clockSeconds: 12,
         updatedAt: observedAt,
       })
-      .where(eq(games.id, provided));
+      .where(eq(games.id, early));
 
     const res = await getSlate(cookie, weekId, appAfterKickoff);
     expect(res.status).toBe(200);
     const body = (await res.json()) as WeekSlateResponse;
     const byId = new Map(body.games.map((g) => [g.id, g]));
 
-    expect(byId.get(corrected)).toMatchObject({
+    expect(byId.get(late)).toMatchObject({
       period: 3,
       clockSeconds: 421,
       stateAsOf: observedAt.toISOString(),
     });
-    expect(byId.get(provided)).toMatchObject({
+    expect(byId.get(early)).toMatchObject({
       period: 2,
       clockSeconds: 12,
       stateAsOf: observedAt.toISOString(),
@@ -320,7 +275,7 @@ describe("GET /api/weeks/:weekId/games", () => {
 
   // PKM-9: the credit surfaces read this off the game row, frozen alongside
   // the spread itself.
-  it("reflects the seeded game's spread source, and suppresses it once override_spread is set (arch D15)", async () => {
+  it("reflects the seeded game's spread source, and null when none was seeded", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
     const { weekIds, gameIds } = await seedSeason(db, {
       year: 2026,
@@ -337,41 +292,22 @@ describe("GET /api/weeks/:weekId/games", () => {
     const weekId = weekIds.get("regular:1")!;
     const [sourced, unsourced] = gameIds.get("regular:1")! as [string, string];
 
-    const before = await getSlate(cookie, weekId);
-    expect(before.status).toBe(200);
-    const beforeBody = (await before.json()) as WeekSlateResponse;
-    const beforeById = new Map(beforeBody.games.map((g) => [g.id, g]));
-    expect(beforeById.get(sourced)?.spreadSource).toBe("DraftKings");
-    expect(beforeById.get(unsourced)?.spreadSource).toBeNull();
-
-    // A commissioner correction is not the book's line — the credit must
-    // disappear from this one game even though the ingestion-written source
-    // column is untouched.
-    await db.update(games).set({ overrideSpread: 1.5 }).where(eq(games.id, sourced));
-
-    const after = await getSlate(cookie, weekId);
-    const afterBody = (await after.json()) as WeekSlateResponse;
-    const afterById = new Map(afterBody.games.map((g) => [g.id, g]));
-    expect(afterById.get(sourced)?.spreadSource).toBeNull();
-    expect(afterById.get(sourced)?.spread).toBe(1.5);
+    const res = await getSlate(cookie, weekId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as WeekSlateResponse;
+    const byId = new Map(body.games.map((g) => [g.id, g]));
+    expect(byId.get(sourced)?.spreadSource).toBe("DraftKings");
+    expect(byId.get(unsourced)?.spreadSource).toBeNull();
   });
 
   describe("cancelled games are not pickable", () => {
-    /**
-     * g1 cancelled by the provider, g2 cancelled by an admin override, g3
-     * postponed — one league, one week. Both cancellation tiers matter: the
-     * override is the remedy ADR-0019 leaves for a genuine provider week move,
-     * now that `moved` is not a status.
-     */
+    /** g1 and g2 cancelled, g3 postponed — one league, one week. */
     async function seedUnplayableSlate() {
       const { league, weekIds, gameIds, memberA } = await seedPickemLeague();
       const weekId = weekIds.get("regular:1")!;
       const [g1, g2, g3] = gameIds.get("regular:1")!;
       await db.update(games).set({ status: GAME_STATUS.CANCELLED }).where(eq(games.id, g1!));
-      await db
-        .update(games)
-        .set({ overrideStatus: GAME_STATUS.CANCELLED })
-        .where(eq(games.id, g2!));
+      await db.update(games).set({ status: GAME_STATUS.CANCELLED }).where(eq(games.id, g2!));
       await db.update(games).set({ status: GAME_STATUS.POSTPONED }).where(eq(games.id, g3!));
       return { league, weekId, g1: g1!, g2: g2!, g3: g3!, memberA };
     }
@@ -451,7 +387,7 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
   // PKM-9: no column on `pickem_picks` for this — the pick DTO reads the
   // source off the game row the slate resolves, so it stays correct on a
   // submitted week whose game is long final.
-  it("serializes a pick's spread source from its game, null once the game's override_spread is set", async () => {
+  it("serializes a pick's spread source from its game", async () => {
     const { league, weekIds, gameIds, leagueSeasonId, memberA } = await seedPickemLeague({
       weeks: [
         {
@@ -469,7 +405,7 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       settings: { ...DEFAULT_PICKEM_SETTINGS, pickType: PICK_TYPE.AGAINST_THE_SPREAD },
     });
     const weekId = weekIds.get("regular:1")!;
-    const [sourced, overridden] = gameIds.get("regular:1")! as [string, string];
+    const [sourced, other] = gameIds.get("regular:1")! as [string, string];
     const membersByUser = await membersOf(db, league.id);
 
     await insertPick(db, {
@@ -484,13 +420,10 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       leagueSeasonId,
       leagueMemberId: membersByUser.get(memberA.user.id)!,
       weekId,
-      gameId: overridden,
+      gameId: other,
       side: PICKEM_PICK_SIDE.HOME,
       spreadAtPick: 2.5,
     });
-    // A commissioner correction on the second game — its credit must
-    // disappear even though the pick's own accepted spread is untouched.
-    await db.update(games).set({ overrideSpread: 9.5 }).where(eq(games.id, overridden));
 
     const res = await getPicks(memberA.cookie, league.id, weekId);
     expect(res.status).toBe(200);
@@ -499,9 +432,9 @@ describe("GET /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       body.members.find((member) => member.userId === memberA.user.id)?.picks ?? [];
     const byGameId = new Map(viewerPicks.map((pick) => [pick.gameId, pick]));
     expect(byGameId.get(sourced)?.spreadSource).toBe("DraftKings");
-    expect(byGameId.get(overridden)?.spreadSource).toBeNull();
-    // The pick's own accepted number is untouched by the game's later correction.
-    expect(byGameId.get(overridden)?.spread).toBe(2.5);
+    expect(byGameId.get(other)?.spreadSource).toBe("DraftKings");
+    // The pick's own accepted number, not the game's current line.
+    expect(byGameId.get(other)?.spread).toBe(2.5);
   });
 
   // PKM-9: the slate is mode-agnostic, so a straight-up league's games still
@@ -1305,13 +1238,10 @@ describe("PUT /api/leagues/:leagueId/pickem/weeks/:weekId/picks", () => {
       for (const gameId of week1Games.slice(0, 2)) {
         await setGame(db, gameId, { status: GAME_STATUS.FINAL, homeScore: 21, awayScore: 14 });
       }
-      // The provider still thinks the third game is running; an admin
-      // correction says it finished (override_* ?? provider_*, arch D15).
       await setGame(db, week1Games[2]!, {
-        status: GAME_STATUS.IN_PROGRESS,
-        overrideStatus: GAME_STATUS.FINAL,
-        overrideHomeScore: 3,
-        overrideAwayScore: 6,
+        status: GAME_STATUS.FINAL,
+        homeScore: 3,
+        awayScore: 6,
       });
 
       const res = await putPicks(memberA.cookie, league.id, weekIds.get("regular:2")!, {

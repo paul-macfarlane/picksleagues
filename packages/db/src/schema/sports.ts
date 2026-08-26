@@ -19,11 +19,10 @@ import { users } from "./auth";
  * Sports data ingested from the provider (ESPN in prod, SimulatedProvider in
  * non-prod) — request paths never call the provider directly; jobs sync these
  * tables and reads/settlement serve only from here (arch: Request paths never
- * call ESPN). `games` carries parallel `override_*` columns for manual admin
- * corrections (arch D15): ingestion writes only the provider-synced fields
- * below; every read/settlement site resolves `override_* ?? provider_*`, so a
- * re-sync can never clobber a correction. All timestamps are supplied by app
- * code from the injected Clock (arch D13) — no `.defaultNow()`.
+ * call ESPN). The provider's value is the only value (ADR-0046): a wrong one
+ * is fixed by the next sync, or by the SQL-edit procedure in
+ * `docs/runbooks/jobs.md`. All timestamps are supplied by app code from the
+ * injected Clock (arch D13) — no `.defaultNow()`.
  */
 
 export const sportSeasons = pgTable(
@@ -154,11 +153,7 @@ export const games = pgTable(
     spread: doublePrecision("spread"),
     // The book `spread` came from (PKM-9), written in the same `set()` as
     // `spread` in sync-odds so the two can never drift apart — free text, never
-    // a const set, because ESPN has rotated the attributed book before. A
-    // provider field like `spread` itself (never an `override_*`, arch D15):
-    // ingestion writes it, and a read resolves it to null wherever
-    // `override_spread` is set, since a commissioner's correction is not the
-    // book's line.
+    // a const set, because ESPN has rotated the attributed book before.
     spreadSource: text("spread_source"),
     // Live in-game state (DATA-8): the 1-based period (5+ in overtime) and the
     // seconds remaining in it, normalized by the provider adapter — never its
@@ -168,7 +163,8 @@ export const games = pgTable(
     // the moment this clock reading was true (reads serve it as `stateAsOf`).
     period: integer("period"),
     clockSeconds: integer("clock_seconds"),
-    // Override parallels (admin corrections only — never written by ingestion, arch D15).
+    // Retired override parallels (ADR-0046): nothing reads or writes them;
+    // the columns drop in OVR-4 once production is checked for live values.
     overrideHomeScore: integer("override_home_score"),
     overrideAwayScore: integer("override_away_score"),
     overrideStatus: text("override_status").$type<GameStatus>(),

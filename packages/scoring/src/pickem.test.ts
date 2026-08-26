@@ -283,7 +283,7 @@ describe("settlePickemWeek — pushes and ties", () => {
 describe("settlePickemWeek — cancellations and postponements", () => {
   // Cancellation is the only way a game can end unplayed. A provider week move
   // is no longer a status of its own (ADR-0019): an admin expresses it as a
-  // `cancelled` override, so it lands on exactly this path.
+  // hand SQL edit to `cancelled` (ADR-0046), so it lands on exactly this path.
   it("a cancelled game resolves as a push worth 0.5", () => {
     const { outcomes, unsettled } = settlePickemWeek(
       [pick()],

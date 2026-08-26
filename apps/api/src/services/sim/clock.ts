@@ -1,4 +1,4 @@
-import { eq, max, min, sql } from "drizzle-orm";
+import { eq, max, min } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { getSimState, games, setSimClockOffsetMs, weeks } from "@picksleagues/db";
 import { SIM_GAME_DURATION_MS, type Clock } from "@picksleagues/core";
@@ -62,9 +62,7 @@ export type AdjustSimClockResult =
 
 /**
  * Resolves a week-anchored jump against our own ingested rows — never the
- * provider (engineering rules: request paths never call ESPN) — and always
- * through the effective kickoff, so a corrected kickoff moves the anchor with it
- * (arch D15).
+ * provider (engineering rules: request paths never call ESPN).
  */
 async function resolveWeekAnchorInstant(
   db: Db,
@@ -83,21 +81,10 @@ async function resolveWeekAnchorInstant(
     return { ok: true, instant: week.startsAt };
   }
 
-  // `least`/`greatest` of the provider and override kickoffs rather than the
-  // effective one alone. An override moves a game's *lock* (D15) but not the
-  // fixture the simulated provider projects from, so an override that pulls the
-  // last game earlier would otherwise drag `after_last_game` in front of a game
-  // still projecting as scheduled. Taking the outer bound in each direction
-  // keeps both anchors conservative: never after a game that hasn't started,
-  // never before one that has.
   const [bounds] = await db
     .select({
-      firstKickoff: min(
-        sql<Date>`least(${games.kickoffAt}, coalesce(${games.overrideKickoffAt}, ${games.kickoffAt}))`,
-      ),
-      lastKickoff: max(
-        sql<Date>`greatest(${games.kickoffAt}, coalesce(${games.overrideKickoffAt}, ${games.kickoffAt}))`,
-      ),
+      firstKickoff: min(games.kickoffAt),
+      lastKickoff: max(games.kickoffAt),
     })
     .from(games)
     .where(eq(games.weekId, weekId));

@@ -275,50 +275,6 @@ describe("syncNflScores", () => {
     expect(g2?.awayScore).toBe(17);
   });
 
-  it("never clobbers admin override fields on re-sync (arch D15)", async () => {
-    await seedSchedule([
-      providerGame({
-        providerGameId: "g2",
-        weekNumber: 1,
-        kickoffAt: new Date("2026-09-11T17:00:00.000Z"),
-      }),
-    ]);
-
-    const overriddenAt = new Date("2026-09-11T18:00:00.000Z");
-    await db
-      .update(games)
-      .set({
-        overrideStatus: GAME_STATUS.CANCELLED,
-        overrideHomeScore: 42,
-        overrideAwayScore: 9,
-        overriddenAt,
-      })
-      .where(eq(games.providerGameId, "g2"));
-
-    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), [
-      providerGame({
-        providerGameId: "g2",
-        weekNumber: 1,
-        status: GAME_STATUS.FINAL,
-        homeScore: 21,
-        awayScore: 17,
-      }),
-    ]);
-
-    await syncNflScores(db, afterClock, provider, {});
-
-    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
-    // Provider fields followed the re-sync...
-    expect(g2?.status).toBe(GAME_STATUS.FINAL);
-    expect(g2?.homeScore).toBe(21);
-    expect(g2?.awayScore).toBe(17);
-    // ...while every override_* field stayed byte-identical.
-    expect(g2?.overrideStatus).toBe(GAME_STATUS.CANCELLED);
-    expect(g2?.overrideHomeScore).toBe(42);
-    expect(g2?.overrideAwayScore).toBe(9);
-    expect(g2?.overriddenAt).toEqual(overriddenAt);
-  });
-
   it("ignores a provider game that isn't in our tables (never creates games)", async () => {
     await seedSchedule([
       providerGame({

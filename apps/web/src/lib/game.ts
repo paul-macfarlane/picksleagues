@@ -55,7 +55,7 @@ export function periodLabel(period: number): string {
 
 /**
  * `m:ss`: no leading zero on minutes (a period never reaches double-digit
- * minutes in practice, and the admin override form's m:ss input round-trips
+ * minutes in practice, and the sim fixture editor's m:ss input round-trips
  * through this same function), always two digits on seconds.
  */
 export function clockLabel(clockSeconds: number): string {
@@ -96,8 +96,7 @@ function labelledScore(game: GameStateInput): string | null {
  *
  * A kickoff time only answers the member's question *before* the game starts;
  * once it has, they want the status and the score — including while it is in
- * progress, and including a score an admin has corrected by hand (ADM-2), which
- * arrives here already override-resolved.
+ * progress.
  *
  * `now` is threaded in rather than read here because the scheduled branch
  * phrases the kickoff relative to it — see `formatKickoff`.

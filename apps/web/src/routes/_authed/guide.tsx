@@ -53,8 +53,8 @@ function AdminGuide() {
               app reads only our tables. Nothing you or a member does triggers a live call to the
               provider. Two consequences do most of the explaining when something looks off: if data
               is <strong>stale</strong>, a job hasn&apos;t run yet (or failed); if data is{" "}
-              <strong>wrong at the source</strong>, you correct it with an override — never by
-              waiting for the provider to fix itself.
+              <strong>wrong at the source</strong>, the next sync usually corrects it — the provider
+              fixes its own mistakes, and every job re-reads everything it owns.
             </p>
           </section>
 
@@ -98,42 +98,25 @@ function AdminGuide() {
             <h2>Browsers</h2>
             <ul>
               <li>
-                <strong>Games</strong> — every game in a selected week: kickoff, status, scores,
-                spread, and the per-game override editor.
+                <strong>Games</strong> — every game in a selected week: kickoff, status, scores, and
+                spread, exactly as the app serves them.
               </li>
               <li>
-                <strong>Teams</strong> — team identity (name, abbreviation, location, logos) with
-                its own override editor. Identity shows up everywhere in the app, so this is where a
-                provider&apos;s wrong logo or renamed team gets fixed once.
+                <strong>Teams</strong> — team identity (name, abbreviation, location, logos).
+                Identity shows up everywhere in the app, so this is where a provider&apos;s wrong
+                logo or renamed team is spotted.
               </li>
               <li>
                 <strong>Stats</strong> — what the stats sync wrote: per-team season stats and
-                records, and each game&apos;s matchup context, with as-of stamps and override
-                editors.
+                records, and each game&apos;s matchup context, with as-of stamps.
               </li>
             </ul>
-          </section>
-
-          <section>
-            <h2>Overrides</h2>
             <p>
-              Every override works the same way: your correction is stored <em>beside</em> the
-              provider&apos;s value and wins wherever the value is shown or used. A later re-sync
-              updates the provider&apos;s value but <strong>never touches your correction</strong> —
-              it stays until you clear it, and clearing returns the field to provider truth. Every
-              override write lands in the Audit tab with who made it, when, and what stood before.
+              The browsers are read-only. The app stores exactly what the provider reports, so a
+              wrong value is fixed by the next sync; the rare case the provider will never fix (a
+              game moved between weeks, which the app treats as cancelled) is a hand database edit,
+              written up in the jobs runbook.
             </p>
-            <ul>
-              <li>
-                <strong>Game overrides</strong> (kickoff, status, scores, spread) feed real
-                outcomes: correcting a final score or status re-grades the affected picks and
-                standings the next time the game settles — at the latest, the next settlement sweep.
-              </li>
-              <li>
-                <strong>Stat and team identity overrides</strong> are display-only. They fix what
-                members read, and affect no scoring.
-              </li>
-            </ul>
           </section>
 
           <section>
@@ -141,9 +124,8 @@ function AdminGuide() {
             <p>
               Two things live here. The <strong>data integrity</strong> card flags games whose
               kickoff is still ahead while their status or score already gives the outcome away —
-              members can still pick those, so correct the kickoff or the result when one appears.
-              Below it, the <strong>audit log</strong> is the permanent trail of every override and
-              admin action.
+              members can still pick those, so re-run the scores sync when one appears. Below it,
+              the <strong>audit log</strong> is the permanent trail of every admin rebuild.
             </p>
           </section>
 
@@ -164,8 +146,10 @@ function AdminGuide() {
                 re-enables it there.
               </li>
               <li>
-                <strong>A score, kickoff, or spread is wrong.</strong> Override it on the Games tab.
-                Results and standings pick the correction up when the game next settles.
+                <strong>A score, kickoff, or spread is wrong.</strong> Re-run the matching sync; the
+                provider corrects its own data and results and standings pick the correction up when
+                the game next settles. A value the provider will never fix is a hand database edit
+                (jobs runbook).
               </li>
               <li>
                 <strong>Standings look wrong right after a correction.</strong> Press the settlement

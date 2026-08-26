@@ -8,7 +8,7 @@ import { WeekTypeSchema } from "./week-type";
  *
  * One rule shapes these types and is worth stating once here: **lock state is
  * derived, never stored** (arch D11). `locked` is serialized per game from
- * `effective kickoff <= clock.now()`; there is no column behind it and clients
+ * `kickoff <= clock.now()`; there is no column behind it and clients
  * must not cache it across a session.
  */
 
@@ -30,8 +30,6 @@ export const SlateGameSchema = z
     id: z.string(),
     homeTeam: SlateTeamSchema,
     awayTeam: SlateTeamSchema,
-    // Every field below is override-resolved (`override_* ?? provider_*`,
-    // arch D15) — the client never sees the provider/override split.
     kickoffAt: z.iso.datetime(),
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
@@ -41,9 +39,8 @@ export const SlateGameSchema = z
     spread: z.number().nullable(),
     /**
      * The book `spread` came from (PKM-9) — free text from the provider, never a
-     * const set (ESPN has rotated books before). Null on an unpriced game and on
-     * any game whose `override_spread` is set — a commissioner's correction is
-     * not the book's line (arch D15). This slate is mode-agnostic, so like
+     * const set (ESPN has rotated books before). Null on an unpriced game. This
+     * slate is mode-agnostic, so like
      * `spread` itself it is simply unused in straight-up leagues rather than
      * nulled here. The simulator populates it too, deliberately mirroring
      * production's attributed book; see `SIMULATED_SPREAD_SOURCE`.

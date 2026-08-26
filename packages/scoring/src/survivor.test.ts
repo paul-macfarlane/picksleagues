@@ -17,7 +17,7 @@ import {
  * There is no against-the-spread half to this matrix. Survivor grades one
  * question against one input (ADR-0026), and a provider week move is not a case
  * of its own either — ADR-0019 removed `moved` from the status set, so a real
- * move arrives as an admin `cancelled` override and grades by the cancellation
+ * move arrives as a hand SQL edit to `cancelled` and grades by the cancellation
  * rows below.
  */
 

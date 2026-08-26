@@ -201,8 +201,8 @@ describe("late corrections cascade forward", () => {
     const before = await survivorStateFor(db, fixture.leagueSeasonId);
     expect(snapshotState(before)).toEqual(eliminatedInWeek1([memberB, memberD]));
 
-    // An admin corrects week 1's final score, flipping who survived it.
-    await setGame(db, week1.gameId, { overrideHomeScore: 10, overrideAwayScore: 24 });
+    // A late score correction lands on week 1, flipping who survived it.
+    await setGame(db, week1.gameId, { homeScore: 10, awayScore: 24 });
     await settlePicksForGames(db, clock, [week1.gameId]);
 
     expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual(
@@ -325,13 +325,13 @@ describe("cancellations and the team ledger (ADR-0025 decisions 1 and 2)", () =>
         teamId: week2.homeTeamId,
       });
     }
-    // Week 1 was played, then corrected to cancelled by an admin — the only
-    // mechanism a real week move reaches this flag through (ADR-0019).
+    // Week 1 was played, then corrected to cancelled by a hand SQL edit — the
+    // only mechanism a real week move reaches this flag through (ADR-0019,
+    // ADR-0046).
     await setGame(db, week1.gameId, {
-      status: GAME_STATUS.FINAL,
+      status: GAME_STATUS.CANCELLED,
       homeScore: 24,
       awayScore: 10,
-      overrideStatus: GAME_STATUS.CANCELLED,
     });
 
     await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
@@ -356,8 +356,8 @@ describe("cancellations and the team ledger (ADR-0025 decisions 1 and 2)", () =>
       teamId: week1.awayTeamId,
     });
 
-    // The admin reverts the cancellation, and the rest of the season completes.
-    await setGame(db, week1.gameId, { overrideStatus: null });
+    // The cancellation is reverted, and the rest of the season completes.
+    await setGame(db, week1.gameId, { status: GAME_STATUS.FINAL });
     await finalizeHomeWin(week2.gameId);
     await finalizeHomeWin(week3Rematch.gameId);
     await finalizeHomeWin(week3.gameId);
@@ -656,52 +656,6 @@ describe("a decided season is graded no further (ADR-0027)", () => {
       results: snapshotResults(await survivorPickResultsFor(db, fixture.leagueSeasonId)),
       state: snapshotState(await survivorStateFor(db, fixture.leagueSeasonId)),
     }).toEqual(first);
-  });
-});
-
-describe("override precedence in the input loader (arch D15)", () => {
-  it("grades against override_home_score/override_away_score, not the provider score", async () => {
-    const fixture = await seedSeasonFixture({ weekCount: 1 });
-    const [week1] = fixture.weeks as [FixtureWeek];
-    const [memberA, memberB] = fixture.memberIds as [string, string];
-
-    await insertSurvivorPick(db, {
-      leagueSeasonId: fixture.leagueSeasonId,
-      leagueMemberId: memberA,
-      weekId: week1.weekId,
-      gameId: week1.gameId,
-      teamId: week1.homeTeamId,
-    });
-    await insertSurvivorPick(db, {
-      leagueSeasonId: fixture.leagueSeasonId,
-      leagueMemberId: memberB,
-      weekId: week1.weekId,
-      gameId: week1.gameId,
-      teamId: week1.awayTeamId,
-    });
-    // Provider says the away team won; the correction flips it.
-    await setGame(db, week1.gameId, {
-      status: GAME_STATUS.FINAL,
-      homeScore: 10,
-      awayScore: 24,
-      overrideHomeScore: 30,
-      overrideAwayScore: 20,
-    });
-
-    await rebuildLeagueSeason(db, clock, fixture.leagueSeasonId);
-
-    const results = await survivorPickResultsFor(db, fixture.leagueSeasonId);
-    const byMember = new Map(results.map((row) => [row.leagueMemberId, row]));
-    expect(byMember.get(memberA)).toMatchObject({ outcome: PICK_OUTCOME.CORRECT });
-    expect(byMember.get(memberB)).toMatchObject({ outcome: PICK_OUTCOME.INCORRECT });
-    expect(snapshotState(await survivorStateFor(db, fixture.leagueSeasonId))).toEqual([
-      {
-        leagueMemberId: memberB,
-        livesRemaining: 0,
-        eliminatedWeekId: week1.weekId,
-        revivedCount: 0,
-      },
-    ]);
   });
 });
 

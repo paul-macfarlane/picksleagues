@@ -9,7 +9,6 @@ import {
   type SlateTeam,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql, resolveGameOverrides } from "./games";
 import { teamDisplayColumns } from "./teams";
 
 /**
@@ -23,8 +22,8 @@ import { teamDisplayColumns } from "./teams";
  * pick, not the current one, which this loader knows nothing about. Sharing it
  * would mean teaching the read path about settlement's concerns for no benefit.
  *
- * Lock state is derived here from the injected Clock against the *effective*
- * kickoff (arch D11, D15): an admin kickoff correction moves the lock with it.
+ * Lock state is derived here from the injected Clock against the kickoff
+ * (arch D11).
  */
 
 export interface ResolvedSlateGame {
@@ -37,8 +36,7 @@ export interface ResolvedSlateGame {
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
-  // The book `spread` came from (PKM-9); null under `override_spread` — see
-  // `resolveGameOverrides`.
+  // The book `spread` came from (PKM-9).
   spreadSource: string | null;
   // Live in-game state and the instant it was observed (DATA-8) — see
   // `SlateGameSchema` for what `stateAsOf` means.
@@ -63,9 +61,8 @@ export async function getWeek(db: Db, weekId: string): Promise<WeekRow | null> {
 }
 
 /**
- * Every game in a week with overrides resolved and lock state derived, ordered
- * by the kickoff the app actually uses so the UI and the server agree on slate
- * order.
+ * Every game in a week with lock state derived, ordered by kickoff so the UI
+ * and the server agree on slate order.
  */
 export async function loadResolvedWeekGames(
   db: Db,
@@ -85,53 +82,48 @@ export async function loadResolvedWeekGames(
     .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
     .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
     .where(eq(games.weekId, weekId))
-    .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId));
+    .orderBy(asc(games.kickoffAt), asc(games.providerGameId));
   if (rows.length === 0) return [];
 
   const now = clock.now();
 
-  return rows.map(({ game, homeTeam, awayTeam }) => {
-    const effective = resolveGameOverrides(game);
-    return {
-      id: game.id,
-      weekId: game.weekId,
-      homeTeam,
-      awayTeam,
-      kickoffAt: effective.kickoffAt,
-      status: effective.status,
-      homeScore: effective.homeScore,
-      awayScore: effective.awayScore,
-      spread: effective.spread,
-      spreadSource: effective.spreadSource,
-      period: effective.period,
-      clockSeconds: effective.clockSeconds,
-      // The row's last observed change *is* the instant its live state was
-      // true: score sync writes only when something it reads moved.
-      stateAsOf: game.updatedAt,
-      locked: isLocked(effective.kickoffAt, now),
-      pickable: isPickable(effective.status),
-    };
-  });
+  return rows.map(({ game, homeTeam, awayTeam }) => ({
+    id: game.id,
+    weekId: game.weekId,
+    homeTeam,
+    awayTeam,
+    kickoffAt: game.kickoffAt,
+    status: game.status,
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
+    spread: game.spread,
+    spreadSource: game.spreadSource,
+    period: game.period,
+    clockSeconds: game.clockSeconds,
+    // The row's last observed change *is* the instant its live state was
+    // true: score sync writes only when something it reads moved.
+    stateAsOf: game.updatedAt,
+    locked: isLocked(game.kickoffAt, now),
+    pickable: isPickable(game.status),
+  }));
 }
 
 /**
  * The derived-lock rule (arch D11), in one place: half-open, so a game is
- * locked from the kickoff instant itself. Takes the *effective* kickoff —
- * callers resolve override precedence through `resolveGameOverrides` first.
+ * locked from the kickoff instant itself.
  */
-export function isLocked(effectiveKickoffAt: Date, now: Date): boolean {
-  return effectiveKickoffAt.getTime() <= now.getTime();
+export function isLocked(kickoffAt: Date, now: Date): boolean {
+  return kickoffAt.getTime() <= now.getTime();
 }
 
 /**
- * Whether a fresh pick may be placed on a game, by its *effective* status. A
- * cancelled game settles as a push, so accepting a new pick on one would mint a
+ * Whether a fresh pick may be placed on a game, by its status. A cancelled game settles as a push, so accepting a new pick on one would mint a
  * guaranteed result (ADR-0015 rule 2). Exported beside `isLocked` because the
  * pair is what "can this member still act on this week?" is made of, and a
  * caller answering it away from the slate loader must not restate either half.
  */
-export function isPickable(effectiveStatus: GameStatus): boolean {
-  return !isUnplayedStatus(effectiveStatus);
+export function isPickable(status: GameStatus): boolean {
+  return !isUnplayedStatus(status);
 }
 
 /**
@@ -147,14 +139,12 @@ export async function resolveLockStates(
   if (gameIds.length === 0) return new Map();
 
   const rows = await db
-    .select()
+    .select({ id: games.id, kickoffAt: games.kickoffAt })
     .from(games)
     .where(inArray(games.id, [...gameIds]));
   const now = clock.now();
 
-  // Precedence resolved through the one home for it (arch D15) rather than
-  // restated here — this and `loadResolvedWeekGames` must not drift.
-  return new Map(rows.map((row) => [row.id, isLocked(resolveGameOverrides(row).kickoffAt, now)]));
+  return new Map(rows.map((row) => [row.id, isLocked(row.kickoffAt, now)]));
 }
 
 function serializeSlateGame(game: ResolvedSlateGame) {

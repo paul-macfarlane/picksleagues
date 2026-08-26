@@ -38,8 +38,8 @@ export function pickOutcomeForMargin(margin: number): PickOutcome {
  * landing (FB-23, PKM-11; spec §Settled pick margin). Cancelled → push (the
  * game will never be played this week, spec §Cancellations & Postponements),
  * final with scores → the margin's sign, everything else → null: still ahead
- * or in play, or final without scores — the provider fault an admin score
- * override corrects, and the same case settlement refuses to grade.
+ * or in play, or final without scores — a provider fault the next sync
+ * corrects, and the same case settlement refuses to grade.
  *
  * The gating is the SPA's alone, but it answers to settlement's refusals: the
  * unplayed / non-final / missing-scores conditions here are the ones

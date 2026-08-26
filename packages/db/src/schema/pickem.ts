@@ -20,7 +20,7 @@ import { games, weeks } from "./sports";
  * member per game is a unique constraint here, not an app-level check.
  *
  * No `locked` column by rule (arch D11): lock state derives from the game's
- * effective kickoff against the injected Clock on every read and every write.
+ * kickoff against the injected Clock on every read and every write.
  * All timestamps come from app code via the Clock (arch D13) — no
  * `.defaultNow()`.
  */
@@ -46,7 +46,7 @@ export const pickemPicks = pgTable(
      *
      * It no longer diverges from the game's own `week_id` in any way the
      * product acts on: week moves are out of scope (ADR-0019), and a real one
-     * is expressed as an admin `cancelled` override on the game.
+     * is expressed as a hand SQL edit of the game to `cancelled` (ADR-0046).
      */
     weekId: uuid("week_id")
       .notNull()

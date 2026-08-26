@@ -36,7 +36,7 @@ const getWeekGames = createRoute({
   request: { params: WeekIdParamsSchema },
   responses: {
     200: {
-      description: "The week and its games, override-resolved, ordered by kickoff",
+      description: "The week and its games, ordered by kickoff",
       content: { "application/json": { schema: WeekSlateResponseSchema } },
     },
     401: UNAUTHENTICATED_401,

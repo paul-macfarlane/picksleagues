@@ -226,14 +226,12 @@ describe("GET /api/leagues/:leagueId/survivor/standings — visibility", () => {
       gameId: week1.gameId,
       teamId: week1.homeTeamId,
     });
-    // Provider mid-game state with an admin score correction on top — the
-    // board must serve the corrected number (override_* ?? provider_*, arch
-    // D15), the same one settlement would grade.
+    // Provider mid-game state — the board must serve the stored number, the
+    // same one settlement would grade.
     await setGame(db, week1.gameId, {
       status: GAME_STATUS.IN_PROGRESS,
-      homeScore: 14,
+      homeScore: 21,
       awayScore: 7,
-      overrideHomeScore: 21,
     });
 
     const league = await board(fixture.users[1]!.cookie, fixture.league.id, appAfterKickoff);

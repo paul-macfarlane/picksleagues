@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { rowClassName, rowRuleClassName } from "@/components/row";
 import { useAdminGameAnomalies } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { adminGameEffective } from "@/lib/admin-game";
 import { gameStatusLabel, matchupNumerals } from "@/lib/game";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import { Section } from "@/components/section";
@@ -16,10 +15,10 @@ import { QueryState } from "@/components/query-state";
 /**
  * Games the API found still unlocked while their outcome is already knowable —
  * members can pick against a result the app is already showing them (arch D11:
- * lock state is derived, so nothing flips such a game shut on its own). The
- * admin override guard refuses to *create* this state, but a provider bug and a
- * legitimate later-kickoff override followed by score ingestion both reach it
- * with no admin at fault, so the operator needs it surfaced.
+ * lock state is derived, so nothing flips such a game shut on its own). Only a
+ * provider bug reaches it — a score reported against a kickoff still ahead —
+ * and ingestion must never refuse what it was handed, so the operator needs it
+ * surfaced.
  *
  * Kickoffs read absolute rather than relative to the app clock: this list is
  * *about* the relationship between a kickoff and now, and "in 2 days" is the one
@@ -66,8 +65,7 @@ function AnomaliesSkeleton() {
 
 function AnomalyRow({ game }: { game: AdminGame }) {
   const matchup = `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`;
-  const effective = adminGameEffective(game);
-  const numerals = matchupNumerals(effective, game.effectiveSpread);
+  const numerals = matchupNumerals(game, game.spread);
 
   return (
     // The rule is destructive rather than a bordered box (ADR-0043 §2): a row
@@ -88,10 +86,10 @@ function AnomalyRow({ game }: { game: AdminGame }) {
             about. */}
         <MatchupLine
           away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
-          center={`Kickoff ${formatDateTime(game.effectiveKickoffAt)}`}
+          center={`Kickoff ${formatDateTime(game.kickoffAt)}`}
           home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}
         />
-        <p className="text-xs text-muted-foreground">{gameStatusLabel(game.effectiveStatus)}</p>
+        <p className="text-xs text-muted-foreground">{gameStatusLabel(game.status)}</p>
       </div>
       <Link
         to="/admin/games"

@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import { games, nflGameStatContext, nflTeamSeasonStats, teams } from "@picksleagues/db";
@@ -8,7 +8,6 @@ import {
   type AdminNflTeamSeasonStats,
   type AdminNflTeamSeasonStatsResponse,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql } from "../games";
 import { teamLabelColumns } from "../teams";
 
 /**
@@ -93,17 +92,10 @@ export async function listNflGameStatContexts(
   const awayTeams = alias(teams, "away_teams");
   const rows = await db
     .select({
-      // The *resolved* kickoff (override ?? provider, arch D15): kickoff is
-      // orientation here, not an editable layer of this surface, and a bare
-      // provider instant would contradict the games browser after a kickoff
-      // correction. `mapWith` borrows the column's decoder — a bare SQL
-      // expression comes back as pg's raw string, not a Date. Wrapped in a
-      // fresh template first because `mapWith` mutates its receiver, and the
-      // shared constant must stay decoder-free for its ORDER BY/WHERE
-      // callers (the season-range idiom).
+      // Kickoff is orientation here, not an editable layer of this surface.
       game: {
         id: games.id,
-        kickoffAt: sql`${effectiveKickoffAtSql}`.mapWith(games.kickoffAt),
+        kickoffAt: games.kickoffAt,
         providerGameId: games.providerGameId,
       },
       homeTeam: teamLabelColumns(homeTeams),
@@ -115,9 +107,7 @@ export async function listNflGameStatContexts(
     .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
     .leftJoin(nflGameStatContext, eq(nflGameStatContext.gameId, games.id))
     .where(eq(games.weekId, weekId))
-    // Effective kickoff, like the games browser: a corrected game sorts where
-    // an operator expects to find it.
-    .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId));
+    .orderBy(asc(games.kickoffAt), asc(games.providerGameId));
 
   return rows.map((row) => ({
     gameId: row.game.id,
