@@ -16,9 +16,8 @@ import { pickOutcomeForMargin } from "./pick-outcome";
  *
  * Pure by rule: plain data in, plain data out, no clock and no I/O. Everything
  * time-derived (has this game kicked off, is this week over) is already
- * collapsed into the `status` the caller passes, and override precedence
- * (`override_* ?? provider_*`, arch D15) is resolved by the caller's input
- * loader — this module never sees a provider field.
+ * collapsed into the `status` the caller passes; the caller's input loader is
+ * the only thing that reads a `games` row.
  */
 
 /** A member's single pick, as stored on `pickem_picks`. */
@@ -34,7 +33,7 @@ export interface PickemPickInput {
   spreadAtPick: number | null;
 }
 
-/** A game's settled truth, with overrides already resolved by the caller. */
+/** A game's settled truth, as the caller's input loader read it. */
 export interface PickemGameResult {
   gameId: string;
   status: GameStatus;
@@ -60,7 +59,7 @@ export interface PickemPickOutcome {
  * game has not reached a terminal state, so the nightly sweep will settle it
  * later. `final_without_scores` is a provider data fault: the game claims to be
  * over but carries no score, so it is surfaced rather than graded against a
- * missing number, and an admin score override corrects it (arch §Overrides).
+ * missing number, and the next score sync (or a hand SQL edit) corrects it.
  */
 export const PICKEM_UNSETTLED_REASON = {
   NOT_YET_PLAYED: "not_yet_played",

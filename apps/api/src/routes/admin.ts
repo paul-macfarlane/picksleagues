@@ -1,17 +1,12 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
-  AdminAuditResponseSchema,
   AdminGamesResponseSchema,
   AdminSeasonsResponseSchema,
   AdminTeamsResponseSchema,
   ERROR_CODE,
   ErrorResponseSchema,
-  GameOverrideRequestSchema,
-  GameOverrideResponseSchema,
   NflSyncJobSchema,
   SportSchema,
-  TeamIdentityOverrideRequestSchema,
-  TeamIdentityOverrideResponseSchema,
 } from "@picksleagues/schemas";
 import type { AppDeps } from "../deps";
 import { zodValidationHook } from "../lib/default-hook";
@@ -37,14 +32,7 @@ import {
   type DepsVariables,
 } from "../lib/require-deps";
 import type { SessionVariables } from "../middleware/session";
-import {
-  listAnomalousGames,
-  listAuditEntries,
-  listSeasons,
-  listTeams,
-  listWeekGames,
-} from "../services/admin-data";
-import { setGameOverride, setTeamIdentityOverride } from "../services/admin-overrides";
+import { listSeasons, listTeams, listWeekGames } from "../services/admin-data";
 import { REBUILD_JOB_NAME, SETTLE_SWEEP_JOB_NAME } from "../lib/settlement-job";
 import { rebuildLeagueSeason, settleSweep } from "../services/settlement";
 import { getLeagueWithCurrentSeason } from "../services/leagues/current-season";
@@ -124,27 +112,6 @@ const listAdminTeamsRoute = createRoute({
   },
 });
 
-const setAdminTeamOverrideRoute = createRoute({
-  method: "put",
-  path: "/admin/teams/{teamId}/override",
-  operationId: "setAdminTeamOverride",
-  summary: "Set or clear a team's identity overrides (STAT-8, ADR-0042)",
-  request: {
-    params: z.object({ teamId: z.uuid() }),
-    body: { content: { "application/json": { schema: TeamIdentityOverrideRequestSchema } } },
-  },
-  responses: {
-    200: {
-      description:
-        "The corrected team with provider, override, and resolved identity — every surface displaying the team serves the resolved values",
-      content: { "application/json": { schema: TeamIdentityOverrideResponseSchema } },
-    },
-    ...browserResponses,
-    400: errorResponse("No fields supplied, or a field fails its length or URL rule"),
-    404: errorResponse("No such team (team_not_found)"),
-  },
-});
-
 const listAdminSeasonsRoute = createRoute({
   method: "get",
   path: "/admin/seasons",
@@ -164,87 +131,22 @@ const listAdminGamesRoute = createRoute({
   method: "get",
   path: "/admin/games",
   operationId: "listAdminGames",
-  summary: "Browse a week's games with provider, override, and resolved values",
+  summary: "Browse a week's games as synced from the provider",
   request: { query: z.object({ weekId: z.uuid() }) },
   responses: {
     200: {
       description:
-        "The week's games ordered by resolved kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet",
+        "The week's games ordered by kickoff — empty for an unknown week id, which is indistinguishable from a week with no games synced yet",
       content: { "application/json": { schema: AdminGamesResponseSchema } },
     },
     ...browserResponses,
-  },
-});
-
-const listAdminGameAnomaliesRoute = createRoute({
-  method: "get",
-  path: "/admin/games/anomalies",
-  operationId: "listAdminGameAnomalies",
-  summary: "List games left unlocked while their outcome is already knowable",
-  responses: {
-    200: {
-      description:
-        "Games whose resolved kickoff is still ahead of the server clock while their resolved status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is an override on exactly these rows.",
-      content: { "application/json": { schema: AdminGamesResponseSchema } },
-    },
-    ...browserResponses,
-  },
-});
-
-// Unlike the reference-data browsers, `admin_audit` only grows, so this list
-// pages. 25 is a screenful an operator can actually read; the 100 ceiling keeps
-// one request from asking for the whole trail.
-const AdminAuditQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(25),
-  offset: z.coerce.number().int().min(0).default(0),
-});
-
-const listAdminAuditRoute = createRoute({
-  method: "get",
-  path: "/admin/audit",
-  operationId: "listAdminAudit",
-  summary: "Browse the admin action log — overrides and rebuilds, newest first",
-  request: { query: AdminAuditQuerySchema },
-  responses: {
-    200: {
-      description:
-        "One page of audit rows newest-first, with the whole table's `total` and the `limit`/`offset` actually served — an offset past the end is an empty page, not an error",
-      content: { "application/json": { schema: AdminAuditResponseSchema } },
-    },
-    ...browserResponses,
-  },
-});
-
-const setAdminGameOverrideRoute = createRoute({
-  method: "put",
-  path: "/admin/games/{gameId}/override",
-  operationId: "setAdminGameOverride",
-  summary: "Set or clear a game's manual overrides",
-  request: {
-    params: z.object({ gameId: z.uuid() }),
-    body: { content: { "application/json": { schema: GameOverrideRequestSchema } } },
-  },
-  responses: {
-    200: {
-      description:
-        "The corrected game with provider, override, and resolved values, plus whether the affected leagues were re-settled (a false `resettled` still means the override itself committed)",
-      content: { "application/json": { schema: GameOverrideResponseSchema } },
-    },
-    ...browserResponses,
-    400: errorResponse(
-      "No fields supplied, or a field fails its format rule (score range, status, spread range)",
-    ),
-    404: errorResponse("No such game"),
-    409: errorResponse(
-      "The resulting state would leave a game unlocked while its outcome is already knowable — a started status or a resolved score (override_unlocks_game)",
-    ),
   },
 });
 
 /**
  * The role-gated admin surface (ADR-0011): manual sync-job triggers plus
- * the read-only reference-data browsers those triggers are verified with (arch
- * §Manual Sports Data Overrides). Mounted unconditionally in app.ts — the admin
+ * the read-only reference-data browsers those triggers are verified with.
+ * Mounted unconditionally in app.ts — the admin
  * surface exists in every env and is gated server-side by `users.app_role`
  * (ADR-0013), not by env registration (that is the simulator routes' mechanism).
  *
@@ -261,14 +163,7 @@ export function adminRoutes(deps: AppDeps) {
   app.use("/admin/*", requireAdmin(deps));
   // Scoped to the browser routes rather than `/admin/*`: the job route resolves
   // deps itself so its misconfiguration 500 keeps the JobRunResponse shape.
-  for (const path of [
-    "/admin/teams",
-    "/admin/teams/*",
-    "/admin/seasons",
-    "/admin/games",
-    "/admin/games/*",
-    "/admin/audit",
-  ]) {
+  for (const path of ["/admin/teams", "/admin/seasons", "/admin/games", "/admin/games/*"]) {
     app.use(path, requireDbAndClock(deps));
   }
 
@@ -335,66 +230,6 @@ export function adminRoutes(deps: AppDeps) {
   app.openapi(listAdminGamesRoute, async (c) => {
     const { weekId } = c.req.valid("query");
     return c.json({ games: await listWeekGames(c.get("db"), weekId) }, 200);
-  });
-
-  app.openapi(listAdminGameAnomaliesRoute, async (c) => {
-    return c.json({ games: await listAnomalousGames(c.get("db"), c.get("clock").now()) }, 200);
-  });
-
-  app.openapi(listAdminAuditRoute, async (c) => {
-    const { limit, offset } = c.req.valid("query");
-    const { entries, total } = await listAuditEntries(c.get("db"), { limit, offset });
-    return c.json({ entries, total, limit, offset }, 200);
-  });
-
-  app.openapi(setAdminGameOverrideRoute, async (c) => {
-    const { gameId } = c.req.valid("param");
-    const result = await setGameOverride(
-      c.get("db"),
-      c.get("clock"),
-      c.get("sessionUser").id,
-      gameId,
-      c.req.valid("json"),
-    );
-    if (!result.ok) {
-      // Exhaustive: a missing game and a refused unlock are different problems
-      // and must not inherit each other's status or copy.
-      switch (result.reason) {
-        case ERROR_CODE.GAME_NOT_FOUND:
-          return c.json(
-            ErrorResponseSchema.parse({ error: result.reason, message: "Game not found." }),
-            404,
-          );
-        case ERROR_CODE.OVERRIDE_UNLOCKS_GAME:
-          return c.json(
-            ErrorResponseSchema.parse({
-              error: result.reason,
-              message:
-                "That would leave a game members can still pick on while its outcome is already knowable. Move the kickoff into the past, or — if the game genuinely hasn't been played — set the status back to scheduled and null both scores in the same edit. A score the provider itself reported can't be nulled away, so a game it has scored can't be re-opened.",
-            }),
-            409,
-          );
-      }
-    }
-    return c.json({ game: result.game, resettled: result.resettled }, 200);
-  });
-
-  app.openapi(setAdminTeamOverrideRoute, async (c) => {
-    const { teamId } = c.req.valid("param");
-    const result = await setTeamIdentityOverride(
-      c.get("db"),
-      c.get("clock"),
-      c.get("sessionUser").id,
-      teamId,
-      c.req.valid("json"),
-    );
-    if (!result.ok) {
-      return c.json(
-        ErrorResponseSchema.parse({ error: result.reason, message: "Team not found." }),
-        404,
-      );
-    }
-    return c.json({ team: result.team }, 200);
   });
 
   return app;

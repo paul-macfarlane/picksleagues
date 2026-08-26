@@ -229,7 +229,6 @@ test("capture every route for the VIS-8 coherence audit", async ({ browser }) =>
       ["admin-games", "/admin/games"],
       ["admin-teams", "/admin/teams"],
       ["admin-stats", "/admin/stats"],
-      ["admin-audit", "/admin/audit"],
       ["guide", "/guide"],
       ["sim-clock", "/sim"],
       ["sim-scenarios", "/sim/scenarios"],

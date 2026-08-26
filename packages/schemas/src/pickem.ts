@@ -190,8 +190,7 @@ export const PickemPickSchema = z
      * source alongside the last-priced number is what keeps the credit correct
      * on a submitted week whose game is long final. Null whenever `spread` above
      * is — there is no number to attribute, which is every pick in a straight-up
-     * league — and under the same condition as `SlateGame.spreadSource`: a game
-     * whose `override_spread` is set.
+     * league.
      */
     spreadSource: z.string().nullable(),
     /**

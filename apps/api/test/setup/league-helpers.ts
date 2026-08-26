@@ -51,7 +51,6 @@ export interface SeededWeek {
   /** Kickoffs of the games in this week; empty = week with no games. */
   kickoffs?: Array<{
     kickoffAt: Date;
-    overrideKickoffAt?: Date;
     /**
      * The game's current spread — the number every ATS path resolves. Omit for
      * straight-up fixtures, where no spread exists.
@@ -92,6 +91,11 @@ export async function seedSeason(
       sport,
       abbreviation: "HOM",
       name: "Home Team",
+      // Every display field distinct, so a slate projection that transposes
+      // two columns fails an equality rather than shipping green.
+      location: "Home City",
+      logoLightUrl: "https://example.com/hom-light.png",
+      logoDarkUrl: "https://example.com/hom-dark.png",
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
     })
@@ -107,6 +111,9 @@ export async function seedSeason(
       sport,
       abbreviation: "AWY",
       name: "Away Team",
+      location: "Away City",
+      logoLightUrl: "https://example.com/awy-light.png",
+      logoDarkUrl: "https://example.com/awy-dark.png",
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
     })
@@ -161,7 +168,6 @@ export async function seedSeason(
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
           kickoffAt: game.kickoffAt,
-          overrideKickoffAt: game.overrideKickoffAt ?? null,
           spread: game.spread ?? null,
           spreadSource: game.spreadSource ?? null,
           status: GAME_STATUS.SCHEDULED,
@@ -329,15 +335,13 @@ export async function insertPick(
 }
 
 export type GameUpdate = Partial<{
+  kickoffAt: Date;
   status: (typeof GAME_STATUS)[keyof typeof GAME_STATUS];
   homeScore: number | null;
   awayScore: number | null;
   spread: number | null;
   period: number | null;
   clockSeconds: number | null;
-  overrideStatus: (typeof GAME_STATUS)[keyof typeof GAME_STATUS] | null;
-  overrideHomeScore: number | null;
-  overrideAwayScore: number | null;
   weekId: string;
 }>;
 

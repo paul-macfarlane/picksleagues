@@ -51,7 +51,7 @@ export interface DiscoveryQuery {
  * read**, and that is deliberate rather than overlooked. Two of the three
  * filters can't be pushed into SQL without restating domain logic that has one
  * home: joinability turns on `leagueStartAt`, a per-mode derivation over the
- * league's own start week (override-aware, arch D15), and a SQL restatement of
+ * league's own start week, and a SQL restatement of
  * it is exactly the second copy that drifts. So the page is cut from the fully
  * filtered set — short pages are impossible, `total` is honest — at the cost of
  * reading every candidate on every request.
@@ -127,7 +127,7 @@ export async function discoverLeagues(
   const countByLeague = new Map(counts.map((c) => [c.leagueId, c.value]));
 
   // One start-derivation query per candidate league: see the bound above, and
-  // correctness (override-aware, per-mode) beats a hand-rolled batch join —
+  // correctness (per-mode) beats a hand-rolled batch join —
   // same tradeoff as listMyLeagues.
   const withStarts = await Promise.all(
     rows.map(async (row) => ({

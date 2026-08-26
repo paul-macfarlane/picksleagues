@@ -1,27 +1,20 @@
 import { cn } from "@/lib/utils";
 import { rowClassName } from "@/components/row";
-import type {
-  AdminNflGameStatContext,
-  NflGameStatsTeamContext,
-  NflTeamGameContextOverride,
-} from "@picksleagues/schemas";
+import type { AdminNflGameStatContext, NflGameStatsTeamContext } from "@picksleagues/schemas";
 import { useAdminNflStatContexts } from "@/api/admin-nfl-stats";
 import { formatDateTime } from "@/lib/format";
-import { NflStatContextOverrideForm } from "@/components/admin/nfl-stat-context-override-form";
-import { nflContextOverrideFormSeed } from "@/components/admin/nfl-context-override-patch";
-import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
 import {
   seasonLabel,
   useAdminSeasonWeekSelection,
 } from "@/components/admin/use-season-week-selection";
+import { LabeledValue } from "@/components/labeled-value";
 import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
-import { RowEditor } from "@/components/row-editor";
 
-/** One line's worth of a side's context — compact on purpose; the form has the detail. */
+/** One line's worth of a side's context — compact on purpose; the matchup sheet has the detail. */
 function sideSummary(context: NflGameStatsTeamContext): string {
   const injuries = `${context.injuries.length} ${context.injuries.length === 1 ? "injury" : "injuries"}`;
   const fpi = context.fpiWinPct !== null ? `FPI ${context.fpiWinPct.toFixed(1)}%` : "FPI —";
@@ -33,14 +26,10 @@ function sideSummary(context: NflGameStatsTeamContext): string {
   return `${injuries} · ${fpi} · ${ats} · ${lastFive}`;
 }
 
-function sideOverridden(override: NflTeamGameContextOverride | undefined): boolean {
-  return override !== undefined && Object.keys(override).length > 0;
-}
-
 /**
- * The game stat context browser (STAT-7, ADR-0041): a week's per-game context
- * payloads — including games the sync hasn't reached, which is the browser's
- * whole verification value — with the sparse override layer beside them.
+ * The game stat context browser (STAT-7): a week's per-game context payloads —
+ * including games the sync hasn't reached, which is the browser's whole
+ * verification value.
  */
 export function NflStatContextBrowser({
   seasonId,
@@ -62,7 +51,7 @@ export function NflStatContextBrowser({
   return (
     <Section
       title="Game stat context"
-      description="Injuries, FPI, ATS, and recent form per game — provider payload, sparse override, and the resolved values the matchup sheet serves."
+      description="Injuries, FPI, ATS, and recent form per game, as the stats sync wrote them."
     >
       <QueryState
         isPending={seasons.isPending}
@@ -139,39 +128,22 @@ function ContextRow({ game }: { game: AdminNflGameStatContext }) {
         center={formatDateTime(game.kickoffAt)}
         home={<MatchupSide team={game.homeTeam} numeral={null} side="home" />}
       />
-      {block !== null && block.overriddenAt !== null && <OverriddenTag className="self-start" />}
 
       {block ? (
         <>
           <div className="flex flex-col gap-1 text-xs text-foreground">
-            <ResolvedField
-              label={game.awayTeam.abbreviation}
-              resolved={sideSummary(block.effective.away)}
-              provider={sideSummary(block.payload.away)}
-              showProvider={sideOverridden(block.overridePayload?.away)}
-            />
-            <ResolvedField
-              label={game.homeTeam.abbreviation}
-              resolved={sideSummary(block.effective.home)}
-              provider={sideSummary(block.payload.home)}
-              showProvider={sideOverridden(block.overridePayload?.home)}
-            />
+            <LabeledValue label={game.awayTeam.abbreviation}>
+              {sideSummary(block.payload.away)}
+            </LabeledValue>
+            <LabeledValue label={game.homeTeam.abbreviation}>
+              {sideSummary(block.payload.home)}
+            </LabeledValue>
           </div>
 
           <p className="type-eyebrow">updated {formatDateTime(block.updatedAt)}</p>
-
-          <RowEditor label="Edit override">
-            <NflStatContextOverrideForm
-              key={JSON.stringify(nflContextOverrideFormSeed(block))}
-              game={game}
-              block={block}
-            />
-          </RowEditor>
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          No context synced for this game yet — nothing to correct until the stats sync writes one.
-        </p>
+        <p className="text-xs text-muted-foreground">No context synced for this game yet.</p>
       )}
     </li>
   );

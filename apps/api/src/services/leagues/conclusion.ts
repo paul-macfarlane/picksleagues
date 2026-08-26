@@ -9,7 +9,7 @@ import { LEAGUE_STATUS } from "@picksleagues/schemas";
  * (ADR-0030). The column is a **materialized derivation**, on the same terms as
  * `pickem_standings` and `survivor_state` (arch D10): settlement recomputes it
  * inside the transaction that recomputes everything else, and it is written in
- * both directions, so an override that un-finals a game reopens the season and
+ * both directions, so a correction that un-finals a game reopens the season and
  * no state survives that a full recompute wouldn't reproduce.
  *
  * That two-way property is what the six readers of `concluded` depend on — both

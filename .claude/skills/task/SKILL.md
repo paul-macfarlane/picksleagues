@@ -13,7 +13,7 @@ A "task" may be one backlog item, several related items, or a whole epic — sco
 - Mark the task `[~]` and state the resolved target in one line.
 - **Branch first:** create `feat/<task-id-or-epic-slug>` off `staging` before touching code. If the tree has unrelated uncommitted changes, ask before proceeding.
 
-You implement directly — planning, coding, and verification stay in this conversation with full context. `Explore` is available for genuinely broad surveys; a question one or two files can answer, read directly. Never hand `packages/scoring`, lock/visibility semantics, settlement, or override precedence to a subagent: this repo's bugs live there.
+You implement directly — planning, coding, and verification stay in this conversation with full context. `Explore` is available for genuinely broad surveys; a question one or two files can answer, read directly. Never hand `packages/scoring`, lock/visibility semantics, or settlement to a subagent: this repo's bugs live there.
 
 **Rule of three.** If the work would create a third copy of anything — a constant, a guard block, a response descriptor, a test fixture — extract it to a shared home first.
 
@@ -39,7 +39,7 @@ Demonstrate by hand **only what no automated layer pins** — visual layout, a n
 
 Review by risk:
 
-- **Risk-gated independent review:** if the diff touches `packages/scoring`, lock/visibility semantics, settlement/recompute, override precedence, or a migration, dispatch the `evaluator` (fresh context) briefed with the diff, the plan, the acceptance criteria, and two standing checks: **the unhandled-error/observability path** (service throws → logged JSON 500; framework 4xx refusals pass through) and **boundary instants** for anything clock-derived. **The loop is bounded at two rounds:** one full hunt, then one re-verify via `SendMessage` scoped to the fixes. A non-blocker finding the re-verify surfaces gets recorded in the PR's Human-review section, not a third round — an unbounded loop converges on verification churn, not on new bugs (the real finds come from the first hunt). Rejected findings get a recorded rationale.
+- **Risk-gated independent review:** if the diff touches `packages/scoring`, lock/visibility semantics, settlement/recompute, or a migration, dispatch the `evaluator` (fresh context) briefed with the diff, the plan, the acceptance criteria, and two standing checks: **the unhandled-error/observability path** (service throws → logged JSON 500; framework 4xx refusals pass through) and **boundary instants** for anything clock-derived. **The loop is bounded at two rounds:** one full hunt, then one re-verify via `SendMessage` scoped to the fixes. A non-blocker finding the re-verify surfaces gets recorded in the PR's Human-review section, not a third round — an unbounded loop converges on verification churn, not on new bugs (the real finds come from the first hunt). Rejected findings get a recorded rationale.
 - **Everything else:** self-review the full diff against the plan and `.claude/rules/engineering.md`. `/code-review` (bugs) and `/simplify` (reuse, dedup, altitude) are available on demand; run both over the full diff for epic-scale work or any run of 3+ tasks, where cross-task duplication accumulates.
 - In `--test=manual`, describe what to test and wait for the result. `--test=skip` only when there is no runtime surface.
 

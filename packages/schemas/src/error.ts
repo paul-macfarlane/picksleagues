@@ -67,13 +67,6 @@ export const ERROR_CODE = {
   PICKS_LOCKED: "picks_locked",
   SPREAD_STALE: "spread_stale",
   SPREAD_UNAVAILABLE: "spread_unavailable",
-  OVERRIDE_UNLOCKS_GAME: "override_unlocks_game",
-  TEAM_SEASON_STATS_NOT_FOUND: "team_season_stats_not_found",
-  TEAM_NOT_FOUND: "team_not_found",
-  // Distinct from GAME_NOT_FOUND on purpose: the game exists but the stats
-  // sync hasn't written a context payload for it, so there is nothing to
-  // override yet — correction, never creation (ADR-0041).
-  GAME_STAT_CONTEXT_NOT_FOUND: "game_stat_context_not_found",
   // Marking a member paid in a league whose current instance has no dues
   // amount set (ADR-0045) — the mark would be invisible on every surface, so
   // it's a conflict, not a silent latent write.

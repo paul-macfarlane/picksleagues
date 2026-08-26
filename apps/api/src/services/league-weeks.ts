@@ -15,7 +15,6 @@ import {
 } from "@picksleagues/schemas";
 import { getLeagueWithCurrentSeason } from "./leagues/current-season";
 import { getMembership } from "./leagues/authz";
-import { resolveGameOverrides } from "./games";
 import { isLocked, isPickable } from "./slate";
 
 /**
@@ -345,7 +344,7 @@ export interface LeagueWeekFrame {
  *
  * Two rules it exists to keep in one place:
  * - **Lock is derived, never stored** (arch D11) — openness is computed from
- *   each game's effective kickoff against the injected Clock. Deliberately not
+ *   each game's kickoff against the injected Clock. Deliberately not
  *   computed in the browser: under the simulator the browser sits at a
  *   different instant from the API, so a browser-derived lock would contradict
  *   the very states every other surface computed.
@@ -406,8 +405,7 @@ export async function resolveLeagueWeekFrames(
   const weeksStillOpen = new Set<string>();
   for (const row of gameRows) {
     weeksWithGames.add(row.weekId);
-    const effective = resolveGameOverrides(row);
-    if (isPickable(effective.status) && !isLocked(effective.kickoffAt, now)) {
+    if (isPickable(row.status) && !isLocked(row.kickoffAt, now)) {
       weeksStillOpen.add(row.weekId);
     }
   }

@@ -13,8 +13,10 @@ export const Route = createFileRoute("/_authed/admin")({
  * debugging a sync), survives a refresh, and only the open section's queries
  * run. Five tabs is the ceiling that fits a phone without scrolling; the
  * guide is a standalone `/guide` route linked from the heading and the
- * seasons browser is gone for that reason (owner, 2026-08-22 — seasons were never consulted; the games
- * browser's week picker covers the question).
+ * seasons browser is gone for that reason (owner, 2026-08-22 — seasons were
+ * never consulted; the games browser's week picker covers the question). The
+ * audit tab went with the override layer whose corrections it mostly recorded
+ * (ADR-0046); rebuilds still write `admin_audit`, read with SQL.
  */
 function AdminLayout() {
   return (
@@ -44,9 +46,6 @@ function AdminLayout() {
           </Link>
           <Link to="/admin/stats" {...tabLinkProps}>
             Stats
-          </Link>
-          <Link to="/admin/audit" {...tabLinkProps}>
-            Audit
           </Link>
         </TabNav>
         <Outlet />

@@ -30,9 +30,7 @@ import { resolveTargetWeeks, type TargetWeek } from "./target-weeks";
  * coming weekend; without a line an ATS league refuses every one of those picks
  * with `spread_unavailable` until Wednesday ~3am ET.
  *
- * Never *creates* `games`/`weeks` (that is schedule-sync's job) and never
- * writes any `override_*` column (arch D15) — a correction outlives every
- * re-sync.
+ * Never *creates* `games`/`weeks` (that is schedule-sync's job).
  */
 export async function syncNflOdds(
   db: Db,
@@ -185,8 +183,6 @@ async function priceUnstartedGames(
     if (game.spread === spread && game.spreadSource === spreadSource) continue;
 
     await db
-      // Provider fields only — every `override_*` column is deliberately absent
-      // (arch D15), so a correction survives every re-sync.
       .update(games)
       .set({ spread, spreadSource, updatedAt: now })
       .where(eq(games.id, game.id));

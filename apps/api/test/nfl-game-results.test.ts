@@ -169,11 +169,11 @@ describe("GET /api/games/{gameId}/nfl-results", () => {
     expect(body.updatedAt).not.toBeNull();
   });
 
-  it("resolves override_* ?? provider_* — a corrected score flips the logged result", async () => {
+  it("a corrected score flips the logged result", async () => {
     const gameId = await seedSeason();
     await db
       .update(games)
-      .set({ overrideHomeScore: 17, overrideAwayScore: 20 })
+      .set({ homeScore: 17, awayScore: 20 })
       .where(eq(games.providerGameId, "g1"));
     const { cookie } = await createAuthenticatedUser(auth);
     const body = (await (await getResults(gameId, cookie)).json()) as NflGameResultsResponse;
@@ -182,11 +182,11 @@ describe("GET /api/games/{gameId}/nfl-results", () => {
     expect(body.away!.entries[0]).toMatchObject({ result: "W" });
   });
 
-  it("drops a game an override cancels — an unplayed game is not a result", async () => {
+  it("drops a cancelled game — an unplayed game is not a result", async () => {
     const gameId = await seedSeason();
     await db
       .update(games)
-      .set({ overrideStatus: GAME_STATUS.CANCELLED })
+      .set({ status: GAME_STATUS.CANCELLED })
       .where(eq(games.providerGameId, "g1"));
     const { cookie } = await createAuthenticatedUser(auth);
     const body = (await (await getResults(gameId, cookie)).json()) as NflGameResultsResponse;

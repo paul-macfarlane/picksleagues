@@ -1,22 +1,9 @@
-import {
-  keepPreviousData,
-  skipToken,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastSuccess } from "@/lib/toast";
-import { ERROR_CODE, JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
-import type {
-  GameOverrideRequest,
-  JobSkipReason,
-  NflSyncJob,
-  Sport,
-  TeamIdentityOverrideRequest,
-} from "@picksleagues/schemas";
+import { JOB_RUN_STATUS, JOB_SKIP_REASON } from "@picksleagues/schemas";
+import type { JobSkipReason, NflSyncJob, Sport } from "@picksleagues/schemas";
 import { api } from "@/lib/api";
-import { toastOnExpectedError } from "@/api/refusals";
 
 /**
  * One home for the admin cache-key shape: every admin browser query (here and
@@ -87,9 +74,9 @@ export function useRunNflSyncJob() {
  * jobs, but the sweep never skips (it always recomputes its active set), so
  * there is no skip branch here. On success the *whole* cache is invalidated,
  * not just the admin prefix: the sweep rewrites pick results and standings
- * across every active league, and — as with `useSetGameOverride` below — the
- * set of member-facing surfaces derived from them isn't enumerable
- * client-side without a key list that silently goes stale.
+ * across every active league, and the set of member-facing surfaces derived
+ * from them isn't enumerable client-side without a key list that silently
+ * goes stale.
  */
 export function useRunSettleSweep() {
   const queryClient = useQueryClient();
@@ -113,8 +100,8 @@ export function useRunSettleSweep() {
   });
 }
 
-// The four read-only browsers below are inspection surfaces (arch §Manual
-// Sports Data Overrides) — plain queries, no mutation/toast wiring.
+// The read-only browsers below are inspection surfaces — plain queries, no
+// mutation/toast wiring.
 
 export function adminTeamsQueryKey(sport: Sport) {
   return [...ADMIN_QUERY_KEY_PREFIX, "teams", sport];
@@ -171,154 +158,5 @@ export function useAdminGames(weekId: string | undefined) {
           return data;
         }
       : skipToken,
-  });
-}
-
-export function adminGameAnomaliesQueryKey() {
-  return [...ADMIN_QUERY_KEY_PREFIX, "game-anomalies"];
-}
-
-/**
- * Games the API found unlocked while their outcome is already knowable. Under
- * the admin prefix like every other browser here, so a sync job's invalidation
- * refreshes it too — ingestion writing a final score off a provider kickoff is
- * one of the two ways this list grows.
- */
-export function useAdminGameAnomalies() {
-  return useQuery({
-    queryKey: adminGameAnomaliesQueryKey(),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/admin/games/anomalies");
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-export function adminAuditQueryKey(offset: number) {
-  return [...ADMIN_QUERY_KEY_PREFIX, "audit", offset];
-}
-
-/**
- * The audit trail, one page at a time. The offset is part of the key so each
- * page caches separately and a page already seen comes back instantly on Back;
- * `keepPreviousData` then swaps the rows in place rather than blanking the
- * table on every click — the skeleton rule is about a view that has no data
- * yet, and a pager that re-skeletons loses the operator's place.
- *
- * `limit` stays the server default: the view offers no page-size control, and
- * sending one from here would be a second copy of that number.
- */
-export function useAdminAudit(offset: number) {
-  return useQuery({
-    queryKey: adminAuditQueryKey(offset),
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/admin/audit", {
-        params: { query: { offset } },
-      });
-      if (error) throw error;
-      return data;
-    },
-    placeholderData: keepPreviousData,
-  });
-}
-
-/**
- * The one write on this module's surface (ADM-2, arch §Manual Sports Data
- * Overrides; the stats overrides live in api/admin-nfl-stats.ts). Variables
- * carry the game id so a row scopes its pending state off
- * `mutation.variables` rather than disabling every row (async-button standard).
- */
-export function useSetGameOverride() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ gameId, override }: { gameId: string; override: GameOverrideRequest }) => {
-      const { data, error, response } = await api.PUT("/api/admin/games/{gameId}/override", {
-        params: { path: { gameId } },
-        body: override,
-      });
-      if (error) {
-        // The 409 carries the recovery instruction verbatim (move the kickoff
-        // into the past, or assert `scheduled` with both scores nulled in the
-        // same edit), so it is shown, not replaced.
-        toastOnExpectedError(
-          error,
-          response,
-          (status, err) =>
-            (status === 404 && err.error === ERROR_CODE.GAME_NOT_FOUND) ||
-            (status === 409 && err.error === ERROR_CODE.OVERRIDE_UNLOCKS_GAME),
-        );
-        return null;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data) return;
-      const label = `${data.game.awayTeam.abbreviation} @ ${data.game.homeTeam.abbreviation}`;
-      if (data.resettled) {
-        toastSuccess(`Saved override for ${label}`);
-      } else {
-        // The correction committed — only the recompute that follows it failed.
-        // Saying "couldn't save" here would be false, and the retry it invites
-        // writes a second audit row; the nightly settle sweep re-derives
-        // results and standings (arch D10).
-        toast.warning(
-          `Saved override for ${label}, but results and standings couldn't be recomputed — they'll catch up on the next settlement sweep.`,
-        );
-      }
-      // Deliberately the whole cache, for the same reason the simulator's clock
-      // mutations take it (api/sim.ts): an override moves this game's effective
-      // kickoff, status and scores, which are the inputs to lock state, pick
-      // visibility, join cutoffs, league start — and, because the write
-      // re-settles affected leagues server-side, to every pick result and
-      // standings row derived from it. The set of leagues touched isn't
-      // knowable client-side, so an enumerated key list here would be a list
-      // that silently goes stale — and a stale standings board after a
-      // correction is the SPA lying about the exact thing the correction fixed.
-      await queryClient.invalidateQueries();
-    },
-    onError: () => toast.error("Couldn't save that override — please try again."),
-  });
-}
-
-/**
- * The team identity correction (STAT-8, ADR-0042). Variables carry the team id
- * so a row scopes its pending state off `mutation.variables` (async-button
- * standard).
- */
-export function useSetTeamIdentityOverride() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      teamId,
-      override,
-    }: {
-      teamId: string;
-      override: TeamIdentityOverrideRequest;
-    }) => {
-      const { data, error, response } = await api.PUT("/api/admin/teams/{teamId}/override", {
-        params: { path: { teamId } },
-        body: override,
-      });
-      if (error) {
-        toastOnExpectedError(
-          error,
-          response,
-          (status, err) => status === 404 && err.error === ERROR_CODE.TEAM_NOT_FOUND,
-        );
-        return null;
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data) return;
-      toastSuccess(`Saved identity override for ${data.team.effectiveAbbreviation}`);
-      // The whole cache, the game-override rationale: identity renders on
-      // every cached surface that names a team — slates, boards, picks,
-      // matchup stats, every admin browser — and that set isn't enumerable
-      // client-side without a key list that silently goes stale.
-      await queryClient.invalidateQueries();
-    },
-    onError: () => toast.error("Couldn't save that override — please try again."),
   });
 }

@@ -9,30 +9,22 @@ import {
   weeks,
 } from "@picksleagues/db";
 import {
-  NflGameStatContextOverridePayloadSchema,
   NflGameStatContextPayloadSchema,
-  type NflGameStatContextOverridePayload,
-  type NflGameStatContextPayload,
   type NflGameStatsResponse,
   type NflGameStatsTeamRecord,
-  type NflTeamGameContext,
-  type NflTeamGameContextOverride,
 } from "@picksleagues/schemas";
 
 /**
  * The matchup stats read (STAT-5, ADR-0040): serves `nfl_team_season_stats` +
  * `nfl_game_stat_context` for one game, entirely from our tables. Deliberately
  * clockless — nothing here derives from "now"; freshness is stated by the
- * stored `updated_at` stamps the response carries. The `override_* ??
- * provider_*` resolvers live here (ADR-0041), the `services/games.ts` pattern:
- * this is the member-facing home of the data, and the admin surfaces import
- * precedence from it rather than restating it.
+ * stored `updated_at` stamps the response carries.
  */
 
-type DbStatsRow = typeof nflTeamSeasonStats.$inferSelect;
-
-/** The record facts every derivation and serialization downstream consumes. */
-export type ResolvedNflTeamSeasonStats = {
+// The record facts every derivation below consumes — a `nfl_team_season_stats`
+// row satisfies it structurally, and the pure ranking's unit tests build only
+// these fields rather than a whole DB row per case.
+type StatsRow = {
   teamId: string;
   seasonYear: number;
   wins: number;
@@ -49,60 +41,6 @@ export type ResolvedNflTeamSeasonStats = {
   pointsAgainst: number;
   updatedAt: Date;
 };
-
-/**
- * `override_* ?? provider_*` for one season-stats row (arch D15, ADR-0041).
- * Everything derived — games played, per-game averages, league ranks — is
- * computed from the *resolved* facts, so a corrected record ranks as
- * corrected rather than the derivations silently reading provider truth.
- */
-export function resolveNflTeamSeasonStatsOverrides(row: DbStatsRow): ResolvedNflTeamSeasonStats {
-  return {
-    teamId: row.teamId,
-    seasonYear: row.seasonYear,
-    wins: row.overrideWins ?? row.wins,
-    losses: row.overrideLosses ?? row.losses,
-    ties: row.overrideTies ?? row.ties,
-    homeWins: row.overrideHomeWins ?? row.homeWins,
-    homeLosses: row.overrideHomeLosses ?? row.homeLosses,
-    homeTies: row.overrideHomeTies ?? row.homeTies,
-    roadWins: row.overrideRoadWins ?? row.roadWins,
-    roadLosses: row.overrideRoadLosses ?? row.roadLosses,
-    roadTies: row.overrideRoadTies ?? row.roadTies,
-    streak: row.overrideStreak ?? row.streak,
-    pointsFor: row.overridePointsFor ?? row.pointsFor,
-    pointsAgainst: row.overridePointsAgainst ?? row.pointsAgainst,
-    updatedAt: row.updatedAt,
-  };
-}
-
-/**
- * Field-level `override ?? provider` for a game's context payload (ADR-0041).
- * The override is *sparse* — a present field wins whole (an overridden injury
- * list replaces the provider's, never merges with it), an absent one falls
- * through — so a correction to one field never freezes the others against
- * future syncs.
- */
-export function resolveNflGameStatContext(
-  payload: NflGameStatContextPayload,
-  override: NflGameStatContextOverridePayload | null,
-): NflGameStatContextPayload {
-  const side = (
-    team: NflTeamGameContext,
-    sideOverride: NflTeamGameContextOverride | undefined,
-  ): NflTeamGameContext => ({
-    injuries: sideOverride?.injuries ?? team.injuries,
-    fpiWinPct: sideOverride?.fpiWinPct ?? team.fpiWinPct,
-    atsSummary: sideOverride?.atsSummary ?? team.atsSummary,
-    lastFive: sideOverride?.lastFive ?? team.lastFive,
-  });
-  return {
-    home: side(payload.home, override?.home),
-    away: side(payload.away, override?.away),
-  };
-}
-
-type StatsRow = ResolvedNflTeamSeasonStats;
 
 function gamesPlayed(row: StatsRow): number {
   return row.wins + row.losses + row.ties;
@@ -214,10 +152,7 @@ export async function getNflGameStats(
   const rowsByYear = new Map<number, StatsRow[]>();
   for (const { stats } of statRows) {
     const bucket = rowsByYear.get(stats.seasonYear) ?? [];
-    // Resolved before bucketing, so the rank pool itself is built from
-    // effective facts (ADR-0041) — an overridden record must rank as corrected
-    // for every team, not just its own row.
-    bucket.push(resolveNflTeamSeasonStatsOverrides(stats));
+    bucket.push(stats);
     rowsByYear.set(stats.seasonYear, bucket);
   }
 
@@ -240,16 +175,8 @@ export async function getNflGameStats(
     .from(nflGameStatContext)
     .where(eq(nflGameStatContext.gameId, gameId));
   // Parsed through the schema so additive payload evolution materializes its
-  // defaults (engineering rules §Data — the league-settings pattern), then
-  // override-resolved field by field (ADR-0041).
-  const payload = contextRow
-    ? resolveNflGameStatContext(
-        NflGameStatContextPayloadSchema.parse(contextRow.payload),
-        contextRow.overridePayload
-          ? NflGameStatContextOverridePayloadSchema.parse(contextRow.overridePayload)
-          : null,
-      )
-    : null;
+  // defaults (engineering rules §Data — the league-settings pattern).
+  const payload = contextRow ? NflGameStatContextPayloadSchema.parse(contextRow.payload) : null;
 
   return {
     gameId: game.id,

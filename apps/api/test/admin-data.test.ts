@@ -32,15 +32,11 @@ function get(app: ReturnType<typeof buildApp>, path: string, cookie?: string) {
 }
 
 /**
- * One NFL season with an overridden game, plus a second season and an NCAAMB
- * row so sport filtering and season ordering are observable. `overriddenBy`
- * comes from the caller because the FK points at a real user row.
- *
- * The override is deliberately shaped so provider order and resolved order
- * DISAGREE: game B kicks off first per the provider but last once its
- * `override_kickoff_at` applies.
+ * One NFL season with a scheduled and an in-progress game, plus a second season
+ * and an NCAAMB row so sport filtering and season ordering are observable.
+ * Game B kicks off before game A, so kickoff order and insertion order differ.
  */
-async function seed(overriddenBy: string) {
+async function seed() {
   const [season2026] = await db
     .insert(sportSeasons)
     .values({
@@ -186,13 +182,6 @@ async function seed(overriddenBy: string) {
         status: GAME_STATUS.IN_PROGRESS,
         homeScore: 21,
         awayScore: 21,
-        overrideKickoffAt: new Date("2026-09-14T23:00:00.000Z"),
-        overrideStatus: GAME_STATUS.FINAL,
-        overrideHomeScore: 24,
-        overrideAwayScore: 21,
-        overrideSpread: 7.5,
-        overriddenBy,
-        overriddenAt: new Date("2026-09-14T23:30:00.000Z"),
         createdAt: SEEDED_AT,
         updatedAt: SEEDED_AT,
       },
@@ -245,8 +234,8 @@ describe("GET /api/admin/teams", () => {
   });
 
   it("returns one sport's teams by abbreviation, preserving unlinked rows", async () => {
-    const { app, cookie, userId } = await adminCaller(buildApp());
-    await seed(userId);
+    const { app, cookie } = await adminCaller(buildApp());
+    await seed();
 
     const res = await get(app, "/api/admin/teams?sport=nfl", cookie);
 
@@ -267,8 +256,8 @@ describe("GET /api/admin/teams", () => {
 
 describe("GET /api/admin/seasons", () => {
   it("returns seasons newest-first with chronological weeks and game counts", async () => {
-    const { app, cookie, userId } = await adminCaller(buildApp());
-    await seed(userId);
+    const { app, cookie } = await adminCaller(buildApp());
+    await seed();
 
     const res = await get(app, "/api/admin/seasons?sport=nfl", cookie);
 
@@ -302,8 +291,8 @@ describe("GET /api/admin/games", () => {
   });
 
   it("returns [] for a week with no games", async () => {
-    const { app, cookie, userId } = await adminCaller(buildApp());
-    const seeded = await seed(userId);
+    const { app, cookie } = await adminCaller(buildApp());
+    const seeded = await seed();
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week2.id}`, cookie);
 
@@ -311,78 +300,39 @@ describe("GET /api/admin/games", () => {
     expect((await res.json()) as AdminGamesResponse).toEqual({ games: [] });
   });
 
-  it("orders by resolved kickoff, not the provider's", async () => {
-    const { app, cookie, userId } = await adminCaller(buildApp());
-    const seeded = await seed(userId);
+  it("orders by kickoff, not insertion order", async () => {
+    const { app, cookie } = await adminCaller(buildApp());
+    const seeded = await seed();
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);
 
     const { games: rows } = (await res.json()) as AdminGamesResponse;
-    // Provider kickoffs would order these B, A — the override flips it.
-    expect(rows.map((game) => game.providerGameId)).toEqual(["evt-a", "evt-b"]);
+    expect(rows.map((game) => game.providerGameId)).toEqual(["evt-b", "evt-a"]);
   });
 
-  it("serializes provider fields untouched alongside the override-resolved ones", async () => {
-    const { app, cookie, userId } = await adminCaller(buildApp());
-    const seeded = await seed(userId);
+  it("serializes the stored game flat, with both teams labelled", async () => {
+    const { app, cookie } = await adminCaller(buildApp());
+    const seeded = await seed();
 
     const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);
 
     const { games: rows } = (await res.json()) as AdminGamesResponse;
-    const overridden = rows.find((game) => game.providerGameId === "evt-b");
-    expect(overridden).toMatchObject({
-      // Provider block survives the correction verbatim (arch D15).
+    expect(rows.find((game) => game.providerGameId === "evt-b")).toMatchObject({
       kickoffAt: "2026-09-13T17:00:00.000Z",
       status: "in_progress",
       homeScore: 21,
       awayScore: 21,
-      // Override block as stored.
-      overrideKickoffAt: "2026-09-14T23:00:00.000Z",
-      overrideStatus: "final",
-      overrideHomeScore: 24,
-      overrideAwayScore: 21,
-      overrideSpread: 7.5,
-      overriddenBy: userId,
-      overriddenAt: "2026-09-14T23:30:00.000Z",
-      // Resolved = override ?? provider.
-      effectiveKickoffAt: "2026-09-14T23:00:00.000Z",
-      effectiveStatus: "final",
-      effectiveHomeScore: 24,
-      effectiveAwayScore: 21,
-      effectiveSpread: 7.5,
-      // The provider never priced this game — the effective spread came from
-      // the override alone.
+      // The provider never priced this game.
       spread: null,
       homeTeam: { abbreviation: "NE", name: "Patriots" },
       awayTeam: { abbreviation: "MIA", name: "Dolphins" },
     });
-  });
-
-  it("falls back to provider values when nothing is overridden", async () => {
-    const { app, cookie, userId } = await adminCaller(buildApp());
-    const seeded = await seed(userId);
-
-    const res = await get(app, `/api/admin/games?weekId=${seeded.week1.id}`, cookie);
-
-    const { games: rows } = (await res.json()) as AdminGamesResponse;
-    const clean = rows.find((game) => game.providerGameId === "evt-a");
-    expect(clean).toMatchObject({
-      overrideKickoffAt: null,
-      overrideStatus: null,
-      overrideHomeScore: null,
-      overrideAwayScore: null,
-      overrideSpread: null,
-      overriddenBy: null,
-      overriddenAt: null,
-      effectiveKickoffAt: "2026-09-14T20:00:00.000Z",
-      effectiveStatus: "scheduled",
-      effectiveHomeScore: null,
-      effectiveAwayScore: null,
-      // With no override the provider spread is also the effective spread.
+    expect(rows.find((game) => game.providerGameId === "evt-a")).toMatchObject({
+      kickoffAt: "2026-09-14T20:00:00.000Z",
+      status: "scheduled",
+      homeScore: null,
+      awayScore: null,
       spread: -2.5,
-      effectiveSpread: -2.5,
-      homeTeam: { abbreviation: "BUF", name: "Bills" },
-      awayTeam: { abbreviation: "NYJ", name: "Jets" },
     });
   });
 });

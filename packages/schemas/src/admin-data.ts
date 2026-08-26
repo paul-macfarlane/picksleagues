@@ -1,17 +1,14 @@
 import { z } from "@hono/zod-openapi";
-import { GameStatusSchema, NullableGameStatusSchema } from "./game-status";
-import { NullableImageUrlSchema } from "./image-url";
+import { GameStatusSchema } from "./game-status";
 import { SportSchema } from "./sport";
 import { WeekTypeSchema } from "./week-type";
 
 /**
  * Projections of the provider-synced reference tables for the admin page's
- * data browsers (arch §Manual Sports Data Overrides). Most are inspection
- * surfaces whose whole point is showing the raw stored truth, so DB columns
- * are serialized flat rather than reshaped; `AdminGame` and `AdminTeam` are
- * the exceptions and carry provider, override, and resolved values side by
- * side so an operator can see what ingestion wrote, what a human corrected,
- * and what the app will actually use.
+ * data browsers. They are inspection surfaces whose whole point is showing
+ * the raw stored truth, so DB columns are serialized flat rather than
+ * reshaped. The provider's value is the only value (ADR-0046): what ingestion
+ * wrote is what the app uses.
  */
 
 export const AdminTeamSchema = z
@@ -20,70 +17,16 @@ export const AdminTeamSchema = z
     sport: SportSchema,
     // Null on bootstrap rows that predate provider linkage (see teams table).
     providerTeamId: z.string().nullable(),
-    // Provider block — exactly what the schedule sync wrote.
     abbreviation: z.string(),
     name: z.string(),
     location: z.string().nullable(),
     logoLightUrl: z.string().nullable(),
     logoDarkUrl: z.string().nullable(),
-    // Override block — admin corrections only (STAT-8, ADR-0042). Display
-    // fields alone: the keys ingestion matches rows on (`providerTeamId`, the
-    // bootstrap abbreviation uniqueness) have no override parallel.
-    overrideName: z.string().nullable(),
-    overrideAbbreviation: z.string().nullable(),
-    overrideLocation: z.string().nullable(),
-    overrideLogoLightUrl: z.string().nullable(),
-    overrideLogoDarkUrl: z.string().nullable(),
-    overriddenBy: z.string().nullable(),
-    overriddenAt: z.iso.datetime().nullable(),
-    // Resolved block — `override_* ?? provider_*`, serialized rather than left
-    // to the client so precedence has one home (arch D15).
-    effectiveName: z.string(),
-    effectiveAbbreviation: z.string(),
-    effectiveLocation: z.string().nullable(),
-    effectiveLogoLightUrl: z.string().nullable(),
-    effectiveLogoDarkUrl: z.string().nullable(),
     updatedAt: z.iso.datetime(),
   })
   .openapi("AdminTeam");
 
 export type AdminTeam = z.infer<typeof AdminTeamSchema>;
-
-// Generous display bounds — refusing a fat-fingered paste, not modeling team
-// naming. Trimmed before min(1) so a whitespace-only override is a 400, not a
-// stored value the editor's own trim would drop (the stats-override rule).
-const MAX_TEAM_NAME_LENGTH = 100;
-const MAX_TEAM_ABBREVIATION_LENGTH = 10;
-const MAX_TEAM_LOCATION_LENGTH = 100;
-
-/**
- * Three-state patch onto the team `override_*` columns, exactly the
- * `GameOverrideRequest` contract: **omitted** leaves the stored override
- * alone, **null** clears it back to provider truth, a value sets it
- * (arch D15 / ADR-0042).
- */
-export const TeamIdentityOverrideRequestSchema = z
-  .object({
-    name: z.string().trim().min(1).max(MAX_TEAM_NAME_LENGTH).nullable().optional(),
-    abbreviation: z.string().trim().min(1).max(MAX_TEAM_ABBREVIATION_LENGTH).nullable().optional(),
-    location: z.string().trim().min(1).max(MAX_TEAM_LOCATION_LENGTH).nullable().optional(),
-    // The avatar-override rule (ADR-0022): any https URL, length-bounded — a
-    // URL that isn't an image degrades to the logo's initials-free fallback.
-    logoLightUrl: NullableImageUrlSchema.optional(),
-    logoDarkUrl: NullableImageUrlSchema.optional(),
-  })
-  .refine((data) => Object.values(data).some((value) => value !== undefined), {
-    message: "At least one field is required",
-  })
-  .openapi("TeamIdentityOverrideRequest");
-
-export type TeamIdentityOverrideRequest = z.infer<typeof TeamIdentityOverrideRequestSchema>;
-
-export const TeamIdentityOverrideResponseSchema = z
-  .object({ team: AdminTeamSchema })
-  .openapi("TeamIdentityOverrideResponse");
-
-export type TeamIdentityOverrideResponse = z.infer<typeof TeamIdentityOverrideResponseSchema>;
 
 export const AdminTeamsResponseSchema = z
   .object({ teams: z.array(AdminTeamSchema) })
@@ -132,13 +75,7 @@ export const AdminSeasonsResponseSchema = z
 
 export type AdminSeasonsResponse = z.infer<typeof AdminSeasonsResponseSchema>;
 
-/**
- * A team as the game/stats browsers *label* rows with it: **effective**
- * identity (`override_* ?? provider_*`, ADR-0042), not provider truth —
- * orientation must match what the member surfaces call the team, unlike the
- * game's own provider block below it. The teams browser is where identity's
- * layers show side by side.
- */
+/** A team as the game/stats browsers *label* rows with it — orientation only. */
 export const AdminGameTeamSchema = z
   .object({
     id: z.string(),
@@ -154,8 +91,6 @@ export const AdminGameSchema = z
     providerGameId: z.string(),
     homeTeam: AdminGameTeamSchema,
     awayTeam: AdminGameTeamSchema,
-    // Provider block — exactly what ingestion wrote, never override-resolved,
-    // so a browser can prove a re-sync didn't clobber a correction (arch D15).
     kickoffAt: z.iso.datetime(),
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
@@ -167,25 +102,6 @@ export const AdminGameSchema = z
     // Home-team-relative; negative = home favored. Null until the odds sync
     // finds a line for this game.
     spread: z.number().nullable(),
-    // Override block — admin corrections only (written by PUT /admin/games/{id}/override).
-    overrideKickoffAt: z.iso.datetime().nullable(),
-    overrideStatus: NullableGameStatusSchema,
-    overrideHomeScore: z.number().int().nullable(),
-    overrideAwayScore: z.number().int().nullable(),
-    overrideSpread: z.number().nullable(),
-    overridePeriod: z.number().int().nullable(),
-    overrideClockSeconds: z.number().int().nullable(),
-    overriddenBy: z.string().nullable(),
-    overriddenAt: z.iso.datetime().nullable(),
-    // Resolved block — `override_* ?? provider_*` (arch D15). Serialized rather
-    // than left to the client so precedence has one home, not one per consumer.
-    effectiveKickoffAt: z.iso.datetime(),
-    effectiveStatus: GameStatusSchema,
-    effectiveHomeScore: z.number().int().nullable(),
-    effectiveAwayScore: z.number().int().nullable(),
-    effectiveSpread: z.number().nullable(),
-    effectivePeriod: z.number().int().nullable(),
-    effectiveClockSeconds: z.number().int().nullable(),
   })
   .openapi("AdminGame");
 
@@ -196,63 +112,3 @@ export const AdminGamesResponseSchema = z
   .openapi("AdminGamesResponse");
 
 export type AdminGamesResponse = z.infer<typeof AdminGamesResponseSchema>;
-
-// Same bound as the simulator's fixture editor: high enough that no real
-// football score is rejected, low enough that a fat-fingered digit is.
-const MAX_GAME_SCORE = 200;
-// Home-relative points, matching `games.spread`. No real line comes
-// near this; the bound exists so a mis-typed or mis-scaled number is refused
-// rather than silently regrading every pick on the game.
-const MAX_SPREAD = 100;
-// A period past regulation is legitimate — overtime keeps counting — so this
-// can't be 4; it is high enough that no real game reaches it (the longest NFL
-// game ever played ended in the 6th) and low enough to reject a fat-fingered
-// digit. Period 0 isn't a period at all: "no period" is expressed by null.
-const MAX_PERIOD = 10;
-// One hour, against a regulation NFL period of 15 minutes. Generous headroom
-// for any other period format, tight enough that a value in milliseconds — or
-// minutes mistaken for seconds the other way — is refused rather than stored.
-const MAX_CLOCK_SECONDS = 60 * 60;
-
-/**
- * The admin override write (arch §Manual Sports Data Overrides, D15). Fields
- * are unprefixed because the resource *is* the game's override layer — the path
- * says `/override`, and these map 1:1 onto the `override_*` columns, never the
- * provider ones.
- *
- * Three-state per field, which is the whole point of the shape:
- * **omitted** leaves the stored override alone, **null** clears it back to
- * provider truth ("clear override is a null-out", D15), and a value sets it.
- * `.nullable().optional()` is what makes those two distinguishable over JSON —
- * a partial-update body with an explicit null, not a full replacement.
- */
-export const GameOverrideRequestSchema = z
-  .object({
-    kickoffAt: z.iso.datetime().nullable().optional(),
-    status: NullableGameStatusSchema.optional(),
-    homeScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
-    awayScore: z.number().int().min(0).max(MAX_GAME_SCORE).nullable().optional(),
-    spread: z.number().min(-MAX_SPREAD).max(MAX_SPREAD).nullable().optional(),
-    period: z.number().int().min(1).max(MAX_PERIOD).nullable().optional(),
-    clockSeconds: z.number().int().min(0).max(MAX_CLOCK_SECONDS).nullable().optional(),
-  })
-  .refine((data) => Object.values(data).some((value) => value !== undefined), {
-    message: "At least one field is required",
-  })
-  .openapi("GameOverrideRequest");
-
-export type GameOverrideRequest = z.infer<typeof GameOverrideRequestSchema>;
-
-/**
- * The override write's reply. `resettled` is false when the correction
- * committed but the settlement recompute that follows it (outside the write's
- * transaction, arch D10) threw: results and standings still show the
- * pre-correction grading until the nightly sweep re-derives them. Reporting the
- * whole request as failed instead would be a lie — the write is durable, the
- * operator would be shown stale values, and a retry writes a second audit row.
- */
-export const GameOverrideResponseSchema = z
-  .object({ game: AdminGameSchema, resettled: z.boolean() })
-  .openapi("GameOverrideResponse");
-
-export type GameOverrideResponse = z.infer<typeof GameOverrideResponseSchema>;

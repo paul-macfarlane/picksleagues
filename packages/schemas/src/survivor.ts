@@ -148,7 +148,7 @@ export const SurvivorStandingsWeekSchema = z
 export type SurvivorStandingsWeek = z.infer<typeof SurvivorStandingsWeekSchema>;
 
 /**
- * The effective (override-resolved) state of a *revealed* pick's game — what
+ * The state of a *revealed* pick's game — what
  * lets the board show a pick's score, status, and derived verdict without a
  * second fetch (FB-25). Both team ids travel because a Survivor pick names a
  * team, not a side, so the client can't attach the score to the right end

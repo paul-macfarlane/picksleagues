@@ -28,7 +28,7 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0016](0016-per-mode-result-and-standings-tables.md) | Results/standings are per-mode; mode-scoped naming repo-wide | Accepted |
 | [0017](0017-pickem-pick-uniqueness-is-per-week.md) | Pick'em pick uniqueness is per week, not per season | Accepted (motivation superseded by 0018; constraint stands) |
 | [0018](0018-pickem-atomic-immutable-weekly-submission.md) | A Pick'em week is one atomic, immutable submission | Accepted |
-| [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted |
+| [0019](0019-week-moves-out-of-scope.md)       | Week moves out of scope; an admin `cancelled` override covers the real case | Accepted (amended by 0046) |
 | [0020](0020-season-range-presets.md)          | Season-range presets replace explicit Start Week / End Week | Superseded by 0031 (mid-week resolution rule survives) |
 | [0021](0021-unseeded-playoff-games-excluded-at-ingestion.md) | Unseeded playoff games are excluded at ingestion | Accepted |
 | [0022](0022-member-set-avatar-url.md)         | Member-set avatar is an `https:` URL in an `image_override` column | Accepted |
@@ -49,9 +49,10 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0037](0037-discovery-is-filtered-sorted-and-paged.md) | Discovery gains a settings summary, a mode filter, fullest-first ordering, and paging | Accepted |
 | [0038](0038-invite-links-unfurl-with-the-league-name.md) | Invite links unfurl with the league's name, from a sessionless read | Accepted |
 | [0039](0039-public-routes-are-prerendered-at-build.md) | Public routes are prerendered at build | Accepted |
-| [0040](0040-game-stats-are-ingested-display-data.md) | Game stats are ingested display data with a tiered surface | Accepted; amended by 0041 |
-| [0041](0041-stats-overrides-outlive-resync.md) | Stats tables carry override parallels after all | Accepted |
-| [0042](0042-team-identity-overrides.md) | Team identity gets override parallels, resolved in one serialization home | Accepted |
+| [0040](0040-game-stats-are-ingested-display-data.md) | Game stats are ingested display data with a tiered surface | Accepted (0041's amendment undone by 0046) |
+| [0041](0041-stats-overrides-outlive-resync.md) | Stats tables carry override parallels after all | Superseded by 0046 |
+| [0042](0042-team-identity-overrides.md) | Team identity gets override parallels, resolved in one serialization home | Superseded by 0046 |
 | [0043](0043-visual-identity-broadcast-scoreboard.md) | Visual identity: the broadcast scoreboard | Accepted |
 | [0044](0044-score-freshness-fifteen-minutes.md) | Score freshness is ~15 minutes, not ~5 | Accepted |
 | [0045](0045-league-dues-tracking.md) | League dues: a per-season column and a presence ledger, tracking only | Accepted |
+| [0046](0046-remove-sports-data-overrides.md) | Manual sports-data overrides are removed; the database is a provider cache | Accepted |

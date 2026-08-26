@@ -15,7 +15,6 @@ import {
   type JobRunResponse,
 } from "@picksleagues/schemas";
 import { BaseFakeProvider } from "./setup/fake-provider";
-import { resolveGameOverrides } from "../src/services/games";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
 import { syncNflOdds } from "../src/services/nfl/sync-odds";
 import { providerGame, providerWeek } from "./setup/provider-fixtures";
@@ -262,9 +261,8 @@ describe("syncNflOdds", () => {
   });
 
   /**
-   * PKM-9: written in the same `set()` as `spread`, never as an `override_*`
-   * (arch D15) — asserted directly against the row since `spreadsByProviderId`
-   * only tracks the number.
+   * PKM-9: written in the same `set()` as `spread` — asserted directly against
+   * the row since `spreadsByProviderId` only tracks the number.
    */
   describe("spread_source (PKM-9)", () => {
     it("writes the book alongside the spread", async () => {
@@ -349,26 +347,6 @@ describe("syncNflOdds", () => {
       const [g3] = await db.select().from(games).where(eq(games.providerGameId, "g3"));
       expect(g3).toMatchObject({ spread: null, spreadSource: null });
     });
-  });
-
-  // Arch D15: ingestion writes provider columns only, so a correction outlives
-  // every re-sync — and the resolved number an operator sees stays theirs.
-  it("never clobbers an override_spread, and the override still wins after the re-sync", async () => {
-    await seedSchedule([
-      providerGame({
-        providerGameId: "g2",
-        weekNumber: 1,
-        kickoffAt: new Date("2026-09-14T17:00:00.000Z"),
-        spread: 2.5,
-      }),
-    ]);
-    await db.update(games).set({ overrideSpread: -7 });
-
-    await syncNflOdds(db, oddsClock, provider, {});
-
-    const [g2] = await db.select().from(games).where(eq(games.providerGameId, "g2"));
-    expect(g2).toMatchObject({ spread: 2.5, overrideSpread: -7 });
-    expect(resolveGameOverrides(g2!).spread).toBe(-7);
   });
 
   it("pre-season: with no in-progress week, falls back to the next upcoming week and prices it", async () => {

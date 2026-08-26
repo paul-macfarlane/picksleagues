@@ -24,7 +24,7 @@ import { games, teams, weeks } from "./sports";
  * and neither has a home in a shape built around one row per member per game.
  *
  * No `locked` column (arch D11) and no `.defaultNow()` (arch D13): lock state
- * derives from a game's effective kickoff against the injected Clock on every
+ * derives from a game's kickoff against the injected Clock on every
  * read and every write, and every timestamp below is supplied by app code from
  * `clock.now()` so the simulator moves them with everything else.
  */

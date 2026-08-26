@@ -24,8 +24,7 @@ import {
 
 /**
  * The avatar to show for a user: the member's own URL when they've set one,
- * otherwise the OAuth provider's (ADR-0022) — the same
- * `override_* ?? provider_*` precedence the sports tables use.
+ * otherwise the OAuth provider's (ADR-0022): `image_override ?? image`.
  *
  * Every surface that serializes a user's avatar must call this. Both columns
  * are `string | null`, so a serializer that reaches for the wrong one type-checks

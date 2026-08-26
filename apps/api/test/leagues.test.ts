@@ -167,21 +167,6 @@ describe("POST /api/leagues", () => {
     expect(((await res.json()) as LeagueResponse).startsAt).toBeNull();
   });
 
-  it("derives startsAt from override_kickoff_at when a kickoff was corrected (D15)", async () => {
-    const overridden = new Date("2026-09-12T17:00:00.000Z");
-    await seedSeason(db, {
-      year: 2026,
-      weeks: [
-        { weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF, overrideKickoffAt: overridden }] },
-      ],
-    });
-    const { cookie } = await createAuthenticatedUser(auth);
-
-    const res = await postLeague(cookie, VALID_PICKEM_BODY);
-    expect(res.status).toBe(201);
-    expect(((await res.json()) as LeagueResponse).startsAt).toBe(overridden.toISOString());
-  });
-
   it.each([
     {
       label: "no pick type",

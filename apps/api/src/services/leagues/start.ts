@@ -9,7 +9,6 @@ import {
   type LeagueSettings,
   type NflWeekRef,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql } from "../games";
 
 /**
  * Clock-derived league start (arch §Locking Model): the join cutoff and every
@@ -21,8 +20,7 @@ import { effectiveKickoffAtSql } from "../games";
  * creation requires an ingested NCAAMB season).
  *
  * Null (no games ingested for that week yet) means the league has not
- * started. Kickoffs resolve `override_kickoff_at ?? kickoff_at` (arch D15):
- * lock-derivation must follow a corrected kickoff, same as the serializers.
+ * started.
  */
 export async function leagueStartAt(
   db: Db,
@@ -32,7 +30,7 @@ export async function leagueStartAt(
   if (league.mode === LEAGUE_MODE.MARCH_MADNESS) {
     // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
     // string), so the aggregate maps its own value back to a Date.
-    const earliestKickoff = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+    const earliestKickoff = sql`min(${games.kickoffAt})`.mapWith((value): Date | null =>
       value === null ? null : new Date(value as string),
     );
     const [row] = await db
@@ -51,7 +49,7 @@ export async function leagueStartAt(
 }
 
 // The NFL branch of `leagueStartAt` — a season and a single week's first
-// effective kickoff, with no `LeagueSettings` cast in the way. (Its second
+// kickoff, with no `LeagueSettings` cast in the way. (Its second
 // caller, the preset availability core, went with ADR-0031.)
 async function nflWeekFirstKickoffAt(
   db: Db,
@@ -60,7 +58,7 @@ async function nflWeekFirstKickoffAt(
 ): Promise<Date | null> {
   // Raw SQL fragments skip drizzle's column decoders (the driver hands back a
   // string), so the aggregate maps its own value back to a Date.
-  const earliestKickoff = sql`min(${effectiveKickoffAtSql})`.mapWith((value): Date | null =>
+  const earliestKickoff = sql`min(${games.kickoffAt})`.mapWith((value): Date | null =>
     value === null ? null : new Date(value as string),
   );
   const [row] = await db

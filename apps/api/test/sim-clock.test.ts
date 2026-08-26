@@ -29,9 +29,7 @@ const ANCHOR_GAME1_KICKOFF = new Date("2026-09-14T17:00:00.000Z");
 const ANCHOR_GAME2_KICKOFF = new Date("2026-09-14T20:00:00.000Z");
 
 /** Only `week.id` is ever read by callers — narrowed to that. */
-async function seedAnchorWeek(
-  opts: { game1OverrideKickoffAt?: Date; game2OverrideKickoffAt?: Date } = {},
-): Promise<{ week: string }> {
+async function seedAnchorWeek(): Promise<{ week: string }> {
   const { weekIds } = await seedSeason(db, {
     year: 2026,
     weeks: [
@@ -39,10 +37,7 @@ async function seedAnchorWeek(
         weekNumber: 1,
         startsAt: ANCHOR_WEEK_START,
         endsAt: ANCHOR_WEEK_END,
-        kickoffs: [
-          { kickoffAt: ANCHOR_GAME1_KICKOFF, overrideKickoffAt: opts.game1OverrideKickoffAt },
-          { kickoffAt: ANCHOR_GAME2_KICKOFF, overrideKickoffAt: opts.game2OverrideKickoffAt },
-        ],
+        kickoffs: [{ kickoffAt: ANCHOR_GAME1_KICKOFF }, { kickoffAt: ANCHOR_GAME2_KICKOFF }],
       },
     ],
   });
@@ -144,7 +139,7 @@ describe("POST /api/sim/clock", () => {
       expectCloseTo(body.clock.now, ANCHOR_WEEK_START);
     });
 
-    it("before_first_kickoff lands strictly before the earliest effective kickoff", async () => {
+    it("before_first_kickoff lands strictly before the earliest kickoff", async () => {
       const { app, cookie } = await adminCaller();
       const { week } = await seedAnchorWeek();
 
@@ -184,55 +179,6 @@ describe("POST /api/sim/clock", () => {
       for (const kickoff of [ANCHOR_GAME1_KICKOFF, ANCHOR_GAME2_KICKOFF]) {
         expect(nowMs).toBeGreaterThanOrEqual(kickoff.getTime() + SIM_GAME_DURATION_MS);
       }
-    });
-
-    // Regression: `resolveWeekAnchorInstant` takes `least`/`greatest` of the
-    // provider and override kickoff per game, not the effective kickoff alone
-    // (clock.ts). An override that pulls the LAST game's kickoff earlier must
-    // not drag `after_last_game` in front of that game's real (provider)
-    // window — the anchor is conservative, never after a game that hasn't
-    // actually finished.
-    it("after_last_game does not move earlier when the last game's kickoff is overridden earlier", async () => {
-      const { app, cookie } = await adminCaller();
-      const overriddenEarlier = new Date(ANCHOR_GAME2_KICKOFF.getTime() - 12 * 60 * 60 * 1000);
-      const { week } = await seedAnchorWeek({ game2OverrideKickoffAt: overriddenEarlier });
-
-      const res = await postJson(
-        app,
-        "/api/sim/clock",
-        { kind: "week", weekId: week, anchor: "after_last_game" },
-        cookie,
-      );
-      expect(res.status).toBe(200);
-
-      const stateRes = await get(app, "/api/sim/state", cookie);
-      const body = (await stateRes.json()) as SimStateResponse;
-      const nowMs = new Date(body.clock.now).getTime();
-
-      expect(nowMs).toBeGreaterThanOrEqual(ANCHOR_GAME2_KICKOFF.getTime() + SIM_GAME_DURATION_MS);
-    });
-
-    // Symmetric regression: an override that pushes the FIRST game's kickoff
-    // LATER must not drag `before_first_kickoff` past that game's real
-    // (provider) kickoff — landing there would already show the game locked.
-    it("before_first_kickoff does not move later when the first game's kickoff is overridden later", async () => {
-      const { app, cookie } = await adminCaller();
-      const overriddenLater = new Date(ANCHOR_GAME1_KICKOFF.getTime() + 12 * 60 * 60 * 1000);
-      const { week } = await seedAnchorWeek({ game1OverrideKickoffAt: overriddenLater });
-
-      const res = await postJson(
-        app,
-        "/api/sim/clock",
-        { kind: "week", weekId: week, anchor: "before_first_kickoff" },
-        cookie,
-      );
-      expect(res.status).toBe(200);
-
-      const stateRes = await get(app, "/api/sim/state", cookie);
-      const body = (await stateRes.json()) as SimStateResponse;
-      const nowMs = new Date(body.clock.now).getTime();
-
-      expect(nowMs).toBeLessThan(ANCHOR_GAME1_KICKOFF.getTime());
     });
   });
 
@@ -283,30 +229,5 @@ describe("POST /api/sim/clock", () => {
     const stateRes = await get(app, "/api/sim/state", cookie);
     const body = (await stateRes.json()) as SimStateResponse;
     expectCloseTo(body.clock.now, ANCHOR_WEEK_END);
-  });
-
-  it("before_first_kickoff reads the effective (override) kickoff, not the provider kickoff (arch D15)", async () => {
-    const { app, cookie } = await adminCaller();
-    // Game 2's provider kickoff (20:00) is naturally later than game 1's
-    // (17:00); overriding it 4 hours earlier than game 1 flips which game is
-    // effectively first — a naive read of the provider `kickoff_at` column
-    // would still anchor near game 1's 17:00.
-    const overriddenEarlier = new Date(ANCHOR_GAME1_KICKOFF.getTime() - 4 * 60 * 60 * 1000);
-    const { week } = await seedAnchorWeek({ game2OverrideKickoffAt: overriddenEarlier });
-
-    const res = await postJson(
-      app,
-      "/api/sim/clock",
-      { kind: "week", weekId: week, anchor: "before_first_kickoff" },
-      cookie,
-    );
-    expect(res.status).toBe(200);
-
-    const stateRes = await get(app, "/api/sim/state", cookie);
-    const body = (await stateRes.json()) as SimStateResponse;
-    const nowMs = new Date(body.clock.now).getTime();
-
-    expect(overriddenEarlier.getTime() - nowMs).toBeLessThan(10 * 60 * 1000);
-    expect(ANCHOR_GAME1_KICKOFF.getTime() - nowMs).toBeGreaterThan(60 * 60 * 1000);
   });
 });

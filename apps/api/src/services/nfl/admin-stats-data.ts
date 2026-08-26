@@ -1,34 +1,20 @@
-import { asc, desc, eq, sql, type SQL } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@picksleagues/db";
 import { games, nflGameStatContext, nflTeamSeasonStats, teams } from "@picksleagues/db";
 import {
-  NflGameStatContextOverridePayloadSchema,
   NflGameStatContextPayloadSchema,
   type AdminNflGameStatContext,
   type AdminNflTeamSeasonStats,
   type AdminNflTeamSeasonStatsResponse,
 } from "@picksleagues/schemas";
-import { effectiveKickoffAtSql } from "../games";
-import { effectiveTeamColumns } from "../teams";
-import { resolveNflGameStatContext, resolveNflTeamSeasonStatsOverrides } from "./game-stats";
+import { teamLabelColumns } from "../teams";
 
 /**
- * The browsers' team labels, in effective identity (ADR-0042) — orientation
- * must match what the member surfaces call the team; the teams browser is
- * where the identity layers themselves show.
- */
-function adminTeamLabelColumns(source: Parameters<typeof effectiveTeamColumns>[0] = teams) {
-  const cols = effectiveTeamColumns(source);
-  return { id: cols.id, abbreviation: cols.abbreviation, name: cols.name };
-}
-
-/**
- * Queries behind the admin Stats browsers (STAT-7, ADR-0041) — read-only by
- * construction, like `services/admin-data.ts`: the browsers double as the
+ * Queries behind the admin Stats browsers (STAT-7) — read-only by
+ * construction, like `services/admin-data.ts`: the browsers are the
  * verification surface for the stats sync (a season with missing teams, a
- * synced week whose games have no context yet, an override that survived a
- * re-sync are all visible here). Writes live in `admin-stats-overrides.ts`.
+ * synced week whose games have no context yet are both visible here).
  */
 
 type DbStatsRow = typeof nflTeamSeasonStats.$inferSelect;
@@ -37,7 +23,6 @@ function serializeAdminStats(
   row: DbStatsRow,
   team: { id: string; abbreviation: string; name: string },
 ): AdminNflTeamSeasonStats {
-  const effective = resolveNflTeamSeasonStatsOverrides(row);
   return {
     id: row.id,
     team,
@@ -54,32 +39,6 @@ function serializeAdminStats(
     streak: row.streak,
     pointsFor: row.pointsFor,
     pointsAgainst: row.pointsAgainst,
-    overrideWins: row.overrideWins,
-    overrideLosses: row.overrideLosses,
-    overrideTies: row.overrideTies,
-    overrideHomeWins: row.overrideHomeWins,
-    overrideHomeLosses: row.overrideHomeLosses,
-    overrideHomeTies: row.overrideHomeTies,
-    overrideRoadWins: row.overrideRoadWins,
-    overrideRoadLosses: row.overrideRoadLosses,
-    overrideRoadTies: row.overrideRoadTies,
-    overrideStreak: row.overrideStreak,
-    overridePointsFor: row.overridePointsFor,
-    overridePointsAgainst: row.overridePointsAgainst,
-    overriddenBy: row.overriddenBy,
-    overriddenAt: row.overriddenAt?.toISOString() ?? null,
-    effectiveWins: effective.wins,
-    effectiveLosses: effective.losses,
-    effectiveTies: effective.ties,
-    effectiveHomeWins: effective.homeWins,
-    effectiveHomeLosses: effective.homeLosses,
-    effectiveHomeTies: effective.homeTies,
-    effectiveRoadWins: effective.roadWins,
-    effectiveRoadLosses: effective.roadLosses,
-    effectiveRoadTies: effective.roadTies,
-    effectiveStreak: effective.streak,
-    effectivePointsFor: effective.pointsFor,
-    effectivePointsAgainst: effective.pointsAgainst,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -107,105 +66,17 @@ export async function listNflTeamSeasonStats(
   const rows = await db
     .select({
       stats: nflTeamSeasonStats,
-      team: adminTeamLabelColumns(),
+      team: teamLabelColumns(teams),
     })
     .from(nflTeamSeasonStats)
     .innerJoin(teams, eq(teams.id, nflTeamSeasonStats.teamId))
     .where(eq(nflTeamSeasonStats.seasonYear, seasonYear))
-    .orderBy(asc(effectiveTeamColumns(teams).abbreviation));
+    .orderBy(asc(teams.abbreviation));
 
   return {
     seasonYears,
     seasonYear,
     stats: rows.map(({ stats, team }) => serializeAdminStats(stats, team)),
-  };
-}
-
-/**
- * One stats row in the browser's shape, so the override write can answer with
- * the row the operator was just editing. Null when the row doesn't exist.
- */
-export async function loadAdminNflTeamSeasonStats(
-  db: Db,
-  statsId: string,
-): Promise<AdminNflTeamSeasonStats | null> {
-  const [row] = await db
-    .select({
-      stats: nflTeamSeasonStats,
-      team: adminTeamLabelColumns(),
-    })
-    .from(nflTeamSeasonStats)
-    .innerJoin(teams, eq(teams.id, nflTeamSeasonStats.teamId))
-    .where(eq(nflTeamSeasonStats.id, statsId));
-  if (!row) return null;
-  return serializeAdminStats(row.stats, row.team);
-}
-
-/**
- * The joined shape both context reads project from — extracted so the week
- * list and the one-game read (the override write's response) can't drift.
- */
-function selectContextRows(db: Db, where: SQL | undefined) {
-  const homeTeams = alias(teams, "home_teams");
-  const awayTeams = alias(teams, "away_teams");
-  return (
-    db
-      .select({
-        // The *resolved* kickoff (override ?? provider, arch D15): kickoff is
-        // orientation here, not an editable layer of this surface, and a bare
-        // provider instant would contradict the games browser after a kickoff
-        // correction. `mapWith` borrows the column's decoder — a bare SQL
-        // expression comes back as pg's raw string, not a Date. Wrapped in a
-        // fresh template first because `mapWith` mutates its receiver, and the
-        // shared constant must stay decoder-free for its ORDER BY/WHERE
-        // callers (the season-range idiom).
-        game: {
-          id: games.id,
-          kickoffAt: sql`${effectiveKickoffAtSql}`.mapWith(games.kickoffAt),
-          providerGameId: games.providerGameId,
-        },
-        homeTeam: adminTeamLabelColumns(homeTeams),
-        awayTeam: adminTeamLabelColumns(awayTeams),
-        context: nflGameStatContext,
-      })
-      .from(games)
-      .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
-      .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
-      .leftJoin(nflGameStatContext, eq(nflGameStatContext.gameId, games.id))
-      .where(where)
-      // Effective kickoff, like the games browser: a corrected game sorts where
-      // an operator expects to find it.
-      .orderBy(asc(effectiveKickoffAtSql), asc(games.providerGameId))
-  );
-}
-
-type ContextRow = Awaited<ReturnType<typeof selectContextRows>>[number];
-
-function serializeContextRow(row: ContextRow): AdminNflGameStatContext {
-  let block: AdminNflGameStatContext["context"] = null;
-  if (row.context) {
-    // Parsed like the member read (defaults materialize — the league-settings
-    // pattern), and resolved through the same field-level precedence helper,
-    // so the "effective" block here is exactly what the matchup sheet serves.
-    const payload = NflGameStatContextPayloadSchema.parse(row.context.payload);
-    const override = row.context.overridePayload
-      ? NflGameStatContextOverridePayloadSchema.parse(row.context.overridePayload)
-      : null;
-    block = {
-      payload,
-      overridePayload: override,
-      effective: resolveNflGameStatContext(payload, override),
-      overriddenBy: row.context.overriddenBy,
-      overriddenAt: row.context.overriddenAt?.toISOString() ?? null,
-      updatedAt: row.context.updatedAt.toISOString(),
-    };
-  }
-  return {
-    gameId: row.game.id,
-    homeTeam: row.homeTeam,
-    awayTeam: row.awayTeam,
-    kickoffAt: row.game.kickoffAt.toISOString(),
-    context: block,
   };
 }
 
@@ -217,16 +88,40 @@ export async function listNflGameStatContexts(
   db: Db,
   weekId: string,
 ): Promise<AdminNflGameStatContext[]> {
-  const rows = await selectContextRows(db, eq(games.weekId, weekId));
-  return rows.map(serializeContextRow);
-}
+  const homeTeams = alias(teams, "home_teams");
+  const awayTeams = alias(teams, "away_teams");
+  const rows = await db
+    .select({
+      // Kickoff is orientation here, not an editable layer of this surface.
+      game: {
+        id: games.id,
+        kickoffAt: games.kickoffAt,
+        providerGameId: games.providerGameId,
+      },
+      homeTeam: teamLabelColumns(homeTeams),
+      awayTeam: teamLabelColumns(awayTeams),
+      context: nflGameStatContext,
+    })
+    .from(games)
+    .innerJoin(homeTeams, eq(homeTeams.id, games.homeTeamId))
+    .innerJoin(awayTeams, eq(awayTeams.id, games.awayTeamId))
+    .leftJoin(nflGameStatContext, eq(nflGameStatContext.gameId, games.id))
+    .where(eq(games.weekId, weekId))
+    .orderBy(asc(games.kickoffAt), asc(games.providerGameId));
 
-/** One game's context row in the browser's shape. Null when the game doesn't exist. */
-export async function loadAdminNflGameStatContext(
-  db: Db,
-  gameId: string,
-): Promise<AdminNflGameStatContext | null> {
-  const [row] = await selectContextRows(db, eq(games.id, gameId));
-  if (!row) return null;
-  return serializeContextRow(row);
+  return rows.map((row) => ({
+    gameId: row.game.id,
+    homeTeam: row.homeTeam,
+    awayTeam: row.awayTeam,
+    kickoffAt: row.game.kickoffAt.toISOString(),
+    context: row.context
+      ? {
+          // Parsed like the member read (defaults materialize — the
+          // league-settings pattern), so the block here is exactly what the
+          // matchup sheet serves.
+          payload: NflGameStatContextPayloadSchema.parse(row.context.payload),
+          updatedAt: row.context.updatedAt.toISOString(),
+        }
+      : null,
+  }));
 }

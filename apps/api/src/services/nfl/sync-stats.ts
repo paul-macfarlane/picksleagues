@@ -41,10 +41,7 @@ import { resolveTargetWeeks } from "./target-weeks";
  * Idempotent like its siblings: unchanged rows are skipped, so `updated_at`
  * stays an honest as-of stamp (the UI shows it) and a re-run over unmoved
  * data is a true no-op. Never creates seasons/weeks/games (schedule-sync owns
- * reference data), and **never touches the `override_*` columns or
- * `override_payload`** (ADR-0041): admin corrections live in that layer
- * precisely so a re-sync can't clobber them (arch D15) — an override column
- * appearing in an upsert `set` list below is a correction-destroying bug.
+ * reference data).
  */
 export async function syncNflStats(
   db: Db,

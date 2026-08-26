@@ -73,7 +73,7 @@ succeeded and the recovery when it didn't, capping staleness at ~12h instead of
 | `nfl-sync-odds`    | 3×/day in season                    | `0 12,17,22 * * *`      | Morning/afternoon/evening ET; harmless no-op off-season. Covers two weeks per run — see below |
 | `nfl-sync-scores`  | Every 15 minutes                     | `*/15 * * * *`           | No-ops in milliseconds when nothing is active — leave on year-round |
 | `nfl-sync-stats`   | 2×/day, 8am/8pm ET                  | `0 0,12 * * *`          | After the morning odds run; team records move overnight (game days) and injury reports move daily — the matchup sheet stamps its own as-of, so 2×/day is honest (ADR-0040) |
-| `settle-sweep`     | 2×/day, 3am/3pm ET                  | `0 7,19 * * *`          | Full recompute; catches late stat corrections, admin overrides, and any missed tick |
+| `settle-sweep`     | 2×/day, 3am/3pm ET                  | `0 7,19 * * *`          | Full recompute; catches late stat corrections, hand SQL edits, and any missed tick |
 
 `settle-sweep` takes no query params — it derives its own scope (every active league
 season). It is a **safety net, not the main path**: `nfl-sync-scores` already settles a
@@ -153,6 +153,32 @@ these endpoints. The per-league rebuild (`POST /api/admin/leagues/:id/rebuild`) 
 deliberately button-less (owner re-verdict on `ADM-6`, 2026-08-23) — it is
 admin-session-gated, not secret-gated, so invoke it with a signed-in browser session's
 cookie (locally, mint one per `docs/runbooks/verification.md`).
+
+## Correcting a wrong provider value
+
+There is no in-app override layer (ADR-0046): the tables are a cache of the
+provider, and a wrong value is fixed by the next run of the job that owns it
+(re-trigger it above). The one case the provider will never fix is a game it
+moves between weeks — the app treats that as a cancellation (ADR-0019), and the
+correction is a hand edit of the provider column:
+
+```sql
+-- Find the row by its ESPN event id (visible in the admin Games browser).
+UPDATE games SET status = 'cancelled', updated_at = now() WHERE provider_game_id = '<id>';
+```
+
+Production-facing: `now()` is the wall clock, which is right for a hand edit in
+prod but wrong under the simulator, where `updated_at` is served as the slate's
+`stateAsOf` — there, edit the scenario fixture instead.
+
+Then run the settlement sweep (Jobs tab, or `POST /api/jobs/settle-sweep`) so
+results and standings re-derive from the corrected row. The edit survives later
+syncs because ESPN also reports the game as gone from that week; if ESPN starts
+reporting the game again in its original week, the next schedule sync restores
+its status and the picks re-grade — which is the correct outcome. Record the
+edit in the PR or ops note that prompted it; `admin_audit` records rebuilds,
+not hand edits, and is read from the same console (`SELECT * FROM admin_audit
+ORDER BY created_at DESC`) — no admin view serves it (ADR-0046).
 
 ## Reading a run
 

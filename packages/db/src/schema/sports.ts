@@ -12,24 +12,16 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type {
-  NflGameStatContextOverridePayload,
-  NflGameStatContextPayload,
-  GameStatus,
-  Sport,
-  WeekType,
-} from "@picksleagues/schemas";
-import { users } from "./auth";
+import type { NflGameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 
 /**
  * Sports data ingested from the provider (ESPN in prod, SimulatedProvider in
  * non-prod) — request paths never call the provider directly; jobs sync these
  * tables and reads/settlement serve only from here (arch: Request paths never
- * call ESPN). `games` carries parallel `override_*` columns for manual admin
- * corrections (arch D15): ingestion writes only the provider-synced fields
- * below; every read/settlement site resolves `override_* ?? provider_*`, so a
- * re-sync can never clobber a correction. All timestamps are supplied by app
- * code from the injected Clock (arch D13) — no `.defaultNow()`.
+ * call ESPN). The provider's value is the only value (ADR-0046): a wrong one
+ * is fixed by the next sync, or by the SQL-edit procedure in
+ * `docs/runbooks/jobs.md`. All timestamps are supplied by app code from the
+ * injected Clock (arch D13) — no `.defaultNow()`.
  */
 
 export const sportSeasons = pgTable(
@@ -84,19 +76,6 @@ export const teams = pgTable(
     location: text("location"),
     logoLightUrl: text("logo_light_url"),
     logoDarkUrl: text("logo_dark_url"),
-    // Override parallels for the display fields (admin corrections only —
-    // never written by ingestion, arch D15 / ADR-0042). Display-layer only on
-    // purpose: `providerTeamId` and the bootstrap `abbreviation` uniqueness
-    // below key *identity*, and overrides must never touch what a sync matches
-    // rows on — which is why `override_abbreviation` sits outside both unique
-    // constraints.
-    overrideName: text("override_name"),
-    overrideAbbreviation: text("override_abbreviation"),
-    overrideLocation: text("override_location"),
-    overrideLogoLightUrl: text("override_logo_light_url"),
-    overrideLogoDarkUrl: text("override_logo_dark_url"),
-    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -164,11 +143,7 @@ export const games = pgTable(
     spread: doublePrecision("spread"),
     // The book `spread` came from (PKM-9), written in the same `set()` as
     // `spread` in sync-odds so the two can never drift apart — free text, never
-    // a const set, because ESPN has rotated the attributed book before. A
-    // provider field like `spread` itself (never an `override_*`, arch D15):
-    // ingestion writes it, and a read resolves it to null wherever
-    // `override_spread` is set, since a commissioner's correction is not the
-    // book's line.
+    // a const set, because ESPN has rotated the attributed book before.
     spreadSource: text("spread_source"),
     // Live in-game state (DATA-8): the 1-based period (5+ in overtime) and the
     // seconds remaining in it, normalized by the provider adapter — never its
@@ -178,16 +153,6 @@ export const games = pgTable(
     // the moment this clock reading was true (reads serve it as `stateAsOf`).
     period: integer("period"),
     clockSeconds: integer("clock_seconds"),
-    // Override parallels (admin corrections only — never written by ingestion, arch D15).
-    overrideHomeScore: integer("override_home_score"),
-    overrideAwayScore: integer("override_away_score"),
-    overrideStatus: text("override_status").$type<GameStatus>(),
-    overrideKickoffAt: timestamp("override_kickoff_at", { withTimezone: true }),
-    overrideSpread: doublePrecision("override_spread"),
-    overridePeriod: integer("override_period"),
-    overrideClockSeconds: integer("override_clock_seconds"),
-    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -204,12 +169,7 @@ export const games = pgTable(
  * written by the stats sync from the provider's bulk standings. Provider facts
  * only: PPG/OPG averages and league ranks are derived at read from these rows,
  * never stored — a stored rank is wrong from the moment any other team's row
- * changes, the same staleness arch D11 rejects for lock flags. The `override_*`
- * parallels (ADR-0041, amending ADR-0040's original no-overrides decision)
- * follow the `games` pattern exactly: ingestion writes only provider columns,
- * reads resolve `override_* ?? provider_*`, and derivations (averages, ranks)
- * are computed from the resolved facts so a corrected record ranks as
- * corrected.
+ * changes, the same staleness arch D11 rejects for lock flags.
  *
  * `seasonYear` is a bare integer, deliberately not a `sport_seasons` FK: the
  * week-1 fallback serves *last* season's rows (ADR-0040), and a prior season's
@@ -236,22 +196,6 @@ export const nflTeamSeasonStats = pgTable(
     streak: integer("streak").notNull(),
     pointsFor: integer("points_for").notNull(),
     pointsAgainst: integer("points_against").notNull(),
-    // Override parallels (admin corrections only — never written by ingestion,
-    // arch D15 / ADR-0041).
-    overrideWins: integer("override_wins"),
-    overrideLosses: integer("override_losses"),
-    overrideTies: integer("override_ties"),
-    overrideHomeWins: integer("override_home_wins"),
-    overrideHomeLosses: integer("override_home_losses"),
-    overrideHomeTies: integer("override_home_ties"),
-    overrideRoadWins: integer("override_road_wins"),
-    overrideRoadLosses: integer("override_road_losses"),
-    overrideRoadTies: integer("override_road_ties"),
-    overrideStreak: integer("override_streak"),
-    overridePointsFor: integer("override_points_for"),
-    overridePointsAgainst: integer("override_points_against"),
-    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-    overriddenAt: timestamp("overridden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -268,17 +212,7 @@ export const nflTeamSeasonStats = pgTable(
  * defaults at read — the league-settings pattern). `updated_at` is the as-of
  * instant the UI must show beside it: injuries move daily and this table
  * moves on the sync's schedule, so an unstamped report would read fresher
- * than it is (spec §UI conventions: never claim real-time freshness). It is
- * bumped by sync writes *and* override writes alike (ADR-0041, the `games`
- * precedent), so it dates the row as the member surface serves it — a
- * correction is a change to what the sheet shows, not a claim the provider
- * refreshed.
- *
- * `override_payload` is the JSONB analogue of column parallels (ADR-0041): a
- * *sparse* per-team payload whose present fields win over the provider's at
- * read (`override.field ?? provider.field`), so correcting one wrong injury
- * list doesn't freeze FPI/ATS/last-five at override-time values while the
- * sync keeps refreshing them. Ingestion never touches it.
+ * than it is (spec §UI conventions: never claim real-time freshness).
  */
 export const nflGameStatContext = pgTable("nfl_game_stat_context", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -287,9 +221,6 @@ export const nflGameStatContext = pgTable("nfl_game_stat_context", {
     .unique()
     .references(() => games.id, { onDelete: "cascade" }),
   payload: jsonb("payload").$type<NflGameStatContextPayload>().notNull(),
-  overridePayload: jsonb("override_payload").$type<NflGameStatContextOverridePayload>(),
-  overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
-  overriddenAt: timestamp("overridden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });

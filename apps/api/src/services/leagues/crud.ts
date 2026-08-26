@@ -490,8 +490,8 @@ export async function listMyLeagues(
   );
 
   // One start-derivation query per league: fine at this scale (a user's
-  // dashboard holds a handful of leagues), and correctness (override-aware,
-  // per-mode) beats a hand-rolled batch join.
+  // dashboard holds a handful of leagues), and correctness (per-mode) beats a
+  // hand-rolled batch join.
   return Promise.all(
     rows.map(async (row) => {
       const startsAt = await leagueStartAt(

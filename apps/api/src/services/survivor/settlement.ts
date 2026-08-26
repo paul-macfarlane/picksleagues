@@ -28,7 +28,6 @@ import {
   SURVIVOR_UNSETTLED_REASON,
   type SurvivorGameResult,
 } from "@picksleagues/scoring";
-import { resolveGameOverrides } from "../games";
 import { applyLeagueSeasonConclusion } from "../leagues/conclusion";
 import { lockLeagueSeasonRow } from "../leagues/locks";
 import { logInfo } from "../../lib/logger";
@@ -130,20 +129,17 @@ async function loadSeasonWeeks(db: Db, season: SettleableSurvivorSeason): Promis
 }
 
 /**
- * Resolves the one thing only this layer knows about: **override precedence**
- * (`override_* ?? provider_*`, arch D15), via the one home for it. Both team ids
- * come straight off the row — a Survivor pick names a team rather than a side,
- * and there is no override for who played.
+ * Both team ids ride along — a Survivor pick names a team rather than a side,
+ * so grading needs to know which side the picked team was.
  */
 function toGameResult(game: typeof games.$inferSelect): SurvivorGameResult {
-  const effective = resolveGameOverrides(game);
   return {
     gameId: game.id,
-    status: effective.status,
+    status: game.status,
     homeTeamId: game.homeTeamId,
     awayTeamId: game.awayTeamId,
-    homeScore: effective.homeScore,
-    awayScore: effective.awayScore,
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
   };
 }
 
@@ -253,8 +249,9 @@ function replaySeason(
       // back when they go final. The week would stay ungraded forever.
 
       for (const game of settlement.unsettled) {
-        // A final game with no score is a provider fault an admin override
-        // fixes — worth a log line, unlike the ordinary not-yet-played case.
+        // A final game with no score is a provider fault the next sync (or a
+        // hand SQL edit) fixes — worth a log line, unlike the ordinary
+        // not-yet-played case.
         if (game.reason !== SURVIVOR_UNSETTLED_REASON.NOT_YET_PLAYED) {
           logInfo("settlement.unsettleable-game", {
             leagueSeasonId: season.leagueSeasonId,
@@ -368,8 +365,8 @@ function resolveReleasedFlags(
 
 /**
  * Records an admin's rebuild against the league season whose derived state it
- * is about to replace (engineering rules §Data: "every override/rebuild writes
- * `admin_audit`"), in the same transaction as the recompute it records.
+ * is about to replace (engineering rules §Data: an admin rebuild writes
+ * `admin_audit`), in the same transaction as the recompute it records.
  *
  * The prior value is a summary rather than the rows, for the reason the Pick'em
  * path records one: the rows are a derivation arch D10 already defines as
@@ -492,8 +489,8 @@ export async function rebuildSurvivorLeagueSeason(
 /**
  * Every game the replay can need, keyed by the week it settles under. A pick's
  * own game is included even when it now sits in another week: week moves are
- * out of scope (ADR-0019) and the remedy is an admin `cancelled` override, but
- * a repointed row must still reach the grader rather than throw.
+ * out of scope (ADR-0019) and the remedy is a hand SQL edit to `cancelled`
+ * (ADR-0046), but a repointed row must still reach the grader rather than throw.
  */
 async function loadSeasonGames(
   tx: Db,

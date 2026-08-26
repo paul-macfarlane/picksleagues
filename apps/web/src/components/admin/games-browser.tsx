@@ -3,12 +3,10 @@ import { rowClassName } from "@/components/row";
 import { type AdminGame } from "@picksleagues/schemas";
 import { useAdminGames } from "@/api/admin";
 import { formatDateTime } from "@/lib/format";
-import { adminGameEffective } from "@/lib/admin-game";
 import { gameStateLead, gameStatusLabel, matchupNumerals, scoreText } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
-import { GameOverrideForm } from "@/components/admin/game-override-form";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
-import { OverriddenTag, ResolvedField } from "@/components/admin/override-display";
+import { LabeledValue } from "@/components/labeled-value";
 import {
   seasonLabel,
   useAdminSeasonWeekSelection,
@@ -17,17 +15,6 @@ import { Section } from "@/components/section";
 import { LabeledSelect } from "@/components/labeled-select";
 import { RowsSkeleton } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
-import { RowEditor } from "@/components/row-editor";
-
-function isOverridden(game: AdminGame) {
-  return (
-    game.overrideKickoffAt !== null ||
-    game.overrideStatus !== null ||
-    game.overrideHomeScore !== null ||
-    game.overrideAwayScore !== null ||
-    game.overrideSpread !== null
-  );
-}
 
 /**
  * Selection lives in the URL (owned by the route), not in state: a specific
@@ -55,10 +42,7 @@ export function GamesBrowser({
   const games = useAdminGames(effectiveWeekId);
 
   return (
-    <Section
-      title="Games"
-      description="Provider, override, and resolved values for a week's games."
-    >
+    <Section title="Games" description="The synced games for a week, as the app serves them.">
       <QueryState
         isPending={seasons.isPending}
         isError={seasons.isError}
@@ -128,54 +112,29 @@ export function GamesBrowser({
 
 function GameRow({ game }: { game: AdminGame }) {
   const now = useAppNow();
-  const overridden = isOverridden(game);
-  const effective = adminGameEffective(game);
-  const numerals = matchupNumerals(effective, game.effectiveSpread);
+  const numerals = matchupNumerals(game, game.spread);
 
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <MatchupLine
         away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
-        center={gameStateLead(effective, now)}
+        center={gameStateLead(game, now)}
         home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}
       />
-      {overridden && <OverriddenTag className="self-start" />}
 
       <div className="flex flex-col gap-1 text-xs text-foreground">
-        <ResolvedField
-          label="Kickoff"
-          resolved={formatDateTime(game.effectiveKickoffAt)}
-          provider={formatDateTime(game.kickoffAt)}
-          showProvider={game.overrideKickoffAt !== null}
-        />
-        <ResolvedField
-          label="Status"
-          resolved={`${gameStatusLabel(game.effectiveStatus)}${scoreText(
-            game.effectiveAwayScore,
-            game.effectiveHomeScore,
-          )}`}
-          provider={`${gameStatusLabel(game.status)}${scoreText(game.awayScore, game.homeScore)}`}
-          showProvider={
-            game.overrideStatus !== null ||
-            game.overrideHomeScore !== null ||
-            game.overrideAwayScore !== null
-          }
-        />
-        <ResolvedField
-          label="Spread"
-          resolved={game.effectiveSpread === null ? "no line" : String(game.effectiveSpread)}
-          provider={game.spread === null ? "no line" : String(game.spread)}
-          showProvider={game.overrideSpread !== null}
-        />
+        <LabeledValue label="Kickoff">
+          <span>{formatDateTime(game.kickoffAt)}</span>
+        </LabeledValue>
+        <LabeledValue label="Status">
+          <span>{`${gameStatusLabel(game.status)}${scoreText(game.awayScore, game.homeScore)}`}</span>
+        </LabeledValue>
+        <LabeledValue label="Spread">
+          <span>{game.spread === null ? "no line" : String(game.spread)}</span>
+        </LabeledValue>
       </div>
 
       <p className="text-xs text-muted-foreground">provider game id {game.providerGameId}</p>
-
-      {/* `GameOverrideForm` carries its own fingerprint key (RowEditor's
-          re-seed half), so it is mounted bare here. */}
-      <RowEditor label="Edit override">
-        <GameOverrideForm game={game} />
-      </RowEditor>
     </li>
   );
 }

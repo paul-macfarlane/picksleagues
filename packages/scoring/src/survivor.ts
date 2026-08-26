@@ -11,9 +11,8 @@ import { pickOutcomeForMargin } from "./pick-outcome";
  * Survivor settlement (spec §Game Mode 2).
  *
  * Pure by rule, like every module here: plain data in, plain data out, no clock
- * and no I/O. Override precedence (`override_* ?? provider_*`, arch D15) is
- * resolved by the caller's input loader, so this module never sees a provider
- * field.
+ * and no I/O; the caller's input loader is the only thing that reads a `games`
+ * row.
  *
  * **A Survivor week grades as a unit, where a Pick'em week grades pick by
  * pick**, and that difference is what shapes everything below. Missed-pick
@@ -53,7 +52,7 @@ export interface SurvivorPickInput {
 }
 
 /**
- * A game's settled truth, with overrides already resolved by the caller. Both
+ * A game's settled truth, as the caller's input loader read it. Both
  * team IDs are carried because a Survivor pick names a *team*, not a side, so
  * there is no way to tell which end of the score belongs to it otherwise.
  */
@@ -105,7 +104,7 @@ export interface SurvivorPickOutcome {
  * game in the week has not reached a terminal state. `final_without_scores` is
  * a provider data fault on a game somebody picked: it claims to be over but
  * carries no score, so it is surfaced rather than graded against a missing
- * number, and an admin score override corrects it (arch §Overrides).
+ * number, and the next score sync (or a hand SQL edit) corrects it.
  */
 export const SURVIVOR_UNSETTLED_REASON = {
   NOT_YET_PLAYED: "not_yet_played",
