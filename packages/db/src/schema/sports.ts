@@ -12,13 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type {
-  NflGameStatContextOverridePayload,
-  NflGameStatContextPayload,
-  GameStatus,
-  Sport,
-  WeekType,
-} from "@picksleagues/schemas";
+import type { NflGameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
 import { users } from "./auth";
 
 /**
@@ -84,12 +78,8 @@ export const teams = pgTable(
     location: text("location"),
     logoLightUrl: text("logo_light_url"),
     logoDarkUrl: text("logo_dark_url"),
-    // Override parallels for the display fields (admin corrections only —
-    // never written by ingestion, arch D15 / ADR-0042). Display-layer only on
-    // purpose: `providerTeamId` and the bootstrap `abbreviation` uniqueness
-    // below key *identity*, and overrides must never touch what a sync matches
-    // rows on — which is why `override_abbreviation` sits outside both unique
-    // constraints.
+    // Retired override parallels (ADR-0046): nothing reads or writes them;
+    // the columns drop in OVR-4 once production is checked for live values.
     overrideName: text("override_name"),
     overrideAbbreviation: text("override_abbreviation"),
     overrideLocation: text("override_location"),
@@ -204,12 +194,7 @@ export const games = pgTable(
  * written by the stats sync from the provider's bulk standings. Provider facts
  * only: PPG/OPG averages and league ranks are derived at read from these rows,
  * never stored — a stored rank is wrong from the moment any other team's row
- * changes, the same staleness arch D11 rejects for lock flags. The `override_*`
- * parallels (ADR-0041, amending ADR-0040's original no-overrides decision)
- * follow the `games` pattern exactly: ingestion writes only provider columns,
- * reads resolve `override_* ?? provider_*`, and derivations (averages, ranks)
- * are computed from the resolved facts so a corrected record ranks as
- * corrected.
+ * changes, the same staleness arch D11 rejects for lock flags.
  *
  * `seasonYear` is a bare integer, deliberately not a `sport_seasons` FK: the
  * week-1 fallback serves *last* season's rows (ADR-0040), and a prior season's
@@ -236,8 +221,8 @@ export const nflTeamSeasonStats = pgTable(
     streak: integer("streak").notNull(),
     pointsFor: integer("points_for").notNull(),
     pointsAgainst: integer("points_against").notNull(),
-    // Override parallels (admin corrections only — never written by ingestion,
-    // arch D15 / ADR-0041).
+    // Retired override parallels (ADR-0046): nothing reads or writes them;
+    // the columns drop in OVR-4 once production is checked for live values.
     overrideWins: integer("override_wins"),
     overrideLosses: integer("override_losses"),
     overrideTies: integer("override_ties"),
@@ -268,17 +253,10 @@ export const nflTeamSeasonStats = pgTable(
  * defaults at read — the league-settings pattern). `updated_at` is the as-of
  * instant the UI must show beside it: injuries move daily and this table
  * moves on the sync's schedule, so an unstamped report would read fresher
- * than it is (spec §UI conventions: never claim real-time freshness). It is
- * bumped by sync writes *and* override writes alike (ADR-0041, the `games`
- * precedent), so it dates the row as the member surface serves it — a
- * correction is a change to what the sheet shows, not a claim the provider
- * refreshed.
+ * than it is (spec §UI conventions: never claim real-time freshness).
  *
- * `override_payload` is the JSONB analogue of column parallels (ADR-0041): a
- * *sparse* per-team payload whose present fields win over the provider's at
- * read (`override.field ?? provider.field`), so correcting one wrong injury
- * list doesn't freeze FPI/ATS/last-five at override-time values while the
- * sync keeps refreshing them. Ingestion never touches it.
+ * The `override_*` columns are retired (ADR-0046): nothing reads or writes
+ * them; they drop in OVR-4 once production is checked for live values.
  */
 export const nflGameStatContext = pgTable("nfl_game_stat_context", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -287,7 +265,7 @@ export const nflGameStatContext = pgTable("nfl_game_stat_context", {
     .unique()
     .references(() => games.id, { onDelete: "cascade" }),
   payload: jsonb("payload").$type<NflGameStatContextPayload>().notNull(),
-  overridePayload: jsonb("override_payload").$type<NflGameStatContextOverridePayload>(),
+  overridePayload: jsonb("override_payload").$type<Record<string, unknown>>(),
   overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
   overriddenAt: timestamp("overridden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

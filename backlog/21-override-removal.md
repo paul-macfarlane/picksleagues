@@ -36,7 +36,7 @@ describes the *shipped* system, so its amendment (§Manual Sports Data
 Overrides, D15, D13's "supplied instant" exception, the admin-surface
 inventory) rides with the closing task rather than ahead of the code.
 
-- [ ] **OVR-1** — Remove the display-only override families: NFL season stats,
+- [x] **OVR-1** — Remove the display-only override families: NFL season stats,
   NFL stat context (ADR-0041) and team identity (ADR-0042) — columns' readers,
   `resolveTeamIdentity`/`effectiveTeamColumns` and the stats resolution home
   collapse to direct column reads; the two admin-nfl-stats PUT routes and the

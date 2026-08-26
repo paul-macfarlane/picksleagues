@@ -1,17 +1,15 @@
 import { z } from "@hono/zod-openapi";
 import { GameStatusSchema, NullableGameStatusSchema } from "./game-status";
-import { NullableImageUrlSchema } from "./image-url";
 import { SportSchema } from "./sport";
 import { WeekTypeSchema } from "./week-type";
 
 /**
  * Projections of the provider-synced reference tables for the admin page's
- * data browsers (arch §Manual Sports Data Overrides). Most are inspection
- * surfaces whose whole point is showing the raw stored truth, so DB columns
- * are serialized flat rather than reshaped; `AdminGame` and `AdminTeam` are
- * the exceptions and carry provider, override, and resolved values side by
- * side so an operator can see what ingestion wrote, what a human corrected,
- * and what the app will actually use.
+ * data browsers. They are inspection surfaces whose whole point is showing
+ * the raw stored truth, so DB columns are serialized flat rather than
+ * reshaped; `AdminGame` is the exception and carries provider, override, and
+ * resolved values side by side so an operator can see what ingestion wrote,
+ * what a human corrected, and what the app will actually use.
  */
 
 export const AdminTeamSchema = z
@@ -20,70 +18,16 @@ export const AdminTeamSchema = z
     sport: SportSchema,
     // Null on bootstrap rows that predate provider linkage (see teams table).
     providerTeamId: z.string().nullable(),
-    // Provider block — exactly what the schedule sync wrote.
     abbreviation: z.string(),
     name: z.string(),
     location: z.string().nullable(),
     logoLightUrl: z.string().nullable(),
     logoDarkUrl: z.string().nullable(),
-    // Override block — admin corrections only (STAT-8, ADR-0042). Display
-    // fields alone: the keys ingestion matches rows on (`providerTeamId`, the
-    // bootstrap abbreviation uniqueness) have no override parallel.
-    overrideName: z.string().nullable(),
-    overrideAbbreviation: z.string().nullable(),
-    overrideLocation: z.string().nullable(),
-    overrideLogoLightUrl: z.string().nullable(),
-    overrideLogoDarkUrl: z.string().nullable(),
-    overriddenBy: z.string().nullable(),
-    overriddenAt: z.iso.datetime().nullable(),
-    // Resolved block — `override_* ?? provider_*`, serialized rather than left
-    // to the client so precedence has one home (arch D15).
-    effectiveName: z.string(),
-    effectiveAbbreviation: z.string(),
-    effectiveLocation: z.string().nullable(),
-    effectiveLogoLightUrl: z.string().nullable(),
-    effectiveLogoDarkUrl: z.string().nullable(),
     updatedAt: z.iso.datetime(),
   })
   .openapi("AdminTeam");
 
 export type AdminTeam = z.infer<typeof AdminTeamSchema>;
-
-// Generous display bounds — refusing a fat-fingered paste, not modeling team
-// naming. Trimmed before min(1) so a whitespace-only override is a 400, not a
-// stored value the editor's own trim would drop (the stats-override rule).
-const MAX_TEAM_NAME_LENGTH = 100;
-const MAX_TEAM_ABBREVIATION_LENGTH = 10;
-const MAX_TEAM_LOCATION_LENGTH = 100;
-
-/**
- * Three-state patch onto the team `override_*` columns, exactly the
- * `GameOverrideRequest` contract: **omitted** leaves the stored override
- * alone, **null** clears it back to provider truth, a value sets it
- * (arch D15 / ADR-0042).
- */
-export const TeamIdentityOverrideRequestSchema = z
-  .object({
-    name: z.string().trim().min(1).max(MAX_TEAM_NAME_LENGTH).nullable().optional(),
-    abbreviation: z.string().trim().min(1).max(MAX_TEAM_ABBREVIATION_LENGTH).nullable().optional(),
-    location: z.string().trim().min(1).max(MAX_TEAM_LOCATION_LENGTH).nullable().optional(),
-    // The avatar-override rule (ADR-0022): any https URL, length-bounded — a
-    // URL that isn't an image degrades to the logo's initials-free fallback.
-    logoLightUrl: NullableImageUrlSchema.optional(),
-    logoDarkUrl: NullableImageUrlSchema.optional(),
-  })
-  .refine((data) => Object.values(data).some((value) => value !== undefined), {
-    message: "At least one field is required",
-  })
-  .openapi("TeamIdentityOverrideRequest");
-
-export type TeamIdentityOverrideRequest = z.infer<typeof TeamIdentityOverrideRequestSchema>;
-
-export const TeamIdentityOverrideResponseSchema = z
-  .object({ team: AdminTeamSchema })
-  .openapi("TeamIdentityOverrideResponse");
-
-export type TeamIdentityOverrideResponse = z.infer<typeof TeamIdentityOverrideResponseSchema>;
 
 export const AdminTeamsResponseSchema = z
   .object({ teams: z.array(AdminTeamSchema) })
@@ -132,13 +76,7 @@ export const AdminSeasonsResponseSchema = z
 
 export type AdminSeasonsResponse = z.infer<typeof AdminSeasonsResponseSchema>;
 
-/**
- * A team as the game/stats browsers *label* rows with it: **effective**
- * identity (`override_* ?? provider_*`, ADR-0042), not provider truth —
- * orientation must match what the member surfaces call the team, unlike the
- * game's own provider block below it. The teams browser is where identity's
- * layers show side by side.
- */
+/** A team as the game/stats browsers *label* rows with it — orientation only. */
 export const AdminGameTeamSchema = z
   .object({
     id: z.string(),
