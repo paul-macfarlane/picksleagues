@@ -625,40 +625,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/games/anomalies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List games left unlocked while their outcome is already knowable */
-        get: operations["listAdminGameAnomalies"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Browse the admin action log — rebuilds, newest first */
-        get: operations["listAdminAudit"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/nfl-stats": {
         parameters: {
             query?: never;
@@ -1424,32 +1390,6 @@ export interface components {
             abbreviation: string;
             name: string;
         };
-        AdminAuditResponse: {
-            entries: components["schemas"]["AdminAuditEntry"][];
-            total: number;
-            limit: number;
-            offset: number;
-        };
-        AdminAuditEntry: {
-            id: string;
-            admin: {
-                displayName: string;
-                username: string | null;
-            };
-            action: components["schemas"]["AdminAuditAction"];
-            targetTable: components["schemas"]["AdminAuditTargetTable"];
-            targetId: string;
-            targetLabel: string | null;
-            priorValue: {
-                [key: string]: unknown;
-            };
-            /** Format: date-time */
-            createdAt: string;
-        };
-        /** @enum {string} */
-        AdminAuditAction: "league_rebuild";
-        /** @enum {string} */
-        AdminAuditTargetTable: "league_seasons";
         AdminNflTeamSeasonStatsResponse: {
             seasonYears: number[];
             seasonYear: number | null;
@@ -4205,121 +4145,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminGamesResponse"];
-                };
-            };
-            /** @description A request param failed its format rule */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The caller is signed in but does not hold the admin role */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    listAdminGameAnomalies: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Games whose kickoff is still ahead of the server clock while their status or score already reveals the outcome — an empty list is the all-clear. Same shape as the week browser, because the repair is a correction to exactly these rows. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminGamesResponse"];
-                };
-            };
-            /** @description A request param failed its format rule */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No valid session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description The caller is signed in but does not hold the admin role */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    listAdminAudit: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description One page of audit rows newest-first, with the whole table's `total` and the `limit`/`offset` actually served — an offset past the end is an empty page, not an error */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminAuditResponse"];
                 };
             };
             /** @description A request param failed its format rule */

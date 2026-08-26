@@ -40,21 +40,11 @@ export function isUnplayedStatus(status: GameStatus): boolean {
  * in this week"), and not its inverse: `scheduled` and `postponed` are neither,
  * because such a game is still ahead of us and picks on it are legitimate.
  *
- * A game in one of these must never be left unlocked (arch D11), or every
- * member could pick against an outcome the same page is already showing them.
- * The anomaly detector pairs this with a score check rather than folding "has
- * a score" in here — `postponed` carrying a score is knowable without ever
- * having started, and this constant means what it says.
- *
- * Exported as the list *as well as* behind `isStartedStatus`, unlike
- * `UNPLAYED_GAME_STATUSES`: the admin anomaly query expresses the predicate in
- * SQL over every game in the database, and a SQL `inArray` cannot push a
- * predicate down.
+ * "Has a score" is deliberately not folded in — `postponed` carrying a score
+ * is knowable without ever having started, and this constant means what it
+ * says.
  */
-export const STARTED_GAME_STATUSES: readonly GameStatus[] = [
-  GAME_STATUS.IN_PROGRESS,
-  GAME_STATUS.FINAL,
-];
+const STARTED_GAME_STATUSES: readonly GameStatus[] = [GAME_STATUS.IN_PROGRESS, GAME_STATUS.FINAL];
 
 export function isStartedStatus(status: GameStatus): boolean {
   return STARTED_GAME_STATUSES.includes(status);
