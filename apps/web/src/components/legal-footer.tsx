@@ -40,16 +40,24 @@ export function LegalLinks({ className }: { className?: string }) {
 }
 
 /**
- * Width/border differences stay at the call site via `className`.
+ * Rendered wherever `LegalLinks` is, so the notice follows the links onto the
+ * profile's About section on phones, where the footer is hidden.
  *
  * The copyright holder is a person, not the site name: a name can't own a
  * copyright, so "© Picks Leagues" would name nobody.
  */
-export function LegalFooter({ className }: { className?: string }) {
+export function CopyrightNotice({ className }: { className?: string }) {
   // The app clock, not the browser's, so the year agrees with every other
   // "now" the SPA renders (arch D13) — one label on its own clock is one
   // more place the simulator can't reach.
   const year = useAppNow().getFullYear();
+  return <span className={className}>© {year} Paul Macfarlane</span>;
+}
+
+/**
+ * Width/border differences stay at the call site via `className`.
+ */
+export function LegalFooter({ className }: { className?: string }) {
   return (
     <footer
       className={cn(
@@ -58,7 +66,7 @@ export function LegalFooter({ className }: { className?: string }) {
       )}
     >
       <LegalLinks />
-      <span>© {year} Paul Macfarlane</span>
+      <CopyrightNotice />
     </footer>
   );
 }
