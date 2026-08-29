@@ -20,7 +20,7 @@ import { useAvatarPreview } from "@/lib/avatar-preview";
 import { AvatarThemePreview } from "@/components/avatar-theme-preview";
 import { InstallCard } from "@/components/install-card";
 import { LabeledSelect } from "@/components/labeled-select";
-import { LegalLinks } from "@/components/legal-footer";
+import { CopyrightNotice, LegalLinks } from "@/components/legal-footer";
 import { FormTextField } from "@/components/form-field";
 import {
   AlertDialog,
@@ -350,7 +350,10 @@ function AccountCard() {
 function AboutCard() {
   return (
     <Section title="About">
-      <LegalLinks className="text-sm text-muted-foreground" />
+      <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+        <LegalLinks />
+        <CopyrightNotice />
+      </div>
     </Section>
   );
 }

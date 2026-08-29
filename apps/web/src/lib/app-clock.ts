@@ -63,5 +63,9 @@ function currentMinute(): number {
 
 /** The application's current time — the clock every rendered label must use. */
 export function useAppNow(): Date {
-  return new Date(useSyncExternalStore(subscribe, currentMinute) * MINUTE_MS);
+  // The server snapshot is the same reading: the prerender (ADR-0039) has no
+  // session to learn an offset from, so its clock is the build machine's, and
+  // without a server snapshot React refuses to render the store at all —
+  // which surfaced as a public route prerendering to an empty error boundary.
+  return new Date(useSyncExternalStore(subscribe, currentMinute, currentMinute) * MINUTE_MS);
 }
