@@ -10,3 +10,5 @@ A web app where friends create and compete in sports pick'em leagues. MVP: NFL P
 Stack: pnpm monorepo · Vite/React/TanStack SPA · Hono + zod-openapi API on Vercel · OpenAPI-generated client · Neon Postgres + Drizzle · Better Auth (Google/Discord) · Vitest + Playwright, simulator-backed e2e.
 
 Code scaffold lands with `FND-1` (see `backlog/00-foundation.md`).
+
+Agent setup and workflows: [`AGENTS.md`](AGENTS.md) and [`docs/harness/`](docs/harness/README.md). Codex and Claude share the same engineering rules and workflow definitions.

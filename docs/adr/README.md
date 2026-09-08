@@ -56,3 +56,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0044](0044-score-freshness-fifteen-minutes.md) | Score freshness is ~15 minutes, not ~5 | Accepted |
 | [0045](0045-league-dues-tracking.md) | League dues: a per-season column and a presence ledger, tracking only | Accepted |
 | [0046](0046-remove-sports-data-overrides.md) | Manual sports-data overrides are removed; the database is a provider cache | Accepted |
+| [0047](0047-agent-neutral-repository-harness.md) | Shared repository harness with thin host adapters | Accepted |
