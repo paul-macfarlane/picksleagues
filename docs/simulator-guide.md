@@ -273,5 +273,5 @@ Survivor is down to one member (ADR-0030), and the omit-`leagueId` form mirrors
 settles it, concluded or not — so if a replay looks like it stopped grading, pass
 `leagueId` rather than assuming settlement broke.
 
-To mint an admin session for a local script, see `.claude/skills/verify` and
+To mint an admin session for a local script, see `docs/runbooks/verification.md` and
 `e2e/setup/session.ts` (`mintSession({ appRole: "admin" })`).

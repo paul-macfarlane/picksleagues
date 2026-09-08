@@ -2,7 +2,7 @@
 
 The reference a new screen is built from. The direction and the reasons are
 ADR-0043 (the broadcast scoreboard); the rules a review holds a diff to are
-`.claude/rules/engineering.md` §Quality (surface tiers, type roles, orange =
+`docs/harness/engineering.md` §Quality (surface tiers, type roles, orange =
 action, theme tokens, one page skeleton, `Table`, `QueryState`). This page sits
 between them: the named things a screen composes from — tokens, type roles,
 surface tiers, the matchup line, the tag — each with when to reach for it,
