@@ -298,6 +298,13 @@ test.describe.serial("Pick'em merge-gate journey (mixed-week scenario)", () => {
     // re-proved far harder below anyway: the joiner submits a week into this
     // league and lands on its standings.
     await expect(pageB).toHaveURL(new RegExp(`/leagues/${leagueId}$`));
+    // The phone member can leave a deep link without relying on browser history
+    // or discovering that the already-active bottom tab also returns to the hub.
+    await pageB.goto(`/leagues/${leagueId}/my-picks`);
+    await pageB.getByTestId("back-to-leagues").click();
+    await expect(pageB).toHaveURL(/\/$/);
+    await pageB.getByRole("link", { name: leagueName, exact: true }).click();
+    await expect(pageB).toHaveURL(new RegExp(`/leagues/${leagueId}$`));
   });
 
   // The one assertion in this file about a *displayed* value rather than a
