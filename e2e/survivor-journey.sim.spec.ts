@@ -1,4 +1,11 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import {
+  devices,
+  expect,
+  test,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { loadScenario, resetSim, setSimClock } from "./setup/sim";
 import { latestInviteCode } from "./setup/league-seed";
@@ -175,7 +182,7 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
   test.beforeAll(async ({ browser }) => {
     adminContext = await browser.newContext();
     const memberContexts = [
-      await browser.newContext(),
+      await browser.newContext(devices["iPhone 13"]),
       await browser.newContext(),
       await browser.newContext(),
     ];
@@ -202,9 +209,9 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
 
     // Canonical workflow (docs/simulator-guide.md): reset first — loading never
     // clears already-ingested data — then load, then sync so the fixture reaches
-    // `weeks`/`games`. No odds sync: Survivor is straight-up only (ADR-0026), so
-    // nothing here reads a spread.
-    await loadScenario(adminContext, "survivor-season", ["sync-schedule"]);
+    // `weeks`/`games`. Odds inform the stats sheet; Survivor still grades
+    // straight-up (ADR-0026).
+    await loadScenario(adminContext, "survivor-season", ["sync-schedule", "sync-odds"]);
   });
 
   test.afterAll(async () => {
@@ -271,6 +278,12 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
 
   test("week 15: all three pick, and settlement puts the one who backed a loser out", async () => {
     await openMyPicks(page1, 0);
+    await page1.getByRole("button", { name: "Matchup stats: MIA @ BUF", exact: true }).click();
+    const spread = page1.getByTestId("matchup-spread");
+    await expect(spread).toContainText("MIA +3");
+    await expect(spread).toContainText("BUF -3");
+    await expect(spread).toContainText("DraftKings");
+    await page1.getByRole("button", { name: "Close matchup stats" }).click();
     await savePick(page1, "MIA", "BUF", "BUF");
     await openMyPicks(page2, 0);
     await savePick(page2, "DEN", "KC", "KC");

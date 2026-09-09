@@ -9,6 +9,7 @@ import type {
 } from "@picksleagues/schemas";
 import { useNflGameStats } from "@/api/nfl-game-stats";
 import { formatDateTime } from "@/lib/format";
+import { NflMatchupSpread } from "@/components/league/nfl-matchup-spread";
 import { recordLabel, streakLabel } from "@/lib/nfl-stats";
 import {
   advantageOf,
@@ -473,6 +474,7 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
             button and the header/toggle stay visible however long the
             advanced tier gets (see SHEET_SIDE_CLASS_NAME's bottom entry). */}
         <div className="min-h-0 flex-1 overflow-y-auto">
+          <NflMatchupSpread game={game} />
           {open &&
             (segment === "results" ? (
               <NflMatchupResultsBody game={game} />
