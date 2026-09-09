@@ -153,36 +153,67 @@ describe("GET /api/games/{gameId}/nfl-stats", () => {
     expect(body.context?.updatedAt).toBe(NOW.toISOString());
   });
 
-  it("falls back to the prior season per team while the current one has no games", async () => {
-    // Current season: all-zero records (week 1). Prior: real finals.
-    provider.recordsByYear.set(SEASON_YEAR, [
-      record("hom-id", SEASON_YEAR),
-      record("awy-id", SEASON_YEAR),
-    ]);
-    provider.recordsByYear.set(SEASON_YEAR - 1, [
-      record("hom-id", SEASON_YEAR - 1, {
-        wins: 11,
-        losses: 6,
-        streak: -1,
-        pointsFor: 379,
-        pointsAgainst: 325,
-      }),
-    ]);
-    const gameId = await seedAll();
-    const { cookie } = await createAuthenticatedUser(auth);
+  it.each([false, true])(
+    "uses prior-season records independently of synced injuries (%s)",
+    async (withInjuries) => {
+      // Current season: all-zero records (week 1). Prior: real finals.
+      provider.recordsByYear.set(SEASON_YEAR, [
+        record("hom-id", SEASON_YEAR),
+        record("awy-id", SEASON_YEAR),
+      ]);
+      provider.recordsByYear.set(SEASON_YEAR - 1, [
+        record("hom-id", SEASON_YEAR - 1, {
+          wins: 11,
+          losses: 6,
+          streak: -1,
+          pointsFor: 379,
+          pointsAgainst: 325,
+        }),
+      ]);
+      if (withInjuries) {
+        provider.contextByGameId.set("g1", {
+          providerGameId: "g1",
+          home: {
+            injuries: [
+              {
+                athleteName: "Week One Player",
+                position: "WR",
+                status: "Questionable",
+                injuryType: "Ankle",
+              },
+            ],
+            fpiWinPct: null,
+            atsSummary: null,
+            lastFive: [],
+          },
+          away: { injuries: [], fpiWinPct: null, atsSummary: null, lastFive: [] },
+        });
+      }
+      const gameId = await seedAll();
+      const { cookie } = await createAuthenticatedUser(auth);
 
-    const res = await getStats(gameId, cookie);
-    const body = (await res.json()) as NflGameStatsResponse;
+      const res = await getStats(gameId, cookie);
+      const body = (await res.json()) as NflGameStatsResponse;
 
-    // Home has prior-season numbers, labeled with the season they describe.
-    expect(body.home).toMatchObject({ seasonYear: SEASON_YEAR - 1, wins: 11, streak: -1 });
-    // Away has no prior row: its current all-zero row serves, honestly zeroed.
-    expect(body.away).toMatchObject({
-      seasonYear: SEASON_YEAR,
-      gamesPlayed: 0,
-      avgPointsFor: null,
-    });
-    // No context synced for this game.
-    expect(body.context).toBeNull();
-  });
+      // Home has prior-season numbers, labeled with the season they describe.
+      expect(body.home).toMatchObject({ seasonYear: SEASON_YEAR - 1, wins: 11, streak: -1 });
+      // Away has no prior row: its current all-zero row serves, honestly zeroed.
+      expect(body.away).toMatchObject({
+        seasonYear: SEASON_YEAR,
+        gamesPlayed: 0,
+        avgPointsFor: null,
+      });
+      // Falling back to 2025 records must neither replace nor suppress this
+      // 2026 game's report. Questionable entries survive the API unchanged.
+      if (withInjuries) {
+        expect(body.context).toEqual({
+          home: provider.contextByGameId.get("g1")!.home,
+          away: provider.contextByGameId.get("g1")!.away,
+          updatedAt: NOW.toISOString(),
+        });
+      } else {
+        expect(body.context).toBeNull();
+      }
+    },
+  );
 });
