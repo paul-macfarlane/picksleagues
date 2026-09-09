@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { ArrowLeftIcon } from "lucide-react";
 import { LEAGUE_MODE, MEMBER_ROLE } from "@picksleagues/schemas";
 import { LeagueHeader } from "@/components/league/league-header";
 import { useLeague } from "@/api/leagues";
@@ -18,6 +19,14 @@ function LeagueLayout() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+      <Link
+        to="/"
+        data-testid="back-to-leagues"
+        className={buttonVariants({ variant: "outline", className: "min-h-11 self-start" })}
+      >
+        <ArrowLeftIcon aria-hidden="true" />
+        Back to leagues
+      </Link>
       {/* A layout gate stands in for the whole page, so its placeholder is the
           page's chrome — header card, tab bar, section — not a section-sized
           box (LNCH-8). Not-found is a designed card with a way home, not
