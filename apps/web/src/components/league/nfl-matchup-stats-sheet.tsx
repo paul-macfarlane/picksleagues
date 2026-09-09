@@ -3,7 +3,6 @@ import { ChartColumnIcon } from "lucide-react";
 import type {
   NflGameStatsTeamContext,
   NflGameStatsTeamRecord,
-  NflInjuryReportEntry,
   SlateGame,
   SlateTeam,
 } from "@picksleagues/schemas";
@@ -18,6 +17,7 @@ import {
   type AdvantageSide,
 } from "@/components/league/nfl-matchup-stat-row";
 import { cn } from "@/lib/utils";
+import { NflMatchupInjuries } from "@/components/league/nfl-matchup-injuries";
 import { NflMatchupResultsBody } from "@/components/league/nfl-matchup-results";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
@@ -95,21 +95,6 @@ function lastFiveLabel(context: NflGameStatsTeamContext): string {
   return context.lastFive.map((game) => game.result).join("-");
 }
 
-/**
- * The basic tier's injury filter: anything that isn't "Questionable" is a key
- * injury. Deliberately inverted from a status allowlist so an unknown status
- * ESPN mints tomorrow over-warns (shows in basic) rather than hiding an Out.
- */
-function isKeyInjury(entry: NflInjuryReportEntry): boolean {
-  return entry.status.toLowerCase() !== "questionable";
-}
-
-function injuryLine(entry: NflInjuryReportEntry): string {
-  const position = entry.position ? ` (${entry.position})` : "";
-  const type = entry.injuryType ? ` — ${entry.injuryType}` : "";
-  return `${entry.athleteName}${position} · ${entry.status}${type}`;
-}
-
 // "—" wherever a block or value is absent: a dash states "nothing ingested"
 // where a fabricated 0 would state a fact (ADR-0040).
 function stat(
@@ -126,29 +111,6 @@ function contextStat(
 ): string {
   if (!context) return "—";
   return read(context) ?? "—";
-}
-
-function InjuryList({ team, entries }: { team: SlateTeam; entries: NflInjuryReportEntry[] }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="type-eyebrow text-foreground">{team.abbreviation}</p>
-      {entries.length === 0 ? (
-        <p className="text-xs text-muted-foreground">None reported.</p>
-      ) : (
-        <ul className="flex flex-col gap-0.5">
-          {/* Index keys are safe here — the list is a served snapshot, never
-              reordered client-side — where a name+status key collides the
-              moment one athlete carries two same-status injuries and React
-              silently drops a line from the report. */}
-          {entries.map((entry, index) => (
-            <li key={index} className="text-xs text-muted-foreground">
-              {injuryLine(entry)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
@@ -188,8 +150,6 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
             (stamp): stamp is string => stamp !== undefined,
           );
           const statsUpdatedAt = statsStamps.length > 0 ? statsStamps.sort()[0]! : null;
-          const injuriesFor = (side: NflGameStatsTeamContext) =>
-            advanced ? side.injuries : side.injuries.filter(isKeyInjury);
           // Edge marks on record-derived rows compare only within one season:
           // when the week-1 fallback serves different seasons per side, a
           // cross-season "edge" states more than the data holds — and ranks
@@ -358,24 +318,7 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                 )}
               </div>
 
-              <div className="flex flex-col gap-2">
-                <p className="type-eyebrow">{advanced ? "Injury report" : "Key injuries"}</p>
-                {context ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <InjuryList team={game.awayTeam} entries={injuriesFor(context.away)} />
-                      <InjuryList team={game.homeTeam} entries={injuriesFor(context.home)} />
-                    </div>
-                    <p className="type-eyebrow">
-                      Injury and matchup data updated {formatDateTime(context.updatedAt)}.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Injury and matchup data haven't synced for this game yet.
-                  </p>
-                )}
-              </div>
+              <NflMatchupInjuries game={game} context={context} keyOnly={!advanced} />
             </div>
           );
         })()}
