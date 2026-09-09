@@ -2,6 +2,9 @@
 
 Build/launch/drive recipe for runtime-verifying changes in this repo (Vite SPA + Hono API + local Docker Postgres + season simulator). Kept as a doc rather than a skill so any session cites exact commands from one place.
 
+For the short production check and weekly automation coverage plan, use
+[NFL weekly confidence](weekly-confidence.md).
+
 ## Launch
 
 Prereqs: root `.env` (copy `.env.example`; `BETTER_AUTH_SECRET`/`JOB_SECRET` = `openssl rand -base64 32`; placeholder OAuth creds are fine for everything except completing a real OAuth sign-in).

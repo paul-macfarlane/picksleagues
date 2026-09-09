@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { loadScenario, resetSim, setSimClock } from "./setup/sim";
+import { gameRow, selectPick, submitControl, submitSheet } from "./setup/pickem";
 import { latestInviteCode } from "./setup/league-seed";
 import {
   APP_ROLE,
@@ -84,12 +85,6 @@ type SlateGameSummary = {
  * abbreviations, week labels and member names are domain data rather than copy,
  * so binding to those is the point and not the exception.
  */
-function gameRow(page: Page, awayAbbr: string, homeAbbr: string): Locator {
-  return page.locator(
-    `[data-testid="game-row"][data-away-team="${awayAbbr}"][data-home-team="${homeAbbr}"]`,
-  );
-}
-
 // One member's row for one game, inside their section of the league-wide pick
 // detail — the join this suite has to check, since a pick attached to the wrong
 // member is invisible to any per-member count.
@@ -113,40 +108,6 @@ async function expectValue(value: Locator, ...fragments: (string | RegExp)[]) {
   for (const fragment of fragments) {
     await expect(value).toContainText(fragment);
   }
-}
-
-// Selects a pick on the Picks tab, scoped to the game's own row rather than a
-// bare team-abbreviation button — the abbreviations happen to be unique across
-// this fixture's 8 teams, but scoping is what keeps this correct if that ever
-// changes.
-async function selectPick(page: Page, awayAbbr: string, homeAbbr: string, pickAbbr: string) {
-  await gameRow(page, awayAbbr, homeAbbr)
-    .getByRole("button", { name: pickAbbr, exact: true })
-    .click();
-}
-
-// The sheet's submit control (`pickem-picks.tsx`'s sticky action bar). Named
-// identically to the confirmation's own action, so it is only ever resolved
-// while the dialog is closed — see `submitSheet`.
-function submitControl(page: Page): Locator {
-  return page.getByRole("button", { name: "Submit picks" });
-}
-
-/**
- * Commits the assembled sheet the only way a member can (ADR-0018 decision 1):
- * the action bar's button opens an irreversibility confirmation, and the PUT
- * fires from inside it. Clicking the trigger submits nothing.
- *
- * Ends on the freeze rather than on a toast: once the submission lands there is
- * no submit control on the screen at all, which is both how the test knows the
- * write happened and the member-visible shape of "a week can't be resubmitted".
- */
-async function submitSheet(page: Page) {
-  const submit = submitControl(page);
-  await expect(submit).toBeEnabled();
-  await submit.click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Submit picks" }).click();
-  await expect(submit).toHaveCount(0);
 }
 
 // Tab away and come back, without navigating. TanStack Query refetches its
