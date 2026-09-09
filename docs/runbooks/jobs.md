@@ -146,7 +146,7 @@ curl -X POST -H "x-job-secret: $JOB_SECRET" \
   "http://localhost:3000/api/jobs/nfl/sync-scores?season=2024&weekType=postseason&week=1"
 ```
 
-The guard hook in `.claude/hooks/` prompts before job calls against non-local hosts.
+Every agent must obtain confirmation before job calls against non-local hosts (see `AGENTS.md`). Claude additionally prompts through its `.claude/hooks/` guard; other hosts do not execute that hook.
 The admin page's Jobs tab has button-press triggers for the four NFL syncs and the
 settlement sweep (`ADM-6`), backed by the session-gated `/api/admin/jobs/*` twins of
 these endpoints. The per-league rebuild (`POST /api/admin/leagues/:id/rebuild`) is
