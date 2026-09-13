@@ -403,15 +403,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/games/{gameId}/nfl-results": {
+    "/api/games/{gameId}/nfl-schedule": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Both teams' season game logs for the matchup sheet's Results segment (STAT-9) */
-        get: operations["getNflGameResults"];
+        /** Both teams' season schedules for the matchup sheet's Schedule segment (STAT-9) */
+        get: operations["getNflGameSchedule"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1169,22 +1169,24 @@ export interface components {
             opponentScore: number;
             atHome: boolean;
         };
-        NflGameResultsResponse: {
+        NflGameScheduleResponse: {
             gameId: string;
-            home: components["schemas"]["NullableNflTeamGameLog"];
-            away: components["schemas"]["NullableNflTeamGameLog"];
+            home: components["schemas"]["NullableNflTeamSchedule"];
+            away: components["schemas"]["NullableNflTeamSchedule"];
             /** Format: date-time */
             updatedAt: string | null;
         };
-        NullableNflTeamGameLog: {
+        NullableNflTeamSchedule: {
             seasonYear: number;
-            entries: components["schemas"]["NflGameLogEntry"][];
+            entries: components["schemas"]["NflGameScheduleEntry"][];
         } | null;
-        NflGameLogEntry: {
+        NflGameScheduleEntry: {
             weekLabel: string;
             opponentAbbr: string;
             atHome: boolean;
-            final: boolean;
+            /** Format: date-time */
+            kickoffAt: string;
+            status: components["schemas"]["GameStatus"];
             teamScore: number | null;
             opponentScore: number | null;
             /** @enum {string|null} */
@@ -3339,7 +3341,7 @@ export interface operations {
             };
         };
     };
-    getNflGameResults: {
+    getNflGameSchedule: {
         parameters: {
             query?: never;
             header?: never;
@@ -3350,13 +3352,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Per-team season game logs from our games rows (prior season while the current has no started games); a block is null when a team has none */
+            /** @description Per-team season schedules from our games rows (prior season only when the current has no ingested schedule); a block is null when a team has none */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NflGameResultsResponse"];
+                    "application/json": components["schemas"]["NflGameScheduleResponse"];
                 };
             };
             /** @description No valid session */

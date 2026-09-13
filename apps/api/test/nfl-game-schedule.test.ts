@@ -5,7 +5,7 @@ import { FixedClock } from "@picksleagues/core";
 import {
   GAME_STATUS,
   WEEK_TYPE,
-  type NflGameResultsResponse,
+  type NflGameScheduleResponse,
   type WeekType,
 } from "@picksleagues/schemas";
 import { syncNflSchedule } from "../src/services/nfl/sync-schedule";
@@ -93,8 +93,8 @@ async function seedSeason() {
   return game!.id;
 }
 
-async function getResults(gameId: string, cookie?: string) {
-  return app.request(`/api/games/${gameId}/nfl-results`, {
+async function getSchedule(gameId: string, cookie?: string) {
+  return app.request(`/api/games/${gameId}/nfl-schedule`, {
     headers: withCookie(cookie),
   });
 }
@@ -109,61 +109,39 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-describe("GET /api/games/{gameId}/nfl-results", () => {
+describe("GET /api/games/{gameId}/nfl-schedule", () => {
   it("401s with no session", async () => {
-    const res = await getResults("00000000-0000-4000-8000-000000000000");
+    const res = await getSchedule("00000000-0000-4000-8000-000000000000");
     expect(res.status).toBe(401);
   });
 
   it("404s for an unknown game", async () => {
     const { cookie } = await createAuthenticatedUser(auth);
-    const res = await getResults("00000000-0000-4000-8000-000000000000", cookie);
+    const res = await getSchedule("00000000-0000-4000-8000-000000000000", cookie);
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ error: "game_not_found" });
   });
 
-  it("serves both teams' started games newest first, graded per side", async () => {
+  it("serves both teams' available schedules in kickoff order, graded per side", async () => {
     const gameId = await seedSeason();
     const { cookie } = await createAuthenticatedUser(auth);
-    const res = await getResults(gameId, cookie);
+    const res = await getSchedule(gameId, cookie);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as NflGameResultsResponse;
-    expect(body.home).toEqual({
+    const body = (await res.json()) as NflGameScheduleResponse;
+    expect(body.home).toMatchObject({
       seasonYear: SEASON_YEAR,
       entries: [
-        {
-          weekLabel: "Week 2",
-          opponentAbbr: "OTH",
-          atHome: false,
-          final: true,
-          teamScore: 31,
-          opponentScore: 14,
-          result: "W",
-        },
-        {
-          weekLabel: "Week 1",
-          opponentAbbr: "AWY",
-          atHome: true,
-          final: true,
-          teamScore: 27,
-          opponentScore: 20,
-          result: "W",
-        },
+        { weekLabel: "Week 1", status: "final", result: "W" },
+        { weekLabel: "Week 2", status: "final", result: "W" },
+        { weekLabel: "Week 3", status: "scheduled", result: null },
       ],
     });
-    // AWY has only week 1, from its own side: a road loss.
-    expect(body.away).toEqual({
+    // AWY shares the upcoming week-3 fixture and sees week 1 as a road loss.
+    expect(body.away).toMatchObject({
       seasonYear: SEASON_YEAR,
       entries: [
-        {
-          weekLabel: "Week 1",
-          opponentAbbr: "HOM",
-          atHome: false,
-          final: true,
-          teamScore: 20,
-          opponentScore: 27,
-          result: "L",
-        },
+        { weekLabel: "Week 1", status: "final", result: "L" },
+        { weekLabel: "Week 3", status: "scheduled", result: null },
       ],
     });
     expect(body.updatedAt).not.toBeNull();
@@ -176,25 +154,30 @@ describe("GET /api/games/{gameId}/nfl-results", () => {
       .set({ homeScore: 17, awayScore: 20 })
       .where(eq(games.providerGameId, "g1"));
     const { cookie } = await createAuthenticatedUser(auth);
-    const body = (await (await getResults(gameId, cookie)).json()) as NflGameResultsResponse;
+    const body = (await (await getSchedule(gameId, cookie)).json()) as NflGameScheduleResponse;
     const week1 = body.home!.entries.find((entry) => entry.weekLabel === "Week 1");
     expect(week1).toMatchObject({ teamScore: 17, opponentScore: 20, result: "L" });
     expect(body.away!.entries[0]).toMatchObject({ result: "W" });
   });
 
-  it("drops a cancelled game — an unplayed game is not a result", async () => {
+  it("keeps a cancelled fixture visible without a final result", async () => {
     const gameId = await seedSeason();
     await db
       .update(games)
       .set({ status: GAME_STATUS.CANCELLED })
       .where(eq(games.providerGameId, "g1"));
     const { cookie } = await createAuthenticatedUser(auth);
-    const body = (await (await getResults(gameId, cookie)).json()) as NflGameResultsResponse;
-    expect(body.home!.entries.map((entry) => entry.weekLabel)).toEqual(["Week 2"]);
-    expect(body.away).toBeNull();
+    const body = (await (await getSchedule(gameId, cookie)).json()) as NflGameScheduleResponse;
+    expect(body.home!.entries[0]).toMatchObject({ status: "cancelled", result: null });
+    expect(body.home!.entries.map((entry) => entry.weekLabel)).toEqual([
+      "Week 1",
+      "Week 2",
+      "Week 3",
+    ]);
+    expect(body.away!.entries.map((entry) => entry.weekLabel)).toEqual(["Week 1", "Week 3"]);
   });
 
-  it("serves the prior season, labeled, until a team has started games (ADR-0040)", async () => {
+  it("serves the current season schedule before the first game starts (ADR-0040)", async () => {
     // Prior season: one final between the same two teams.
     provider.structure = {
       seasonYear: SEASON_YEAR - 1,
@@ -240,9 +223,14 @@ describe("GET /api/games/{gameId}/nfl-results", () => {
       .where(eq(games.providerGameId, "g1"));
 
     const { cookie } = await createAuthenticatedUser(auth);
-    const body = (await (await getResults(game!.id, cookie)).json()) as NflGameResultsResponse;
-    expect(body.home).toMatchObject({ seasonYear: SEASON_YEAR - 1 });
-    expect(body.home!.entries[0]).toMatchObject({ result: "W", teamScore: 24, opponentScore: 10 });
-    expect(body.away).toMatchObject({ seasonYear: SEASON_YEAR - 1 });
+    const body = (await (await getSchedule(game!.id, cookie)).json()) as NflGameScheduleResponse;
+    expect(body.home).toMatchObject({
+      seasonYear: SEASON_YEAR,
+      entries: [{ status: "scheduled", result: null }],
+    });
+    expect(body.away).toMatchObject({
+      seasonYear: SEASON_YEAR,
+      entries: [{ status: "scheduled", result: null }],
+    });
   });
 });

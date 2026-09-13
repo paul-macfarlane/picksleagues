@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { GAME_STATUS, type GameStatus } from "@picksleagues/schemas";
-import { buildNflTeamGameLog, type ResolvedLogGame } from "./game-results";
+import { buildNflTeamSchedule, type ResolvedScheduleGame } from "./game-schedule";
 
 const CURRENT = 2026;
 
 /** A log game between `home` and `away`; kickoff spaced by week so ordering is real. */
 function logGame(
-  overrides: Partial<ResolvedLogGame> & {
+  overrides: Partial<ResolvedScheduleGame> & {
     week: number;
     status: GameStatus;
     home?: string;
     away?: string;
   },
-): ResolvedLogGame {
+): ResolvedScheduleGame {
   const { week, home = "HOM", away = "AWY", ...rest } = overrides;
   return {
     seasonYear: CURRENT,
@@ -28,8 +28,8 @@ function logGame(
   };
 }
 
-describe("buildNflTeamGameLog", () => {
-  it("serves started games newest first, from the team's perspective", () => {
+describe("buildNflTeamSchedule", () => {
+  it("serves the available season schedule in kickoff order, from the team's perspective", () => {
     const rows = [
       logGame({ week: 1, status: GAME_STATUS.FINAL, homeScore: 27, awayScore: 20 }),
       logGame({
@@ -42,27 +42,18 @@ describe("buildNflTeamGameLog", () => {
       }),
       logGame({ week: 3, status: GAME_STATUS.SCHEDULED }),
     ];
-    const log = buildNflTeamGameLog(rows, "HOM", CURRENT);
-    expect(log).toEqual({
+    const log = buildNflTeamSchedule([...rows].reverse(), "HOM", CURRENT);
+    expect(log).toMatchObject({
       seasonYear: CURRENT,
       entries: [
+        { weekLabel: "Week 1", opponentAbbr: "AWY", atHome: true, status: "final", result: "W" },
+        { weekLabel: "Week 2", opponentAbbr: "OTH", atHome: false, status: "final", result: "W" },
         {
-          weekLabel: "Week 2",
-          opponentAbbr: "OTH",
-          atHome: false,
-          final: true,
-          teamScore: 31,
-          opponentScore: 14,
-          result: "W",
-        },
-        {
-          weekLabel: "Week 1",
+          weekLabel: "Week 3",
           opponentAbbr: "AWY",
           atHome: true,
-          final: true,
-          teamScore: 27,
-          opponentScore: 20,
-          result: "W",
+          status: "scheduled",
+          result: null,
         },
       ],
     });
@@ -73,36 +64,47 @@ describe("buildNflTeamGameLog", () => {
       logGame({ week: 1, status: GAME_STATUS.FINAL, homeScore: 20, awayScore: 27 }),
       logGame({ week: 2, status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 24 }),
     ];
-    const entries = buildNflTeamGameLog(rows, "HOM", CURRENT)!.entries;
-    expect(entries.map((entry) => entry.result)).toEqual(["T", "L"]);
-    const awayEntries = buildNflTeamGameLog(rows, "AWY", CURRENT)!.entries;
-    expect(awayEntries.map((entry) => entry.result)).toEqual(["T", "W"]);
+    const entries = buildNflTeamSchedule(rows, "HOM", CURRENT)!.entries;
+    expect(entries.map((entry) => entry.result)).toEqual(["L", "T"]);
+    const awayEntries = buildNflTeamSchedule(rows, "AWY", CURRENT)!.entries;
+    expect(awayEntries.map((entry) => entry.result)).toEqual(["W", "T"]);
   });
 
   it("serves an in-progress game as a live entry: no result, scores as they stand", () => {
     const rows = [
       logGame({ week: 1, status: GAME_STATUS.IN_PROGRESS, homeScore: 10, awayScore: 3 }),
     ];
-    const [entry] = buildNflTeamGameLog(rows, "HOM", CURRENT)!.entries;
-    expect(entry).toMatchObject({ final: false, result: null, teamScore: 10, opponentScore: 3 });
+    const [entry] = buildNflTeamSchedule(rows, "HOM", CURRENT)!.entries;
+    expect(entry).toMatchObject({
+      status: "in_progress",
+      result: null,
+      teamScore: 10,
+      opponentScore: 3,
+    });
   });
 
   it("gives a final missing a score no result — a dash, never an invented outcome", () => {
     const rows = [logGame({ week: 1, status: GAME_STATUS.FINAL, homeScore: 21, awayScore: null })];
-    const [entry] = buildNflTeamGameLog(rows, "HOM", CURRENT)!.entries;
-    expect(entry).toMatchObject({ final: true, result: null });
+    const [entry] = buildNflTeamSchedule(rows, "HOM", CURRENT)!.entries;
+    expect(entry).toMatchObject({ status: "final", result: null });
   });
 
-  it("excludes scheduled, postponed, and cancelled games", () => {
+  it("includes scheduled, postponed, and cancelled fixtures", () => {
     const rows = [
       logGame({ week: 1, status: GAME_STATUS.SCHEDULED }),
       logGame({ week: 2, status: GAME_STATUS.POSTPONED }),
       logGame({ week: 3, status: GAME_STATUS.CANCELLED }),
     ];
-    expect(buildNflTeamGameLog(rows, "HOM", CURRENT)).toBeNull();
+    expect(buildNflTeamSchedule(rows, "HOM", CURRENT)).toMatchObject({
+      entries: [
+        { weekLabel: "Week 1", status: "scheduled" },
+        { weekLabel: "Week 2", status: "postponed" },
+        { weekLabel: "Week 3", status: "cancelled" },
+      ],
+    });
   });
 
-  it("falls back to the prior season only while the current has no started games (ADR-0040)", () => {
+  it("falls back to the prior season only while the current has no ingested schedule (ADR-0040)", () => {
     const prior = logGame({
       week: 17,
       status: GAME_STATUS.FINAL,
@@ -110,9 +112,13 @@ describe("buildNflTeamGameLog", () => {
       homeScore: 30,
       awayScore: 13,
     });
-    const currentScheduled = logGame({ week: 1, status: GAME_STATUS.SCHEDULED });
-    expect(buildNflTeamGameLog([prior, currentScheduled], "HOM", CURRENT)).toMatchObject({
+    expect(buildNflTeamSchedule([prior], "HOM", CURRENT)).toMatchObject({
       seasonYear: CURRENT - 1,
+    });
+    const currentScheduled = logGame({ week: 1, status: GAME_STATUS.SCHEDULED });
+    expect(buildNflTeamSchedule([prior, currentScheduled], "HOM", CURRENT)).toMatchObject({
+      seasonYear: CURRENT,
+      entries: [{ weekLabel: "Week 1", status: "scheduled" }],
     });
 
     const currentStarted = logGame({
@@ -121,14 +127,14 @@ describe("buildNflTeamGameLog", () => {
       homeScore: 0,
       awayScore: 0,
     });
-    const log = buildNflTeamGameLog([prior, currentScheduled, currentStarted], "HOM", CURRENT)!;
+    const log = buildNflTeamSchedule([prior, currentScheduled, currentStarted], "HOM", CURRENT)!;
     expect(log.seasonYear).toBe(CURRENT);
-    expect(log.entries).toHaveLength(1);
+    expect(log.entries).toHaveLength(2);
   });
 
-  it("is null for a team with nothing started in either season", () => {
-    expect(buildNflTeamGameLog([], "HOM", CURRENT)).toBeNull();
+  it("is null for a team with no available schedule in either season", () => {
+    expect(buildNflTeamSchedule([], "HOM", CURRENT)).toBeNull();
     const otherTeams = [logGame({ week: 1, status: GAME_STATUS.FINAL, home: "A", away: "B" })];
-    expect(buildNflTeamGameLog(otherTeams, "HOM", CURRENT)).toBeNull();
+    expect(buildNflTeamSchedule(otherTeams, "HOM", CURRENT)).toBeNull();
   });
 });
