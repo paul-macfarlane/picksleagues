@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
 import { AppHeader } from "@/components/app-header";
-import { AppTabBar, appTabBarClearanceClassName } from "@/components/app-tab-bar";
+import { appTabBarClearanceClassName } from "@/components/app-tab-bar";
+import { AppBottomBar } from "@/components/app-bottom-bar";
 import { BrandMark } from "@/components/brand";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,7 @@ export function StaticPage({
       <LegalFooter
         className={cn("mx-auto w-full max-w-2xl px-4 sm:px-6", authed && "hidden sm:flex")}
       />
-      {authed && <AppTabBar />}
+      {authed && <AppBottomBar />}
     </div>
   );
 }
