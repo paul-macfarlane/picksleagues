@@ -2,7 +2,8 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/app-header";
-import { AppTabBar, appTabBarClearanceClassName } from "@/components/app-tab-bar";
+import { appTabBarClearanceClassName } from "@/components/app-tab-bar";
+import { AppBottomBar } from "@/components/app-bottom-bar";
 import { LegalFooter } from "@/components/legal-footer";
 import { PullToRefresh } from "@/components/pull-to-refresh";
 
@@ -35,19 +36,20 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   return (
-    <div className={cn("flex min-h-svh flex-col", appTabBarClearanceClassName)}>
-      <AppHeader />
-      <PullToRefresh />
-      {/* Every authed page inherits this one column — pages never set their own
+    <AppBottomBar>
+      <div className={cn("flex min-h-svh flex-col", appTabBarClearanceClassName)}>
+        <AppHeader />
+        <PullToRefresh />
+        {/* Every authed page inherits this one column — pages never set their own
           page width, only intentionally-narrow content (single-card states,
           forms) centered inside it. */}
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
-        <Outlet />
-      </div>
-      {/* Phones get these links in the profile's About section instead; under
+        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+          <Outlet />
+        </div>
+        {/* Phones get these links in the profile's About section instead; under
           the tab bar a footer reads as stray content rather than chrome. */}
-      <LegalFooter className="mx-auto hidden w-full max-w-5xl px-4 sm:flex sm:px-6" />
-      <AppTabBar />
-    </div>
+        <LegalFooter className="mx-auto hidden w-full max-w-5xl px-4 sm:flex sm:px-6" />
+      </div>
+    </AppBottomBar>
   );
 }

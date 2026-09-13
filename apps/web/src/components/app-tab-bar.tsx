@@ -38,7 +38,7 @@ const tabInactiveProps = { className: tabInactiveClassName };
 const tabActiveProps = { className: tabActiveClassName, "aria-current": "page" as const };
 
 /**
- * Phone-width primary navigation (MOB-2): a `fixed` bottom bar with Leagues /
+ * Phone-width primary navigation (MOB-2): the bottom bar with Leagues /
  * Browse / Profile (+ More for admins), replacing the hamburger drawer — the
  * installed app reads as an app only once its navigation sits where the thumb
  * already is. Hidden from `sm` up, where the header's inline nav takes over;
@@ -51,11 +51,10 @@ const tabActiveProps = { className: tabActiveClassName, "aria-current": "page" a
  * the active tab conventionally means "back to the top", so the switch was
  * undiscoverable (owner, 2026-08-22).
  *
- * Layering: z-20, the page-level tier under `TabNav` (z-30) and the header
- * (z-40), sharing the tier with `PickSheetActionBar` — which stacks *above*
- * this bar by its published height rather than replacing it (owner,
- * 2026-08-22: navigation that vanishes when picks are dirty confuses more
- * than it frees). Publishes `--app-tab-bar-height` on the document element
+ * Render inside `AppBottomBar`, which owns the fixed positioning and z-20
+ * layer. Pick actions stack above this nav in ordinary flow so browser-toolbar
+ * movement cannot pull two independently fixed surfaces apart. Publishes
+ * `--app-tab-bar-height` on the document element for page clearance,
  * the way the header publishes `--app-header-height`; at `sm` and up the bar
  * is `display: none`, so the observed height — and the offset every consumer
  * reads — is 0 without any consumer knowing the breakpoint.
@@ -96,7 +95,7 @@ export function AppTabBar() {
       aria-label="Primary"
       // `select-none`: a long-press on nav chrome in the installed app
       // otherwise opens the text-selection loupe (MOB-1).
-      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-background pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] select-none sm:hidden"
+      className="flex border-t border-border bg-background pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] select-none sm:hidden"
     >
       <LeaguesTab active={isLeaguesSubtree(pathname)} />
       <Link
