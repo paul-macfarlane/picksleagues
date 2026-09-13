@@ -1,4 +1,4 @@
-import { test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { cleanup, signInAs, uniqueUsername } from "./setup/session";
 import { json, loadScenario, resetSim, setSimClock } from "./setup/sim";
 import { latestInviteCode } from "./setup/league-seed";
@@ -12,10 +12,10 @@ import {
 
 /**
  * The visual-identity evidence capture (VIS-8): every route at 390px and
- * 1024px in both themes, written to `docs/evidence/test-results/vis-8/`.
+ * 1024px in both themes, written to `test-results/review-screenshots/vis-8/`.
  *
- * Opt-in, never part of the merge gate — it asserts nothing, and screenshots
- * are the owner's evidence, not a test's. Run it with
+ * Opt-in, never part of the merge gate. Readiness checks prevent empty
+ * screenshots; visual judgment remains with the reviewer. Run it with
  * `VIS_CAPTURE=1 pnpm test:e2e --grep capture`. It is a `*.sim.spec.ts` because
  * it drives the environment-wide simulated clock through two scenarios, and the
  * `simulated` project is what keeps that serial with the journeys.
@@ -26,7 +26,17 @@ import {
  * cares about — before the first kickoff (the pick sheet open, a selection in
  * orange) and fully settled (graded picks, a leader, revealed rivals).
  */
-const OUT = process.env.VIS_CAPTURE_OUT ?? "docs/evidence/test-results/vis-8";
+const OUT = process.env.VIS_CAPTURE_OUT ?? "test-results/review-screenshots/vis-8";
+const LIGHT_ROUTES = new Set([
+  "welcome",
+  "sign-in",
+  "hub",
+  "pickem-pre-home",
+  "pickem-pre-my-picks",
+  "pickem-ats-my-picks",
+  "pickem-settled-league-picks",
+  "survivor-settled-home",
+]);
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
@@ -45,7 +55,10 @@ type SlateGame = {
   awayTeam: { id: string; abbreviation: string };
 };
 
-test.skip(!process.env.VIS_CAPTURE, "opt-in evidence capture; set VIS_CAPTURE=1");
+test.skip(
+  !process.env.VIS_CAPTURE && !process.env.LIGHT_CAPTURE,
+  "opt-in evidence capture; set VIS_CAPTURE=1",
+);
 
 async function shoot(
   page: Page,
@@ -53,12 +66,16 @@ async function shoot(
   path: string,
   prepare?: (page: Page) => Promise<void>,
 ) {
+  if (process.env.LIGHT_CAPTURE && !LIGHT_ROUTES.has(name)) return;
   for (const { width, scheme } of VARIANTS) {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto(path);
     await page.waitForLoadState("networkidle");
     await prepare?.(page);
+    await page.evaluate(() => document.fonts.ready);
+    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("html")).toHaveClass(new RegExp(scheme));
     await page.waitForTimeout(400);
     // The tab bar and the pick-sheet action bar are fixed to the viewport, so a
     // full-page capture of a taller page paints them over the content at the
@@ -117,7 +134,10 @@ function leagueRoutes(prefix: string, leagueId: string, allPicks: boolean): [str
 
 // The matchup stats sheet, opened from a game row's Stats button.
 async function openStats(page: Page) {
-  await page.getByRole("button", { name: "Stats" }).first().click();
+  await page
+    .getByRole("button", { name: /^Matchup stats:/ })
+    .first()
+    .click();
   await page.getByRole("dialog").waitFor();
   await page.waitForLoadState("networkidle");
 }
