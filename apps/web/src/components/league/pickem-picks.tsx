@@ -179,7 +179,7 @@ function SubmittedWeek({
       description={`${picked.length} ${picked.length === 1 ? "pick" : "picks"} in. This week is submitted — picks can't be changed.`}
     >
       {credit && (
-        <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+        <p data-testid="spread-source-credit" className="text-xs text-muted-foreground">
           {credit}
         </p>
       )}
@@ -303,7 +303,7 @@ function PickSheet({
         )}
       >
         {credit && (
-          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+          <p data-testid="spread-source-credit" className="text-xs text-muted-foreground">
             {credit}
           </p>
         )}

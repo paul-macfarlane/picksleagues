@@ -297,10 +297,10 @@ export function SubmittedPickRow({
         <div className="flex flex-wrap items-center gap-2">
           <NflMatchupStats game={game} />
           {/* Beside the stats trigger rather than under the score it dates:
-              the qualifier reads as a footnote to the line, dimmer so it can't
+              the qualifier reads as a muted footnote so it can't
               be mistaken for a live badge (DATA-8; spec §UI conventions — a
               stored clock reading can be minutes stale). */}
-          {stateAsOf && <span className="text-xs text-muted-foreground/70">{stateAsOf}</span>}
+          {stateAsOf && <span className="text-xs text-muted-foreground">{stateAsOf}</span>}
         </div>
         {/* One badge, most-informative-wins, and the chain is total because
             each state strictly implies the next: a graded pick — settled or

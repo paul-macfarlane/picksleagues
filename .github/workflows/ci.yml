@@ -7,6 +7,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches:
       - staging
@@ -105,6 +106,38 @@ jobs:
 
       - name: E2E tests
         run: pnpm test:e2e
+
+      - name: Capture review screenshots
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'visual-review')
+        run: pnpm test:e2e --project simulated --no-deps --grep capture
+        env:
+          REVIEW_CAPTURE: "1"
+
+      - name: Upload review screenshots
+        if: success() && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'visual-review')
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-screenshots-pr-${{ github.event.pull_request.number }}
+          path: test-results/review-screenshots/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Capture light-mode audit
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'light-mode-audit')
+        run: pnpm test:e2e e2e/capture-vis.sim.spec.ts --project simulated --no-deps
+        env:
+          LIGHT_CAPTURE: "1"
+
+      - name: Upload light-mode audit
+        if: success() && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'light-mode-audit')
+        uses: actions/upload-artifact@v4
+        with:
+          name: light-mode-audit-pr-${{ github.event.pull_request.number }}
+          path: |
+            test-results/review-screenshots/vis-8/pickem-ats-my-picks-*.png
+            test-results/review-screenshots/vis-8/pickem-settled-league-picks-*-light.png
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Playwright report
         if: failure()
