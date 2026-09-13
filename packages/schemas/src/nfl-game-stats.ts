@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { GameStatusSchema } from "./game-status";
 
 /**
  * Matchup stats for the viewer of a game (STAT epic, ADR-0040): per-team season
@@ -175,68 +176,64 @@ const NullableNflGameStatsContextSchema = NflGameStatsContextSchema.nullable().o
   "NullableNflGameStatsContext",
 );
 
-// --- Wire DTOs for GET /games/{gameId}/nfl-results (STAT-9) ---
+// --- Wire DTOs for GET /games/{gameId}/nfl-schedule (STAT-9) ---
 
 /**
- * One game in a team's season log, from that team's perspective. `final`
- * false means the game is in progress — its score is live and `result` is
- * null because the outcome isn't knowable yet. Scores stay nullable rather
- * than defaulting to 0: a started game whose score the sync hasn't observed
- * yet renders as a dash, never as a fabricated 0–0 (ADR-0040).
+ * One game in a team's season schedule, from that team's perspective. The
+ * explicit state keeps scheduled games distinct from live games; both can
+ * lack scores without being presented as a fabricated 0–0 (ADR-0040).
  */
-export const NflGameLogEntrySchema = z
+export const NflGameScheduleEntrySchema = z
   .object({
     // Provider display label ("Week 5", "Wild Card") — the weeks table stores
     // it precisely so postseason rounds never render off a bare number.
     weekLabel: z.string(),
     opponentAbbr: z.string(),
     atHome: z.boolean(),
-    final: z.boolean(),
+    kickoffAt: z.iso.datetime(),
+    status: GameStatusSchema,
     teamScore: z.number().int().nullable(),
     opponentScore: z.number().int().nullable(),
     result: NflLastGameResultSchema.nullable(),
   })
-  .openapi("NflGameLogEntry");
+  .openapi("NflGameScheduleEntry");
 
-export type NflGameLogEntry = z.infer<typeof NflGameLogEntrySchema>;
+export type NflGameScheduleEntry = z.infer<typeof NflGameScheduleEntrySchema>;
 
 /**
- * One team's season game log, newest game first. `seasonYear` names the season
- * served — until the current season has started games it is the *prior* year
- * (the ADR-0040 read-time fallback, mirrored from the record block), and the
- * client labels the column with it rather than guessing. Never empty: a team
- * with no started games in either season is a null block on the response.
+ * One team's available season schedule in kickoff order. `seasonYear` names
+ * the season served — the current season whenever it has ingested games, else
+ * the prior year as a truthful fallback. Never empty: a team with no ingested
+ * games in either candidate season is a null block on the response.
  */
-export const NflTeamGameLogSchema = z
+export const NflTeamScheduleSchema = z
   .object({
     seasonYear: z.number().int(),
-    entries: z.array(NflGameLogEntrySchema),
+    entries: z.array(NflGameScheduleEntrySchema),
   })
-  .openapi("NflTeamGameLog");
+  .openapi("NflTeamSchedule");
 
-export type NflTeamGameLog = z.infer<typeof NflTeamGameLogSchema>;
+export type NflTeamSchedule = z.infer<typeof NflTeamScheduleSchema>;
 
-const NullableNflTeamGameLogSchema =
-  NflTeamGameLogSchema.nullable().openapi("NullableNflTeamGameLog");
+const NullableNflTeamScheduleSchema =
+  NflTeamScheduleSchema.nullable().openapi("NullableNflTeamSchedule");
 
 /**
- * Both teams' season game logs for the matchup sheet's Results segment
+ * Both teams' season schedules for the matchup sheet's Schedule segment
  * (STAT-9) — served entirely from our `games` rows, zero new ingestion.
- * `updatedAt` is the newest write among the served rows: final scores are
- * immutable so the stamp's real job is dating any live score on display
- * (spec §UI conventions: never claim real-time freshness). Null when no rows
- * were served at all.
+ * `updatedAt` is the newest write among the served rows, so the displayed
+ * scores and future fixtures carry an honest as-of bound.
  */
-export const NflGameResultsResponseSchema = z
+export const NflGameScheduleResponseSchema = z
   .object({
     gameId: z.string(),
-    home: NullableNflTeamGameLogSchema,
-    away: NullableNflTeamGameLogSchema,
+    home: NullableNflTeamScheduleSchema,
+    away: NullableNflTeamScheduleSchema,
     updatedAt: z.iso.datetime().nullable(),
   })
-  .openapi("NflGameResultsResponse");
+  .openapi("NflGameScheduleResponse");
 
-export type NflGameResultsResponse = z.infer<typeof NflGameResultsResponseSchema>;
+export type NflGameScheduleResponse = z.infer<typeof NflGameScheduleResponseSchema>;
 
 /**
  * Everything the matchup stats sheet renders for one game. Each block is null

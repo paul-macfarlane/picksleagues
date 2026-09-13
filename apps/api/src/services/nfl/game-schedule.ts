@@ -4,23 +4,22 @@ import type { Db } from "@picksleagues/db";
 import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   GAME_STATUS,
-  isStartedStatus,
   NFL_LAST_GAME_RESULT,
   type GameStatus,
-  type NflGameLogEntry,
-  type NflGameResultsResponse,
-  type NflTeamGameLog,
+  type NflGameScheduleEntry,
+  type NflGameScheduleResponse,
+  type NflTeamSchedule,
 } from "@picksleagues/schemas";
 
 /**
- * The Results segment read (STAT-9): both teams' season game logs, served
+ * The Schedule segment read: both teams' season schedules, served
  * entirely from our `games` rows — zero new ingestion. Like the stats read it
  * is deliberately clockless (freshness is the stored `updated_at` the response
  * carries).
  */
 
-/** One candidate log game. */
-export type ResolvedLogGame = {
+/** A stored fixture resolved with its season and team labels. */
+export type ResolvedScheduleGame = {
   seasonYear: number;
   weekLabel: string;
   kickoffAt: Date;
@@ -33,7 +32,7 @@ export type ResolvedLogGame = {
   awayScore: number | null;
 };
 
-function toEntry(game: ResolvedLogGame, teamId: string): NflGameLogEntry {
+function toEntry(game: ResolvedScheduleGame, teamId: string): NflGameScheduleEntry {
   const atHome = game.homeTeamId === teamId;
   const teamScore = atHome ? game.homeScore : game.awayScore;
   const opponentScore = atHome ? game.awayScore : game.homeScore;
@@ -53,7 +52,8 @@ function toEntry(game: ResolvedLogGame, teamId: string): NflGameLogEntry {
     weekLabel: game.weekLabel,
     opponentAbbr: atHome ? game.awayAbbr : game.homeAbbr,
     atHome,
-    final,
+    kickoffAt: game.kickoffAt.toISOString(),
+    status: game.status,
     teamScore,
     opponentScore,
     result,
@@ -61,27 +61,22 @@ function toEntry(game: ResolvedLogGame, teamId: string): NflGameLogEntry {
 }
 
 /**
- * One team's log from the candidate-season rows. Exported for its unit tests;
- * pure. Started games only (in progress or final) — Results means what has
- * happened, and the upcoming schedule already lives on the slate. The season
- * choice mirrors the record block's per-team fallback (ADR-0040): the current
- * season once the team has a started game in it, else the prior season, else
- * null. Entries are newest first, matching the sheet's "Last 5" idiom — the
- * games that inform a pick are the recent ones, and the column says so.
+ * One team's schedule from candidate-season rows. Exported for its unit tests;
+ * pure. All ingested states remain visible, including disrupted fixtures.
+ * The current season wins as soon as it has games: future opponents are
+ * the reason this shared surface exists. Entries are kickoff-ordered, so a
+ * member can scan the season chronologically.
  */
-export function buildNflTeamGameLog(
-  rows: ResolvedLogGame[],
+export function buildNflTeamSchedule(
+  rows: ResolvedScheduleGame[],
   teamId: string,
   currentSeasonYear: number,
-): NflTeamGameLog | null {
-  const started = rows
-    .filter(
-      (row) =>
-        (row.homeTeamId === teamId || row.awayTeamId === teamId) && isStartedStatus(row.status),
-    )
-    .sort((a, b) => b.kickoffAt.getTime() - a.kickoffAt.getTime());
-  const current = started.filter((row) => row.seasonYear === currentSeasonYear);
-  const chosen = current.length > 0 ? current : started;
+): NflTeamSchedule | null {
+  const available = rows
+    .filter((row) => row.homeTeamId === teamId || row.awayTeamId === teamId)
+    .sort((a, b) => a.kickoffAt.getTime() - b.kickoffAt.getTime());
+  const current = available.filter((row) => row.seasonYear === currentSeasonYear);
+  const chosen = current.length > 0 ? current : available;
   if (chosen.length === 0) return null;
   return {
     seasonYear: chosen === current ? currentSeasonYear : chosen[0]!.seasonYear,
@@ -89,10 +84,10 @@ export function buildNflTeamGameLog(
   };
 }
 
-export async function getNflGameResults(
+export async function getNflGameSchedule(
   db: Db,
   gameId: string,
-): Promise<NflGameResultsResponse | null> {
+): Promise<NflGameScheduleResponse | null> {
   const [game] = await db
     .select({
       id: games.id,
@@ -111,7 +106,7 @@ export async function getNflGameResults(
   const homeTeams = alias(teams, "home_teams");
   const awayTeams = alias(teams, "away_teams");
   // Both candidate seasons in one read, like the stats read: the game's own,
-  // and the prior one the fallback serves while a team has no started games
+  // and the prior one the fallback serves while a team has no ingested games
   // yet (ADR-0040).
   const candidateYears = [game.seasonYear, game.seasonYear - 1];
   const rows = await db
@@ -135,7 +130,7 @@ export async function getNflGameResults(
       ),
     );
 
-  const resolved: (ResolvedLogGame & { updatedAt: Date })[] = rows.map((row) => ({
+  const resolved: (ResolvedScheduleGame & { updatedAt: Date })[] = rows.map((row) => ({
     seasonYear: row.seasonYear,
     weekLabel: row.weekLabel,
     kickoffAt: row.game.kickoffAt,
@@ -149,14 +144,18 @@ export async function getNflGameResults(
     updatedAt: row.game.updatedAt,
   }));
 
-  const home = buildNflTeamGameLog(resolved, game.homeTeamId, game.seasonYear);
-  const away = buildNflTeamGameLog(resolved, game.awayTeamId, game.seasonYear);
-  // Newest write among the *started* rows — the pool the logs draw from, even
-  // where a per-team season choice filtered a row out of the display. Wider
-  // than strictly served, but the stamp's job is dating live scores, and a
-  // started row's write instant is always a true "data as of" bound.
+  const home = buildNflTeamSchedule(resolved, game.homeTeamId, game.seasonYear);
+  const away = buildNflTeamSchedule(resolved, game.awayTeamId, game.seasonYear);
+  // Both schedules are chosen from these rows, so the freshest served
+  // fixture is the honest as-of bound for live scores and upcoming opponents.
   const stamps = resolved
-    .filter((row) => isStartedStatus(row.status))
+    .filter(
+      (row) =>
+        ((row.homeTeamId === game.homeTeamId || row.awayTeamId === game.homeTeamId) &&
+          row.seasonYear === home?.seasonYear) ||
+        ((row.homeTeamId === game.awayTeamId || row.awayTeamId === game.awayTeamId) &&
+          row.seasonYear === away?.seasonYear),
+    )
     .map((row) => row.updatedAt.getTime());
   const updatedAt = stamps.length > 0 ? new Date(Math.max(...stamps)).toISOString() : null;
 

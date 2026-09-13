@@ -1558,17 +1558,17 @@
           "atHome"
         ]
       },
-      "NflGameResultsResponse": {
+      "NflGameScheduleResponse": {
         "type": "object",
         "properties": {
           "gameId": {
             "type": "string"
           },
           "home": {
-            "$ref": "#/components/schemas/NullableNflTeamGameLog"
+            "$ref": "#/components/schemas/NullableNflTeamSchedule"
           },
           "away": {
-            "$ref": "#/components/schemas/NullableNflTeamGameLog"
+            "$ref": "#/components/schemas/NullableNflTeamSchedule"
           },
           "updatedAt": {
             "type": [
@@ -1585,7 +1585,7 @@
           "updatedAt"
         ]
       },
-      "NullableNflTeamGameLog": {
+      "NullableNflTeamSchedule": {
         "type": [
           "object",
           "null"
@@ -1597,7 +1597,7 @@
           "entries": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/NflGameLogEntry"
+              "$ref": "#/components/schemas/NflGameScheduleEntry"
             }
           }
         },
@@ -1606,7 +1606,7 @@
           "entries"
         ]
       },
-      "NflGameLogEntry": {
+      "NflGameScheduleEntry": {
         "type": "object",
         "properties": {
           "weekLabel": {
@@ -1618,8 +1618,12 @@
           "atHome": {
             "type": "boolean"
           },
-          "final": {
-            "type": "boolean"
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
           },
           "teamScore": {
             "type": [
@@ -1650,7 +1654,8 @@
           "weekLabel",
           "opponentAbbr",
           "atHome",
-          "final",
+          "kickoffAt",
+          "status",
           "teamScore",
           "opponentScore",
           "result"
@@ -5583,10 +5588,10 @@
         }
       }
     },
-    "/api/games/{gameId}/nfl-results": {
+    "/api/games/{gameId}/nfl-schedule": {
       "get": {
-        "operationId": "getNflGameResults",
-        "summary": "Both teams' season game logs for the matchup sheet's Results segment (STAT-9)",
+        "operationId": "getNflGameSchedule",
+        "summary": "Both teams' season schedules for the matchup sheet's Schedule segment (STAT-9)",
         "parameters": [
           {
             "schema": {
@@ -5600,11 +5605,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Per-team season game logs from our games rows (prior season while the current has no started games); a block is null when a team has none",
+            "description": "Per-team season schedules from our games rows (prior season only when the current has no ingested schedule); a block is null when a team has none",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NflGameResultsResponse"
+                  "$ref": "#/components/schemas/NflGameScheduleResponse"
                 }
               }
             }

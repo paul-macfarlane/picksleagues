@@ -19,7 +19,7 @@ import {
 } from "@/components/league/nfl-matchup-stat-row";
 import { cn } from "@/lib/utils";
 import { NflMatchupInjuries } from "@/components/league/nfl-matchup-injuries";
-import { NflMatchupResultsBody } from "@/components/league/nfl-matchup-results";
+import { NflMatchupScheduleBody } from "@/components/league/nfl-matchup-schedule";
 import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
@@ -35,8 +35,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * **advanced** — one explicit toggle away — adds ranks, splits, differential,
  * form, ATS, the full injury report, and ESPN FPI, the sheet's one
  * *prediction*, which stays out of the default surface so the app doesn't
- * anchor every member on ESPN's number. A third segment, **results** (STAT-9),
- * swaps the stat rows for both teams' season game logs. Everything renders
+ * anchor every member on ESPN's number. A third segment, **schedule** (STAT-9),
+ * swaps the stat rows for both teams' season schedules. Everything renders
  * from ingested data with its own as-of stamps; whatever ingestion doesn't
  * have is omitted or dashed, never faked.
  */
@@ -45,12 +45,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 // every member's stored preference for a label-only cleanup.
 const SEGMENT_STORAGE_KEY = "nfl-matchup-stats-tier";
 
-const SEGMENTS = ["basic", "advanced", "results"] as const;
+const SEGMENTS = ["basic", "advanced", "schedule"] as const;
 
 type Segment = (typeof SEGMENTS)[number];
 
-// The stats body renders only the two stat tiers; Results is its own body.
-type Tier = Exclude<Segment, "results">;
+// The stats body renders only the two stat tiers; Schedule is its own body.
+type Tier = Exclude<Segment, "schedule">;
 
 // localStorage, not server state: which segment a member last used is a device
 // preference, and it must survive closing the sheet without a write path.
@@ -59,6 +59,7 @@ type Tier = Exclude<Segment, "results">;
 function readStoredSegment(): Segment {
   try {
     const stored = localStorage.getItem(SEGMENT_STORAGE_KEY);
+    if (stored === "results") return "schedule";
     return SEGMENTS.find((segment) => segment === stored) ?? "basic";
   } catch {
     return "basic";
@@ -419,8 +420,8 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           <NflMatchupSpread game={game} />
           {open &&
-            (segment === "results" ? (
-              <NflMatchupResultsBody game={game} />
+            (segment === "schedule" ? (
+              <NflMatchupScheduleBody game={game} />
             ) : (
               <NflMatchupStatsBody game={game} tier={segment} />
             ))}

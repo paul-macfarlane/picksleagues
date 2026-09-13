@@ -35,24 +35,24 @@ export function useNflGameStats(gameId: string | undefined) {
   });
 }
 
-export function nflGameResultsQueryKey(gameId: string | undefined) {
-  return ["nfl-game-results", gameId];
+export function nflGameScheduleQueryKey(gameId: string | undefined) {
+  return ["nfl-game-schedule", gameId];
 }
 
 /**
- * The Results segment's game logs (STAT-9) — its own lazy fetch, mounted only
- * when a member actually selects Results, so the common sheet open pays
+ * The Schedule segment's fixtures (STAT-9) — its own lazy fetch, mounted only
+ * when a member actually selects Schedule, so the common sheet open pays
  * nothing for it. Shorter staleTime than the stats read: a live game's score
  * moves on the score sync's ~15-minute cadence (ADR-0044), and the response's `updatedAt`
  * carries the honest as-of stamp either way.
  */
-export function useNflGameResults(gameId: string | undefined) {
+export function useNflGameSchedule(gameId: string | undefined) {
   return useQuery({
-    queryKey: nflGameResultsQueryKey(gameId),
+    queryKey: nflGameScheduleQueryKey(gameId),
     staleTime: 60 * 1000,
     queryFn: gameId
       ? async () => {
-          const { data, error } = await api.GET("/api/games/{gameId}/nfl-results", {
+          const { data, error } = await api.GET("/api/games/{gameId}/nfl-schedule", {
             params: { path: { gameId } },
           });
           if (error) throw error;
