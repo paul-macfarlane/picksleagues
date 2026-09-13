@@ -133,7 +133,7 @@ export function PickemWeekDetail({
       }
     >
       {credit && (
-        <p data-testid="spread-source-credit" className="text-xs text-muted-foreground/70">
+        <p data-testid="spread-source-credit" className="text-xs text-muted-foreground">
           {credit}
         </p>
       )}
@@ -247,7 +247,7 @@ function MemberPicksSection({
           <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
             <span>Week {week ? recordText(week) : "not settled"}</span>
             {season && (
-              <span className="text-muted-foreground/70">
+              <span className="text-muted-foreground">
                 Season {recordText(season)} · rank {rankLabel(season.rank, seasonShared)}
               </span>
             )}
@@ -368,7 +368,7 @@ function PickRow({
               with the badge on a graded pick and stands alone while the game
               is still running. */}
           {standing && <span data-testid="pick-standing">· {standing}</span>}
-          {stateAsOf && <span className="text-muted-foreground/70">· {stateAsOf}</span>}
+          {stateAsOf && <span className="text-muted-foreground">· {stateAsOf}</span>}
         </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <GameStatePill status={game.status} />

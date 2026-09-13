@@ -145,7 +145,7 @@ function LeagueCard({ league }: { league: LeagueSummary }) {
           ) : (
             // Both NFL modes answer now (ELM-6, PKM-10); March Madness lands in a
             // later epic, as does a league whose season holds no week to report on.
-            <span className="text-xs text-muted-foreground/70">Pick status coming soon</span>
+            <span className="text-xs text-muted-foreground">Pick status coming soon</span>
           )}
           <span>{leagueTimingLine(league, now)}</span>
         </div>
