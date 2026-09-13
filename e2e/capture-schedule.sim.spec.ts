@@ -5,7 +5,7 @@ import { APP_ROLE, LEAGUE_MODE, LEAGUE_VISIBILITY, PICK_TYPE } from "../packages
 
 // Opt-in evidence uses real local ingestion so future opponents cannot be
 // supplied by a browser mock that hides an incomplete API read.
-test.skip(!process.env.SCHEDULE_CAPTURE, "opt-in schedule evidence");
+test.skip(!process.env.SCHEDULE_CAPTURE && !process.env.REVIEW_CAPTURE, "opt-in schedule evidence");
 test("capture matchup schedule in both league modes", async ({ browser }) => {
   test.setTimeout(120_000);
   const context = await browser.newContext({ reducedMotion: "reduce" });
@@ -62,7 +62,7 @@ test("capture matchup schedule in both league modes", async ({ browser }) => {
           // Let the tab underline transition finish before freezing the frame.
           await page.waitForTimeout(300);
           await page.screenshot({
-            path: `docs/evidence/matchup-schedule/${league.mode}-${width}-${colorScheme}.png`,
+            path: `test-results/review-screenshots/matchup-schedule/${league.mode}-${width}-${colorScheme}.png`,
           });
         }
       }

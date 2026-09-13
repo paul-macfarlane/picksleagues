@@ -4,10 +4,7 @@ The shared Schedule segment was checked on September 13, 2026 in Survivor and Pi
 
 Opponents remain visible at phone width, completed and live scores identify both teams, and upcoming kickoffs and the update stamp use the viewer's timezone. The sheet retains a scrollable body and a fixed header. The schedule reads stored games without a stats-ingestion dependency.
 
-| Mode | Phone | Desktop |
-| --- | --- | --- |
-| Survivor | [Light](matchup-schedule/survivor-390-light.png), [dark](matchup-schedule/survivor-390-dark.png) | [Light](matchup-schedule/survivor-1024-light.png), [dark](matchup-schedule/survivor-1024-dark.png) |
-| Pick'em | [Light](matchup-schedule/pickem-390-light.png), [dark](matchup-schedule/pickem-390-dark.png) | [Light](matchup-schedule/pickem-1024-light.png), [dark](matchup-schedule/pickem-1024-dark.png) |
+The eight review images are published as the seven-day `review-screenshots-pr-154` Actions artifact, linked from PR #154. They are not repository assets; expired screenshots can be regenerated.
 
 Reproduce on the isolated E2E stack:
 
