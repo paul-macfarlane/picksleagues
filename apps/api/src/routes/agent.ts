@@ -1,6 +1,8 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   AgentReconciliationResponseSchema,
+  AgentLeagueDiscoveryQuerySchema,
+  AgentLeagueDiscoveryResponseSchema,
   AgentGameResponseSchema,
   AgentLeagueDiagnosticsResponseSchema,
   AgentSystemResponseSchema,
@@ -16,6 +18,8 @@ import { agentGame, agentSystem, agentWeek } from "../services/agent-diagnostics
 import { agentLeagueDiagnostics } from "../services/agent-league-diagnostics";
 
 import { agentScoringReconciliation } from "../services/agent-reconciliation";
+
+import { agentLeagueDiscovery } from "../services/agent-league-discovery";
 
 const responses = {
   400: errorResponse("Invalid diagnostic identifier"),
@@ -189,6 +193,26 @@ export function agentRoutes(deps: AppDeps = {}) {
         );
       return c.json(result, 200);
     },
+  );
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/league-seasons",
+      operationId: "agentLeagueDiscovery",
+      security,
+      summary:
+        "Discover paginated NFL league-season monitoring targets, including concluded leagues",
+      request: { query: AgentLeagueDiscoveryQuerySchema },
+      responses: {
+        ...responses,
+        200: {
+          description:
+            "Bounded technical target list; empty when the season has no supported targets",
+          content: { "application/json": { schema: AgentLeagueDiscoveryResponseSchema } },
+        },
+      },
+    }),
+    async (c) => c.json(await agentLeagueDiscovery(c.get("db"), c.req.valid("query")), 200),
   );
   return app;
 }

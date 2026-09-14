@@ -61,7 +61,7 @@ below it. Remaining work:
 
 1. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
 
-The owner-requested agent diagnostic API and aggregate scoring reconciliation (`22`, AGENT-1–2, ADR-0049–0050) are implemented. AGENT-3 records a later repair specification and is not implementation-ready; environment rollout and privacy review remain separate operator steps.
+The owner-requested agent diagnostic API and aggregate scoring reconciliation (`22`, AGENT-1–2, ADR-0049–0050) are implemented. AGENT-4 adds bounded monitoring-target discovery. AGENT-3 now has an owner-approved scheduled-diagnostics/fix-PR design; runner integration is the next separate implementation slice; environment rollout and privacy review remain separate operator steps.
 
 `ALN-6` (TypeScript 6 → 7) stays blocked outside this list until typescript-eslint
 supports TS 7 (peer cap re-verified `<6.1.0`, 2026-08-23).

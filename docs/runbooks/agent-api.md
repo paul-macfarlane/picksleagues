@@ -4,17 +4,18 @@ AGENT-1 / [ADR-0049](../adr/0049-read-only-agent-diagnostics.md). Engineering ac
 
 ## Contract and authentication
 
-The committed `openapi/agent-openapi.json` and public `/api/agent-openapi.json` contain only these five bearer-authenticated GET operations:
+The committed `openapi/agent-openapi.json` and public `/api/agent-openapi.json` contain only these six bearer-authenticated GET operations:
 
 | Path under `/api/agent/v1` | Diagnostic |
 | --- | --- |
+| `/league-seasons?seasonId={seasonId}` | Paginated technical monitoring targets, including concluded leagues |
 | `/system` | Environment, server time, current NFL season/week IDs and current-week freshness/anomalies |
 | `/weeks/{weekId}` | All five game status counts, missing spreads, final games without scores, scheduled games at/past kickoff |
 | `/games/{gameId}` | Technical IDs/team abbreviations, kickoff, status, scores, period/clock, spread and whether attribution exists |
 | `/league-seasons/{leagueSeasonId}/reconciliation` | Compare scoring replay with stored results, standings, Survivor state and team-release flags; aggregate differences only |
 | `/league-seasons/{leagueSeasonId}/diagnostics` | Safe settings, current in-range week, member/pick/result/season-standing or Survivor-state counts and inconsistencies |
 
-Send `Authorization: Bearer <credential>` using the consumer's secret configuration, never a URL parameter. Tokens are independently provisioned per environment, 32–256 URL-safe characters (`A–Z`, `a–z`, digits, `_`, `-`). Missing configuration disables access with the same 401 as an invalid credential. Cookies and job headers confer no access. The token does not grant human/admin or job access. Responses use `Cache-Control: no-store`; non-GET methods are refused. Diagnostic UUIDs must come from a known incident/admin view; there is no league enumeration route.
+Send `Authorization: Bearer <credential>` using the consumer's secret configuration, never a URL parameter. Tokens are independently provisioned per environment, 32–256 URL-safe characters (`A–Z`, `a–z`, digits, `_`, `-`). Missing configuration disables access with the same 401 as an invalid credential. Cookies and job headers confer no access. The token does not grant human/admin or job access. Responses use `Cache-Control: no-store`; non-GET methods are refused. League-season UUIDs can be discovered through the bounded `/league-seasons` route; game/week UUIDs come from system discovery or a known incident/admin view.
 
 Generate both contracts with `pnpm contract:generate`; never hand-edit them. The consumer must use an explicit environment base URL plus the `/api/...` paths in the isolated contract. No MCP adapter is required.
 
@@ -44,7 +45,7 @@ Set the output as `AGENT_API_TOKEN` in your local ignored `.env` or the appropri
 ## Rollout and privacy review
 
 1. A human provisions an independent staging `AGENT_API_TOKEN` through deployment secret configuration and configures the consuming agent's bearer credential out of band. No token is created or stored in this repository, Notion, examples or logs.
-2. On staging, validate the isolated OpenAPI consumer, valid/invalid auth, all five reads, forbidden methods and the response allowlist. Verify the target environment in `/system`. Never use the general admin contract for this consumer.
+2. On staging, validate the isolated OpenAPI consumer, valid/invalid auth, all six reads, forbidden methods and the response allowlist. Verify the target environment in `/system`. Never use the general admin contract for this consumer.
 3. Review the consumer's actual data handling before production connection. The current `/privacy` page says “No selling or sharing of your data with anyone” and lists Vercel/Neon and sign-in providers. It does not yet explain engineering-agent processing of technical facts and league aggregates. Determine the actual consumer/provider and retention first, then update that disclosure before sending production diagnostics. This implementation deliberately does not invent a provider or claim production sharing has begun.
 4. After staging and disclosure review, separately provision a different production token and configure the production consumer. This runbook grants no deployment or production-access approval.
 
@@ -64,7 +65,7 @@ A local synthetic `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` comparison on 2026-0
 
 ## Scoring reconciliation
 
-`GET /api/agent/v1/league-seasons/{leagueSeasonId}/reconciliation` is the on-demand deeper check (AGENT-2, ADR-0050). It runs within one read-only repeatable-read snapshot and never writes replay outputs, triggers a job or contacts ESPN. The scoring inputs and technical member/pick IDs exist transiently in server memory; only aggregate counts leave the service, and none of those inputs are logged. Use a known league-season UUID; this does not add league enumeration.
+`GET /api/agent/v1/league-seasons/{leagueSeasonId}/reconciliation` is the on-demand deeper check (AGENT-2, ADR-0050). It runs within one read-only repeatable-read snapshot and never writes replay outputs, triggers a job or contacts ESPN. The scoring inputs and technical member/pick IDs exist transiently in server memory; only aggregate counts leave the service, and none of those inputs are logged. Use a known league-season UUID or obtain one from the discovery endpoint.
 
 `status: checked` means the comparison completed, **not** that it matched. Each applicable category (`results`, `standings`, `survivorState`) reports expected/stored row counts plus `missingCount`, `unexpectedCount` and `mismatchCount`. A differing row counts once even when several fields differ. Non-applicable categories are null; unsupported modes return `unsupported_mode` with every category null. `releasedFlagMismatchCount` checks Survivor’s team-use ledger; it is null for Pick’em. `checkedAt` is the injected Clock instant at the start of the comparison, not the last successful job time.
 
@@ -73,3 +74,11 @@ Pick’em checks outcome and points against cached scores and **spreadAtPick**, 
 Differences are evidence to investigate, not automatic repair instructions: ordinary settlement lag produces missing rows, and a never-rebuilt Pick’em season may lack its expected zero-point standings. Cached score corrections may make stored results temporarily unexpected or different. No grace threshold or job-health assertion is invented. A zero-difference response only establishes agreement with the current scoring implementation and cached inputs; simulator/unit rule tests remain essential.
 
 Run this for a single incident/league season as needed. It loads that season’s picks/results/state and relevant games and computes in memory; cost grows with season size. Keep routine lightweight polling on `/system`, `/weeks/...` and `/diagnostics`, rather than running replay on every refresh. There is no benchmark or production latency guarantee for this endpoint.
+
+## Discovering monitoring targets
+
+Call `/system` to obtain the current NFL `seasonId`. If it is null, ingestion is missing; do not report that as a successful empty monitoring run. Otherwise call `GET /api/agent/v1/league-seasons?seasonId={seasonId}&limit=50`. Each item contains only `leagueSeasonId`, `mode` and `status`. Both active and concluded NFL Pick’em/Survivor seasons are included, including private leagues and those with no picks or members. Names, league IDs, settings, members and picks are not returned. Unsupported modes/sports are excluded.
+
+Pass a non-null `nextCursor` as `cursor` on the next request, retaining the **same seasonId** until the sweep completes. Null means no more rows in that page’s snapshot. The default limit is 50, maximum 100; missing/malformed season IDs, malformed cursors and out-of-range limits return 400. Empty, unknown and non-NFL season IDs return an empty page; an empty page alone is not evidence that the environment or ingestion is healthy. Explicit historical NFL season IDs can be used for correction investigations.
+
+UUID cursors represent positions rather than row references, so deletion of the cursor’s row does not invalidate the next page. Concurrent creation below a saved cursor can be missed by that sweep; restart discovery from the beginning on subsequent scheduled sweeps rather than retaining a terminal cursor forever. Status changes do not move or exclude rows. Apply optional exclusions in the runner, after discovery, and bound reconciliation separately: listing a target does not run its scoring replay. No scheduler or exclusion configuration is added to the API.

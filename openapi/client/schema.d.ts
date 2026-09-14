@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent/v1/league-seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discover paginated NFL league-season monitoring targets, including concluded leagues */
+        get: operations["agentLeagueDiscovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -1039,6 +1056,18 @@ export interface components {
                 mismatchCount: number;
             } | null;
             releasedFlagMismatchCount: number | null;
+        };
+        AgentLeagueDiscoveryResponse: {
+            /** Format: uuid */
+            seasonId: string;
+            items: {
+                /** Format: uuid */
+                leagueSeasonId: string;
+                mode: components["schemas"]["LeagueMode"];
+                status: components["schemas"]["LeagueStatus"];
+            }[];
+            /** Format: uuid */
+            nextCursor: string | null;
         };
         MeResponse: {
             id: string;
@@ -2132,6 +2161,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentReconciliationResponse"];
+                };
+            };
+            /** @description Invalid diagnostic identifier */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Diagnostic resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    agentLeagueDiscovery: {
+        parameters: {
+            query: {
+                seasonId: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded technical target list; empty when the season has no supported targets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentLeagueDiscoveryResponse"];
                 };
             };
             /** @description Invalid diagnostic identifier */

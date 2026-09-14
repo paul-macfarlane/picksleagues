@@ -33,6 +33,7 @@ export function agentTokenMiddleware(env?: Env): MiddlewareHandler {
 
 /** Only fixed operation labels reach audit logs; caller paths/headers/payloads never do. */
 export function agentOperation(path: string): string {
+  if (path === "/api/agent/v1/league-seasons") return "agentLeagueDiscovery";
   if (path === "/api/agent/v1/system") return "agentSystem";
   if (/^\/api\/agent\/v1\/weeks\/[^/]+$/.test(path)) return "agentWeek";
   if (/^\/api\/agent\/v1\/games\/[^/]+$/.test(path)) return "agentGame";
