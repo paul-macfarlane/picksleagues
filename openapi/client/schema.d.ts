@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent/v1/league-seasons/{leagueSeasonId}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare stored scoring with a read-only replay; aggregate differences only */
+        get: operations["agentScoringReconciliation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -992,6 +1009,37 @@ export interface components {
         } | null;
         /** @enum {string} */
         PickType: "straight_up" | "against_the_spread";
+        AgentReconciliationResponse: {
+            /** Format: uuid */
+            leagueSeasonId: string;
+            mode: components["schemas"]["LeagueMode"];
+            /** Format: date-time */
+            checkedAt: string;
+            /** @enum {string} */
+            status: "checked" | "unsupported_mode";
+            results: {
+                expectedCount: number;
+                storedCount: number;
+                missingCount: number;
+                unexpectedCount: number;
+                mismatchCount: number;
+            } | null;
+            standings: {
+                expectedCount: number;
+                storedCount: number;
+                missingCount: number;
+                unexpectedCount: number;
+                mismatchCount: number;
+            } | null;
+            survivorState: {
+                expectedCount: number;
+                storedCount: number;
+                missingCount: number;
+                unexpectedCount: number;
+                mismatchCount: number;
+            } | null;
+            releasedFlagMismatchCount: number | null;
+        };
         MeResponse: {
             id: string;
             username: components["schemas"]["NullableUsername"];
@@ -2026,6 +2074,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentLeagueDiagnosticsResponse"];
+                };
+            };
+            /** @description Invalid diagnostic identifier */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Diagnostic resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    agentScoringReconciliation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueSeasonId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scoring reconciliation counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentReconciliationResponse"];
                 };
             };
             /** @description Invalid diagnostic identifier */

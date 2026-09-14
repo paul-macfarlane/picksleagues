@@ -120,3 +120,31 @@ export const AgentLeagueDiagnosticsResponseSchema = z
     anomalies,
   })
   .openapi("AgentLeagueDiagnosticsResponse");
+
+/** Checked means a full comparison ran, not that every comparison matched. */
+export const AGENT_RECONCILIATION_STATUS = {
+  CHECKED: "checked",
+  UNSUPPORTED_MODE: "unsupported_mode",
+} as const;
+
+const reconciliationCounts = z.object({
+  expectedCount: count,
+  storedCount: count,
+  missingCount: count,
+  unexpectedCount: count,
+  mismatchCount: count,
+});
+
+/** Aggregate replay differences; null categories were not applicable or not checked. */
+export const AgentReconciliationResponseSchema = z
+  .object({
+    leagueSeasonId: z.uuid(),
+    mode: LeagueModeSchema,
+    checkedAt: instant,
+    status: z.enum(AGENT_RECONCILIATION_STATUS),
+    results: reconciliationCounts.nullable(),
+    standings: reconciliationCounts.nullable(),
+    survivorState: reconciliationCounts.nullable(),
+    releasedFlagMismatchCount: count.nullable(),
+  })
+  .openapi("AgentReconciliationResponse");
