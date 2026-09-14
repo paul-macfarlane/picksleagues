@@ -16,10 +16,18 @@ import {
 import { makeFixedAppHarness } from "./setup/fixed-app";
 import { makeTestEnv } from "./setup/test-env";
 import { resetDb } from "./setup/reset-db";
-import { seedSeason, insertPick, SEED_AT } from "./setup/league-helpers";
+import {
+  seedSeason,
+  insertPick,
+  insertLeague,
+  membersOf,
+  seasonIdFor,
+  SEED_AT,
+} from "./setup/league-helpers";
 import { seedPickemLeague } from "./setup/pickem-league";
 import {
   seedSurvivorSeason,
+  seedSurvivorLeague,
   insertSurvivorPick,
   insertSurvivorState,
 } from "./setup/survivor-league";
@@ -207,6 +215,7 @@ describe("agent diagnostics", () => {
       missingStandingCount: 1,
       inconsistentRowCount: 1,
       duplicateRowCount: 0,
+      dataUpdatedAt: SEED_AT.toISOString(),
     });
     const serialized = JSON.stringify(raw);
     for (const forbidden of [
@@ -231,6 +240,7 @@ describe("agent diagnostics", () => {
     expect(await get(path)).toMatchObject({
       memberCount: 2,
       standingStateRowCount: 0,
+      dataUpdatedAt: null,
       missingStandingCount: 0,
       inconsistentRowCount: 0,
     });
@@ -264,6 +274,60 @@ describe("agent diagnostics", () => {
       missingStandingCount: 0,
       inconsistentRowCount: 1,
       duplicateRowCount: 0,
+      dataUpdatedAt: SEED_AT.toISOString(),
     });
   });
 });
+
+it.each(["pickem", "survivor"] as const)(
+  "%s detects result scope corruption in both directions without double-counting",
+  async (mode) => {
+    const seed = mode === "pickem" ? seedPickemLeague : seedSurvivorLeague;
+    const fixture = await seed(db, auth, {
+      members: [{}, {}],
+      weeks: [{ weekNumber: 1, kickoffs: [{ kickoffAt: WEEK1_KICKOFF }] }],
+    });
+    const other = await insertLeague(db, {
+      seasonId: fixture.seasonId,
+      mode,
+      members: fixture.users.map((u) => ({ userId: u.user.id, role: "member" })),
+    });
+    const otherSeasonId = await seasonIdFor(db, other.id);
+    const otherMembers = await membersOf(db, other.id);
+    const memberIds = fixture.users.map((u) => fixture.members.get(u.user.id)!);
+    const weekId = fixture.weekIds.get("regular:1")!;
+    const gameId = fixture.gameIds.get("regular:1")![0]!;
+    const [game] = await db
+      .select({ teamId: games.homeTeamId })
+      .from(games)
+      .where(eq(games.id, gameId));
+    for (const [index, leagueMemberId] of memberIds.entries()) {
+      const input = { leagueSeasonId: fixture.leagueSeasonId, leagueMemberId, weekId, gameId };
+      const result = {
+        leagueSeasonId: index === 0 ? otherSeasonId : fixture.leagueSeasonId,
+        leagueMemberId: index === 0 ? otherMembers.get(fixture.users[0]!.user.id)! : memberIds[0]!,
+        weekId,
+        outcome: "correct" as const,
+        settledAt: SEED_AT,
+      };
+      if (mode === "pickem") {
+        const pick = await insertPick(db, { ...input, side: "home" });
+        await db.insert(pickemPickResults).values({ ...result, pickemPickId: pick.id, points: 1 });
+      } else {
+        const pick = await insertSurvivorPick(db, { ...input, teamId: game!.teamId });
+        await db.insert(survivorPickResults).values({ ...result, survivorPickId: pick.id });
+      }
+    }
+    expect(await get(`league-seasons/${fixture.leagueSeasonId}/diagnostics`)).toMatchObject({
+      submittedPickCount: 2,
+      gradedPickCount: 1,
+      ungradedPickCount: 0,
+      inconsistentRowCount: 2,
+    });
+    expect(await get(`league-seasons/${otherSeasonId}/diagnostics`)).toMatchObject({
+      submittedPickCount: 0,
+      gradedPickCount: 1,
+      inconsistentRowCount: 1,
+    });
+  },
+);
