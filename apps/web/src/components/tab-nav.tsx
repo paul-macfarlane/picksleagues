@@ -5,17 +5,11 @@ import { cn } from "@/lib/utils";
 // sections of one thing (a league, the admin surface). Tabs are real routes,
 // not local state, so each section is deep-linkable and survives a refresh —
 // callers render `<Link>`s with these props and their own `to`/`params`.
-// `shrink-0 whitespace-nowrap` is what actually makes a scrolling bar scroll:
-// without them a flex item compresses to fit and wraps its own label, so a
-// two-word tab stacked into two lines and doubled the bar's height instead
-// of overflowing it. Every tab was one word until it wasn't.
-//
-// The `group-data-fit/tabs` variants are the phone-width `fit` layout (see
-// TabNav): equal columns, centred, one size down. They live here rather than
-// on a second props object because every tab is written `{...tabLinkProps}`
-// and the bar, not the tab, knows which layout it's in.
+// Real 44px targets keep touch-hit pseudo-elements from extending outside
+// the bar and creating vertical scroll overflow on phones. Fitted tabs share
+// spare width while retaining enough space for each complete label.
 const tabLinkClassName =
-  "touch-hit shrink-0 whitespace-nowrap border-b-2 border-transparent px-1 pb-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 max-sm:group-data-fit/tabs:flex-1 max-sm:group-data-fit/tabs:px-0 max-sm:group-data-fit/tabs:text-center max-sm:group-data-fit/tabs:text-xs";
+  "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-1 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 max-sm:group-data-fit/tabs:grow max-sm:group-data-fit/tabs:px-0";
 
 export const tabLinkProps = {
   className: tabLinkClassName,
@@ -29,10 +23,9 @@ export const tabLinkProps = {
 };
 
 /**
- * `fit` — below `sm`, the tabs share the width as equal columns instead of
- * scrolling (MOB-4, owner: horizontal scroll in a nav feels unnatural on a
- * phone). Only for bars whose labels all fit at 375px: the league bar's five
- * do, the admin bar's seven can't, so operator bars keep scrolling.
+ * `fit` keeps every tab visible without a scroll container (MOB-4). Tabs
+ * share spare width on phones and wrap if larger text or a narrow viewport
+ * needs more room, rather than clipping labels or reducing their size.
  */
 export function TabNav({
   label,
@@ -53,9 +46,10 @@ export function TabNav({
       // keeps content from showing through while scrolled under it.
       // Layering: app header z-40 > this tab bar z-30 > page-level fixed
       // elements (AppTabBar, the picks screen's action bar) at z-20.
-      // Scrolls rather than wraps: the admin bar is five tabs wide at phone
-      // width, and a wrapped second row reads as a separate control.
-      className="group/tabs sticky top-[var(--app-header-height,0px)] z-30 flex gap-4 overflow-x-auto border-b border-border bg-background text-sm select-none max-sm:data-fit:gap-0"
+      className={cn(
+        "group/tabs sticky top-[var(--app-header-height,0px)] z-30 flex gap-4 border-b border-border bg-background text-sm select-none",
+        fit ? "flex-wrap max-sm:gap-0" : "overflow-x-auto",
+      )}
     >
       {children}
     </nav>
