@@ -697,6 +697,51 @@
           "survivorState",
           "releasedFlagMismatchCount"
         ]
+      },
+      "AgentLeagueDiscoveryResponse": {
+        "type": "object",
+        "properties": {
+          "seasonId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "leagueSeasonId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "mode": {
+                  "$ref": "#/components/schemas/LeagueMode"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/LeagueStatus"
+                }
+              },
+              "required": [
+                "leagueSeasonId",
+                "mode",
+                "status"
+              ]
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "seasonId",
+          "items",
+          "nextCursor"
+        ]
       }
     },
     "parameters": {}
@@ -1014,6 +1059,100 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgentReconciliationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid diagnostic identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Diagnostic resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/v1/league-seasons": {
+      "get": {
+        "operationId": "agentLeagueDiscovery",
+        "security": [
+          {
+            "AgentBearer": []
+          }
+        ],
+        "summary": "Discover paginated NFL league-season monitoring targets, including concluded leagues",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "seasonId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded technical target list; empty when the season has no supported targets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentLeagueDiscoveryResponse"
                 }
               }
             }

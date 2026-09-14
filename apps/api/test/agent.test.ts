@@ -9,6 +9,7 @@ import {
   survivorPickResults,
 } from "@picksleagues/db";
 import {
+  AgentLeagueDiscoveryResponseSchema,
   AgentGameResponseSchema,
   AgentLeagueDiagnosticsResponseSchema,
   AgentWeekResponseSchema,
@@ -331,3 +332,103 @@ it.each(["pickem", "survivor"] as const)(
     });
   },
 );
+
+describe("agent league discovery", () => {
+  it("pages supported targets in UUID order, including concluded/private leagues and excluding other seasons/modes", async () => {
+    const { seasonId } = await seedSeason(db, { weeks: [] });
+    const expected = [];
+    for (const [mode, status] of [
+      ["pickem", "active"],
+      ["survivor", "active"],
+      ["pickem", "concluded"],
+    ] as const) {
+      const league = await insertLeague(db, {
+        seasonId,
+        mode,
+        status,
+        name: "PRIVATE_NAME",
+        duesAmount: 123,
+      });
+      expected.push({ leagueSeasonId: await seasonIdFor(db, league.id), mode, status });
+    }
+    await insertLeague(db, { seasonId, mode: "march_madness" });
+    const other = await seedSeason(db, { year: 2025, weeks: [] });
+    await insertLeague(db, { seasonId: other.seasonId });
+    expected.sort((a, b) => a.leagueSeasonId.localeCompare(b.leagueSeasonId));
+    const rawFirst = await get(`league-seasons?seasonId=${seasonId}&limit=2`);
+    const first = AgentLeagueDiscoveryResponseSchema.parse(rawFirst);
+    expect(first).toEqual({
+      seasonId,
+      items: expected.slice(0, 2),
+      nextCursor: expected[1]!.leagueSeasonId,
+    });
+    expect(rawFirst).toEqual(first);
+    const second = await get(
+      `league-seasons?seasonId=${seasonId}&limit=2&cursor=${first.nextCursor}`,
+    );
+    expect(second).toEqual({ seasonId, items: expected.slice(2), nextCursor: null });
+    expect(JSON.stringify(first)).not.toContain("PRIVATE_NAME");
+    // Cursor is a position, not a row dependency: a deleted target must not break resumption.
+    await db.delete(leagueSeasons).where(eq(leagueSeasons.id, first.nextCursor!));
+    expect(
+      await get(`league-seasons?seasonId=${seasonId}&limit=2&cursor=${first.nextCursor}`),
+    ).toEqual(second);
+    const audit = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]));
+    expect(audit).toMatchObject({ operation: "agentLeagueDiscovery", status: 200 });
+    expect(JSON.stringify(audit)).not.toContain(seasonId);
+  });
+
+  it("caps pages at 100, defaults to 50 and ends an exact page without a spurious cursor", async () => {
+    const { seasonId } = await seedSeason(db, { weeks: [] });
+    for (let i = 0; i < 101; i++) await insertLeague(db, { seasonId });
+    const defaultPage = AgentLeagueDiscoveryResponseSchema.parse(
+      await get(`league-seasons?seasonId=${seasonId}`),
+    );
+    expect(defaultPage.items).toHaveLength(50);
+    expect(defaultPage.nextCursor).toBe(defaultPage.items[49]!.leagueSeasonId);
+    const full = AgentLeagueDiscoveryResponseSchema.parse(
+      await get(`league-seasons?seasonId=${seasonId}&limit=100`),
+    );
+    expect(full.items).toHaveLength(100);
+    const last = AgentLeagueDiscoveryResponseSchema.parse(
+      await get(`league-seasons?seasonId=${seasonId}&limit=1&cursor=${full.nextCursor}`),
+    );
+    expect(last.items).toHaveLength(1);
+    expect(last.nextCursor).toBeNull();
+  });
+
+  it("returns an empty page for empty, unknown and non-NFL seasons", async () => {
+    const empty = await seedSeason(db, { weeks: [] });
+    const nonNfl = await seedSeason(db, { sport: "ncaamb", year: 2027, weeks: [] });
+    await insertLeague(db, { seasonId: nonNfl.seasonId });
+    for (const seasonId of [empty.seasonId, nonNfl.seasonId, randomUUID()]) {
+      expect(await get(`league-seasons?seasonId=${seasonId}`)).toEqual({
+        seasonId,
+        items: [],
+        nextCursor: null,
+      });
+    }
+  });
+
+  it.each([
+    "",
+    "seasonId=bad",
+    `seasonId=${randomUUID()}&cursor=bad`,
+    ...["0", "101", "-1", "1.5", "nope"].map((limit) => `seasonId=${randomUUID()}&limit=${limit}`),
+  ])("refuses invalid discovery queries without echoing input: %s", async (query) => {
+    const response = await app().request(`/api/agent/v1/league-seasons?${query}`, { headers });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "validation",
+      message: "Invalid diagnostic identifier.",
+    });
+  });
+
+  it("requires the agent credential and refuses mutations", async () => {
+    const url = `/api/agent/v1/league-seasons?seasonId=${randomUUID()}`;
+    expect((await app().request(url)).status).toBe(401);
+    const response = await app().request(url, { headers, method: "POST" });
+    expect(response.status).toBe(405);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+});

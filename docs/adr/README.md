@@ -60,3 +60,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0048](0048-matchup-season-schedule.md) | Matchup results become the available season schedule | Accepted |
 | [0049](0049-read-only-agent-diagnostics.md) | Separate read-only agent diagnostic API and allowlisted contract | Accepted |
 | [0050](0050-aggregate-scoring-reconciliation.md) | Read-only scoring replay with aggregate discrepancy counts | Accepted |
+| [0051](0051-agent-league-discovery.md) | Bounded technical league-season discovery for monitoring | Accepted |

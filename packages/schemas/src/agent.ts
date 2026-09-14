@@ -148,3 +148,30 @@ export const AgentReconciliationResponseSchema = z
     releasedFlagMismatchCount: count.nullable(),
   })
   .openapi("AgentReconciliationResponse");
+
+/** Fixed upper bound keeps discovery responses and database materialization small. */
+export const AGENT_DISCOVERY_MAX_PAGE_SIZE = 100;
+
+/** Pin the season from /system across pages; UUID keyset pagination avoids shifting offsets. */
+export const AgentLeagueDiscoveryQuerySchema = z.object({
+  seasonId: z.uuid(),
+  cursor: z.uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(AGENT_DISCOVERY_MAX_PAGE_SIZE).default(50),
+});
+
+/** Technical monitoring targets only, including concluded league seasons. */
+export const AgentLeagueDiscoveryResponseSchema = z
+  .object({
+    seasonId: z.uuid(),
+    items: z
+      .array(
+        z.object({
+          leagueSeasonId: z.uuid(),
+          mode: LeagueModeSchema,
+          status: LeagueStatusSchema,
+        }),
+      )
+      .max(AGENT_DISCOVERY_MAX_PAGE_SIZE),
+    nextCursor: z.uuid().nullable(),
+  })
+  .openapi("AgentLeagueDiscoveryResponse");
