@@ -163,6 +163,7 @@ interface SeasonReplay {
    * the game rows. Both of ADR-0027's endings are exactly where this loop stops.
    */
   decided: boolean;
+  warnings: Array<{ weekId: string; gameId: string; reason: string }>;
 }
 
 /**
@@ -195,6 +196,7 @@ function replaySeason(
     weeks: 0,
     unsettled: 0,
     decided: false,
+    warnings: [],
   };
 
   let alive: readonly string[] = memberIds;
@@ -253,8 +255,7 @@ function replaySeason(
         // hand SQL edit) fixes — worth a log line, unlike the ordinary
         // not-yet-played case.
         if (game.reason !== SURVIVOR_UNSETTLED_REASON.NOT_YET_PLAYED) {
-          logInfo("settlement.unsettleable-game", {
-            leagueSeasonId: season.leagueSeasonId,
+          replay.warnings.push({
             weekId: week.id,
             gameId: game.gameId,
             reason: game.reason,
@@ -336,7 +337,7 @@ function replaySeason(
  * database edit. With it, settlement always completes and the team having been
  * used twice is the audited consequence of the operator's flip-flop.
  */
-function resolveReleasedFlags(
+export function resolveReleasedFlags(
   picks: ReadonlyArray<typeof survivorPicks.$inferSelect>,
   consumedByPickId: ReadonlyMap<string, boolean>,
   weekOrdinals: ReadonlyMap<string, number>,
@@ -437,36 +438,10 @@ export async function rebuildSurvivorLeagueSeason(
     // the one this transaction replaces and no concurrent settle can shift it.
     if (audit) await recordRebuildAudit(tx, clock, leagueSeasonId, audit.adminUserId);
 
-    const members = await tx
-      .select({ id: leagueMembers.id })
-      .from(leagueMembers)
-      .where(eq(leagueMembers.leagueId, season.leagueId));
-    // Sorted so a replay's outcome and transition order depends on the league,
-    // not on the order Postgres happened to return rows in.
-    const memberIds = members.map((member) => member.id).sort();
-
-    const picks = await tx
-      .select()
-      .from(survivorPicks)
-      .where(eq(survivorPicks.leagueSeasonId, leagueSeasonId));
-
-    const picksByWeek = new Map<string, Array<typeof survivorPicks.$inferSelect>>();
-    for (const pick of picks) {
-      const bucket = picksByWeek.get(pick.weekId);
-      if (bucket) bucket.push(pick);
-      else picksByWeek.set(pick.weekId, [pick]);
+    const { memberIds, picks, replay } = await loadSurvivorReplay(tx, clock, season, seasonWeeks);
+    for (const warning of replay.warnings) {
+      logInfo("settlement.unsettleable-game", { leagueSeasonId, ...warning });
     }
-
-    const gamesForWeek = await loadSeasonGames(tx, seasonWeeks, picks);
-
-    const replay = replaySeason(
-      season,
-      seasonWeeks,
-      memberIds,
-      picksByWeek,
-      gamesForWeek,
-      clock.now(),
-    );
 
     await writeReplay(tx, clock, season, memberIds, picks, seasonWeeks, replay);
 
@@ -632,4 +607,46 @@ export async function settleSurvivorPicksForGames(
     total = addSummary(total, await rebuildSurvivorLeagueSeason(db, clock, row.leagueSeasonId));
   }
   return total;
+}
+
+/** Computes the same replay as settlement without writes, locks or diagnostic logging. */
+export async function loadSurvivorReplay(
+  tx: Db,
+  clock: Clock,
+  season: SettleableSurvivorSeason,
+  loadedWeeks?: SeasonWeek[],
+) {
+  const seasonWeeks = loadedWeeks ?? (await loadSeasonWeeks(tx, season));
+  const members = await tx
+    .select({ id: leagueMembers.id })
+    .from(leagueMembers)
+    .where(eq(leagueMembers.leagueId, season.leagueId));
+  // Sorted so a replay's outcome and transition order depends on the league,
+  // not on the order Postgres happened to return rows in.
+  const memberIds = members.map((member) => member.id).sort();
+
+  const picks = await tx
+    .select()
+    .from(survivorPicks)
+    .where(eq(survivorPicks.leagueSeasonId, season.leagueSeasonId));
+
+  const picksByWeek = new Map<string, Array<typeof survivorPicks.$inferSelect>>();
+  for (const pick of picks) {
+    const bucket = picksByWeek.get(pick.weekId);
+    if (bucket) bucket.push(pick);
+    else picksByWeek.set(pick.weekId, [pick]);
+  }
+
+  const gamesForWeek = await loadSeasonGames(tx, seasonWeeks, picks);
+
+  const replay = replaySeason(
+    season,
+    seasonWeeks,
+    memberIds,
+    picksByWeek,
+    gamesForWeek,
+    clock.now(),
+  );
+
+  return { memberIds, picks, replay, seasonWeeks };
 }

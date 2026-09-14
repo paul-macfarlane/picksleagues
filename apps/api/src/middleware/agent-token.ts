@@ -38,6 +38,8 @@ export function agentOperation(path: string): string {
   if (/^\/api\/agent\/v1\/games\/[^/]+$/.test(path)) return "agentGame";
   if (/^\/api\/agent\/v1\/league-seasons\/[^/]+\/diagnostics$/.test(path))
     return "agentLeagueDiagnostics";
+  if (/^\/api\/agent\/v1\/league-seasons\/[^/]+\/reconciliation$/.test(path))
+    return "agentScoringReconciliation";
   return "agentUnknown";
 }
 

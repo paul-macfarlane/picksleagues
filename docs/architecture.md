@@ -419,6 +419,8 @@ Generate a client for Expo/React Native (or native) directly from the OpenAPI sp
 
 No websockets or push notifications (post-game freshness), no email (invite links), no matchmaking queue (H2H is post-MVP), no admin CMS (a role-gated admin page with job triggers and data browsers, plus — in non-prod only — a separate simulator section), no caching layer, no odds-provider fallback (post-MVP if ESPN's feed proves flaky).
 
-## Engineering agent diagnostics (ADR-0049)
+## Engineering agent diagnostics (ADR-0049, ADR-0050)
 
 The separate GET-only `/api/agent/v1/*` surface supports system/week/game and NFL league-season aggregate diagnostics in every environment. It requires an independently configured `AGENT_API_TOKEN` bearer token; Better Auth sessions/admin roles and `JOB_SECRET` confer no access. Omission fails closed. The agent-only contract is generated as `openapi/agent-openapi.json` and served at `/api/agent-openapi.json`. Explicit query/response allowlists omit member identity, raw picks, free-text league/provider fields, dues, invites and auth data. No mutation or generic query endpoints exist. Request audit metadata and sanitized error codes are logged without payloads. Row-change timestamps do not claim job success or distinct odds/score freshness. See [the rollout runbook](runbooks/agent-api.md) for staging verification and privacy review before production connection.
+
+Scoring reconciliation (`/api/agent/v1/league-seasons/{leagueSeasonId}/reconciliation`, ADR-0050) adds an on-demand read-only replay for one league season. It reuses scoring/Survivor replay in a repeatable-read snapshot and exposes only aggregate differences; scoring inputs and technical member/pick references stay inside server memory. It neither writes derived state nor fetches provider data, and does not independently prove the shared scoring rules or cached data correct.
