@@ -21,6 +21,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent/v1/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Environment and current NFL ingestion diagnostics */
+        get: operations["agentSystem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/v1/weeks/{weekId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Week game-state aggregates */
+        get: operations["agentWeek"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/v1/games/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Technical game state with neutral freshness */
+        get: operations["agentGame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/v1/league-seasons/{leagueSeasonId}/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aggregate NFL league-season diagnostics without member identity */
+        get: operations["agentLeagueDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -803,6 +871,127 @@ export interface components {
             /** @enum {string} */
             status: "ok";
         };
+        AgentSystemResponse: {
+            /** @enum {string} */
+            environment: "local" | "staging" | "production";
+            /** Format: date-time */
+            serverTime: string;
+            supportedSports: components["schemas"]["Sport"][];
+            /** Format: uuid */
+            seasonId: string | null;
+            seasonYear: number;
+            provisional: boolean | null;
+            /** Format: uuid */
+            currentWeekId: string | null;
+            /** Format: date-time */
+            dataUpdatedAt: string | null;
+            anomalies: ("no_season" | "no_games" | "missing_spread" | "final_without_score" | "scheduled_after_kickoff" | "ungraded_resolved_picks" | "inconsistent_rows" | "missing_standings" | "unsupported_mode")[];
+        };
+        /** @enum {string} */
+        Sport: "nfl" | "ncaamb";
+        ErrorResponse: {
+            error: string;
+            message: string;
+        };
+        AgentWeekResponse: {
+            /** Format: uuid */
+            weekId: string;
+            /** Format: uuid */
+            seasonId: string;
+            weekType: components["schemas"]["WeekType"];
+            weekNumber: number;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            gameCounts: {
+                scheduled: number;
+                in_progress: number;
+                final: number;
+                postponed: number;
+                cancelled: number;
+            };
+            missingSpreadCount: number;
+            finalWithoutScoreCount: number;
+            scheduledAfterKickoffCount: number;
+            /** Format: date-time */
+            dataUpdatedAt: string | null;
+            anomalies: ("no_season" | "no_games" | "missing_spread" | "final_without_score" | "scheduled_after_kickoff" | "ungraded_resolved_picks" | "inconsistent_rows" | "missing_standings" | "unsupported_mode")[];
+        };
+        /** @enum {string} */
+        WeekType: "regular" | "postseason";
+        AgentGameResponse: {
+            /** Format: uuid */
+            gameId: string;
+            /** Format: uuid */
+            weekId: string;
+            providerGameId: string;
+            homeTeam: {
+                /** Format: uuid */
+                id: string;
+                abbreviation: string;
+            };
+            awayTeam: {
+                /** Format: uuid */
+                id: string;
+                abbreviation: string;
+            };
+            /** Format: date-time */
+            kickoffAt: string;
+            status: components["schemas"]["GameStatus"];
+            homeScore: number | null;
+            awayScore: number | null;
+            period: number | null;
+            clockSeconds: number | null;
+            spread: number | null;
+            hasSpreadSource: boolean;
+            /** Format: date-time */
+            gameStateUpdatedAt: string;
+            anomalies: ("no_season" | "no_games" | "missing_spread" | "final_without_score" | "scheduled_after_kickoff" | "ungraded_resolved_picks" | "inconsistent_rows" | "missing_standings" | "unsupported_mode")[];
+        };
+        /** @enum {string} */
+        GameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled";
+        AgentLeagueDiagnosticsResponse: {
+            /** Format: uuid */
+            leagueSeasonId: string;
+            /** Format: uuid */
+            seasonId: string;
+            mode: components["schemas"]["LeagueMode"];
+            status: components["schemas"]["LeagueStatus"];
+            settings: components["schemas"]["NullableAgentSettings"];
+            /** Format: uuid */
+            currentWeekId: string | null;
+            memberCount: number;
+            submittedPickCount: number;
+            gradedPickCount: number;
+            ungradedPickCount: number;
+            ungradedResolvedPickCount: number;
+            standingStateRowCount: number;
+            missingStandingCount: number;
+            inconsistentRowCount: number;
+            duplicateRowCount: number;
+            /** Format: date-time */
+            dataUpdatedAt: string | null;
+            anomalies: ("no_season" | "no_games" | "missing_spread" | "final_without_score" | "scheduled_after_kickoff" | "ungraded_resolved_picks" | "inconsistent_rows" | "missing_standings" | "unsupported_mode")[];
+        };
+        /** @enum {string} */
+        LeagueMode: "pickem" | "survivor" | "march_madness";
+        /** @enum {string} */
+        LeagueStatus: "active" | "concluded";
+        NullableAgentSettings: {
+            startWeek: {
+                type: components["schemas"]["WeekType"];
+                number: number;
+            };
+            endWeek: {
+                type: components["schemas"]["WeekType"];
+                number: number;
+            };
+            pickType?: components["schemas"]["PickType"];
+            picksPerWeek?: number;
+        } | null;
+        /** @enum {string} */
+        PickType: "straight_up" | "against_the_spread";
         MeResponse: {
             id: string;
             username: components["schemas"]["NullableUsername"];
@@ -820,10 +1009,6 @@ export interface components {
         NullableUsername: string | null;
         /** Format: uri */
         NullableImageUrl: string | null;
-        ErrorResponse: {
-            error: string;
-            message: string;
-        };
         UpdateMeRequest: {
             username?: components["schemas"]["Username"];
             displayName?: components["schemas"]["DisplayName"];
@@ -847,8 +1032,6 @@ export interface components {
             };
             message?: string;
         };
-        /** @enum {string} */
-        WeekType: "regular" | "postseason";
         LeagueResponse: {
             id: string;
             name: components["schemas"]["LeagueName"];
@@ -869,11 +1052,7 @@ export interface components {
         };
         LeagueName: string;
         /** @enum {string} */
-        LeagueMode: "pickem" | "survivor" | "march_madness";
-        /** @enum {string} */
         LeagueVisibility: "public" | "private";
-        /** @enum {string} */
-        LeagueStatus: "active" | "concluded";
         LeagueSettings: components["schemas"]["PickemSettings"] | components["schemas"]["SurvivorSettings"] | components["schemas"]["MarchMadnessSettings"];
         PickemSettings: {
             startWeek: {
@@ -890,8 +1069,6 @@ export interface components {
             /** @default 5 */
             picksPerWeek: number;
         };
-        /** @enum {string} */
-        PickType: "straight_up" | "against_the_spread";
         SurvivorSettings: {
             startWeek: {
                 /** @enum {string} */
@@ -1098,8 +1275,6 @@ export interface components {
             logoLightUrl: string | null;
             logoDarkUrl: string | null;
         };
-        /** @enum {string} */
-        GameStatus: "scheduled" | "in_progress" | "final" | "postponed" | "cancelled";
         LeagueWeeksResponse: {
             weeks: components["schemas"]["LeagueWeek"][];
             currentWeekId: string | null;
@@ -1345,8 +1520,6 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @enum {string} */
-        Sport: "nfl" | "ncaamb";
         AdminSeasonsResponse: {
             seasons: components["schemas"]["AdminSeason"][];
         };
@@ -1659,6 +1832,236 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    agentSystem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Technical system snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSystemResponse"];
+                };
+            };
+            /** @description Invalid diagnostic identifier */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Diagnostic resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    agentWeek: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                weekId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Week diagnostics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentWeekResponse"];
+                };
+            };
+            /** @description Invalid diagnostic identifier */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Diagnostic resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    agentGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Game diagnostics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentGameResponse"];
+                };
+            };
+            /** @description Invalid diagnostic identifier */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Diagnostic resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    agentLeagueDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueSeasonId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description League-season diagnostic counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentLeagueDiagnosticsResponse"];
+                };
+            };
+            /** @description Invalid diagnostic identifier */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Diagnostic resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

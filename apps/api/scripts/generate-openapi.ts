@@ -3,6 +3,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createApp } from "../src/app";
+import { agentOpenApiDocument } from "../src/routes/agent";
 
 const outDir = path.resolve(import.meta.dirname, "../../../openapi");
 const res = await createApp().request("/api/openapi.json");
@@ -13,3 +14,8 @@ const spec = await res.json();
 await mkdir(outDir, { recursive: true });
 await writeFile(path.join(outDir, "openapi.json"), `${JSON.stringify(spec, null, 2)}\n`);
 console.log(`Wrote ${path.join(outDir, "openapi.json")}`);
+
+await writeFile(
+  path.join(outDir, "agent-openapi.json"),
+  `${JSON.stringify(agentOpenApiDocument(), null, 2)}\n`,
+);

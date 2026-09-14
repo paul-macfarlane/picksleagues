@@ -51,6 +51,7 @@ Write tasks as **goals**: the outcome plus the `docs/mvp-spec.md` / `docs/archit
 | `19-alignment.md`      | `ALN`  | Consistency sweeps: code vs. the written standards; documented business logic vs. the app (owner triages differences, then docs align to the app) |
 | `20-league-dues.md`    | `DUES` | Optional dues tracking: flat amount per league season, commissioner-marked paid/unpaid, member-visible list |
 | `21-override-removal.md` | `OVR` | Remove the manual sports-data override layer (ADR-0046): the DB is a provider cache; correction is re-sync or a documented SQL edit |
+| `22-agent-api.md` | `AGENT` | Read-only agent diagnostics with independent authentication and an allowlisted OpenAPI contract |
 
 ## Build order
 
@@ -59,6 +60,8 @@ written. This list holds only remaining work; completed rounds are summarized
 below it. Remaining work:
 
 1. **`07-march-madness`** — the third mode, not needed until Feb 2027, on whatever surface `SWP-6` leaves. Completing it includes lifting `LNCH-12`'s gate.
+
+The owner-requested agent diagnostic API (`22`, AGENT-1, ADR-0049) is implemented; environment credentials, staging consumer validation and privacy review precede production connection.
 
 `ALN-6` (TypeScript 6 → 7) stays blocked outside this list until typescript-eslint
 supports TS 7 (peer cap re-verified `<6.1.0`, 2026-08-23).

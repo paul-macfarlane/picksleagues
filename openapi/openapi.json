@@ -5,6 +5,12 @@
     "version": "0.1.0"
   },
   "components": {
+    "securitySchemes": {
+      "AgentBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
     "schemas": {
       "HealthResponse": {
         "type": "object",
@@ -18,6 +24,547 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "AgentSystemResponse": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "local",
+              "staging",
+              "production"
+            ]
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supportedSports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sport"
+            },
+            "maxItems": 2
+          },
+          "seasonId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "seasonYear": {
+            "type": "integer"
+          },
+          "provisional": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dataUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_season",
+                "no_games",
+                "missing_spread",
+                "final_without_score",
+                "scheduled_after_kickoff",
+                "ungraded_resolved_picks",
+                "inconsistent_rows",
+                "missing_standings",
+                "unsupported_mode"
+              ]
+            },
+            "maxItems": 9
+          }
+        },
+        "required": [
+          "environment",
+          "serverTime",
+          "supportedSports",
+          "seasonId",
+          "seasonYear",
+          "provisional",
+          "currentWeekId",
+          "dataUpdatedAt",
+          "anomalies"
+        ]
+      },
+      "Sport": {
+        "type": "string",
+        "enum": [
+          "nfl",
+          "ncaamb"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "message"
+        ]
+      },
+      "AgentWeekResponse": {
+        "type": "object",
+        "properties": {
+          "weekId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seasonId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "weekType": {
+            "$ref": "#/components/schemas/WeekType"
+          },
+          "weekNumber": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gameCounts": {
+            "type": "object",
+            "properties": {
+              "scheduled": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "in_progress": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "final": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "postponed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cancelled": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "scheduled",
+              "in_progress",
+              "final",
+              "postponed",
+              "cancelled"
+            ]
+          },
+          "missingSpreadCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "finalWithoutScoreCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scheduledAfterKickoffCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dataUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_season",
+                "no_games",
+                "missing_spread",
+                "final_without_score",
+                "scheduled_after_kickoff",
+                "ungraded_resolved_picks",
+                "inconsistent_rows",
+                "missing_standings",
+                "unsupported_mode"
+              ]
+            },
+            "maxItems": 9
+          }
+        },
+        "required": [
+          "weekId",
+          "seasonId",
+          "weekType",
+          "weekNumber",
+          "startsAt",
+          "endsAt",
+          "gameCounts",
+          "missingSpreadCount",
+          "finalWithoutScoreCount",
+          "scheduledAfterKickoffCount",
+          "dataUpdatedAt",
+          "anomalies"
+        ]
+      },
+      "WeekType": {
+        "type": "string",
+        "enum": [
+          "regular",
+          "postseason"
+        ]
+      },
+      "AgentGameResponse": {
+        "type": "object",
+        "properties": {
+          "gameId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "weekId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerGameId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "homeTeam": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "abbreviation": {
+                "type": "string",
+                "maxLength": 16
+              }
+            },
+            "required": [
+              "id",
+              "abbreviation"
+            ]
+          },
+          "awayTeam": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "abbreviation": {
+                "type": "string",
+                "maxLength": 16
+              }
+            },
+            "required": [
+              "id",
+              "abbreviation"
+            ]
+          },
+          "kickoffAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "homeScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "awayScore": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "period": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "clockSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "spread": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hasSpreadSource": {
+            "type": "boolean"
+          },
+          "gameStateUpdatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_season",
+                "no_games",
+                "missing_spread",
+                "final_without_score",
+                "scheduled_after_kickoff",
+                "ungraded_resolved_picks",
+                "inconsistent_rows",
+                "missing_standings",
+                "unsupported_mode"
+              ]
+            },
+            "maxItems": 9
+          }
+        },
+        "required": [
+          "gameId",
+          "weekId",
+          "providerGameId",
+          "homeTeam",
+          "awayTeam",
+          "kickoffAt",
+          "status",
+          "homeScore",
+          "awayScore",
+          "period",
+          "clockSeconds",
+          "spread",
+          "hasSpreadSource",
+          "gameStateUpdatedAt",
+          "anomalies"
+        ]
+      },
+      "GameStatus": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "in_progress",
+          "final",
+          "postponed",
+          "cancelled"
+        ]
+      },
+      "AgentLeagueDiagnosticsResponse": {
+        "type": "object",
+        "properties": {
+          "leagueSeasonId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seasonId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeagueStatus"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/NullableAgentSettings"
+          },
+          "currentWeekId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "memberCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "submittedPickCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gradedPickCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ungradedPickCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ungradedResolvedPickCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "standingStateRowCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missingStandingCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inconsistentRowCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duplicateRowCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dataUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_season",
+                "no_games",
+                "missing_spread",
+                "final_without_score",
+                "scheduled_after_kickoff",
+                "ungraded_resolved_picks",
+                "inconsistent_rows",
+                "missing_standings",
+                "unsupported_mode"
+              ]
+            },
+            "maxItems": 9
+          }
+        },
+        "required": [
+          "leagueSeasonId",
+          "seasonId",
+          "mode",
+          "status",
+          "settings",
+          "currentWeekId",
+          "memberCount",
+          "submittedPickCount",
+          "gradedPickCount",
+          "ungradedPickCount",
+          "ungradedResolvedPickCount",
+          "standingStateRowCount",
+          "missingStandingCount",
+          "inconsistentRowCount",
+          "duplicateRowCount",
+          "dataUpdatedAt",
+          "anomalies"
+        ]
+      },
+      "LeagueMode": {
+        "type": "string",
+        "enum": [
+          "pickem",
+          "survivor",
+          "march_madness"
+        ]
+      },
+      "LeagueStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "concluded"
+        ]
+      },
+      "NullableAgentSettings": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "startWeek": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "$ref": "#/components/schemas/WeekType"
+              },
+              "number": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          "endWeek": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "$ref": "#/components/schemas/WeekType"
+              },
+              "number": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "type",
+              "number"
+            ]
+          },
+          "pickType": {
+            "$ref": "#/components/schemas/PickType"
+          },
+          "picksPerWeek": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "startWeek",
+          "endWeek"
+        ]
+      },
+      "PickType": {
+        "type": "string",
+        "enum": [
+          "straight_up",
+          "against_the_spread"
         ]
       },
       "MeResponse": {
@@ -92,21 +639,6 @@
         ],
         "maxLength": 2048,
         "format": "uri"
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "error",
-          "message"
-        ]
       },
       "UpdateMeRequest": {
         "type": "object",
@@ -200,13 +732,6 @@
           "durationMs"
         ]
       },
-      "WeekType": {
-        "type": "string",
-        "enum": [
-          "regular",
-          "postseason"
-        ]
-      },
       "LeagueResponse": {
         "type": "object",
         "properties": {
@@ -289,26 +814,11 @@
         "minLength": 1,
         "maxLength": 50
       },
-      "LeagueMode": {
-        "type": "string",
-        "enum": [
-          "pickem",
-          "survivor",
-          "march_madness"
-        ]
-      },
       "LeagueVisibility": {
         "type": "string",
         "enum": [
           "public",
           "private"
-        ]
-      },
-      "LeagueStatus": {
-        "type": "string",
-        "enum": [
-          "active",
-          "concluded"
         ]
       },
       "LeagueSettings": {
@@ -381,13 +891,6 @@
           "startWeek",
           "endWeek",
           "pickType"
-        ]
-      },
-      "PickType": {
-        "type": "string",
-        "enum": [
-          "straight_up",
-          "against_the_spread"
         ]
       },
       "SurvivorSettings": {
@@ -1247,16 +1750,6 @@
           "location",
           "logoLightUrl",
           "logoDarkUrl"
-        ]
-      },
-      "GameStatus": {
-        "type": "string",
-        "enum": [
-          "scheduled",
-          "in_progress",
-          "final",
-          "postponed",
-          "cancelled"
         ]
       },
       "LeagueWeeksResponse": {
@@ -2346,13 +2839,6 @@
           "logoLightUrl",
           "logoDarkUrl",
           "updatedAt"
-        ]
-      },
-      "Sport": {
-        "type": "string",
-        "enum": [
-          "nfl",
-          "ncaamb"
         ]
       },
       "AdminSeasonsResponse": {
@@ -3546,6 +4032,291 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/v1/system": {
+      "get": {
+        "operationId": "agentSystem",
+        "security": [
+          {
+            "AgentBearer": []
+          }
+        ],
+        "summary": "Environment and current NFL ingestion diagnostics",
+        "responses": {
+          "200": {
+            "description": "Technical system snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSystemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid diagnostic identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Diagnostic resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/v1/weeks/{weekId}": {
+      "get": {
+        "operationId": "agentWeek",
+        "security": [
+          {
+            "AgentBearer": []
+          }
+        ],
+        "summary": "Week game-state aggregates",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "weekId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Week diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWeekResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid diagnostic identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Diagnostic resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/v1/games/{gameId}": {
+      "get": {
+        "operationId": "agentGame",
+        "security": [
+          {
+            "AgentBearer": []
+          }
+        ],
+        "summary": "Technical game state with neutral freshness",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "gameId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Game diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentGameResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid diagnostic identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Diagnostic resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/v1/league-seasons/{leagueSeasonId}/diagnostics": {
+      "get": {
+        "operationId": "agentLeagueDiagnostics",
+        "security": [
+          {
+            "AgentBearer": []
+          }
+        ],
+        "summary": "Aggregate NFL league-season diagnostics without member identity",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueSeasonId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "League-season diagnostic counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentLeagueDiagnosticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid diagnostic identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Diagnostic resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
