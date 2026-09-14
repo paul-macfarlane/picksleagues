@@ -17,6 +17,18 @@ Send `Authorization: Bearer <credential>` using the consumer's secret configurat
 
 Generate both contracts with `pnpm contract:generate`; never hand-edit them. The consumer must use an explicit environment base URL plus the `/api/...` paths in the isolated contract. No MCP adapter is required.
 
+## Generating a token
+
+Run this yourself in a local terminal, once for each environment:
+
+```sh
+openssl rand -hex 32
+```
+
+The command generates 32 cryptographically random bytes and prints 64 hexadecimal characters (256 bits), which satisfy the agent token validator. Use hex rather than ordinary base64: base64 can contain `+`, `/` and `=`, which this validator does not accept.
+
+Set the output as `AGENT_API_TOKEN` in your local ignored `.env` or the appropriate deployment's secret configuration, and configure the same value as the consuming agent's bearer credential. Generate independent values for local, staging and production; never copy a jobs/auth secret. Keep the value out of committed examples, Notion and chat. Leave the variable absent—not an empty assignment—to disable access. Restart the local API, or roll out the deployment configuration, after changing it.
+
 ## Interpreting diagnostics
 
 - V1 system discovery supports NFL, the currently shipped modes. Missing current-season ingestion is `no_season`. Current week reuses the app's in-progress, next, then last-played rule. Unsupported league modes return `unsupported_mode` and zero diagnostic counts rather than pretending they were checked.
