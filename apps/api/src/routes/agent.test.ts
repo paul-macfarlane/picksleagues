@@ -114,9 +114,9 @@ describe("agent boundary", () => {
     await db.$client.end();
   });
 
-  it("publishes exactly four authenticated GET operations in the isolated contract", async () => {
+  it("publishes exactly five authenticated GET operations in the isolated contract", async () => {
     const document = agentOpenApiDocument();
-    expect(Object.keys(document.paths ?? {})).toHaveLength(4);
+    expect(Object.keys(document.paths ?? {})).toHaveLength(5);
     for (const [path, item] of Object.entries(document.paths ?? {})) {
       expect(path).toMatch(/^\/api\/agent\/v1\//);
       expect(Object.keys(item ?? {})).toEqual(["get"]);

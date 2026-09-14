@@ -552,6 +552,151 @@
           "straight_up",
           "against_the_spread"
         ]
+      },
+      "AgentReconciliationResponse": {
+        "type": "object",
+        "properties": {
+          "leagueSeasonId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LeagueMode"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "checked",
+              "unsupported_mode"
+            ]
+          },
+          "results": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "expectedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "storedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unexpectedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mismatchCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "expectedCount",
+              "storedCount",
+              "missingCount",
+              "unexpectedCount",
+              "mismatchCount"
+            ]
+          },
+          "standings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "expectedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "storedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unexpectedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mismatchCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "expectedCount",
+              "storedCount",
+              "missingCount",
+              "unexpectedCount",
+              "mismatchCount"
+            ]
+          },
+          "survivorState": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "expectedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "storedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unexpectedCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mismatchCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "expectedCount",
+              "storedCount",
+              "missingCount",
+              "unexpectedCount",
+              "mismatchCount"
+            ]
+          },
+          "releasedFlagMismatchCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "required": [
+          "leagueSeasonId",
+          "mode",
+          "checkedAt",
+          "status",
+          "results",
+          "standings",
+          "survivorState",
+          "releasedFlagMismatchCount"
+        ]
       }
     },
     "parameters": {}
@@ -795,6 +940,80 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgentLeagueDiagnosticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid diagnostic identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Diagnostic resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server misconfiguration — structurally unreachable outside generate-openapi.ts, which builds the app with no deps and only ever requests the spec document, never invoking this handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/v1/league-seasons/{leagueSeasonId}/reconciliation": {
+      "get": {
+        "operationId": "agentScoringReconciliation",
+        "security": [
+          {
+            "AgentBearer": []
+          }
+        ],
+        "summary": "Compare stored scoring with a read-only replay; aggregate differences only",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "leagueSeasonId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoring reconciliation counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentReconciliationResponse"
                 }
               }
             }

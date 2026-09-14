@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
+  AgentReconciliationResponseSchema,
   AgentGameResponseSchema,
   AgentLeagueDiagnosticsResponseSchema,
   AgentSystemResponseSchema,
@@ -13,6 +14,8 @@ import { requireDbAndClock, type DepsVariables } from "../lib/require-deps";
 import { agentAuditMiddleware, agentTokenMiddleware } from "../middleware/agent-token";
 import { agentGame, agentSystem, agentWeek } from "../services/agent-diagnostics";
 import { agentLeagueDiagnostics } from "../services/agent-league-diagnostics";
+
+import { agentScoringReconciliation } from "../services/agent-reconciliation";
 
 const responses = {
   400: errorResponse("Invalid diagnostic identifier"),
@@ -157,10 +160,40 @@ export function agentRoutes(deps: AppDeps = {}) {
       return c.json(result, 200);
     },
   );
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/league-seasons/{leagueSeasonId}/reconciliation",
+      operationId: "agentScoringReconciliation",
+      security,
+      summary: "Compare stored scoring with a read-only replay; aggregate differences only",
+      request: { params: z.object({ leagueSeasonId: z.uuid() }) },
+      responses: {
+        ...responses,
+        200: {
+          description: "Scoring reconciliation counts",
+          content: { "application/json": { schema: AgentReconciliationResponseSchema } },
+        },
+      },
+    }),
+    async (c) => {
+      const result = await agentScoringReconciliation(
+        c.get("db"),
+        c.get("clock"),
+        c.req.valid("param").leagueSeasonId,
+      );
+      if (!result)
+        return c.json(
+          { error: ERROR_CODE.LEAGUE_NOT_FOUND, message: "League season not found." },
+          404,
+        );
+      return c.json(result, 200);
+    },
+  );
   return app;
 }
 
-/** Contains only the four GET operations and their reachable schemas/security definitions. */
+/** Contains only the agent GET operations and their reachable schemas/security definitions. */
 export function agentOpenApiDocument() {
   return new OpenAPIHono()
     .basePath("/api")
