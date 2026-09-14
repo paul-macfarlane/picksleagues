@@ -15,26 +15,43 @@ export type AppEnv = (typeof APP_ENV)[keyof typeof APP_ENV];
 // Neon connection without a diff here. Local URLs simply omit sslmode.
 const WEAK_SSLMODE_ALIASES = new Set(["prefer", "require", "verify-ca"]);
 
-const EnvSchema = z.object({
-  APP_ENV: z.enum(APP_ENV),
-  DATABASE_URL: z
-    .url()
-    .refine((url) => !WEAK_SSLMODE_ALIASES.has(new URL(url).searchParams.get("sslmode") ?? ""), {
-      message:
-        "sslmode=prefer/require/verify-ca become weaker libpq semantics in pg v9 — spell sslmode=verify-full explicitly (or omit sslmode for local Postgres)",
-    }),
-  BETTER_AUTH_SECRET: z.string().min(32),
-  BETTER_AUTH_URL: z.url(),
-  GOOGLE_CLIENT_ID: z.string().min(1),
-  GOOGLE_CLIENT_SECRET: z.string().min(1),
-  DISCORD_CLIENT_ID: z.string().min(1),
-  DISCORD_CLIENT_SECRET: z.string().min(1),
-  JOB_SECRET: z.string().min(32),
-  // Explicit simulator toggle so an environment can be flipped without a code
-  // change. Defaults off so a config omission fails closed, and production
-  // ignores it entirely (see `isSimEnabled`).
-  SIM_ENABLED: z.stringbool().default(false),
-});
+const EnvSchema = z
+  .object({
+    APP_ENV: z.enum(APP_ENV),
+    DATABASE_URL: z
+      .url()
+      .refine((url) => !WEAK_SSLMODE_ALIASES.has(new URL(url).searchParams.get("sslmode") ?? ""), {
+        message:
+          "sslmode=prefer/require/verify-ca become weaker libpq semantics in pg v9 — spell sslmode=verify-full explicitly (or omit sslmode for local Postgres)",
+      }),
+    BETTER_AUTH_SECRET: z.string().min(32),
+    BETTER_AUTH_URL: z.url(),
+    GOOGLE_CLIENT_ID: z.string().min(1),
+    GOOGLE_CLIENT_SECRET: z.string().min(1),
+    DISCORD_CLIENT_ID: z.string().min(1),
+    DISCORD_CLIENT_SECRET: z.string().min(1),
+    JOB_SECRET: z.string().min(32),
+    // Omission disables agent access during staged rollout; never share another credential.
+    AGENT_API_TOKEN: z
+      .string()
+      .min(32)
+      .max(256)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
+    // Explicit simulator toggle so an environment can be flipped without a code
+    // change. Defaults off so a config omission fails closed, and production
+    // ignores it entirely (see `isSimEnabled`).
+    SIM_ENABLED: z.stringbool().default(false),
+  })
+  .refine(
+    (env) =>
+      env.AGENT_API_TOKEN === undefined ||
+      (env.AGENT_API_TOKEN !== env.JOB_SECRET && env.AGENT_API_TOKEN !== env.BETTER_AUTH_SECRET),
+    {
+      path: ["AGENT_API_TOKEN"],
+      message: "Agent access requires an independent credential.",
+    },
+  );
 
 export type Env = z.infer<typeof EnvSchema>;
 

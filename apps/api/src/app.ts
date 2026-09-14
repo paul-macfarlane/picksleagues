@@ -5,6 +5,8 @@ import { ERROR_CODE, ErrorResponseSchema } from "@picksleagues/schemas";
 import type { AppDeps } from "./deps";
 import { zodValidationHook } from "./lib/default-hook";
 import { logError } from "./lib/logger";
+import { agentRoutes, agentOpenApiDocument } from "./routes/agent";
+import { agentOperation } from "./middleware/agent-token";
 import { adminRoutes } from "./routes/admin";
 import { adminNflStatsRoutes } from "./routes/admin-nfl-stats";
 import { discoveryRoutes } from "./routes/discovery";
@@ -37,7 +39,15 @@ export function createApp(deps: AppDeps = {}) {
     }
     // Everything else thrown is a bug — expected refusals are typed results
     // mapped by handlers, and schema validation 400s come from zodValidationHook.
-    logError("unhandled_error", { method: c.req.method, path: c.req.path, error });
+    if (c.req.path.startsWith("/api/agent/v1/")) {
+      // Query errors can embed SQL parameters or stored data; agent logs are allowlisted too.
+      logError("unhandled_error", {
+        operation: agentOperation(c.req.path),
+        code: ERROR_CODE.INTERNAL,
+      });
+    } else {
+      logError("unhandled_error", { method: c.req.method, path: c.req.path, error });
+    }
     return c.json(
       ErrorResponseSchema.parse({ error: ERROR_CODE.INTERNAL, message: "Something went wrong." }),
       500,
@@ -45,6 +55,8 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   app.route("/", healthRoutes);
+  app.route("/", agentRoutes(deps));
+  app.get("/agent-openapi.json", (c) => c.json(agentOpenApiDocument()));
 
   // Mounted unconditionally (deps or not) so generate-openapi.ts — which calls
   // createApp() with no deps — still emits this route in the committed spec;
