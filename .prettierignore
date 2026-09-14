@@ -14,5 +14,6 @@ test-results
 pnpm-lock.yaml
 apps/web/src/routeTree.gen.ts
 openapi/openapi.json
+openapi/agent-openapi.json
 openapi/client
 packages/db/migrations

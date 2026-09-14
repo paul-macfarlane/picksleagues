@@ -58,3 +58,4 @@ Pre-baseline alternatives analysis lives in the architecture doc's own decision 
 | [0046](0046-remove-sports-data-overrides.md) | Manual sports-data overrides are removed; the database is a provider cache | Accepted |
 | [0047](0047-agent-neutral-repository-harness.md) | Shared repository harness with thin host adapters | Accepted |
 | [0048](0048-matchup-season-schedule.md) | Matchup results become the available season schedule | Accepted |
+| [0049](0049-read-only-agent-diagnostics.md) | Separate read-only agent diagnostic API and allowlisted contract | Accepted |

@@ -79,3 +79,20 @@ describe("isSimEnabled", () => {
     expect(isSimEnabled({ APP_ENV: "production", SIM_ENABLED: true })).toBe(false);
   });
 });
+
+describe("agent credential configuration", () => {
+  it("is optional during rollout", () => {
+    expect(loadEnv(validSource).AGENT_API_TOKEN).toBeUndefined();
+  });
+  it.each(["short", "has spaces ".repeat(5), "b".repeat(32), "a".repeat(32)])(
+    "rejects malformed or reused tokens",
+    (AGENT_API_TOKEN) => {
+      expect(() => loadEnv({ ...validSource, AGENT_API_TOKEN })).toThrow(/AGENT_API_TOKEN/);
+    },
+  );
+  it("accepts an independent URL-safe token", () => {
+    expect(
+      loadEnv({ ...validSource, AGENT_API_TOKEN: "agent_test_".repeat(4) }).AGENT_API_TOKEN,
+    ).toBe("agent_test_".repeat(4));
+  });
+});

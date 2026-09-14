@@ -32,3 +32,4 @@ export * from "./sport";
 export * from "./survivor";
 export * from "./username";
 export * from "./week-type";
+export * from "./agent";
