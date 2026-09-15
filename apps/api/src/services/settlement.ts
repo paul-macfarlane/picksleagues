@@ -119,9 +119,9 @@ export async function rebuildLeagueSeason(
 }
 
 /**
- * Settles every league season holding a pick on one of the named games. Both
- * ingestion jobs call it: `sync-scores` when a game goes final, `sync-schedule`
- * when one is cancelled — both change how existing picks resolve.
+ * Settles every league season affected by one of the named games. Both ingestion
+ * jobs call it: `sync-scores` when a game goes final, `sync-schedule` when one
+ * is cancelled — both can change whether a week is complete or how picks resolve.
  *
  * Fanned out across modes rather than dispatched on one league's `mode`,
  * because a single game is picked by leagues of every mode at once and each
@@ -152,16 +152,11 @@ export async function settlePicksForGames(
  * whole-season by construction (ADR-0025), so without that filter doing anything
  * the nightly bill would grow with seasons × weeks and never fall.
  *
- * **A concluded season therefore has no automatic recompute, and that is a real
- * gap rather than a free win.** `settlePicksForGames` finds a league season only
- * through *picks on the changed game*, so a correction to a game the league
- * holds a pick on still reaches it — but a correction to one nobody there picked
- * does not, and this job will not pick it up either. In Survivor that is most of
- * a week's slate. The remedy is the admin rebuild
- * (`POST /admin/leagues/:id/rebuild`), which is status-blind; until someone runs
- * it, a concluded season can hold derived state a full recompute would not
- * reproduce. Widening the sweep to concluded seasons whose games have moved is
- * the fix if this ever bites.
+ * A concluded season therefore leaves the broad safety net. Ingestion still
+ * reaches it when a game it holds a pick on changes, but an unpicked correction
+ * needs the status-blind admin rebuild. Survivor's broader unpicked-game trigger
+ * is intentionally limited to active league seasons and their configured range,
+ * preserving that ADR-0030 cost boundary.
  *
  * Per-season transactions rather than one global one — a single league's bad
  * data must not roll back everyone else's reconciliation, and nothing here
