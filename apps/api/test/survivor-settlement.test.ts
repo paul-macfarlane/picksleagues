@@ -173,6 +173,7 @@ describe("week completeness (ADR-0025 precondition (a))", () => {
 
     const outOfRange = await seedSeasonFixture({
       weekCount: 2,
+      year: 2027,
       usernamePrefix: "out_of_range",
       settings: {
         startWeek: { type: WEEK_TYPE.REGULAR, number: 2 },
