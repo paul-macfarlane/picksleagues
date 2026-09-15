@@ -1,9 +1,20 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { adminAudit, isUniqueViolation } from "@picksleagues/db";
+import { adminAudit, isUniqueViolation, leagueSeasons } from "@picksleagues/db";
 import { FixedClock } from "@picksleagues/core";
-import { ADMIN_AUDIT_ACTION, GAME_STATUS, PICK_OUTCOME } from "@picksleagues/schemas";
-import { rebuildLeagueSeason, settlePicksForGames, settleSweep } from "../src/services/settlement";
+import {
+  ADMIN_AUDIT_ACTION,
+  GAME_STATUS,
+  LEAGUE_STATUS,
+  PICK_OUTCOME,
+  WEEK_TYPE,
+} from "@picksleagues/schemas";
+import {
+  EMPTY_SUMMARY,
+  rebuildLeagueSeason,
+  settlePicksForGames,
+  settleSweep,
+} from "../src/services/settlement";
 import { setGame } from "./setup/league-helpers";
 import { makeLeagueTestHarness, WEEK1_KICKOFF } from "./setup/league-app";
 import {
@@ -110,6 +121,76 @@ describe("week completeness (ADR-0025 precondition (a))", () => {
 
     expect(summary).toMatchObject({ weeks: 0, results: 0 });
     expect(await survivorStateFor(db, base.leagueSeasonId)).toHaveLength(0);
+  });
+
+  it("settles when an unpicked game is the last game to make the week terminal", async () => {
+    const fixture = await seedSeasonFixture({ weekCount: 1 });
+    const [week] = fixture.weeks as [FixtureWeek];
+    const unpickedGame = await seedSurvivorGame(db, {
+      weekId: week.weekId,
+      kickoffAt: WEEK1_KICKOFF,
+    });
+
+    for (const leagueMemberId of fixture.memberIds) {
+      await insertSurvivorPick(db, {
+        leagueSeasonId: fixture.leagueSeasonId,
+        leagueMemberId,
+        weekId: week.weekId,
+        gameId: week.gameId,
+        teamId: week.homeTeamId,
+      });
+    }
+
+    await finalizeHomeWin(week.gameId);
+    const incomplete = await settlePicksForGames(db, clock, [week.gameId]);
+    expect(incomplete).toMatchObject({ leagueSeasons: 1, weeks: 0, results: 0, unsettled: 1 });
+
+    await finalizeHomeWin(unpickedGame.gameId);
+    const settled = await settlePicksForGames(db, clock, [unpickedGame.gameId]);
+
+    expect(settled).toMatchObject({
+      leagueSeasons: 1,
+      weeks: 1,
+      results: fixture.memberIds.length,
+      unsettled: 0,
+    });
+    const results = await survivorPickResultsFor(db, fixture.leagueSeasonId);
+    expect(results).toHaveLength(fixture.memberIds.length);
+    expect(results.every((row) => row.outcome === PICK_OUTCOME.CORRECT)).toBe(true);
+  });
+
+  it("does not broadly replay concluded or out-of-range league seasons", async () => {
+    const concluded = await seedSeasonFixture({ weekCount: 1, usernamePrefix: "concluded" });
+    const [concludedWeek] = concluded.weeks as [FixtureWeek];
+    const concludedUnpicked = await seedSurvivorGame(db, {
+      weekId: concludedWeek.weekId,
+      kickoffAt: WEEK1_KICKOFF,
+    });
+    await db
+      .update(leagueSeasons)
+      .set({ status: LEAGUE_STATUS.CONCLUDED })
+      .where(eq(leagueSeasons.id, concluded.leagueSeasonId));
+
+    const outOfRange = await seedSeasonFixture({
+      weekCount: 2,
+      usernamePrefix: "out_of_range",
+      settings: {
+        startWeek: { type: WEEK_TYPE.REGULAR, number: 2 },
+        endWeek: { type: WEEK_TYPE.REGULAR, number: 2 },
+      },
+    });
+    const [excludedWeek] = outOfRange.weeks as [FixtureWeek, FixtureWeek];
+
+    await finalizeHomeWin(concludedUnpicked.gameId);
+    await finalizeHomeWin(excludedWeek.gameId);
+    const summary = await settlePicksForGames(db, clock, [
+      concludedUnpicked.gameId,
+      excludedWeek.gameId,
+    ]);
+
+    expect(summary).toEqual(EMPTY_SUMMARY);
+    expect(await survivorPickResultsFor(db, concluded.leagueSeasonId)).toHaveLength(0);
+    expect(await survivorPickResultsFor(db, outOfRange.leagueSeasonId)).toHaveLength(0);
   });
 });
 

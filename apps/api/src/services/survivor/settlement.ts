@@ -32,6 +32,7 @@ import { applyLeagueSeasonConclusion } from "../leagues/conclusion";
 import { lockLeagueSeasonRow } from "../leagues/locks";
 import { logInfo } from "../../lib/logger";
 import { addSummary, EMPTY_SUMMARY, type SettlementSummary } from "../settlement";
+import { loadSurvivorSeasonsAffectedByGames } from "./affected-seasons";
 import { isSurvivorRangeWeek } from "./season";
 
 /**
@@ -581,9 +582,12 @@ async function writeReplay(
 }
 
 /**
- * Replays every Survivor league season holding a pick on one of the named
- * games. Both ingestion jobs reach it: `sync-scores` when a game goes final,
- * `sync-schedule` when one is cancelled.
+ * Replays every active Survivor league season whose configured range contains
+ * one of the named games' weeks, plus any season holding a direct pick on one.
+ * Both ingestion jobs reach it: `sync-scores` when a game goes final,
+ * `sync-schedule` when one is cancelled. The sport-season lookup matters when
+ * the changed game is unpicked: it may still be the game that makes a Survivor
+ * week complete and therefore settleable.
  *
  * Scoped to the season rather than the affected week, because a correction to
  * an already-settled week invalidates every downstream alive/eliminated/revived
@@ -597,14 +601,9 @@ export async function settleSurvivorPicksForGames(
 ): Promise<SettlementSummary> {
   if (gameIds.length === 0) return EMPTY_SUMMARY;
 
-  const affected = await db
-    .selectDistinct({ leagueSeasonId: survivorPicks.leagueSeasonId })
-    .from(survivorPicks)
-    .where(inArray(survivorPicks.gameId, [...gameIds]));
-
   let total = EMPTY_SUMMARY;
-  for (const row of affected) {
-    total = addSummary(total, await rebuildSurvivorLeagueSeason(db, clock, row.leagueSeasonId));
+  for (const leagueSeasonId of await loadSurvivorSeasonsAffectedByGames(db, gameIds)) {
+    total = addSummary(total, await rebuildSurvivorLeagueSeason(db, clock, leagueSeasonId));
   }
   return total;
 }
