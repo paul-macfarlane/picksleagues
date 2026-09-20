@@ -74,6 +74,7 @@ in both. The pairs, with the roles they play:
 | `muted` / `muted-foreground` | eyebrow, neutral tag | the quiet label |
 | `accent` / `accent-foreground` | `highlight` tag, the sim ticker | a warm lift with no verdict in it |
 | `success`, `destructive` | outcome | a correct / incorrect settled pick, and only that |
+| `advantage` | comparison | the informational edge marker in matchup statistics; never a result or action state |
 | `brand` / `brand-foreground` | the mark | the logo's literal hex; never a surface |
 
 `--radius` is 0.375rem; the scale (`rounded-sm` … `rounded-4xl`) derives from
