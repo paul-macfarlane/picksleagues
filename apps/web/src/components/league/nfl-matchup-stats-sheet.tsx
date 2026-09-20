@@ -315,7 +315,7 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                   <p className="text-xs text-muted-foreground">
                     <span
                       aria-hidden="true"
-                      className="mr-1 inline-block size-1.5 rounded-full bg-foreground"
+                      className="mr-1 inline-block size-1.5 rounded-full bg-advantage"
                     />
                     marks the side with the edge in a category.
                   </p>

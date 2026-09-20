@@ -51,7 +51,7 @@ function EdgeDot() {
     <>
       <span
         aria-hidden="true"
-        className="inline-block size-1.5 shrink-0 rounded-full bg-foreground"
+        className="inline-block size-1.5 shrink-0 rounded-full bg-advantage"
       />
       <span className="sr-only">(edge)</span>
     </>
