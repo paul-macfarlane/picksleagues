@@ -289,11 +289,13 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                       {/* ATS stays unmarked on purpose: it's a provider string
                           we don't parse, and "better against the spread" is a
                           judgment the sheet shouldn't render as fact (STAT-10). */}
-                      <StatRow
-                        label="Against the spread"
-                        away={contextStat(context?.away, (c) => c.atsSummary)}
-                        home={contextStat(context?.home, (c) => c.atsSummary)}
-                      />
+                      {(context?.away.atsSummary || context?.home.atsSummary) && (
+                        <StatRow
+                          label="Against the spread"
+                          away={contextStat(context?.away, (c) => c.atsSummary)}
+                          home={contextStat(context?.home, (c) => c.atsSummary)}
+                        />
+                      )}
                       <StatRow
                         label="Win probability"
                         subLabel="ESPN FPI"

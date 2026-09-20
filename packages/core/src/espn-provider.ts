@@ -340,6 +340,7 @@ export class EspnProvider implements GameDataProvider {
   readonly #coreApiBaseUrl: string;
   readonly #standingsApiBaseUrl: string;
   readonly #requestTimeoutMs: number;
+  readonly #regularSeasons = new Map<number, Promise<unknown>>();
 
   constructor(options?: {
     fetchImpl?: typeof fetch;
@@ -541,6 +542,29 @@ export class EspnProvider implements GameDataProvider {
     if (json === null) {
       return null;
     }
-    return parseGameStatContext(json, providerGameId);
+    return parseGameStatContext(json, providerGameId, (year) => this.#fetchRegularSeason(year));
+  }
+
+  async #fetchRegularSeason(year: number): Promise<unknown> {
+    // All matchups share these boundaries. Cache successful responses for this
+    // provider instance, but let a missing season or failed request retry.
+    let pending = this.#regularSeasons.get(year);
+    if (!pending) {
+      const type = ESPN_SEASON_TYPE_BY_WEEK_TYPE[WEEK_TYPE.REGULAR];
+      pending = this.#fetchJsonOrNotFound(
+        `${this.#coreApiBaseUrl}/football/leagues/nfl/seasons/${year}/types/${type}`,
+      ).then(
+        (season) => {
+          if (season === null) this.#regularSeasons.delete(year);
+          return season;
+        },
+        (error: unknown) => {
+          this.#regularSeasons.delete(year);
+          throw error;
+        },
+      );
+      this.#regularSeasons.set(year, pending);
+    }
+    return pending;
   }
 }

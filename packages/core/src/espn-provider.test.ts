@@ -1416,10 +1416,31 @@ describe("EspnProvider.fetchNflTeamSeasonRecords", () => {
 // --- Game stat context (ADR-0040) ---
 
 const SUMMARY_URL = `${SITE_API_BASE_URL}/football/nfl/summary?event=401`;
+const REGULAR_SEASON_URL = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/2`;
+
+function summaryFetch(body: unknown, seasonOverrides?: Record<string, unknown>): typeof fetch {
+  return stubFetch({
+    [SUMMARY_URL]: jsonResponse(body),
+    [`${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2025/types/2`]: jsonResponse({
+      year: 2025,
+      type: 2,
+      startDate: "2025-09-04T07:00Z",
+      endDate: "2026-01-07T07:59Z",
+    }),
+    [REGULAR_SEASON_URL]: jsonResponse({
+      year: 2026,
+      type: 2,
+      startDate: "2026-09-06T07:00Z",
+      endDate: "2027-01-13T07:59Z",
+      ...seasonOverrides,
+    }),
+  });
+}
 
 function summaryBody(overrides?: Record<string, unknown>) {
   return {
     header: {
+      season: { year: 2025 },
       competitions: [
         {
           competitors: [
@@ -1452,7 +1473,13 @@ function summaryBody(overrides?: Record<string, unknown>) {
       awayTeam: { gameProjection: "36.9" },
     },
     againstTheSpread: [
-      { team: { id: "21" }, records: [{ summary: "8-9" }] },
+      {
+        team: { id: "21" },
+        records: [
+          { type: "home", summary: "5-3" },
+          { type: "total", summary: "8-9" },
+        ],
+      },
       { team: { id: "6" }, records: [] },
     ],
     lastFiveGames: [
@@ -1494,7 +1521,7 @@ function summaryBody(overrides?: Record<string, unknown>) {
 
 describe("EspnProvider.fetchNflGameStatContext", () => {
   it("maps injuries, FPI, ATS, and last-five onto home/away by team id", async () => {
-    const fetchImpl = stubFetch({ [SUMMARY_URL]: jsonResponse(summaryBody()) });
+    const fetchImpl = summaryFetch(summaryBody());
 
     const context = await makeProvider(fetchImpl).fetchNflGameStatContext("401");
 
@@ -1508,12 +1535,187 @@ describe("EspnProvider.fetchNflGameStatContext", () => {
         fpiWinPct: 62.9,
         atsSummary: "8-9",
         lastFive: [
-          { result: "W", opponentAbbr: "CAR", teamScore: 27, opponentScore: 10, atHome: false },
           { result: "L", opponentAbbr: "SF", teamScore: 13, opponentScore: 20, atHome: true },
+          { result: "W", opponentAbbr: "CAR", teamScore: 27, opponentScore: 10, atHome: false },
         ],
       },
       away: { injuries: [], fpiWinPct: 36.9, atsSummary: null, lastFive: [] },
     });
+  });
+
+  it("keeps only current-season games, newest first and capped at five", async () => {
+    const currentSeasonEvents = Array.from({ length: 6 }, (_, index) => ({
+      atVs: index % 2 === 0 ? "vs" : "@",
+      gameResult: index % 2 === 0 ? "W" : "L",
+      score: `${20 + index}-${10 + index}`,
+      gameDate: `2026-09-${String(index + 10).padStart(2, "0")}T18:00Z`,
+      opponent: { abbreviation: `T${index}` },
+    }));
+    const fetchImpl = summaryFetch(
+      summaryBody({
+        header: {
+          season: { year: 2026 },
+          competitions: [
+            {
+              competitors: [
+                { homeAway: "home", team: { id: "21" } },
+                { homeAway: "away", team: { id: "6" } },
+              ],
+            },
+          ],
+        },
+        lastFiveGames: [
+          {
+            team: { id: "21" },
+            events: [
+              {
+                atVs: "@",
+                gameResult: "W",
+                score: "24-17",
+                gameDate: "2026-01-04T18:00Z",
+                opponent: { abbreviation: "OLD" },
+              },
+              {
+                atVs: "vs",
+                gameResult: "W",
+                score: "28-9",
+                gameDate: "2026-08-28T23:00Z",
+                opponent: { abbreviation: "PRE" },
+              },
+              {
+                atVs: "vs",
+                gameResult: "L",
+                score: "13-20",
+                gameDate: "2026-09-13T17:00Z",
+                opponent: { abbreviation: "CUR" },
+              },
+            ],
+          },
+          { team: { id: "6" }, events: currentSeasonEvents },
+        ],
+      }),
+    );
+
+    const context = await makeProvider(fetchImpl).fetchNflGameStatContext("401");
+
+    expect(context?.home.lastFive).toEqual([
+      { result: "L", opponentAbbr: "CUR", teamScore: 13, opponentScore: 20, atHome: true },
+    ]);
+    expect(context?.away.lastFive).toHaveLength(5);
+    expect(context?.away.lastFive.map((game) => game.opponentAbbr)).toEqual([
+      "T5",
+      "T4",
+      "T3",
+      "T2",
+      "T1",
+    ]);
+  });
+
+  it.each([
+    ["2026-09-05T18:00Z", false],
+    ["2026-09-06T07:00Z", true],
+    ["2027-01-10T18:00Z", true],
+    ["2027-01-13T07:59Z", true],
+    ["2027-01-13T08:00Z", false],
+    ["2027-02-14T23:30Z", false],
+    ["2026-01-04T18:00Z", false],
+    ["invalid", false],
+    [undefined, false],
+  ])("filters form at the published regular-season boundary: %s", async (gameDate, included) => {
+    const body = summaryBody();
+    body.header.season.year = 2026;
+    body.lastFiveGames = [
+      {
+        team: { id: "21" },
+        events: [
+          {
+            atVs: "vs",
+            gameResult: "L",
+            score: "13-20",
+            gameDate,
+            opponent: { abbreviation: "SF" },
+          },
+        ],
+      },
+    ];
+    const context = await makeProvider(summaryFetch(body)).fetchNflGameStatContext("401");
+    expect(context?.home.lastFive).toHaveLength(included ? 1 : 0);
+  });
+
+  it.each([
+    { year: 2025 },
+    { type: 3 },
+    { startDate: "invalid" },
+    { endDate: "2026-01-01T00:00Z" },
+  ])("omits form without trustworthy season boundaries: %j", async (seasonOverrides) => {
+    const body = summaryBody();
+    body.header.season.year = 2026;
+    const context = await makeProvider(summaryFetch(body, seasonOverrides)).fetchNflGameStatContext(
+      "401",
+    );
+    expect(context?.home.lastFive).toEqual([]);
+    expect(context?.home.injuries).toHaveLength(2);
+    expect(context?.home.fpiWinPct).toBe(62.9);
+  });
+
+  it.each([
+    { records: [{ type: "home", summary: "1-0" }], expected: null },
+    { records: [{ type: "road", summary: "0-1" }], expected: null },
+    { records: [{ summary: "1-0" }], expected: null },
+    { records: [{ type: "home", summary: "1-0" }, { type: "total" }], expected: null },
+    {
+      records: [
+        { type: "total", summary: "1-0-1" },
+        { type: "road", summary: "0-1" },
+      ],
+      expected: "1-0-1",
+    },
+    {
+      records: [
+        { type: "road", summary: "0-1" },
+        { type: "total", summary: "1-0" },
+      ],
+      expected: "1-0",
+    },
+  ])("only exposes an identified overall ATS record: $records", async ({ records, expected }) => {
+    const context = await makeProvider(
+      summaryFetch(
+        summaryBody({
+          againstTheSpread: [{ team: { id: "21" }, records }],
+        }),
+      ),
+    ).fetchNflGameStatContext("401");
+    expect(context?.home.atsSummary).toBe(expected);
+  });
+
+  it("reuses season boundaries across matchups", async () => {
+    const fetchImpl = summaryFetch(summaryBody());
+    const provider = makeProvider(fetchImpl);
+    const first = await provider.fetchNflGameStatContext("401");
+    vi.mocked(fetchImpl).mockImplementationOnce(async () => jsonResponse(summaryBody()));
+    const second = await provider.fetchNflGameStatContext("401");
+    expect(second?.home.lastFive).toEqual(first?.home.lastFive);
+    expect(second?.home.lastFive).toHaveLength(2);
+  });
+
+  it.each([404, 503])("retries unavailable season boundaries after HTTP %i", async (status) => {
+    const body = summaryBody();
+    body.header.season.year = 2026;
+    body.lastFiveGames[0]!.events[0]!.gameDate = "2026-09-13T17:00Z";
+    const fetchImpl = summaryFetch(body);
+    vi.mocked(fetchImpl)
+      .mockImplementationOnce(async () => jsonResponse(body))
+      .mockImplementationOnce(async () => jsonResponse({}, { status }));
+    const provider = makeProvider(fetchImpl);
+    if (status === 404) {
+      const missing = await provider.fetchNflGameStatContext("401");
+      expect(missing?.home.lastFive).toEqual([]);
+      expect(missing?.home.injuries).toHaveLength(2);
+    } else {
+      await expect(provider.fetchNflGameStatContext("401")).rejects.toThrow("503");
+    }
+    const recovered = await provider.fetchNflGameStatContext("401");
+    expect(recovered?.home.lastFive).toHaveLength(1);
   });
 
   it("serves nulls and empties when the summary has no context sections at all", async () => {
@@ -1547,7 +1749,10 @@ describe("EspnProvider.fetchNflGameStatContext", () => {
     const fetchImpl = stubFetch({
       [SUMMARY_URL]: jsonResponse(
         summaryBody({
-          header: { competitions: [{ competitors: [{ homeAway: "home", team: { id: "21" } }] }] },
+          header: {
+            season: { year: 2025 },
+            competitions: [{ competitors: [{ homeAway: "home", team: { id: "21" } }] }],
+          },
         }),
       ),
     });
