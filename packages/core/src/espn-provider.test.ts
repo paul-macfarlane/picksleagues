@@ -1420,6 +1420,7 @@ const SUMMARY_URL = `${SITE_API_BASE_URL}/football/nfl/summary?event=401`;
 function summaryBody(overrides?: Record<string, unknown>) {
   return {
     header: {
+      season: { year: 2025 },
       competitions: [
         {
           competitors: [
@@ -1452,7 +1453,13 @@ function summaryBody(overrides?: Record<string, unknown>) {
       awayTeam: { gameProjection: "36.9" },
     },
     againstTheSpread: [
-      { team: { id: "21" }, records: [{ summary: "8-9" }] },
+      {
+        team: { id: "21" },
+        records: [
+          { type: "home", summary: "5-3" },
+          { type: "total", summary: "8-9" },
+        ],
+      },
       { team: { id: "6" }, records: [] },
     ],
     lastFiveGames: [
@@ -1508,12 +1515,82 @@ describe("EspnProvider.fetchNflGameStatContext", () => {
         fpiWinPct: 62.9,
         atsSummary: "8-9",
         lastFive: [
-          { result: "W", opponentAbbr: "CAR", teamScore: 27, opponentScore: 10, atHome: false },
           { result: "L", opponentAbbr: "SF", teamScore: 13, opponentScore: 20, atHome: true },
+          { result: "W", opponentAbbr: "CAR", teamScore: 27, opponentScore: 10, atHome: false },
         ],
       },
       away: { injuries: [], fpiWinPct: 36.9, atsSummary: null, lastFive: [] },
     });
+  });
+
+  it("keeps only current-season games, newest first and capped at five", async () => {
+    const currentSeasonEvents = Array.from({ length: 6 }, (_, index) => ({
+      atVs: index % 2 === 0 ? "vs" : "@",
+      gameResult: index % 2 === 0 ? "W" : "L",
+      score: `${20 + index}-${10 + index}`,
+      gameDate: `2026-09-${String(index + 1).padStart(2, "0")}T18:00Z`,
+      opponent: { abbreviation: `T${index}` },
+    }));
+    const fetchImpl = stubFetch({
+      [SUMMARY_URL]: jsonResponse(
+        summaryBody({
+          header: {
+            season: { year: 2026 },
+            competitions: [
+              {
+                competitors: [
+                  { homeAway: "home", team: { id: "21" } },
+                  { homeAway: "away", team: { id: "6" } },
+                ],
+              },
+            ],
+          },
+          lastFiveGames: [
+            {
+              team: { id: "21" },
+              events: [
+                {
+                  atVs: "@",
+                  gameResult: "W",
+                  score: "24-17",
+                  gameDate: "2026-01-04T18:00Z",
+                  opponent: { abbreviation: "OLD" },
+                },
+                {
+                  atVs: "vs",
+                  gameResult: "W",
+                  score: "28-9",
+                  gameDate: "2026-08-28T23:00Z",
+                  opponent: { abbreviation: "PRE" },
+                },
+                {
+                  atVs: "vs",
+                  gameResult: "L",
+                  score: "13-20",
+                  gameDate: "2026-09-13T17:00Z",
+                  opponent: { abbreviation: "CUR" },
+                },
+              ],
+            },
+            { team: { id: "6" }, events: currentSeasonEvents },
+          ],
+        }),
+      ),
+    });
+
+    const context = await makeProvider(fetchImpl).fetchNflGameStatContext("401");
+
+    expect(context?.home.lastFive).toEqual([
+      { result: "L", opponentAbbr: "CUR", teamScore: 13, opponentScore: 20, atHome: true },
+    ]);
+    expect(context?.away.lastFive).toHaveLength(5);
+    expect(context?.away.lastFive.map((game) => game.opponentAbbr)).toEqual([
+      "T5",
+      "T4",
+      "T3",
+      "T2",
+      "T1",
+    ]);
   });
 
   it("serves nulls and empties when the summary has no context sections at all", async () => {
@@ -1547,7 +1624,10 @@ describe("EspnProvider.fetchNflGameStatContext", () => {
     const fetchImpl = stubFetch({
       [SUMMARY_URL]: jsonResponse(
         summaryBody({
-          header: { competitions: [{ competitors: [{ homeAway: "home", team: { id: "21" } }] }] },
+          header: {
+            season: { year: 2025 },
+            competitions: [{ competitors: [{ homeAway: "home", team: { id: "21" } }] }],
+          },
         }),
       ),
     });

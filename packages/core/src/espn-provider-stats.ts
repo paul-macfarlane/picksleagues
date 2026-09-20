@@ -124,6 +124,7 @@ const SummaryLastFiveEventSchema = z.looseObject({
 
 const SummarySchema = z.looseObject({
   header: z.looseObject({
+    season: z.looseObject({ year: z.number() }),
     competitions: z
       .array(
         z.looseObject({
@@ -147,7 +148,16 @@ const SummarySchema = z.looseObject({
     .array(
       z.looseObject({
         team: SummaryTeamRefSchema,
-        records: z.array(z.looseObject({ summary: z.string().optional() })).optional(),
+        records: z
+          .array(
+            z.looseObject({
+              name: z.string().optional(),
+              abbreviation: z.string().optional(),
+              type: z.string().optional(),
+              summary: z.string().optional(),
+            }),
+          )
+          .optional(),
       }),
     )
     .optional(),
@@ -169,39 +179,39 @@ const SummarySchema = z.looseObject({
  * standings break corrupts records the basic tier states as fact; a summary
  * quirk loses one advanced-tier line.
  */
-// UTC months (0-based) in which only NFL *preseason* football is played: the
-// Hall of Fame game and preseason run late July–August, the regular season
-// has never started before September, and the postseason ends mid-February —
-// so a July/August date identifies a preseason game. The date is the only
-// discriminator the payload offers: last-five events carry no season-type
-// field (verified live 2026-08-13, when a preseason win appeared in a
-// regular-season game's form line).
-const PRESEASON_ONLY_UTC_MONTHS = new Set([6, 7]);
-
-function isPreseasonDate(gameDate: string | undefined): boolean {
-  if (gameDate === undefined) return false;
+function currentNflSeasonTimestamp(
+  gameDate: string | undefined,
+  seasonYear: number,
+): number | null {
+  if (gameDate === undefined) return null;
   const parsed = new Date(gameDate);
-  // Unparseable dates fall through to the field checks below rather than
-  // deciding season type — this predicate only answers what a date proves.
-  if (Number.isNaN(parsed.getTime())) return false;
-  return PRESEASON_ONLY_UTC_MONTHS.has(parsed.getUTCMonth());
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  // ESPN's last-five list can bridge seasons and includes preseason without
+  // identifying season type. September is the earliest an NFL regular season
+  // starts; the following winter belongs to that same NFL season. Anything
+  // outside that window cannot be current-season form.
+  const year = parsed.getUTCFullYear();
+  const month = parsed.getUTCMonth();
+  const isCurrentSeason =
+    (year === seasonYear && month >= 8) || (year === seasonYear + 1 && month < 2);
+  return isCurrentSeason ? parsed.getTime() : null;
 }
 
-function mapLastFiveEvent(event: z.infer<typeof SummaryLastFiveEventSchema>): NflLastFiveGame[] {
-  // Preseason games are not form (starters sit) and the app ingests no
-  // preseason surface anywhere else — dropped before the shape checks so a
-  // malformed preseason entry can't survive as anything (STAT-11).
-  if (isPreseasonDate(event.gameDate)) {
-    return [];
-  }
+function mapLastFiveEvent(
+  event: z.infer<typeof SummaryLastFiveEventSchema>,
+  seasonYear: number,
+): { game: NflLastFiveGame; timestamp: number } | null {
+  const timestamp = currentNflSeasonTimestamp(event.gameDate, seasonYear);
   const result = NflLastGameResultSchema.safeParse(event.gameResult);
   const scoreMatch = event.score?.match(/^(\d+)-(\d+)$/);
   const opponentAbbr = event.opponent?.abbreviation;
-  if (!result.success || !scoreMatch || !opponentAbbr) {
-    return [];
+  if (timestamp === null || !result.success || !scoreMatch || !opponentAbbr) {
+    return null;
   }
-  return [
-    {
+  return {
+    timestamp,
+    game: {
       result: result.data,
       opponentAbbr,
       // ESPN's score string puts this team's points first regardless of venue
@@ -212,7 +222,23 @@ function mapLastFiveEvent(event: z.infer<typeof SummaryLastFiveEventSchema>): Nf
       // reads as home, which only mislabels a venue badge.
       atHome: event.atVs !== "@",
     },
-  ];
+  };
+}
+
+function overallAtsSummary(
+  records: z.infer<typeof SummarySchema>["againstTheSpread"] | undefined,
+  teamId: string,
+): string | null {
+  const teamRecords = records?.find((entry) => entry.team.id === teamId)?.records;
+  if (!teamRecords || teamRecords.length === 0) return null;
+
+  const overall = teamRecords.find(
+    (record) =>
+      record.type === "total" || record.name === "All Splits" || record.abbreviation === "Any",
+  );
+  if (overall) return overall.summary ?? null;
+  // Older summary shapes omitted split labels but still put overall first.
+  return teamRecords[0]?.summary ?? null;
 }
 
 function parseGameProjection(raw: string | undefined): number | null {
@@ -227,9 +253,14 @@ function mapSummaryTeamContext(
   fpiWinPct: number | null,
 ): NflTeamGameContext {
   const injuries = summary.injuries?.find((entry) => entry.team.id === teamId)?.injuries ?? [];
-  const atsRecords = summary.againstTheSpread?.find((entry) => entry.team.id === teamId)?.records;
   const lastFiveEvents =
     summary.lastFiveGames?.find((entry) => entry.team.id === teamId)?.events ?? [];
+  const lastFive = lastFiveEvents
+    .map((event) => mapLastFiveEvent(event, summary.header.season.year))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 5)
+    .map((entry) => entry.game);
   return {
     injuries: injuries.map((entry) => ({
       athleteName: entry.athlete.displayName,
@@ -238,10 +269,8 @@ function mapSummaryTeamContext(
       injuryType: entry.details?.type ?? null,
     })),
     fpiWinPct,
-    // First record is the overall ATS line; empty until the season has ATS
-    // data, which serves as null rather than a fabricated "0-0".
-    atsSummary: atsRecords?.[0]?.summary ?? null,
-    lastFive: lastFiveEvents.flatMap(mapLastFiveEvent),
+    atsSummary: overallAtsSummary(summary.againstTheSpread, teamId),
+    lastFive,
   };
 }
 
