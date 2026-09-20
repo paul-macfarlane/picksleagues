@@ -14,4 +14,4 @@ Replace Results with Schedule in the shared NFL matchup sheet and replace its re
 
 ## Consequences
 
-Pick'em and Survivor share the feature. Missing fixtures and bye weeks are never invented. Two-line upcoming rows keep opponents legible at phone width; completed scores label both teams. The basic and advanced stats tiers retain their existing prior-season policy. API and generated client ship together; this is a replacement for the internal SPA contract, not a second results API to maintain.
+Pick'em and Survivor share the feature. Missing fixtures are never invented. A bye row is derived only when a complete modern regular-season schedule proves it: 17 games occupy 17 distinct Weeks 1–18, leaving exactly one week absent. Partial or ambiguous schedules still show only stored fixtures. Two-line upcoming rows keep opponents legible at phone width; completed scores label both teams. The basic and advanced stats tiers retain their existing prior-season policy. API and generated client ship together; this is a replacement for the internal SPA contract, not a second results API to maintain.

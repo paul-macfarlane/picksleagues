@@ -178,13 +178,10 @@ const NullableNflGameStatsContextSchema = NflGameStatsContextSchema.nullable().o
 
 // --- Wire DTOs for GET /games/{gameId}/nfl-schedule (STAT-9) ---
 
-/**
- * One game in a team's season schedule, from that team's perspective. The
- * explicit state keeps scheduled games distinct from live games; both can
- * lack scores without being presented as a fabricated 0–0 (ADR-0040).
- */
-export const NflGameScheduleEntrySchema = z
+/** One stored game in a team's season schedule, from that team's perspective. */
+const NflGameScheduleGameEntrySchema = z
   .object({
+    kind: z.literal("game"),
     // Provider display label ("Week 5", "Wild Card") — the weeks table stores
     // it precisely so postseason rounds never render off a bare number.
     weekLabel: z.string(),
@@ -196,15 +193,31 @@ export const NflGameScheduleEntrySchema = z
     opponentScore: z.number().int().nullable(),
     result: NflLastGameResultSchema.nullable(),
   })
+  .openapi("NflGameScheduleGameEntry");
+
+const NflGameScheduleByeEntrySchema = z
+  .object({
+    kind: z.literal("bye"),
+    weekLabel: z.string(),
+  })
+  .openapi("NflGameScheduleByeEntry");
+
+/**
+ * A stored game or a bye proved by a complete 17-game regular-season slate.
+ * The discriminator keeps a bye from carrying fabricated opponent/game data.
+ */
+export const NflGameScheduleEntrySchema = z
+  .discriminatedUnion("kind", [NflGameScheduleGameEntrySchema, NflGameScheduleByeEntrySchema])
   .openapi("NflGameScheduleEntry");
 
 export type NflGameScheduleEntry = z.infer<typeof NflGameScheduleEntrySchema>;
 
 /**
- * One team's available season schedule in kickoff order. `seasonYear` names
- * the season served — the current season whenever it has ingested games, else
- * the prior year as a truthful fallback. Never empty: a team with no ingested
- * games in either candidate season is a null block on the response.
+ * One team's available season schedule. Stored games retain kickoff order; a
+ * proved bye is inserted at its regular-season week. `seasonYear` names the
+ * season served — the current season whenever it has ingested games, else the
+ * prior year as a truthful fallback. Never empty: a team with no ingested games
+ * in either candidate season is a null block on the response.
  */
 export const NflTeamScheduleSchema = z
   .object({
