@@ -2290,8 +2290,31 @@
         ]
       },
       "NflGameScheduleEntry": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NflGameScheduleGameEntry"
+          },
+          {
+            "$ref": "#/components/schemas/NflGameScheduleByeEntry"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "game": "#/components/schemas/NflGameScheduleGameEntry",
+            "bye": "#/components/schemas/NflGameScheduleByeEntry"
+          }
+        }
+      },
+      "NflGameScheduleGameEntry": {
         "type": "object",
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "game"
+            ]
+          },
           "weekLabel": {
             "type": "string"
           },
@@ -2334,6 +2357,7 @@
           }
         },
         "required": [
+          "kind",
           "weekLabel",
           "opponentAbbr",
           "atHome",
@@ -2342,6 +2366,24 @@
           "teamScore",
           "opponentScore",
           "result"
+        ]
+      },
+      "NflGameScheduleByeEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bye"
+            ]
+          },
+          "weekLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "weekLabel"
         ]
       },
       "PickemPickSummary": {

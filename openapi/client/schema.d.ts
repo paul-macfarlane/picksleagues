@@ -1432,7 +1432,13 @@ export interface components {
             seasonYear: number;
             entries: components["schemas"]["NflGameScheduleEntry"][];
         } | null;
-        NflGameScheduleEntry: {
+        NflGameScheduleEntry: components["schemas"]["NflGameScheduleGameEntry"] | components["schemas"]["NflGameScheduleByeEntry"];
+        NflGameScheduleGameEntry: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "game";
             weekLabel: string;
             opponentAbbr: string;
             atHome: boolean;
@@ -1443,6 +1449,14 @@ export interface components {
             opponentScore: number | null;
             /** @enum {string|null} */
             result: "W" | "L" | "T" | null;
+        };
+        NflGameScheduleByeEntry: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "bye";
+            weekLabel: string;
         };
         PickemPickSummary: {
             pickCount: number;

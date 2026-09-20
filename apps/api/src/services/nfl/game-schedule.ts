@@ -5,10 +5,12 @@ import { games, sportSeasons, teams, weeks } from "@picksleagues/db";
 import {
   GAME_STATUS,
   NFL_LAST_GAME_RESULT,
+  WEEK_TYPE,
   type GameStatus,
   type NflGameScheduleEntry,
   type NflGameScheduleResponse,
   type NflTeamSchedule,
+  type WeekType,
 } from "@picksleagues/schemas";
 
 /**
@@ -21,6 +23,8 @@ import {
 /** A stored fixture resolved with its season and team labels. */
 export type ResolvedScheduleGame = {
   seasonYear: number;
+  weekType: WeekType;
+  weekNumber: number;
   weekLabel: string;
   kickoffAt: Date;
   status: GameStatus;
@@ -49,6 +53,7 @@ function toEntry(game: ResolvedScheduleGame, teamId: string): NflGameScheduleEnt
           : NFL_LAST_GAME_RESULT.TIE
       : null;
   return {
+    kind: "game",
     weekLabel: game.weekLabel,
     opponentAbbr: atHome ? game.awayAbbr : game.homeAbbr,
     atHome,
@@ -60,12 +65,40 @@ function toEntry(game: ResolvedScheduleGame, teamId: string): NflGameScheduleEnt
   };
 }
 
+const MODERN_REGULAR_SEASON_WEEKS = 18;
+const MODERN_REGULAR_SEASON_GAMES = 17;
+
+/**
+ * A missing regular-season week is a proved bye only when the stored schedule
+ * is complete: 17 games in 17 distinct Weeks 1–18. Partial ingestion remains
+ * indistinguishable from a missing fixture and therefore produces no row.
+ */
+function provedByeWeek(games: ResolvedScheduleGame[]): number | null {
+  const regular = games.filter((game) => game.weekType === WEEK_TYPE.REGULAR);
+  const weekNumbers = new Set(regular.map((game) => game.weekNumber));
+  if (
+    regular.length !== MODERN_REGULAR_SEASON_GAMES ||
+    weekNumbers.size !== MODERN_REGULAR_SEASON_GAMES ||
+    [...weekNumbers].some(
+      (weekNumber) => weekNumber < 1 || weekNumber > MODERN_REGULAR_SEASON_WEEKS,
+    )
+  ) {
+    return null;
+  }
+
+  for (let weekNumber = 1; weekNumber <= MODERN_REGULAR_SEASON_WEEKS; weekNumber += 1) {
+    if (!weekNumbers.has(weekNumber)) return weekNumber;
+  }
+  return null;
+}
+
 /**
  * One team's schedule from candidate-season rows. Exported for its unit tests;
  * pure. All ingested states remain visible, including disrupted fixtures.
  * The current season wins as soon as it has games: future opponents are
  * the reason this shared surface exists. Entries are kickoff-ordered, so a
- * member can scan the season chronologically.
+ * member can scan the season chronologically. A proved bye is inserted at its
+ * week without disturbing the relative order of stored games.
  */
 export function buildNflTeamSchedule(
   rows: ResolvedScheduleGame[],
@@ -78,9 +111,22 @@ export function buildNflTeamSchedule(
   const current = available.filter((row) => row.seasonYear === currentSeasonYear);
   const chosen = current.length > 0 ? current : available;
   if (chosen.length === 0) return null;
+  const entries: NflGameScheduleEntry[] = chosen.map((row) => toEntry(row, teamId));
+  const byeWeek = provedByeWeek(chosen);
+  if (byeWeek !== null) {
+    const nextWeekIndex = chosen.findIndex(
+      (row) =>
+        row.weekType === WEEK_TYPE.POSTSEASON ||
+        (row.weekType === WEEK_TYPE.REGULAR && row.weekNumber > byeWeek),
+    );
+    entries.splice(nextWeekIndex === -1 ? entries.length : nextWeekIndex, 0, {
+      kind: "bye",
+      weekLabel: `Week ${byeWeek}`,
+    });
+  }
   return {
     seasonYear: chosen === current ? currentSeasonYear : chosen[0]!.seasonYear,
-    entries: chosen.map((row) => toEntry(row, teamId)),
+    entries,
   };
 }
 
@@ -113,6 +159,8 @@ export async function getNflGameSchedule(
     .select({
       game: games,
       weekLabel: weeks.label,
+      weekType: weeks.weekType,
+      weekNumber: weeks.weekNumber,
       seasonYear: sportSeasons.year,
       homeAbbr: homeTeams.abbreviation,
       awayAbbr: awayTeams.abbreviation,
@@ -132,6 +180,8 @@ export async function getNflGameSchedule(
 
   const resolved: (ResolvedScheduleGame & { updatedAt: Date })[] = rows.map((row) => ({
     seasonYear: row.seasonYear,
+    weekType: row.weekType,
+    weekNumber: row.weekNumber,
     weekLabel: row.weekLabel,
     kickoffAt: row.game.kickoffAt,
     status: row.game.status,
