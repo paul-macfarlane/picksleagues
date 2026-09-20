@@ -29,10 +29,12 @@ function shortWeekLabel(label: string): string {
 }
 
 function scoreLabel(entry: NflGameScheduleEntry, teamAbbr: string): string {
+  if (entry.kind === "bye") return "Bye";
   return `${teamAbbr} ${entry.teamScore ?? "—"} – ${entry.opponentAbbr} ${entry.opponentScore ?? "—"}`;
 }
 
 function stateLabel(entry: NflGameScheduleEntry, now: Date): string {
+  if (entry.kind === "bye") return "Bye";
   switch (entry.status) {
     case GAME_STATUS.FINAL:
       return entry.result ? `Final · ${entry.result}` : "Final";
@@ -72,14 +74,27 @@ function ScheduleColumn({
               a postponed rematch lands in the same labeled week. */}
           {log.entries.map((entry, index) => (
             <li key={index} className="flex flex-col gap-1 py-2 text-xs">
-              <span className="font-medium">
-                {shortWeekLabel(entry.weekLabel)} · {entry.atHome ? "vs" : "@"} {entry.opponentAbbr}
-              </span>
-              <span className="text-muted-foreground">{stateLabel(entry, now)}</span>
-              {(entry.status === GAME_STATUS.FINAL || entry.status === GAME_STATUS.IN_PROGRESS) && (
-                <span className="text-muted-foreground">
-                  {scoreLabel(entry, team.abbreviation)}
-                </span>
+              {entry.kind === "bye" ? (
+                <>
+                  <span className="font-medium">{shortWeekLabel(entry.weekLabel)} · Bye</span>
+                  <span aria-hidden="true" className="invisible">
+                    Bye
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">
+                    {shortWeekLabel(entry.weekLabel)} · {entry.atHome ? "vs" : "@"}{" "}
+                    {entry.opponentAbbr}
+                  </span>
+                  <span className="text-muted-foreground">{stateLabel(entry, now)}</span>
+                  {(entry.status === GAME_STATUS.FINAL ||
+                    entry.status === GAME_STATUS.IN_PROGRESS) && (
+                    <span className="text-muted-foreground">
+                      {scoreLabel(entry, team.abbreviation)}
+                    </span>
+                  )}
+                </>
               )}
             </li>
           ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GAME_STATUS, type GameStatus } from "@picksleagues/schemas";
+import { GAME_STATUS, WEEK_TYPE, type GameStatus } from "@picksleagues/schemas";
 import { buildNflTeamSchedule, type ResolvedScheduleGame } from "./game-schedule";
 
 const CURRENT = 2026;
@@ -16,6 +16,8 @@ function logGame(
   const { week, home = "HOM", away = "AWY", ...rest } = overrides;
   return {
     seasonYear: CURRENT,
+    weekType: WEEK_TYPE.REGULAR,
+    weekNumber: week,
     weekLabel: `Week ${week}`,
     kickoffAt: new Date(Date.UTC(2026, 8, 7 + week * 7)),
     homeTeamId: home,
@@ -65,9 +67,14 @@ describe("buildNflTeamSchedule", () => {
       logGame({ week: 2, status: GAME_STATUS.FINAL, homeScore: 24, awayScore: 24 }),
     ];
     const entries = buildNflTeamSchedule(rows, "HOM", CURRENT)!.entries;
-    expect(entries.map((entry) => entry.result)).toEqual(["L", "T"]);
+    expect(entries.filter((entry) => entry.kind === "game").map((entry) => entry.result)).toEqual([
+      "L",
+      "T",
+    ]);
     const awayEntries = buildNflTeamSchedule(rows, "AWY", CURRENT)!.entries;
-    expect(awayEntries.map((entry) => entry.result)).toEqual(["W", "T"]);
+    expect(
+      awayEntries.filter((entry) => entry.kind === "game").map((entry) => entry.result),
+    ).toEqual(["W", "T"]);
   });
 
   it("serves an in-progress game as a live entry: no result, scores as they stand", () => {
@@ -102,6 +109,32 @@ describe("buildNflTeamSchedule", () => {
         { weekLabel: "Week 3", status: "cancelled" },
       ],
     });
+  });
+
+  it("inserts a bye only when 17 distinct regular-season games prove the missing week", () => {
+    const rows = Array.from({ length: 18 }, (_unused, index) => index + 1)
+      .filter((week) => week !== 7)
+      .map((week) => logGame({ week, status: GAME_STATUS.SCHEDULED }));
+
+    const schedule = buildNflTeamSchedule(rows, "HOM", CURRENT)!;
+    expect(schedule.entries).toHaveLength(18);
+    expect(schedule.entries[6]).toEqual({ kind: "bye", weekLabel: "Week 7" });
+    expect(schedule.entries[7]).toMatchObject({ kind: "game", weekLabel: "Week 8" });
+  });
+
+  it("does not mistake a partial or ambiguous schedule for a bye", () => {
+    const partial = Array.from({ length: 16 }, (_unused, index) =>
+      logGame({ week: index + 1, status: GAME_STATUS.SCHEDULED }),
+    );
+    expect(buildNflTeamSchedule(partial, "HOM", CURRENT)!.entries).toHaveLength(16);
+
+    const duplicateWeek = [
+      ...Array.from({ length: 16 }, (_unused, index) =>
+        logGame({ week: index + 1, status: GAME_STATUS.SCHEDULED }),
+      ),
+      logGame({ week: 16, status: GAME_STATUS.SCHEDULED, away: "DUP" }),
+    ];
+    expect(buildNflTeamSchedule(duplicateWeek, "HOM", CURRENT)!.entries).toHaveLength(17);
   });
 
   it("falls back to the prior season only while the current has no ingested schedule (ADR-0040)", () => {
