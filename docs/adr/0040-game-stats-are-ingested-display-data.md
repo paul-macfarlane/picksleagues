@@ -41,7 +41,12 @@ small basic tier by default, the full set one deliberate action away.
   last-five form) validated by `NflGameStatContextPayloadSchema` and evolving
   additively, the league-settings pattern. `sync-stats` ingests both: one bulk
   standings request per season targeted, one summary request per unstarted
-  game in the same anchor-plus-following week window sync-odds prices.
+  game in the same anchor-plus-following week window sync-odds prices. The
+  ESPN adapter also reads the published regular-season boundaries, reusing
+  them across matchups within a provider instance. Recent form is restricted
+  to that regular season, sorted newest first, and capped at five results;
+  missing or invalid boundaries omit form rather than guessing from months
+  (owner bug review, 2026-09-20).
 - **Every stats surface is NFL-named** — `nfl_*` tables, `Nfl*` schemas and
   OpenAPI components, `GET /games/{gameId}/nfl-stats` — because the shapes are
   the sport's, not the app's: another sport's season record has no ties and
@@ -88,8 +93,9 @@ small basic tier by default, the full set one deliberate action away.
 - The stats read is mode-agnostic (`GET /games/{id}/stats`): Survivor and
   Pick'em consume it unchanged, which is what earns the generic name under
   the naming rule.
-- Early-season gaps are accepted and visible: ATS empty until the season has
-  games, FPI/last-five whatever the provider serves at sync time. The UI
+- Early-season gaps are accepted and visible: ATS empty unless the provider
+  identifies an overall record, FPI as served at sync time, and last-five
+  restricted to the current regular season. The UI
   renders what exists and omits what doesn't rather than fabricating.
 - ESPN reshaping these two endpoints breaks only the adapter (provider shapes
   never leak); the surfaces degrade to stale-with-stamp rather than erroring,

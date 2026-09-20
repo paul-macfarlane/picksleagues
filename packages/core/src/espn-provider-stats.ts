@@ -105,6 +105,15 @@ function mapStandingsEntry(
 
 const SummaryTeamRefSchema = z.looseObject({ id: z.string() });
 
+const RegularSeasonSchema = z.looseObject({
+  year: z.number().int(),
+  type: z.literal(2),
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
+type RegularSeasonWindow = { start: number; end: number };
+
 const SummaryInjuryEntrySchema = z.looseObject({
   status: z.string(),
   athlete: z.looseObject({
@@ -179,30 +188,20 @@ const SummarySchema = z.looseObject({
  * standings break corrupts records the basic tier states as fact; a summary
  * quirk loses one advanced-tier line.
  */
-function currentNflSeasonTimestamp(
+function regularSeasonTimestamp(
   gameDate: string | undefined,
-  seasonYear: number,
+  window: RegularSeasonWindow | null,
 ): number | null {
-  if (gameDate === undefined) return null;
-  const parsed = new Date(gameDate);
-  if (Number.isNaN(parsed.getTime())) return null;
-
-  // ESPN's last-five list can bridge seasons and includes preseason without
-  // identifying season type. September is the earliest an NFL regular season
-  // starts; the following winter belongs to that same NFL season. Anything
-  // outside that window cannot be current-season form.
-  const year = parsed.getUTCFullYear();
-  const month = parsed.getUTCMonth();
-  const isCurrentSeason =
-    (year === seasonYear && month >= 8) || (year === seasonYear + 1 && month < 2);
-  return isCurrentSeason ? parsed.getTime() : null;
+  if (gameDate === undefined || window === null) return null;
+  const timestamp = Date.parse(gameDate);
+  return timestamp >= window.start && timestamp <= window.end ? timestamp : null;
 }
 
 function mapLastFiveEvent(
   event: z.infer<typeof SummaryLastFiveEventSchema>,
-  seasonYear: number,
+  window: RegularSeasonWindow | null,
 ): { game: NflLastFiveGame; timestamp: number } | null {
-  const timestamp = currentNflSeasonTimestamp(event.gameDate, seasonYear);
+  const timestamp = regularSeasonTimestamp(event.gameDate, window);
   const result = NflLastGameResultSchema.safeParse(event.gameResult);
   const scoreMatch = event.score?.match(/^(\d+)-(\d+)$/);
   const opponentAbbr = event.opponent?.abbreviation;
@@ -226,7 +225,7 @@ function mapLastFiveEvent(
 }
 
 function overallAtsSummary(
-  records: z.infer<typeof SummarySchema>["againstTheSpread"] | undefined,
+  records: z.infer<typeof SummarySchema>["againstTheSpread"],
   teamId: string,
 ): string | null {
   const teamRecords = records?.find((entry) => entry.team.id === teamId)?.records;
@@ -236,9 +235,8 @@ function overallAtsSummary(
     (record) =>
       record.type === "total" || record.name === "All Splits" || record.abbreviation === "Any",
   );
-  if (overall) return overall.summary ?? null;
-  // Older summary shapes omitted split labels but still put overall first.
-  return teamRecords[0]?.summary ?? null;
+  // An unidentified record may be a home/road split, never proof of overall.
+  return overall?.summary ?? null;
 }
 
 function parseGameProjection(raw: string | undefined): number | null {
@@ -251,13 +249,14 @@ function mapSummaryTeamContext(
   summary: z.infer<typeof SummarySchema>,
   teamId: string,
   fpiWinPct: number | null,
+  window: RegularSeasonWindow | null,
 ): NflTeamGameContext {
   const injuries = summary.injuries?.find((entry) => entry.team.id === teamId)?.injuries ?? [];
   const lastFiveEvents =
     summary.lastFiveGames?.find((entry) => entry.team.id === teamId)?.events ?? [];
   const lastFive = lastFiveEvents
-    .map((event) => mapLastFiveEvent(event, summary.header.season.year))
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .map((event) => mapLastFiveEvent(event, window))
+    .filter((entry) => entry !== null)
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 5)
     .map((entry) => entry.game);
@@ -295,10 +294,11 @@ export function parseTeamSeasonRecords(
 }
 
 /** One game's matchup context from its summary payload; throws when the header names no home/away. */
-export function parseGameStatContext(
+export async function parseGameStatContext(
   json: unknown,
   providerGameId: string,
-): ProviderNflGameStatContext {
+  fetchRegularSeason: (year: number) => Promise<unknown>,
+): Promise<ProviderNflGameStatContext> {
   const summary = SummarySchema.parse(json);
   const [competition] = summary.header.competitions;
   if (!competition) {
@@ -311,17 +311,35 @@ export function parseGameStatContext(
       `EspnProvider: summary for event ${providerGameId} is missing a home or away competitor`,
     );
   }
+  // Last-five entries carry no season type. ESPN's published boundaries
+  // exclude September preseason and January postseason without month guesses.
+  // Missing/invalid boundaries omit form alone; injuries and FPI remain useful.
+  let window: RegularSeasonWindow | null = null;
+  if (summary.lastFiveGames?.some((entry) => entry.events?.length)) {
+    const season = RegularSeasonSchema.safeParse(
+      await fetchRegularSeason(summary.header.season.year),
+    );
+    if (season.success && season.data.year === summary.header.season.year) {
+      const start = Date.parse(season.data.startDate);
+      const end = Date.parse(season.data.endDate);
+      if (Number.isFinite(start) && Number.isFinite(end) && start < end) {
+        window = { start, end };
+      }
+    }
+  }
   return {
     providerGameId,
     home: mapSummaryTeamContext(
       summary,
       homeId,
       parseGameProjection(summary.predictor?.homeTeam?.gameProjection),
+      window,
     ),
     away: mapSummaryTeamContext(
       summary,
       awayId,
       parseGameProjection(summary.predictor?.awayTeam?.gameProjection),
+      window,
     ),
   };
 }
