@@ -289,11 +289,13 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                       {/* ATS stays unmarked on purpose: it's a provider string
                           we don't parse, and "better against the spread" is a
                           judgment the sheet shouldn't render as fact (STAT-10). */}
-                      <StatRow
-                        label="Against the spread"
-                        away={contextStat(context?.away, (c) => c.atsSummary)}
-                        home={contextStat(context?.home, (c) => c.atsSummary)}
-                      />
+                      {(context?.away.atsSummary || context?.home.atsSummary) && (
+                        <StatRow
+                          label="Against the spread"
+                          away={contextStat(context?.away, (c) => c.atsSummary)}
+                          home={contextStat(context?.home, (c) => c.atsSummary)}
+                        />
+                      )}
                       <StatRow
                         label="Win probability"
                         subLabel="ESPN FPI"
@@ -313,7 +315,7 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                   <p className="text-xs text-muted-foreground">
                     <span
                       aria-hidden="true"
-                      className="mr-1 inline-block size-1.5 rounded-full bg-foreground"
+                      className="mr-1 inline-block size-1.5 rounded-full bg-advantage"
                     />
                     marks the side with the edge in a category.
                   </p>
