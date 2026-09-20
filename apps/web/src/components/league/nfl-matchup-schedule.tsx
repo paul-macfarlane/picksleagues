@@ -75,7 +75,12 @@ function ScheduleColumn({
           {log.entries.map((entry, index) => (
             <li key={index} className="flex flex-col gap-1 py-2 text-xs">
               {entry.kind === "bye" ? (
-                <span className="font-medium">{shortWeekLabel(entry.weekLabel)} · Bye</span>
+                <>
+                  <span className="font-medium">{shortWeekLabel(entry.weekLabel)} · Bye</span>
+                  <span aria-hidden="true" className="invisible">
+                    Bye
+                  </span>
+                </>
               ) : (
                 <>
                   <span className="font-medium">
