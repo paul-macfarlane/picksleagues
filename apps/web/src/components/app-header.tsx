@@ -58,8 +58,12 @@ export function AppHeader() {
     };
     publishHeight();
 
+    // Border box, not the default content box: the safe-area padding changes
+    // on its own when Chrome on iOS moves its toolbars, and a content-box
+    // observer never hears it — TabNav then sticks a stale inset below the
+    // header, leaving a gap page content shows through.
     const observer = new ResizeObserver(publishHeight);
-    observer.observe(header);
+    observer.observe(header, { box: "border-box" });
     return () => {
       observer.disconnect();
       // Published on the document element, so it outlives this subtree: after
