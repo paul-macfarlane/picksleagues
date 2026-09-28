@@ -78,8 +78,11 @@ export function AppTabBar() {
     // ResizeObserver rather than a resize listener: crossing `sm` flips the
     // bar between display:none and its real height, and the observer reports
     // both edges of that without a media-query listener of its own.
+    // Border box, for the header's reason: the safe-area inset is padding that
+    // changes without the content box resizing, and a stale height leaves
+    // the page's last row stranded under the bar.
     const observer = new ResizeObserver(publishHeight);
-    observer.observe(bar);
+    observer.observe(bar, { box: "border-box" });
     return () => {
       observer.disconnect();
       // Published on the document element so it outlives this subtree; after
