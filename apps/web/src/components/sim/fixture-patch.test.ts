@@ -21,6 +21,7 @@ const GAME: SimFixtureGame = {
   awayTeamAbbr: "BBB",
   awayTeamName: "Team BBB",
   kickoffAt: "2026-07-26T21:37:41.812Z",
+  neutralSite: false,
   spread: -3.5,
   finalStatus: SIM_FINAL_STATUS.FINAL,
   finalHomeScore: 24,

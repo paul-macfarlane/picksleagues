@@ -163,6 +163,8 @@ export async function importReplaySeason(
       awayTeamName: game.awayTeamName,
       awayTeamProviderId: game.awayTeamProviderId,
       kickoffAt: game.kickoffAt,
+      neutralSite: game.neutralSite,
+      venue: game.venue,
       spread,
       finalStatus,
       finalHomeScore: game.homeScore,

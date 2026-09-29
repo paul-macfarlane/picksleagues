@@ -1835,6 +1835,12 @@
             "type": "string",
             "format": "date-time"
           },
+          "neutralSite": {
+            "type": "boolean"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/NullableGameVenue"
+          },
           "status": {
             "$ref": "#/components/schemas/GameStatus"
           },
@@ -1890,6 +1896,8 @@
           "homeTeam",
           "awayTeam",
           "kickoffAt",
+          "neutralSite",
+          "venue",
           "status",
           "homeScore",
           "awayScore",
@@ -1940,6 +1948,41 @@
           "location",
           "logoLightUrl",
           "logoDarkUrl"
+        ]
+      },
+      "NullableGameVenue": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "city",
+          "region",
+          "country"
         ]
       },
       "LeagueWeeksResponse": {
@@ -3197,6 +3240,9 @@
             "type": "string",
             "format": "date-time"
           },
+          "neutralSite": {
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/GameStatus"
           },
@@ -3238,6 +3284,7 @@
           "homeTeam",
           "awayTeam",
           "kickoffAt",
+          "neutralSite",
           "status",
           "homeScore",
           "awayScore",
@@ -3776,6 +3823,9 @@
             "type": "string",
             "format": "date-time"
           },
+          "neutralSite": {
+            "type": "boolean"
+          },
           "spread": {
             "type": [
               "number",
@@ -3824,6 +3874,7 @@
           "awayTeamAbbr",
           "awayTeamName",
           "kickoffAt",
+          "neutralSite",
           "spread",
           "finalStatus",
           "finalHomeScore",

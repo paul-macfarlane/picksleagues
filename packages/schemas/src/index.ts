@@ -8,6 +8,7 @@ export * from "./dues";
 export * from "./error";
 export * from "./nfl-game-stats";
 export * from "./game-status";
+export * from "./game-venue";
 export * from "./health";
 export * from "./image-url";
 export * from "./invites";

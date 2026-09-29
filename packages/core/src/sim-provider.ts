@@ -3,6 +3,7 @@ import {
   GAME_STATUS,
   type GameSide,
   type GameStatus,
+  type GameVenue,
   SIM_FINAL_STATUS,
   type SimFinalStatus,
   type WeekType,
@@ -72,6 +73,8 @@ export type SimFixtureGameRow = {
   awayTeamName: string;
   awayTeamProviderId: string;
   kickoffAt: Date;
+  neutralSite: boolean;
+  venue: GameVenue | null;
   spread: number | null;
   finalStatus: SimFinalStatus;
   finalHomeScore: number | null;
@@ -200,6 +203,8 @@ function toProviderGame(fixture: SimFixtureGameRow, now: Date): ProviderGame {
     homeTeamProviderId: fixture.homeTeamProviderId,
     awayTeamProviderId: fixture.awayTeamProviderId,
     kickoffAt: fixture.kickoffAt,
+    neutralSite: fixture.neutralSite,
+    venue: fixture.venue,
     status: projected.status,
     homeScore: projected.homeScore,
     awayScore: projected.awayScore,

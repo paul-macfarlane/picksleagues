@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GAME_STATUS, type GameStatus, WEEK_TYPE, type WeekType } from "@picksleagues/schemas";
 import { parseGameStatContext, parseTeamSeasonRecords } from "./espn-provider-stats";
+import { EspnSiteFields, isPlaceholderCompetitor, mapEspnSite } from "./espn-provider-competition";
 import type {
   GameDataProvider,
   ProviderGame,
@@ -116,6 +117,7 @@ const CompetitionSchema = z.looseObject({
     clock: z.number().optional(),
   }),
   competitors: z.array(CompetitorSchema),
+  ...EspnSiteFields,
   // `provider.name` (PKM-9) is the book the spread came from — DraftKings as of
   // 2026-08-07, but ESPN has rotated books before, so this is captured as free
   // text rather than trusted to stay any one value.
@@ -257,23 +259,6 @@ function parseScoreStrict(raw: string, context: string): number {
   return parsed;
 }
 
-/**
- * ESPN publishes an unseeded playoff round months ahead as real events whose
- * competitors are a shared placeholder: `team.id` `-1`/`-2`, abbreviation
- * `TBD`. Both signals are checked because either alone identifies today's
- * encoding while neither can match a real team — ESPN's team ids are positive
- * and no real abbreviation is `TBD` — so the redundancy costs nothing and
- * survives ESPN changing one of them. A non-numeric id is not a placeholder:
- * `Number` yields NaN, which is not finite.
- */
-function isPlaceholderCompetitor(competitor: z.infer<typeof CompetitorSchema>): boolean {
-  const providerId = Number(competitor.team.id);
-  return (
-    (Number.isFinite(providerId) && providerId < 0) ||
-    competitor.team.abbreviation.toUpperCase() === "TBD"
-  );
-}
-
 function mapCompetitionToGame(
   weekType: WeekType,
   weekNumber: number,
@@ -312,6 +297,7 @@ function mapCompetitionToGame(
     awayTeamName: away.team.displayName,
     awayTeamProviderId: away.team.id,
     kickoffAt: parseDateStrict(competition.date, `competition ${competition.id}`),
+    ...mapEspnSite(competition),
     status,
     // ESPN sends "0" pre-game; only trust scores once the game has started. A
     // meaningful-but-unparseable score is an adapter-boundary error, not a 0.

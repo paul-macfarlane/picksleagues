@@ -120,6 +120,7 @@ export async function listWeekGames(db: Db, weekId: string): Promise<AdminGame[]
     homeTeam,
     awayTeam,
     kickoffAt: game.kickoffAt.toISOString(),
+    neutralSite: game.neutralSite,
     status: game.status,
     homeScore: game.homeScore,
     awayScore: game.awayScore,

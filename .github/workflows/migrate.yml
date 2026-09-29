@@ -11,11 +11,21 @@
 # Each branch maps to exactly one secret — no fallback, so main can never
 # migrate the staging database. Until the branch's secret exists the job
 # logs a notice and exits green before installing anything.
+#
+# `workflow_dispatch` is the fallback for a push whose run never started —
+# GitHub dropped the push event for PR #177's merge to staging, so Vercel
+# deployed code expecting a column the database didn't have. Run it from the
+# Actions tab ("Run workflow", branch = staging or main) or
+# `gh workflow run migrate.yml --ref staging`. Migrations are idempotent, so a
+# manual run on an up-to-date database is a no-op. Dispatch accepts any ref,
+# so the guard below refuses every ref but the two branches rather than
+# letting a feature branch's migrations reach a deployed database.
 name: Migrate
 
 on:
   push:
     branches: [staging, main]
+  workflow_dispatch:
 
 concurrency:
   group: migrate-${{ github.ref }}
@@ -31,11 +41,16 @@ jobs:
       - name: Resolve target database
         id: guard
         run: |
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            url="$PROD_DATABASE_URL"
-          else
-            url="$STAGING_DATABASE_URL"
-          fi
+          # The full ref, not GITHUB_REF_NAME: a tag named `main` has that
+          # short name too.
+          case "$GITHUB_REF" in
+            refs/heads/main) url="$PROD_DATABASE_URL" ;;
+            refs/heads/staging) url="$STAGING_DATABASE_URL" ;;
+            *)
+              echo "::error::Migrate only runs from the staging or main branch (got $GITHUB_REF)."
+              exit 1
+              ;;
+          esac
           if [ -z "$url" ]; then
             echo "::notice::No database secret configured for $GITHUB_REF_NAME yet — skipping migrations."
             echo "run=false" >> "$GITHUB_OUTPUT"

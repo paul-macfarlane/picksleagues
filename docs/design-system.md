@@ -243,6 +243,7 @@ takes anywhere it is shown (ADR-0043 §5): two `MatchupSide` cells facing each
 other across an eyebrow centre column.
 
 ```
+              │      @       │
  🐬 MIA  +3   │ Wed 12:27 PM │   −3  BUF 🦬
  ▌(the row's left rule carries the state)
 ```
@@ -251,7 +252,13 @@ The cell is logo, abbreviation and a numeral in the display role at `text-xl`;
 the numeral slot holds the line before kickoff and the score after it
 (`matchupNumerals` in `lib/game.ts` — "before kickoff" is the game's status,
 not the lock), and the centre holds the kickoff, the period and clock, or the
-status word (`gameStateLead`). The row's shape never changes across
+status word (`gameStateLead`). Above the centre sits `@` — the right-hand
+team is at home — or `vs` at a neutral site (`neutralSite`, FB-46), so home
+and away are stated rather than left to a left/right convention; a surface
+whose data doesn't carry the flag omits it rather than guessing. A
+neutral-site row also names its place in a muted footnote beside Stats
+(`GameVenueNote` — ink, never a tag: a place isn't a state), and the Stats
+sheet names every game's venue under its title. The row's shape never changes across
 pre-pick → picked → locked → live → final; only what the slot holds and what
 the left rule says. The line is layout only — a pick sheet puts its
 `MatchupSide` inside the side control, a read-only surface renders it bare —

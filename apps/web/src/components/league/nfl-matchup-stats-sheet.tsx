@@ -8,6 +8,7 @@ import type {
 } from "@picksleagues/schemas";
 import { useNflGameStats } from "@/api/nfl-game-stats";
 import { formatDateTime } from "@/lib/format";
+import { matchupName, matchupSeparator, venuePlaceLabel } from "@/lib/game";
 import { NflMatchupSpread } from "@/components/league/nfl-matchup-spread";
 import { recordLabel, streakLabel } from "@/lib/nfl-stats";
 import {
@@ -24,7 +25,14 @@ import { LoadingRegion } from "@/components/loading";
 import { QueryState } from "@/components/query-state";
 import { TeamLogo } from "@/components/team-logo";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -191,7 +199,9 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
                     />
                     {columnLabel(game.awayTeam, away)}
                   </span>
-                  <span className="text-xs text-muted-foreground">@</span>
+                  <span className="text-xs text-muted-foreground">
+                    {matchupSeparator(game.neutralSite)}
+                  </span>
                   <span className="flex items-center justify-end gap-1.5 text-right text-sm font-semibold">
                     {columnLabel(game.homeTeam, home)}
                     <TeamLogo
@@ -338,7 +348,7 @@ function NflMatchupStatsBody({ game, tier }: { game: SlateGame; tier: Tier }) {
 export function NflMatchupStats({ game }: { game: SlateGame }) {
   const [open, setOpen] = useState(false);
   const [segment, setSegment] = useState<Segment>(readStoredSegment);
-  const matchupName = `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`;
+  const name = matchupName(game);
 
   const selectSegment = (next: Segment) => {
     setSegment(next);
@@ -370,7 +380,7 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
             // can't provide on touch (owner, 2026-08-13).
             variant="outline"
             size="sm"
-            aria-label={`Matchup stats: ${matchupName}`}
+            aria-label={`Matchup stats: ${name}`}
             data-testid="nfl-matchup-stats-trigger"
             className="text-muted-foreground hover:text-foreground"
           />
@@ -385,7 +395,15 @@ export function NflMatchupStats({ game }: { game: SlateGame }) {
         data-testid="nfl-matchup-stats-sheet"
       >
         <SheetHeader>
-          <SheetTitle>{matchupName}</SheetTitle>
+          <SheetTitle>{name}</SheetTitle>
+          {/* Every game's venue, not only a neutral site's — the row saves its
+              footnote for the unusual ones (FB-46), so this is where the rest
+              are answered. */}
+          {game.venue && (
+            <SheetDescription data-testid="nfl-matchup-venue">
+              {game.venue.name} · {venuePlaceLabel(game.venue)}
+            </SheetDescription>
+          )}
         </SheetHeader>
 
         {/* A tab set in the sheet, in `TabNav`'s shape (orange underline marks

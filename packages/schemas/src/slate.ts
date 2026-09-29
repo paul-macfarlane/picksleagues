@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { GameStatusSchema } from "./game-status";
+import { NullableGameVenueSchema } from "./game-venue";
 import { WeekTypeSchema } from "./week-type";
 
 /**
@@ -31,6 +32,15 @@ export const SlateGameSchema = z
     homeTeam: SlateTeamSchema,
     awayTeam: SlateTeamSchema,
     kickoffAt: z.iso.datetime(),
+    /**
+     * Played at a neutral site (FB-46) — the international series, mostly.
+     * `homeTeam` is still the provider's designated home team and `spread` is
+     * still relative to it; this only changes how the matchup is phrased
+     * ("vs" rather than "@"), never how it scores.
+     */
+    neutralSite: z.boolean(),
+    // Null when the provider named no venue (every hand-authored sim scenario).
+    venue: NullableGameVenueSchema,
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
     awayScore: z.number().int().nullable(),

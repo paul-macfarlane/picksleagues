@@ -3,6 +3,7 @@ import type { Db } from "@picksleagues/db";
 import { simFixtureGames, simFixtureTeams, simFixtureWeeks, simScenarios } from "@picksleagues/db";
 import type { Clock, ProviderWeek, SimFixtureGameRow } from "@picksleagues/core";
 import {
+  type GameVenue,
   type SimFinalStatus,
   type SimScenarioSource,
   type Sport,
@@ -50,6 +51,10 @@ export type SimGameDef = {
   homeTeamAbbr: string;
   awayTeamAbbr: string;
   kickoffAtOffsetMs: number;
+  // FB-46. Omitted means an ordinary home game with no venue named, which is
+  // what nearly every scenario wants.
+  neutralSite?: boolean;
+  venue?: GameVenue;
   // Home-relative (negative = home favored), matching `games.spread`.
   spread: number | null;
   finalStatus: SimFinalStatus;
@@ -135,6 +140,8 @@ export function materializeDefinition(
         awayTeamName: away.name,
         awayTeamProviderId: away.providerTeamId,
         kickoffAt: at(game.kickoffAtOffsetMs),
+        neutralSite: game.neutralSite ?? false,
+        venue: game.venue ?? null,
         spread: game.spread,
         finalStatus: game.finalStatus,
         finalHomeScore: game.finalHomeScore,

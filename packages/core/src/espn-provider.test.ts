@@ -405,6 +405,10 @@ describe("EspnProvider.fetchNflWeekGames", () => {
         awayTeamName: "Dallas Cowboys",
         awayTeamProviderId: "DAL-id",
         kickoffAt: new Date("2026-09-14T17:00Z"),
+        // No `neutralSite`/`venue` in the payload: an ordinary home game with
+        // no venue named, not a malformed event.
+        neutralSite: false,
+        venue: null,
         status: GAME_STATUS.SCHEDULED,
         homeScore: null,
         awayScore: null,
@@ -831,6 +835,100 @@ describe("EspnProvider.fetchNflWeekGames", () => {
     const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
 
     expect(game?.spread).toBeNull();
+  });
+
+  describe("venue (FB-46)", () => {
+    function scoreboardWithSite(site: Record<string, unknown>): Response {
+      return jsonResponse({
+        events: [
+          {
+            id: "410",
+            competitions: [
+              {
+                id: "410",
+                date: "2026-10-04T13:30Z",
+                status: { type: { name: "STATUS_SCHEDULED", state: "pre" } },
+                competitors: [
+                  competitor({ homeAway: "home", abbreviation: "WSH", displayName: "Commanders" }),
+                  competitor({ homeAway: "away", abbreviation: "IND", displayName: "Colts" }),
+                ],
+                ...site,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    it.each([
+      {
+        // The 2026 London game, in the shape the live scoreboard served it
+        // (2026-09-29): no `state` abroad, and a designated home team all the same.
+        name: "a neutral-site game abroad",
+        site: {
+          neutralSite: true,
+          venue: {
+            fullName: "Tottenham Hotspur Stadium",
+            address: { city: "London", country: "England" },
+            indoor: false,
+          },
+        },
+        expected: {
+          neutralSite: true,
+          venue: {
+            name: "Tottenham Hotspur Stadium",
+            city: "London",
+            region: null,
+            country: "England",
+          },
+        },
+      },
+      {
+        name: "a home game, with an empty address part read as absent",
+        site: {
+          neutralSite: false,
+          venue: {
+            fullName: "Lambeau Field",
+            address: { city: "Green Bay", state: "WI", country: "" },
+          },
+        },
+        expected: {
+          neutralSite: false,
+          venue: { name: "Lambeau Field", city: "Green Bay", region: "WI", country: null },
+        },
+      },
+      {
+        name: "a venue with no address",
+        site: { venue: { fullName: "Somewhere Stadium" } },
+        expected: {
+          neutralSite: false,
+          venue: { name: "Somewhere Stadium", city: null, region: null, country: null },
+        },
+      },
+      {
+        name: "a venue whose one malformed address part is dropped alone",
+        site: { venue: { fullName: "Lambeau Field", address: { city: null, state: "WI" } } },
+        expected: {
+          neutralSite: false,
+          venue: { name: "Lambeau Field", city: null, region: "WI", country: null },
+        },
+      },
+      ...[{ venue: null, neutralSite: null }, { venue: { id: "3622" } }].map((site) => ({
+        // Display-only data ESPN reshapes must not fail the week's parse, which
+        // the score and odds syncs share.
+        name: `a malformed site ${JSON.stringify(site)} as no venue`,
+        site,
+        expected: { neutralSite: false, venue: null },
+      })),
+    ])("maps $name", async ({ site, expected }) => {
+      const provider = makeProvider(stubFetch({ [scoreboardUrl]: scoreboardWithSite(site) }));
+      const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);
+
+      expect(game).toMatchObject(expected);
+      // The home/away sides stay ESPN's designation even at a neutral site —
+      // the spread is relative to it, so relabelling would flip every line.
+      expect(game?.homeTeamAbbr).toBe("WSH");
+    });
   });
 
   it("throws when a competition is missing the home competitor", async () => {
