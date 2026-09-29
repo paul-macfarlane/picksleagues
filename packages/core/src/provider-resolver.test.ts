@@ -89,6 +89,8 @@ describe("resolveGameDataProvider", () => {
       awayTeamName: "Cowboys",
       awayTeamProviderId: "6",
       kickoffAt: kickoff,
+      neutralSite: false,
+      venue: null,
       spread: -3.5,
       finalStatus: SIM_FINAL_STATUS.FINAL,
       finalHomeScore: 24,

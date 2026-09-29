@@ -31,13 +31,17 @@ export const mixedWeekScenario: SimScenarioDefinition = {
       finalAwayScore: 17,
     },
     {
-      // KC favored by 6, loses outright: straight-up upset.
+      // KC favored by 6, loses outright: straight-up upset. Played abroad so
+      // the library has a neutral-site game to show (FB-46) — KC is still the
+      // designated home team and the spread is still relative to it.
       providerGameId: "mixed-week-2",
       weekType: WEEK_1.weekType,
       weekNumber: WEEK_1.weekNumber,
       homeTeamAbbr: "KC",
       awayTeamAbbr: "DEN",
       kickoffAtOffsetMs: kickoffOffsetMs(WEEK_1.startsAtOffsetMs, 1),
+      neutralSite: true,
+      venue: { name: "Wembley Stadium", city: "London", region: null, country: "England" },
       spread: -6,
       finalStatus: SIM_FINAL_STATUS.FINAL,
       finalHomeScore: 20,

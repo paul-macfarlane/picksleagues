@@ -6,6 +6,7 @@ import type { Clock } from "@picksleagues/core";
 import {
   isUnplayedStatus,
   type GameStatus,
+  type GameVenue,
   type SlateTeam,
   type WeekSlateResponse,
 } from "@picksleagues/schemas";
@@ -32,6 +33,8 @@ export interface ResolvedSlateGame {
   homeTeam: SlateTeam;
   awayTeam: SlateTeam;
   kickoffAt: Date;
+  neutralSite: boolean;
+  venue: GameVenue | null;
   status: GameStatus;
   homeScore: number | null;
   awayScore: number | null;
@@ -93,6 +96,8 @@ export async function loadResolvedWeekGames(
     homeTeam,
     awayTeam,
     kickoffAt: game.kickoffAt,
+    neutralSite: game.neutralSite,
+    venue: game.venue,
     status: game.status,
     homeScore: game.homeScore,
     awayScore: game.awayScore,
@@ -153,6 +158,8 @@ function serializeSlateGame(game: ResolvedSlateGame) {
     homeTeam: game.homeTeam,
     awayTeam: game.awayTeam,
     kickoffAt: game.kickoffAt.toISOString(),
+    neutralSite: game.neutralSite,
+    venue: game.venue,
     status: game.status,
     homeScore: game.homeScore,
     awayScore: game.awayScore,

@@ -12,7 +12,13 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { NflGameStatContextPayload, GameStatus, Sport, WeekType } from "@picksleagues/schemas";
+import type {
+  NflGameStatContextPayload,
+  GameStatus,
+  GameVenue,
+  Sport,
+  WeekType,
+} from "@picksleagues/schemas";
 
 /**
  * Sports data ingested from the provider (ESPN in prod, SimulatedProvider in
@@ -131,6 +137,14 @@ export const games = pgTable(
       .notNull()
       .references(() => teams.id, { onDelete: "restrict" }),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
+    // Where the game is played (FB-46) — display data the schedule sync
+    // writes, like every column here. A neutral site still has a designated
+    // home team, so the home/away FKs and the home-relative spread are
+    // unchanged by it. `venue` is JSONB because it is only ever read and
+    // written whole, as the `GameVenue` DTO; it evolves additively for the same
+    // reason settings do. Null when the provider named no venue.
+    neutralSite: boolean("neutral_site").notNull().default(false),
+    venue: jsonb("venue").$type<GameVenue>(),
     status: text("status").$type<GameStatus>().notNull(),
     // Null until the game is in progress or final.
     homeScore: integer("home_score"),

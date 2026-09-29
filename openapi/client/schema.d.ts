@@ -1332,6 +1332,8 @@ export interface components {
             awayTeam: components["schemas"]["SlateTeam"];
             /** Format: date-time */
             kickoffAt: string;
+            neutralSite: boolean;
+            venue: components["schemas"]["NullableGameVenue"];
             status: components["schemas"]["GameStatus"];
             homeScore: number | null;
             awayScore: number | null;
@@ -1352,6 +1354,12 @@ export interface components {
             logoLightUrl: string | null;
             logoDarkUrl: string | null;
         };
+        NullableGameVenue: {
+            name: string;
+            city: string | null;
+            region: string | null;
+            country: string | null;
+        } | null;
         LeagueWeeksResponse: {
             weeks: components["schemas"]["LeagueWeek"][];
             currentWeekId: string | null;
@@ -1644,6 +1652,7 @@ export interface components {
             awayTeam: components["schemas"]["AdminGameTeam"];
             /** Format: date-time */
             kickoffAt: string;
+            neutralSite: boolean;
             status: components["schemas"]["GameStatus"];
             homeScore: number | null;
             awayScore: number | null;
@@ -1789,6 +1798,7 @@ export interface components {
             awayTeamName: string;
             /** Format: date-time */
             kickoffAt: string;
+            neutralSite: boolean;
             spread: number | null;
             finalStatus: components["schemas"]["SimFinalStatus"];
             finalHomeScore: number | null;
