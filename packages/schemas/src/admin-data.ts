@@ -92,6 +92,8 @@ export const AdminGameSchema = z
     homeTeam: AdminGameTeamSchema,
     awayTeam: AdminGameTeamSchema,
     kickoffAt: z.iso.datetime(),
+    // Phrases the matchup line "vs" rather than "@" (FB-46).
+    neutralSite: z.boolean(),
     status: GameStatusSchema,
     homeScore: z.number().int().nullable(),
     awayScore: z.number().int().nullable(),

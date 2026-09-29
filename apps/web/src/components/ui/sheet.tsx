@@ -105,6 +105,19 @@ function SheetTitle({ className, ...props }: React.ComponentProps<typeof DialogP
   );
 }
 
+function SheetDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+  return (
+    <DialogPrimitive.Description
+      data-slot="sheet-description"
+      className={cn("text-sm text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
 function SheetClose({ ...props }: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="sheet-close" {...props} />;
 }
@@ -113,6 +126,7 @@ export {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetOverlay,
   SheetPortal,

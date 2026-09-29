@@ -197,6 +197,9 @@ export const SimFixtureGameSchema = z
     awayTeamAbbr: z.string(),
     awayTeamName: z.string(),
     kickoffAt: z.iso.datetime(),
+    // Phrases the matchup line "vs" rather than "@" (FB-46). A replayed season
+    // carries the real flag; hand-authored scenarios are never neutral-site.
+    neutralSite: z.boolean(),
     // Home-team-relative, matching `games.spread` (negative = home favored).
     spread: z.number().nullable(),
     // The fixture's terminal truth. The provider reports `scheduled`/`in_progress`

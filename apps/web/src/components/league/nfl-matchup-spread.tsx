@@ -7,6 +7,7 @@ export function NflMatchupSpread({ game }: { game: SlateGame }) {
   return (
     <div className="mb-4 flex flex-col gap-1" data-testid="matchup-spread">
       <MatchupLine
+        neutralSite={game.neutralSite}
         away={
           <MatchupSide
             team={game.awayTeam}

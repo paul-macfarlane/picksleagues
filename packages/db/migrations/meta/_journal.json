@@ -232,6 +232,13 @@
       "when": 1787766872807,
       "tag": "0032_chilly_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790701536436,
+      "tag": "0033_redundant_luke_cage",
+      "breakpoints": true
     }
   ]
 }

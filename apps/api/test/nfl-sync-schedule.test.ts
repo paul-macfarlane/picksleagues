@@ -324,6 +324,38 @@ describe("POST /api/jobs/nfl/sync-schedule", () => {
     expect(g1?.kickoffAt).toEqual(moved);
   });
 
+  it("stores a neutral site's venue, re-runs without churn, and follows a relocation (FB-46)", async () => {
+    seedBaselineProvider();
+    const london = { name: "Wembley Stadium", city: "London", region: null, country: "England" };
+    const withVenue = (venue: typeof london) => [
+      providerGame({ providerGameId: "g1", weekNumber: 1, neutralSite: true, venue }),
+      providerGame({ providerGameId: "g2", weekNumber: 1 }),
+    ];
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), withVenue(london));
+    await runOk();
+
+    const [stored] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    expect(stored).toMatchObject({ neutralSite: true, venue: london });
+
+    // JSONB hands keys back in its own order, so an equal venue must still
+    // compare equal — or every run would rewrite every game that has one.
+    const unchanged = await syncNflSchedule(
+      db,
+      new FixedClock(new Date("2026-09-20T00:00:00.000Z")),
+      provider,
+      {
+        seasonYear: SEASON_YEAR,
+      },
+    );
+    expect(unchanged).toMatchObject({ gamesUpdated: 0 });
+
+    const tottenham = { ...london, name: "Tottenham Hotspur Stadium" };
+    provider.gamesByWeek.set(weekKey(WEEK_TYPE.REGULAR, 1), withVenue(tottenham));
+    expect(await runOk()).toMatchObject({ gamesUpdated: 1 });
+    const [moved] = await db.select().from(games).where(eq(games.providerGameId, "g1"));
+    expect(moved?.venue).toEqual(tottenham);
+  });
+
   it.each([
     { label: "postponed", status: GAME_STATUS.POSTPONED, counter: "postponements" },
     { label: "cancelled", status: GAME_STATUS.CANCELLED, counter: "cancellations" },

@@ -44,6 +44,8 @@ export function providerGame(
     awayTeamName: "Away Team",
     awayTeamProviderId: "awy-id",
     kickoffAt: new Date("2026-09-13T17:00:00.000Z"),
+    neutralSite: false,
+    venue: null,
     status: GAME_STATUS.SCHEDULED,
     homeScore: null,
     awayScore: null,

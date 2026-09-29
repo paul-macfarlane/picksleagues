@@ -4,6 +4,7 @@ import {
   WEEK_TYPE,
   type GameSide,
   type GameStatus,
+  type GameVenue,
   type WeekType,
 } from "@picksleagues/schemas";
 import { formatDateTime, formatKickoff } from "@/lib/format";
@@ -22,6 +23,37 @@ const GAME_STATUS_LABELS: Record<GameStatus, string> = {
 
 export function gameStatusLabel(status: GameStatus): string {
   return GAME_STATUS_LABELS[status];
+}
+
+/**
+ * How a matchup names its two sides (FB-46): "@" when the right-hand team is
+ * at home, "vs" at a neutral site — where the provider still designates a home
+ * team, but calling the game "at" it would misstate where it's played.
+ */
+export function matchupSeparator(neutralSite: boolean): "@" | "vs" {
+  return neutralSite ? "vs" : "@";
+}
+
+/** "IND vs WSH" / "DEN @ KC" — the matchup named in a line of text. */
+export function matchupName(game: {
+  awayTeam: { abbreviation: string };
+  homeTeam: { abbreviation: string };
+  neutralSite: boolean;
+}): string {
+  return `${game.awayTeam.abbreviation} ${matchupSeparator(game.neutralSite)} ${game.homeTeam.abbreviation}`;
+}
+
+/**
+ * A venue's place, phrased the way a US audience reads it: "Green Bay, WI" at
+ * home, "London, England" abroad. The state is what places a US city, the
+ * country everything else; a venue the provider gave no address for falls back
+ * to its own name so the label is never empty.
+ */
+export function venuePlaceLabel(venue: GameVenue): string {
+  const domestic = venue.country === null || venue.country === "USA";
+  const qualifier = domestic ? (venue.region ?? venue.country) : venue.country;
+  if (venue.city === null) return qualifier ?? venue.name;
+  return qualifier === null ? venue.city : `${venue.city}, ${qualifier}`;
 }
 
 const WEEK_TYPE_LABELS: Record<WeekType, string> = {

@@ -1,4 +1,9 @@
-import { type GameStatus, type NflTeamGameContext, type WeekType } from "@picksleagues/schemas";
+import {
+  type GameStatus,
+  type GameVenue,
+  type NflTeamGameContext,
+  type WeekType,
+} from "@picksleagues/schemas";
 
 export type ProviderWeek = {
   weekType: WeekType;
@@ -40,6 +45,13 @@ export type ProviderGame = {
   homeTeamProviderId: string;
   awayTeamProviderId: string;
   kickoffAt: Date;
+  /**
+   * Where the game is played (FB-46) — display data only. A neutral-site game
+   * still names a designated home team, and `spread` stays relative to it.
+   * `venue` is null when the provider names none.
+   */
+  neutralSite: boolean;
+  venue: GameVenue | null;
   // A provider "week move" surfaces as the game's week FK changing, never as a
   // status value (ADR-0019).
   status: GameStatus;

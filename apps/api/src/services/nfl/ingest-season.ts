@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@picksleagues/db";
 import { games, pickemPicks, sportSeasons, teams, weeks } from "@picksleagues/db";
 import type { ProviderGame, ProviderTeam, ProviderWeek } from "@picksleagues/core";
-import { GAME_STATUS, SPORT, type WeekType } from "@picksleagues/schemas";
+import { GAME_STATUS, SPORT, sameGameVenue, type WeekType } from "@picksleagues/schemas";
 import { logInfo } from "../../lib/logger";
 import { warnOnTeamCorrectionWithPicks } from "./team-correction-warning";
 
@@ -386,6 +386,8 @@ export async function ingestSeasonSnapshot(
       const providerFields = {
         weekId,
         kickoffAt: game.kickoffAt,
+        neutralSite: game.neutralSite,
+        venue: game.venue,
         status: game.status,
         homeTeamId,
         awayTeamId,
@@ -439,7 +441,9 @@ export async function ingestSeasonSnapshot(
         existing.status !== game.status ||
         teamsChanged ||
         existing.homeScore !== game.homeScore ||
-        existing.awayScore !== game.awayScore;
+        existing.awayScore !== game.awayScore ||
+        existing.neutralSite !== game.neutralSite ||
+        !sameGameVenue(existing.venue, game.venue);
       if (!changed) continue;
 
       if (teamsChanged) {

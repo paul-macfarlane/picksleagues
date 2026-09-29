@@ -117,6 +117,7 @@ function GameRow({ game }: { game: AdminGame }) {
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <MatchupLine
+        neutralSite={game.neutralSite}
         away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
         center={gameStateLead(game, now)}
         home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}

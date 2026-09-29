@@ -1,14 +1,22 @@
 import {
+  boolean,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { SimFinalStatus, SimScenarioSource, Sport, WeekType } from "@picksleagues/schemas";
+import type {
+  GameVenue,
+  SimFinalStatus,
+  SimScenarioSource,
+  Sport,
+  WeekType,
+} from "@picksleagues/schemas";
 
 /**
  * Simulator fixture tables (SIM-1; arch §Simulator & Time, ADR-0011/ADR-0012/
@@ -102,6 +110,10 @@ export const simFixtureGames = pgTable(
     awayTeamName: text("away_team_name").notNull(),
     awayTeamProviderId: text("away_team_provider_id").notNull(),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
+    // Mirrors `games.neutral_site`/`games.venue` (FB-46): a replay captures
+    // ESPN's own; hand-authored scenarios leave the defaults.
+    neutralSite: boolean("neutral_site").notNull().default(false),
+    venue: jsonb("venue").$type<GameVenue>(),
     // Home-team-relative, matching `games.spread` (negative = home
     // favored). Nullable: a fixture can deliberately have no spread, which is how
     // a straight-up-only week is expressed.

@@ -332,6 +332,7 @@ function PickRow({
           another member's choice is nothing the viewer can act on (ADR-0043
           §3); the rule and the badge carry the verdict. */}
       <MatchupLine
+        neutralSite={game.neutralSite}
         away={
           <MatchupSide
             team={game.awayTeam}
