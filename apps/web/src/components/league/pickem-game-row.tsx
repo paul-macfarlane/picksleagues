@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GameStatePill } from "@/components/league/game-state";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
+import { GameVenueNote } from "@/components/league/game-venue-note";
 import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import {
   PickOutcomeBadge,
@@ -174,6 +175,7 @@ export function SheetGameRow({
           the kickoff, phrased against the app clock — which under the
           simulator is months from the browser's. */}
       <MatchupLine
+        neutralSite={game.neutralSite}
         data-testid="game-state"
         data-kickoff-days={kickoffDaysAway(game.kickoffAt, now)}
         away={
@@ -202,7 +204,10 @@ export function SheetGameRow({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <NflMatchupStats game={game} />
+        <div className="flex flex-wrap items-center gap-2">
+          <NflMatchupStats game={game} />
+          <GameVenueNote game={game} />
+        </div>
         {selectedSide !== undefined && <StatusPill tone="strong">Picked</StatusPill>}
         {noLineYet && <StatusPill>No line yet</StatusPill>}
       </div>
@@ -268,6 +273,7 @@ export function SubmittedPickRow({
       {/* Spread before the game starts, score after — a member whose pick has
           locked wants to know how it is doing, not what they bought it at. */}
       <MatchupLine
+        neutralSite={game.neutralSite}
         data-testid="game-state"
         data-kickoff-days={kickoffDaysAway(game.kickoffAt, now)}
         away={
@@ -296,6 +302,7 @@ export function SubmittedPickRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <NflMatchupStats game={game} />
+          <GameVenueNote game={game} />
           {/* Beside the stats trigger rather than under the score it dates:
               the qualifier reads as a muted footnote so it can't
               be mistaken for a live badge (DATA-8; spec §UI conventions — a

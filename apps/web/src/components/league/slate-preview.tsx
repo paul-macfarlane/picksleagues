@@ -3,6 +3,7 @@ import { gameStateLead, matchupNumerals } from "@/lib/game";
 import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
+import { GameVenueNote } from "@/components/league/game-venue-note";
 import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import { rowClassName } from "@/components/row";
 
@@ -33,14 +34,16 @@ export function SlatePreview({ slate }: { slate: WeekSlateResponse }) {
             {/* Kickoff in the centre, phrased against the app clock — under the
                 simulator months away from the browser's. */}
             <MatchupLine
+              neutralSite={game.neutralSite}
               away={<MatchupSide team={game.awayTeam} numeral={numerals.away} side="away" />}
               center={gameStateLead(game, now)}
               home={<MatchupSide team={game.homeTeam} numeral={numerals.home} side="home" />}
             />
             {/* Scouting ahead is the whole reason this read-only slate exists
                 (FB-20) — the matchup sheet is the same public data. */}
-            <div className="flex">
+            <div className="flex flex-wrap items-center gap-2">
               <NflMatchupStats game={game} />
+              <GameVenueNote game={game} />
             </div>
           </li>
         );

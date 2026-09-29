@@ -174,6 +174,7 @@ export function SimFixtureRow({ game }: { game: SimFixtureGame }) {
   return (
     <li className={cn(rowClassName, "flex flex-col gap-2")}>
       <MatchupLine
+        neutralSite={game.neutralSite}
         away={<MatchupSide team={away} numeral={numerals.away} side="away" />}
         center={formatDateTime(game.kickoffAt)}
         home={<MatchupSide team={home} numeral={numerals.home} side="home" />}

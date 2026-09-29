@@ -13,6 +13,7 @@ import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MatchupLine, MatchupSide } from "@/components/league/matchup-line";
+import { GameVenueNote } from "@/components/league/game-venue-note";
 import { NflMatchupStats } from "@/components/league/nfl-matchup-stats-sheet";
 import {
   PickOutcomeBadge,
@@ -161,6 +162,7 @@ export function SurvivorGameRow({
           starts, status + score after — phrased against the app clock, which
           under the simulator is months away from the browser's. */}
       <MatchupLine
+        neutralSite={game.neutralSite}
         data-testid="game-state"
         away={
           <TeamButton
@@ -188,7 +190,10 @@ export function SurvivorGameRow({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <NflMatchupStats game={game} />
+        <div className="flex flex-wrap items-center gap-2">
+          <NflMatchupStats game={game} />
+          <GameVenueNote game={game} />
+        </div>
         {/* One pill, most-informative-wins: "Your pick" is the fact the member
             came here for, and the line's centre already carries the game's
             own status for every game that has started. */}
@@ -324,6 +329,7 @@ export function SurvivorPickedGameRow({
       className={cn(ROW_CLASS_NAME, grade ? pickOutcomeAccentClassName(grade) : "border-l-primary")}
     >
       <MatchupLine
+        neutralSite={game.neutralSite}
         data-testid="game-state"
         away={
           <HeldTeamButton
@@ -347,7 +353,10 @@ export function SurvivorPickedGameRow({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <NflMatchupStats game={game} />
+        <div className="flex flex-wrap items-center gap-2">
+          <NflMatchupStats game={game} />
+          <GameVenueNote game={game} />
+        </div>
         {/* One pill, most-informative-wins: a graded pick — settled or derived
             — takes the slot from "Your pick", which by then is both implied and
             the less interesting fact. */}

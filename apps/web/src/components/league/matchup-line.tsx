@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import { GAME_SIDE, type GameSide } from "@picksleagues/schemas";
+import { matchupSeparator } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { TeamLogo } from "@/components/team-logo";
 
@@ -22,17 +23,25 @@ import { TeamLogo } from "@/components/team-logo";
  * screen, but it is what makes the line's text content read "MIA 17 Final
  * BUF 27" to a screen reader and to the merge-gate journey, instead of the
  * three runs fused into one word. `MatchupSide` does the same inside a cell.
+ *
+ * `neutralSite` puts "@" or "vs" above the centre (FB-46), which is what makes
+ * home and away explicit rather than a left/right convention the member has to
+ * know. It sits above the state rather than beside it so the centre column
+ * keeps its width at 390px. Omitted where a surface's data doesn't carry the
+ * flag: no separator is better than a guessed "@" on a London game.
  */
 export function MatchupLine({
   away,
   center,
   home,
+  neutralSite,
   className,
   ...props
 }: Omit<ComponentProps<"div">, "children"> & {
   away: ReactNode;
   center: ReactNode;
   home: ReactNode;
+  neutralSite?: boolean;
 }) {
   return (
     <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center gap-x-2", className)} {...props}>
@@ -40,7 +49,14 @@ export function MatchupLine({
           still face each other across it instead of drifting to the page
           edges; a cell's own width is the caller's to cap. */}
       <div className="flex min-w-0 justify-end">{away}</div>{" "}
-      <span className="type-eyebrow min-w-20 text-center">{center}</span>{" "}
+      <span className="type-eyebrow flex min-w-20 flex-col items-center text-center">
+        {neutralSite !== undefined && (
+          <span className="text-muted-foreground" data-testid="matchup-separator">
+            {matchupSeparator(neutralSite)}
+          </span>
+        )}{" "}
+        <span>{center}</span>
+      </span>{" "}
       <div className="flex min-w-0 justify-start">{home}</div>
     </div>
   );
