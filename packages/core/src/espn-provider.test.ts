@@ -905,11 +905,15 @@ describe("EspnProvider.fetchNflWeekGames", () => {
           venue: { name: "Somewhere Stadium", city: null, region: null, country: null },
         },
       },
-      ...[
-        { venue: null, neutralSite: null },
-        { venue: { id: "3622" } },
-        { venue: { fullName: "Lambeau Field", address: { city: null } } },
-      ].map((site) => ({
+      {
+        name: "a venue whose one malformed address part is dropped alone",
+        site: { venue: { fullName: "Lambeau Field", address: { city: null, state: "WI" } } },
+        expected: {
+          neutralSite: false,
+          venue: { name: "Lambeau Field", city: null, region: "WI", country: null },
+        },
+      },
+      ...[{ venue: null, neutralSite: null }, { venue: { id: "3622" } }].map((site) => ({
         // Display-only data ESPN reshapes must not fail the week's parse, which
         // the score and odds syncs share.
         name: `a malformed site ${JSON.stringify(site)} as no venue`,

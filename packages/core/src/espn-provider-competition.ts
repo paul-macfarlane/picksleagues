@@ -16,11 +16,13 @@ const EspnVenueSchema = z
     fullName: z.string(),
     address: z
       .looseObject({
-        city: z.string().optional(),
-        state: z.string().optional(),
-        country: z.string().optional(),
+        // Caught per part, so one reshaped field costs that part, not the venue.
+        city: z.string().optional().catch(undefined),
+        state: z.string().optional().catch(undefined),
+        country: z.string().optional().catch(undefined),
       })
-      .optional(),
+      .optional()
+      .catch(undefined),
   })
   .optional()
   .catch(undefined);
