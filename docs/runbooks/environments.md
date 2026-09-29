@@ -68,6 +68,13 @@ throwaway Postgres container — deployed databases are migrated by this workflo
 The workflow races the Vercel deploy, so migrations must stay backward-compatible with the
 previously deployed code (expand/contract).
 
+If a push to `staging`/`main` shows no `Migrate` run (GitHub occasionally drops the push
+event while Vercel still deploys, and the new code then queries columns that don't exist),
+run it by hand from GitHub rather than from a local machine: Actions → Migrate → Run workflow,
+choosing the `staging` or `main` branch, or `gh workflow run migrate.yml --ref staging`. The
+branch picks the database exactly as a push would; any other ref fails before connecting.
+Re-running on an already-migrated database is a no-op.
+
 The API talks to Neon with plain `pg` over TCP — no Neon-specific driver. Fluid Compute is a
 full Node runtime, so the same driver serves Docker Postgres locally/in tests and Neon in
 deployed envs; `@neondatabase/serverless` is only for TCP-less runtimes (edge/workers) and
