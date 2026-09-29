@@ -8,9 +8,9 @@ import type { GameVenue } from "@picksleagues/schemas";
  * is imported outside it and its tests.
  */
 
-// FB-46. Optional throughout: ESPN omits the venue on some historical
-// payloads, and a game with no venue is one we can still ingest, not a
-// malformed one.
+// FB-46. Absent, null, or malformed all read as "no venue" (`.catch`): the
+// scoreboard parse is strict and shared with the score and odds syncs, so a
+// display-only field ESPN reshapes must never fail a week's ingestion.
 const EspnVenueSchema = z
   .looseObject({
     fullName: z.string(),
@@ -22,7 +22,8 @@ const EspnVenueSchema = z
       })
       .optional(),
   })
-  .optional();
+  .optional()
+  .catch(undefined);
 
 /** ESPN sends `""` for an unknown address part as readily as it omits it. */
 function presentOrNull(value: string | undefined): string | null {
@@ -43,7 +44,7 @@ function mapVenue(venue: z.infer<typeof EspnVenueSchema>): GameVenue | null {
 
 /** Spread into ESPN's competition schema: where the game is played. */
 export const EspnSiteFields = {
-  neutralSite: z.boolean().optional(),
+  neutralSite: z.boolean().optional().catch(undefined),
   venue: EspnVenueSchema,
 };
 

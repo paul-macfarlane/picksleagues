@@ -905,6 +905,17 @@ describe("EspnProvider.fetchNflWeekGames", () => {
           venue: { name: "Somewhere Stadium", city: null, region: null, country: null },
         },
       },
+      ...[
+        { venue: null, neutralSite: null },
+        { venue: { id: "3622" } },
+        { venue: { fullName: "Lambeau Field", address: { city: null } } },
+      ].map((site) => ({
+        // Display-only data ESPN reshapes must not fail the week's parse, which
+        // the score and odds syncs share.
+        name: `a malformed site ${JSON.stringify(site)} as no venue`,
+        site,
+        expected: { neutralSite: false, venue: null },
+      })),
     ])("maps $name", async ({ site, expected }) => {
       const provider = makeProvider(stubFetch({ [scoreboardUrl]: scoreboardWithSite(site) }));
       const [game] = await provider.fetchNflWeekGames(2026, WEEK_TYPE.REGULAR, 1);

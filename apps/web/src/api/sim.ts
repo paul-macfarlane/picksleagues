@@ -17,6 +17,7 @@ import {
 import { api } from "@/lib/api";
 import { toastOnExpectedError } from "@/api/refusals";
 import { formatDateTime } from "@/lib/format";
+import { matchupSeparator } from "@/lib/game";
 
 // The simulator's bindings (SIM-7). Every route behind these hooks is
 // unregistered outside a sim-enabled environment (ADR-0011/ADR-0014), so
@@ -214,7 +215,9 @@ export function useUpdateSimFixtureGame() {
     },
     onSuccess: async (data) => {
       if (!data) return;
-      toastSuccess(`Updated ${data.awayTeamAbbr} @ ${data.homeTeamAbbr}`);
+      toastSuccess(
+        `Updated ${data.awayTeamAbbr} ${matchupSeparator(data.neutralSite)} ${data.homeTeamAbbr}`,
+      );
       // Only the simulator's own keys, deliberately unlike the clock mutations:
       // editing a fixture changes what a *subsequent* sync would ingest, not
       // any table the rest of the app reads right now.

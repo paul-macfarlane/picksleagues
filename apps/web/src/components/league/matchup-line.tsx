@@ -9,8 +9,8 @@ import { TeamLogo } from "@/components/team-logo";
  * across a centre column, the abbreviation in display type and a numeral
  * beside it that is the line before kickoff and the score after
  * (`matchupNumerals`). One component behind the Pick'em sheet, the Survivor
- * sheet, the All Picks breakdown, the slate preview, and the admin games
- * browser, so the row's shape is the same on every surface and across every
+ * sheet, the All Picks breakdown, the slate preview, the Stats sheet's spread,
+ * and the admin and simulator browsers, so the row's shape is the same on every surface and across every
  * state — only what the slot holds and what the row's left rule says changes.
  *
  * Layout only. A cell is whatever the caller hands it — a `MatchupSide` bare
@@ -20,7 +20,7 @@ import { TeamLogo } from "@/components/team-logo";
  *
  * The whitespace between the three columns is deliberate and load-bearing: a
  * grid drops whitespace-only text nodes from layout, so it costs nothing on
- * screen, but it is what makes the line's text content read "MIA 17 Final
+ * screen, but it is what makes the line's text content read "MIA 17 @ Final
  * BUF 27" to a screen reader and to the merge-gate journey, instead of the
  * three runs fused into one word. `MatchupSide` does the same inside a cell.
  *
