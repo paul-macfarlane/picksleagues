@@ -115,92 +115,97 @@ describe("EspnProvider.fetchNflSeasonStructure", () => {
     ]);
   });
 
-  it("fetches postseason weeks, excludes the Pro Bowl, and renumbers ESPN's gapped scheme to the contiguous domain (Super Bowl 5 → 4)", async () => {
-    const wildCardRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/1`;
-    const divisionalRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/2`;
-    const conferenceRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/3`;
-    const proBowlRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/4`;
-    const superBowlRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/5`;
+  // ESPN's label for the week-4 off week varies by season: "Pro Bowl" in
+  // 2025-26, a duplicate "Super Bowl" in 2026-27.
+  it.each(["Pro Bowl", "Super Bowl"])(
+    "fetches postseason weeks, excludes the off week (labelled %s), and renumbers ESPN's gapped scheme to the contiguous domain (Super Bowl 5 → 4)",
+    async (offWeekLabel) => {
+      const wildCardRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/1`;
+      const divisionalRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/2`;
+      const conferenceRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/3`;
+      const proBowlRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/4`;
+      const superBowlRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/5`;
 
-    const fetchImpl = stubFetch({
-      [REGULAR_INDEX_URL]: jsonResponse({ items: [] }),
-      [POSTSEASON_INDEX_URL]: jsonResponse({
-        items: [
-          { $ref: wildCardRef },
-          { $ref: divisionalRef },
-          { $ref: conferenceRef },
-          { $ref: proBowlRef },
-          { $ref: superBowlRef },
-        ],
-      }),
-      [wildCardRef]: jsonResponse({
-        number: 1,
-        text: "Wild Card",
-        startDate: "2027-01-06T08:00Z",
-        endDate: "2027-01-13T07:59Z",
-      }),
-      [divisionalRef]: jsonResponse({
-        number: 2,
-        text: "Divisional Round",
-        startDate: "2027-01-13T08:00Z",
-        endDate: "2027-01-20T07:59Z",
-      }),
-      [conferenceRef]: jsonResponse({
-        number: 3,
-        text: "Conference Championship",
-        startDate: "2027-01-20T08:00Z",
-        endDate: "2027-01-27T07:59Z",
-      }),
-      [proBowlRef]: jsonResponse({
-        number: 4,
-        text: "Pro Bowl",
-        startDate: "2027-01-27T08:00Z",
-        endDate: "2027-02-03T07:59Z",
-      }),
-      [superBowlRef]: jsonResponse({
-        number: 5,
-        text: "Super Bowl",
-        startDate: "2027-02-03T08:00Z",
-        endDate: "2027-02-10T07:59Z",
-      }),
-    });
+      const fetchImpl = stubFetch({
+        [REGULAR_INDEX_URL]: jsonResponse({ items: [] }),
+        [POSTSEASON_INDEX_URL]: jsonResponse({
+          items: [
+            { $ref: wildCardRef },
+            { $ref: divisionalRef },
+            { $ref: conferenceRef },
+            { $ref: proBowlRef },
+            { $ref: superBowlRef },
+          ],
+        }),
+        [wildCardRef]: jsonResponse({
+          number: 1,
+          text: "Wild Card",
+          startDate: "2027-01-06T08:00Z",
+          endDate: "2027-01-13T07:59Z",
+        }),
+        [divisionalRef]: jsonResponse({
+          number: 2,
+          text: "Divisional Round",
+          startDate: "2027-01-13T08:00Z",
+          endDate: "2027-01-20T07:59Z",
+        }),
+        [conferenceRef]: jsonResponse({
+          number: 3,
+          text: "Conference Championship",
+          startDate: "2027-01-20T08:00Z",
+          endDate: "2027-01-27T07:59Z",
+        }),
+        [proBowlRef]: jsonResponse({
+          number: 4,
+          text: offWeekLabel,
+          startDate: "2027-01-27T08:00Z",
+          endDate: "2027-02-03T07:59Z",
+        }),
+        [superBowlRef]: jsonResponse({
+          number: 5,
+          text: "Super Bowl",
+          startDate: "2027-02-03T08:00Z",
+          endDate: "2027-02-10T07:59Z",
+        }),
+      });
 
-    const provider = makeProvider(fetchImpl);
-    const structure = await provider.fetchNflSeasonStructure(2026);
+      const provider = makeProvider(fetchImpl);
+      const structure = await provider.fetchNflSeasonStructure(2026);
 
-    // Pro Bowl gone; the four real rounds contiguous 1..4 with the Super Bowl's
-    // label preserved but its ESPN number 5 translated to the domain 4.
-    expect(structure.weeks).toEqual([
-      {
-        weekType: WEEK_TYPE.POSTSEASON,
-        weekNumber: 1,
-        label: "Wild Card",
-        startsAt: new Date("2027-01-06T08:00Z"),
-        endsAt: new Date("2027-01-13T07:59Z"),
-      },
-      {
-        weekType: WEEK_TYPE.POSTSEASON,
-        weekNumber: 2,
-        label: "Divisional Round",
-        startsAt: new Date("2027-01-13T08:00Z"),
-        endsAt: new Date("2027-01-20T07:59Z"),
-      },
-      {
-        weekType: WEEK_TYPE.POSTSEASON,
-        weekNumber: 3,
-        label: "Conference Championship",
-        startsAt: new Date("2027-01-20T08:00Z"),
-        endsAt: new Date("2027-01-27T07:59Z"),
-      },
-      {
-        weekType: WEEK_TYPE.POSTSEASON,
-        weekNumber: 4,
-        label: "Super Bowl",
-        startsAt: new Date("2027-02-03T08:00Z"),
-        endsAt: new Date("2027-02-10T07:59Z"),
-      },
-    ]);
-  });
+      // Off week gone; the four real rounds contiguous 1..4 with the Super Bowl's
+      // label preserved but its ESPN number 5 translated to the domain 4.
+      expect(structure.weeks).toEqual([
+        {
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 1,
+          label: "Wild Card",
+          startsAt: new Date("2027-01-06T08:00Z"),
+          endsAt: new Date("2027-01-13T07:59Z"),
+        },
+        {
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 2,
+          label: "Divisional Round",
+          startsAt: new Date("2027-01-13T08:00Z"),
+          endsAt: new Date("2027-01-20T07:59Z"),
+        },
+        {
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 3,
+          label: "Conference Championship",
+          startsAt: new Date("2027-01-20T08:00Z"),
+          endsAt: new Date("2027-01-27T07:59Z"),
+        },
+        {
+          weekType: WEEK_TYPE.POSTSEASON,
+          weekNumber: 4,
+          label: "Super Bowl",
+          startsAt: new Date("2027-02-03T08:00Z"),
+          endsAt: new Date("2027-02-10T07:59Z"),
+        },
+      ]);
+    },
+  );
 
   it("throws on an unexpected ESPN postseason number (not in the translation map)", async () => {
     const rogueRef = `${CORE_API_BASE_URL}/football/leagues/nfl/seasons/2026/types/3/weeks/6`;

@@ -25,15 +25,16 @@ const DEFAULT_STANDINGS_API_BASE_URL = "https://site.api.espn.com/apis/v2/sports
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 // ESPN season-type ids: 2 = regular season (weeks 1–18), 3 = postseason
-// (weeks 1–5, of which week 4 "Pro Bowl" is excluded below).
+// (weeks 1–5, of which week 4 — the pre–Super Bowl off week — is excluded below).
 const ESPN_SEASON_TYPE_BY_WEEK_TYPE: Record<WeekType, number> = {
   [WEEK_TYPE.REGULAR]: 2,
   [WEEK_TYPE.POSTSEASON]: 3,
 };
 
 /**
- * ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the "Pro Bowl", which
- * is not a competitive game and is excluded (by label) below, leaving a gap.
+ * ESPN numbers the postseason 1, 2, 3, 5 — its week 4 is the off week before
+ * the Super Bowl, which holds no competitive game and is excluded below,
+ * leaving a gap.
  * Our domain model numbers the four real rounds contiguously (Wild Card=1 …
  * Super Bowl=4), matching `NflWeekRef` and `estimatedNflWeeks`. This
  * adapter owns that translation so ESPN's gapped numbering never leaks
@@ -46,8 +47,15 @@ export const ESPN_POSTSEASON_NUMBER_BY_DOMAIN: Record<number, number> = {
   1: 1, // Wild Card
   2: 2, // Divisional Round
   3: 3, // Conference Championship
-  4: 5, // Super Bowl (ESPN's 4 is the excluded Pro Bowl)
+  4: 5, // Super Bowl (ESPN's 4 is the excluded off week)
 };
+
+/**
+ * ESPN's pre–Super Bowl off week. Excluded by number because its label isn't
+ * stable: 2025-26 calls it "Pro Bowl", while 2026-27 labels it "Super Bowl",
+ * duplicating week 5's label (verified 2026-09-30).
+ */
+const ESPN_POSTSEASON_OFF_WEEK_NUMBER = 4;
 
 const DOMAIN_POSTSEASON_NUMBER_BY_ESPN: Record<number, number> = Object.fromEntries(
   Object.entries(ESPN_POSTSEASON_NUMBER_BY_DOMAIN).map(([domain, espn]) => [espn, Number(domain)]),
@@ -83,8 +91,8 @@ const WeeksIndexSchema = z.object({
 
 const WeekDetailSchema = z.looseObject({
   number: z.number(),
-  // Provider display label ("Week 1", "Wild Card"); also drives the Pro Bowl
-  // exclusion below.
+  // Provider display label ("Week 1", "Wild Card"); also a second guard on the
+  // Pro Bowl exclusion below.
   text: z.string(),
   startDate: z.string(),
   endDate: z.string(),
@@ -430,13 +438,19 @@ export class EspnProvider implements GameDataProvider {
       }),
     );
 
-    // Exclude the Pro Bowl (ESPN postseason week 4) *before* translating
-    // numbers — it's not a competitive game and is the reason ESPN's postseason
-    // numbering has a gap. Match on the label rather than the number so an ESPN
-    // renumbering can't sneak it back in (the number translation below would
-    // then throw on the unexpected value, which is the intended contract break).
+    // Exclude the off week (ESPN postseason week 4) *before* translating
+    // numbers — it holds no competitive game and is the reason ESPN's
+    // postseason numbering has a gap. Matched by number, since ESPN's label for
+    // it varies by season; a "Pro Bowl" label is excluded too, so an ESPN
+    // renumbering can't sneak the Pro Bowl back in (any other unexpected number
+    // makes the translation below throw, which is the intended contract break).
     return weeks
-      .filter((week) => !week.label.toLowerCase().includes("pro bowl"))
+      .filter(
+        (week) =>
+          !(
+            weekType === WEEK_TYPE.POSTSEASON && week.espnNumber === ESPN_POSTSEASON_OFF_WEEK_NUMBER
+          ) && !week.label.toLowerCase().includes("pro bowl"),
+      )
       .map(
         (week) =>
           ({
