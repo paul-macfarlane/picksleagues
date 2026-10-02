@@ -120,7 +120,7 @@ const SummaryInjuryEntrySchema = z.looseObject({
     displayName: z.string(),
     position: z.looseObject({ abbreviation: z.string() }).optional(),
   }),
-  details: z.looseObject({ type: z.string() }).optional(),
+  details: z.looseObject({ type: z.string().optional() }).optional(),
 });
 
 const SummaryLastFiveEventSchema = z.looseObject({
