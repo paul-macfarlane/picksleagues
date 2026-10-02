@@ -1646,6 +1646,32 @@ describe("EspnProvider.fetchNflGameStatContext", () => {
     });
   });
 
+  it("reads an injury whose details omit the type as a null injury type", async () => {
+    // Seen live: a "Surgery" entry carrying only location/detail/returnDate.
+    const fetchImpl = summaryFetch(
+      summaryBody({
+        injuries: [
+          {
+            team: { id: "21" },
+            injuries: [
+              {
+                status: "Questionable",
+                athlete: { displayName: "C. Tackle", position: { abbreviation: "DT" } },
+                details: { location: "Torso", detail: "Surgery", returnDate: "2026-10-04" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const context = await makeProvider(fetchImpl).fetchNflGameStatContext("401");
+
+    expect(context?.home.injuries).toEqual([
+      { athleteName: "C. Tackle", position: "DT", status: "Questionable", injuryType: null },
+    ]);
+  });
+
   it("keeps only current-season games, newest first and capped at five", async () => {
     const currentSeasonEvents = Array.from({ length: 6 }, (_, index) => ({
       atVs: index % 2 === 0 ? "vs" : "@",
