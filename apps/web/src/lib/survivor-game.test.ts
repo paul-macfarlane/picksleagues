@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { GAME_STATUS, PICK_OUTCOME, type GameStatus } from "@picksleagues/schemas";
+import {
+  GAME_STATUS,
+  PICK_OUTCOME,
+  type GameStatus,
+  type PickOutcome,
+} from "@picksleagues/schemas";
 import {
   survivorPickGrade,
   survivorProvisionalOutcome,
   SURVIVOR_REVIVAL_OUTLOOK,
   survivorRevivalOutlook,
+  survivorRevivedWeekIds,
   survivorWeeksSurvived,
 } from "./survivor-game";
 
@@ -176,5 +182,44 @@ describe("survivorWeeksSurvived", () => {
     },
   ])("$name", ({ outcomes, expected }) => {
     expect(survivorWeeksSurvived(outcomes.map((outcome) => ({ outcome })))).toBe(expected);
+  });
+});
+
+describe("survivorRevivedWeekIds", () => {
+  const pick = (weekId: string, outcome: PickOutcome | null) => ({ weekId, outcome });
+
+  it.each([
+    {
+      name: "a settled loss by a member still alive was revived",
+      member: { eliminatedWeekId: null, picks: [pick("w1", PICK_OUTCOME.INCORRECT)] },
+      certainWeekId: null,
+      expected: ["w1"],
+    },
+    {
+      name: "the loss that eliminated them was not",
+      member: {
+        eliminatedWeekId: "w3",
+        picks: [pick("w1", PICK_OUTCOME.INCORRECT), pick("w3", PICK_OUTCOME.INCORRECT)],
+      },
+      certainWeekId: null,
+      expected: ["w1"],
+    },
+    {
+      name: "wins, pushes, and ungraded picks were not",
+      member: {
+        eliminatedWeekId: null,
+        picks: [pick("w1", PICK_OUTCOME.CORRECT), pick("w2", PICK_OUTCOME.PUSH), pick("w3", null)],
+      },
+      certainWeekId: null,
+      expected: [],
+    },
+    {
+      name: "a certain revival counts ahead of settlement",
+      member: { eliminatedWeekId: null, picks: [pick("w2", null)] },
+      certainWeekId: "w2",
+      expected: ["w2"],
+    },
+  ])("$name", ({ member, certainWeekId, expected }) => {
+    expect([...survivorRevivedWeekIds(member, certainWeekId)]).toEqual(expected);
   });
 });

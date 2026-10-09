@@ -148,22 +148,21 @@ export async function getSurvivorStandings(
   const now = clock.now();
   const lockedByGame = new Map(gameRows.map((row) => [row.id, isLocked(row.kickoffAt, now)]));
 
-  // State before results: a settlement committing between the two reads then
-  // pairs a graded pick with pre-settlement state, which the board reads as a
-  // revival already counted elsewhere — never the reverse, an ungraded pick
-  // beside a revival count that already includes it, which the board's
-  // ahead-of-settlement "Revived" would count twice.
-  const state = await db
-    .select()
-    .from(survivorState)
-    .where(eq(survivorState.leagueSeasonId, leagueSeasonId));
-  const stateByMemberId = new Map(state.map((row) => [row.leagueMemberId, row]));
-
+  // Results before state: a settlement committing between the two reads then
+  // pairs an ungraded pick with post-settlement state — Out, or alive and about
+  // to be shown revived — never a graded loss beside pre-settlement state,
+  // which the board would read as a loss the revival already reversed.
   const results = await db
     .select()
     .from(survivorPickResults)
     .where(eq(survivorPickResults.leagueSeasonId, leagueSeasonId));
   const outcomeByPickId = new Map(results.map((row) => [row.survivorPickId, row.outcome]));
+
+  const state = await db
+    .select()
+    .from(survivorState)
+    .where(eq(survivorState.leagueSeasonId, leagueSeasonId));
+  const stateByMemberId = new Map(state.map((row) => [row.leagueMemberId, row]));
 
   // Taken from the rows already selected rather than a second `max()` query: a
   // settlement landing between two statements would stamp the response with an

@@ -3,31 +3,28 @@ import {
   SURVIVOR_MEMBER_STATUS,
   type SlateTeam,
   type SurvivorStandingsMember,
-  type SurvivorStandingsPick,
-  type SurvivorStandingsPickGame,
   type SurvivorStandingsResponse,
 } from "@picksleagues/schemas";
 import { useSurvivorStandings } from "@/api/survivor";
-import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
-import { gameStateLabel } from "@/lib/game";
 import {
   SURVIVOR_REVIVAL_OUTLOOK,
   survivorPickGrade,
   survivorRevivalOutlook,
+  survivorRevivedWeekIds,
   type SurvivorRevivalOutlook,
   survivorWeeksSurvived,
 } from "@/lib/survivor-game";
 import { LoadingRegion } from "@/components/loading";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PickOutcomeBadge, pickOutcomeAccentClassName } from "@/components/league/pick-outcome";
 import { StandingsUpdatedStamp } from "@/components/league/standings-updated-stamp";
 import { QueryState } from "@/components/query-state";
-import { rowClassName, rowRuleClassName } from "@/components/row";
+import { rowClassName } from "@/components/row";
 import { Section } from "@/components/section";
 import { StatusPill } from "@/components/status-pill";
 import { TeamLogo } from "@/components/team-logo";
 import { UserIdentity } from "@/components/user-identity";
+import { CurrentWeekPick, PickHistory } from "@/components/league/survivor-board-picks";
 
 /**
  * The survivor board (spec §Standings View): every member's status, the week
@@ -47,20 +44,6 @@ import { UserIdentity } from "@/components/user-identity";
 function statusLabel(member: SurvivorStandingsMember, winnerCount: number): string {
   if (member.isWinner) return winnerCount > 1 ? "Co-winner" : "Winner";
   return member.status === SURVIVOR_MEMBER_STATUS.ALIVE ? "Alive" : "Out";
-}
-
-/** `gameStateLabel`'s shape, built from the pick's game block + the shared team lookup. */
-function gameStateInput(game: SurvivorStandingsPickGame, teams: ReadonlyMap<string, SlateTeam>) {
-  return {
-    status: game.status,
-    kickoffAt: game.kickoffAt,
-    homeScore: game.homeScore,
-    awayScore: game.awayScore,
-    period: game.period,
-    clockSeconds: game.clockSeconds,
-    homeTeam: { abbreviation: teams.get(game.homeTeamId)?.abbreviation ?? "—" },
-    awayTeam: { abbreviation: teams.get(game.awayTeamId)?.abbreviation ?? "—" },
-  };
 }
 
 function SurvivorBoardSkeleton() {
@@ -218,7 +201,7 @@ function BoardRow({
   // revival may yet save them, and a bare "Alive" beside a lost pick reads as a
   // bug. Both halves matter — this member's derived loss, and the league-wide
   // outlook above. Provisional only: once the week settles, the member is
-  // either Out or carries the settled Revived count, and ADR-0028's
+  // either Out or their pick carries the settled Revived tag, and ADR-0028's
   // provisional elimination ends the state server-side the instant someone
   // else's survival is certain.
   const pendingRevival =
@@ -228,12 +211,12 @@ function BoardRow({
     currentPick.outcome === null &&
     survivorPickGrade(currentPick) === PICK_OUTCOME.INCORRECT;
   const revivalPossible = pendingRevival && revivalOutlook === SURVIVOR_REVIVAL_OUTLOOK.POSSIBLE;
-  // A certain revival reads as the revival it is, counted ahead of settlement
-  // the way the derived grade is — settlement then lands the same number, so
-  // the pill doesn't change when "last updated" does.
-  const revivedCount =
-    member.revivedCount +
-    (pendingRevival && revivalOutlook === SURVIVOR_REVIVAL_OUTLOOK.CERTAIN ? 1 : 0);
+  // Revival is marked on the pick it saved, not the member: a member-level
+  // "Revived" outlived its week and read as this week's news every week after.
+  const revivedWeekIds = survivorRevivedWeekIds(
+    member,
+    pendingRevival && revivalOutlook === SURVIVOR_REVIVAL_OUTLOOK.CERTAIN ? currentWeekId : null,
+  );
   // The section renders whenever a current week exists — "no pick in yet" is
   // an answer the glance exists to give, not an absent block.
   const showCurrentPick = !concluded && alive && currentWeekId !== null;
@@ -289,11 +272,6 @@ function BoardRow({
         {revivalPossible && (
           <StatusPill data-testid="survivor-revival-possible">Revival possible</StatusPill>
         )}
-        {revivedCount > 0 && (
-          <StatusPill tone="highlight" data-testid="survivor-revived">
-            Revived{revivedCount > 1 ? ` ×${revivedCount}` : ""}
-          </StatusPill>
-        )}
         <StatusPill
           tone={member.isWinner ? "success" : alive ? "highlight" : "neutral"}
           data-testid="survivor-member-status"
@@ -307,13 +285,20 @@ function BoardRow({
           behind the history disclosure. Skipped once the season is over or the
           member is out — there is no "this week" left for them, and their last
           pick stays in the history instead. */}
-      {showCurrentPick && <CurrentWeekPick pick={currentPick} teams={teams} />}
+      {showCurrentPick && (
+        <CurrentWeekPick
+          pick={currentPick}
+          teams={teams}
+          revived={currentWeekId !== null && revivedWeekIds.has(currentWeekId)}
+        />
+      )}
 
       <ConsumedTeams member={member} teams={teams} />
       <PickHistory
         member={member}
         teams={teams}
         weekLabels={weekLabels}
+        revivedWeekIds={revivedWeekIds}
         // Excluded exactly when the row-level section shows it. The rest of
         // the disclosure is *usually* previous weeks — a next-week pick made
         // early (the window ADR-0036 opens on a win) also lives here until
@@ -321,66 +306,6 @@ function BoardRow({
         excludeWeekId={showCurrentPick ? currentWeekId : null}
       />
     </li>
-  );
-}
-
-/**
- * The member's current-week pick, live: team, game state, and the settled or
- * derived verdict. A pick that exists but is withheld renders as the fact that
- * it exists — the league sees they're in without seeing who they took (spec
- * §Pick Visibility; the server sent no team and no game for it). No pick at
- * all renders as exactly that: "nobody has picked yet" is one of the answers
- * the glance exists to give.
- */
-function CurrentWeekPick({
-  pick,
-  teams,
-}: {
-  pick: SurvivorStandingsPick | null;
-  teams: ReadonlyMap<string, SlateTeam>;
-}) {
-  const now = useAppNow();
-  const team = pick?.teamId ? teams.get(pick.teamId) : null;
-  const grade = pick ? survivorPickGrade(pick) : null;
-
-  return (
-    <div
-      data-testid="survivor-current-pick"
-      // The same identity attributes the history entries carry, so a journey
-      // can address "this member's pick for week N" without caring which of
-      // the two homes (row level vs history) the board gave it.
-      data-week={pick?.weekId}
-      data-team={team?.abbreviation}
-      // The row tier's left rule and outcome colour (ADR-0043 §2), the same
-      // frame as every other pick row in the app (FB-42), so this week's pick
-      // and the history entries below read as one list rather than two designs
-      // — and no box, since this already sits inside the member's row.
-      className={cn(
-        "flex flex-col gap-1 py-2 text-sm",
-        rowRuleClassName,
-        pickOutcomeAccentClassName(grade),
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <span className="type-eyebrow">This week</span>
-          {team && (
-            <>
-              <TeamLogo logoLightUrl={team.logoLightUrl} logoDarkUrl={team.logoDarkUrl} size="sm" />
-              {team.abbreviation}
-            </>
-          )}
-        </span>
-        {grade && <PickOutcomeBadge outcome={grade} />}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {team && pick?.game
-          ? gameStateLabel(gameStateInput(pick.game, teams), now)
-          : pick
-            ? "In — hidden until kickoff"
-            : "No pick in yet"}
-      </p>
-    </div>
   );
 }
 
@@ -429,84 +354,5 @@ function ConsumedTeams({
         })}
       </ul>
     </div>
-  );
-}
-
-/**
- * The member's season, behind a native disclosure: eighteen weeks open by
- * default would bury the twelve rows around it, and `details`/`summary` is
- * keyboard-operable and announced without any of the state a custom one needs.
- */
-function PickHistory({
-  member,
-  teams,
-  weekLabels,
-  excludeWeekId,
-}: {
-  member: SurvivorStandingsMember;
-  teams: ReadonlyMap<string, SlateTeam>;
-  weekLabels: ReadonlyMap<string, string>;
-  /** The week the row-level section already shows, or null to list everything. */
-  excludeWeekId: string | null;
-}) {
-  const now = useAppNow();
-  const picks = member.picks.filter((pick) => pick.weekId !== excludeWeekId);
-  if (picks.length === 0) return null;
-
-  return (
-    <details className="group">
-      <summary className="type-eyebrow touch-hit cursor-pointer list-none outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-        Pick history ({picks.length})
-      </summary>
-      <ul className="mt-2 flex flex-col">
-        {picks.map((pick) => {
-          const team = pick.teamId ? teams.get(pick.teamId) : null;
-          // Settled or derived (FB-25), same as everywhere else on the board.
-          const grade = survivorPickGrade(pick);
-          return (
-            <li
-              key={pick.weekId}
-              data-testid="survivor-history-entry"
-              data-week={pick.weekId}
-              data-team={team?.abbreviation}
-              className={cn(
-                "flex flex-col gap-1 text-sm",
-                rowClassName,
-                rowRuleClassName,
-                pickOutcomeAccentClassName(grade),
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span className="flex items-center gap-1.5 font-medium text-foreground">
-                  <span className="type-eyebrow">{weekLabels.get(pick.weekId)}</span>
-                  {team && (
-                    <>
-                      <TeamLogo
-                        logoLightUrl={team.logoLightUrl}
-                        logoDarkUrl={team.logoDarkUrl}
-                        size="sm"
-                      />
-                      {team.abbreviation}
-                    </>
-                  )}
-                </span>
-                {grade && <PickOutcomeBadge outcome={grade} />}
-              </div>
-              {/* The score, which this row used to omit while the "This week"
-                  block above it showed one — the same pick reading differently
-                  depending on which of its two homes you found it in (FB-43).
-                  A withheld pick still names nothing: its game would narrow it
-                  to two teams (spec §Pick Visibility), which is why the server
-                  sends no game block for one. */}
-              <p className="text-xs text-muted-foreground">
-                {team && pick.game
-                  ? gameStateLabel(gameStateInput(pick.game, teams), now)
-                  : "Hidden until kickoff"}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
-    </details>
   );
 }
