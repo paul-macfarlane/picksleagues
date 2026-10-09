@@ -90,22 +90,48 @@ export function survivorPickGrade(pick: SurvivorGradablePick): PickOutcome | nul
   );
 }
 
+/** How the everyone-out revival (spec §Game Mode 2) stands for the current week. */
+export const SURVIVOR_REVIVAL_OUTLOOK = {
+  RULED_OUT: "ruled_out",
+  POSSIBLE: "possible",
+  CERTAIN: "certain",
+} as const;
+export type SurvivorRevivalOutlook =
+  (typeof SURVIVOR_REVIVAL_OUTLOOK)[keyof typeof SURVIVOR_REVIVAL_OUTLOOK];
+
 /**
- * Whether the everyone-out revival (spec §Game Mode 2) is still on the table
- * for the week: false the moment any alive member's pick has already secured
+ * Where the everyone-out revival stands for the week, from the alive members'
+ * current picks. Ruled out the moment any alive member's pick has secured
  * survival — a win, or a push (ties advance, ADR-0033; cancellations survive).
- * A missing, hidden, or still-undecided pick keeps it possible — that member's
- * fate is simply not known yet. The definitive end of the state is still the
- * server's (ADR-0028's provisional elimination flips doomed members to Out);
- * this is the display-side mirror so a "revival possible" claim can't stand
- * beside a row whose derived win already disproves it.
+ * Certain once every alive member's pick has a derived loss: a pick locks at
+ * its game's kickoff, so nothing left in the week can save any of them, and
+ * the rule revives them all. A missing, hidden, or still-undecided pick keeps
+ * it merely possible — that member's fate is not known yet.
+ *
+ * `priorWeeksSettled` is the caller's obligation: whether settlement has
+ * graded every earlier week. Settlement replays weeks in order and stops at
+ * the first it can't finish (ADR-0025), so until then the alive set is not the
+ * one entering this week — members a stuck earlier week will eliminate still
+ * read alive, and their loss here revives nobody. Certain also stops short of
+ * a later correction (a final re-marked cancelled, a score fix), which every
+ * derived grade shares. The definitive answer is settlement's; this is the
+ * display-side mirror so the board's claim can't contradict a row whose
+ * derived grade already decides it.
  */
-export function survivorRevivalStillPossible(
+export function survivorRevivalOutlook(
   aliveCurrentPicks: ReadonlyArray<SurvivorGradablePick | null>,
-): boolean {
-  return !aliveCurrentPicks.some((pick) => {
-    if (!pick) return false;
-    const grade = survivorPickGrade(pick);
-    return grade === PICK_OUTCOME.CORRECT || grade === PICK_OUTCOME.PUSH;
-  });
+  priorWeeksSettled: boolean,
+): SurvivorRevivalOutlook {
+  const grades = aliveCurrentPicks.map((pick) => (pick ? survivorPickGrade(pick) : null));
+  if (grades.some((grade) => grade === PICK_OUTCOME.CORRECT || grade === PICK_OUTCOME.PUSH)) {
+    return SURVIVOR_REVIVAL_OUTLOOK.RULED_OUT;
+  }
+  if (
+    priorWeeksSettled &&
+    grades.length > 0 &&
+    grades.every((grade) => grade === PICK_OUTCOME.INCORRECT)
+  ) {
+    return SURVIVOR_REVIVAL_OUTLOOK.CERTAIN;
+  }
+  return SURVIVOR_REVIVAL_OUTLOOK.POSSIBLE;
 }
