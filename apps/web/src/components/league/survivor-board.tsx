@@ -12,8 +12,10 @@ import { useAppNow } from "@/lib/app-clock";
 import { cn } from "@/lib/utils";
 import { gameStateLabel } from "@/lib/game";
 import {
+  SURVIVOR_REVIVAL_OUTLOOK,
   survivorPickGrade,
-  survivorRevivalStillPossible,
+  survivorRevivalOutlook,
+  type SurvivorRevivalOutlook,
   survivorWeeksSurvived,
 } from "@/lib/survivor-game";
 import { LoadingRegion } from "@/components/loading";
@@ -144,15 +146,32 @@ function BoardRows({ board }: { board: SurvivorStandingsResponse }) {
 
   // FB-27's league-wide half: revival is an everyone-out rule, so one alive
   // member's derived win or push disproves it for the whole week — without
-  // this, a row could read "Revival possible" beside another row's "Correct".
-  const revivalStillPossible = survivorRevivalStillPossible(
-    board.members
-      .filter((member) => member.status === SURVIVOR_MEMBER_STATUS.ALIVE)
-      .map((member) =>
-        board.currentWeekId
-          ? (member.picks.find((pick) => pick.weekId === board.currentWeekId) ?? null)
-          : null,
-      ),
+  // this, a row could read "Revival possible" beside another row's "Correct" —
+  // and every alive member's derived loss makes it a certainty, which "possible"
+  // undersells.
+  //
+  // Earlier weeks count as settled when no alive member holds an ungraded pick
+  // in one: settlement is week-atomic, so a stuck week leaves every pick in it
+  // ungraded. A stuck week nobody alive picked in eliminates them all, which
+  // revives them all — the alive set entering this week is the same either way,
+  // unless its stuck game is rescheduled ahead of kickoff and someone still
+  // picks it: a window the board can't see, closed the moment that pick lands.
+  const aliveMembers = board.members.filter(
+    (member) => member.status === SURVIVOR_MEMBER_STATUS.ALIVE,
+  );
+  const currentWeekIndex = board.currentWeekId ? (weekOrder.get(board.currentWeekId) ?? -1) : -1;
+  const priorWeeksSettled = aliveMembers.every((member) =>
+    member.picks.every(
+      (pick) => pick.outcome !== null || (weekOrder.get(pick.weekId) ?? -1) >= currentWeekIndex,
+    ),
+  );
+  const revivalOutlook = survivorRevivalOutlook(
+    aliveMembers.map((member) =>
+      board.currentWeekId
+        ? (member.picks.find((pick) => pick.weekId === board.currentWeekId) ?? null)
+        : null,
+    ),
+    priorWeeksSettled,
   );
 
   return (
@@ -166,7 +185,7 @@ function BoardRows({ board }: { board: SurvivorStandingsResponse }) {
           winnerCount={winnerCount}
           currentWeekId={board.currentWeekId}
           concluded={board.concluded}
-          revivalStillPossible={revivalStillPossible}
+          revivalOutlook={revivalOutlook}
         />
       ))}
     </ul>
@@ -180,7 +199,7 @@ function BoardRow({
   winnerCount,
   currentWeekId,
   concluded,
-  revivalStillPossible,
+  revivalOutlook,
 }: {
   member: SurvivorStandingsMember;
   teams: ReadonlyMap<string, SlateTeam>;
@@ -188,7 +207,7 @@ function BoardRow({
   winnerCount: number;
   currentWeekId: string | null;
   concluded: boolean;
-  revivalStillPossible: boolean;
+  revivalOutlook: SurvivorRevivalOutlook;
 }) {
   const alive = member.status === SURVIVOR_MEMBER_STATUS.ALIVE;
   const eliminatedIn = member.eliminatedWeekId ? weekLabels.get(member.eliminatedWeekId) : null;
@@ -197,18 +216,24 @@ function BoardRow({
     : null;
   // Alive despite a pick that has provisionally lost (FB-27): the everyone-out
   // revival may yet save them, and a bare "Alive" beside a lost pick reads as a
-  // bug. Both halves matter — this member's derived loss, and no alive member
-  // having secured survival (the league-wide gate above). Provisional only:
-  // once the week settles, the member is either Out or carries the Revived
-  // pill, and ADR-0028's provisional elimination ends the state server-side
-  // the instant someone else's survival is certain.
-  const revivalPossible =
+  // bug. Both halves matter — this member's derived loss, and the league-wide
+  // outlook above. Provisional only: once the week settles, the member is
+  // either Out or carries the settled Revived count, and ADR-0028's
+  // provisional elimination ends the state server-side the instant someone
+  // else's survival is certain.
+  const pendingRevival =
     alive &&
     !concluded &&
-    revivalStillPossible &&
     currentPick !== null &&
     currentPick.outcome === null &&
     survivorPickGrade(currentPick) === PICK_OUTCOME.INCORRECT;
+  const revivalPossible = pendingRevival && revivalOutlook === SURVIVOR_REVIVAL_OUTLOOK.POSSIBLE;
+  // A certain revival reads as the revival it is, counted ahead of settlement
+  // the way the derived grade is — settlement then lands the same number, so
+  // the pill doesn't change when "last updated" does.
+  const revivedCount =
+    member.revivedCount +
+    (pendingRevival && revivalOutlook === SURVIVOR_REVIVAL_OUTLOOK.CERTAIN ? 1 : 0);
   // The section renders whenever a current week exists — "no pick in yet" is
   // an answer the glance exists to give, not an absent block.
   const showCurrentPick = !concluded && alive && currentWeekId !== null;
@@ -264,9 +289,9 @@ function BoardRow({
         {revivalPossible && (
           <StatusPill data-testid="survivor-revival-possible">Revival possible</StatusPill>
         )}
-        {member.revivedCount > 0 && (
+        {revivedCount > 0 && (
           <StatusPill tone="highlight" data-testid="survivor-revived">
-            Revived{member.revivedCount > 1 ? ` ×${member.revivedCount}` : ""}
+            Revived{revivedCount > 1 ? ` ×${revivedCount}` : ""}
           </StatusPill>
         )}
         <StatusPill
