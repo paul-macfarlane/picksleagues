@@ -409,13 +409,16 @@ test.describe.serial("Survivor season journey (survivor-season scenario)", () =>
     for (const name of [name1, name2]) {
       const row = boardRow(board, name);
       await expect(row).toHaveAttribute("data-status", SURVIVOR_MEMBER_STATUS.ALIVE);
-      await expect(row.getByTestId("survivor-revived")).toBeVisible();
+      // On the pick the rule saved, wherever the board files it — the current
+      // week's block or the collapsed history — so counted, not seen.
+      await expect(pickEntry(row, 2).getByTestId("survivor-pick-revived")).toHaveCount(1);
+      await expect(row.getByTestId("survivor-pick-revived")).toHaveCount(1);
     }
     // Only the life comes back, and only for the set that busted together: M3
     // was already out when the week started, so the rule never reaches them.
     const out = boardRow(board, name3);
     await expect(out).toHaveAttribute("data-status", SURVIVOR_MEMBER_STATUS.ELIMINATED);
-    await expect(out.getByTestId("survivor-revived")).toHaveCount(0);
+    await expect(out.getByTestId("survivor-pick-revived")).toHaveCount(0);
   });
 
   test("week 18: the season concludes and the survivors share first", async () => {
