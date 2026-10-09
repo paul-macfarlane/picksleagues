@@ -58,9 +58,8 @@ export interface SurvivorGradablePick {
  * How many weeks a member has come through, as the board's one numeral: the
  * settled picks that did not eliminate them — a win, or a push, since ties
  * advance (ADR-0033). Settled only, never the derived grade, so the number
- * moves when "last updated" does and not before; a revival shows as its own
- * pill rather than as a week survived, because the member's pick that week
- * lost. Counts are out-row facts too: how far someone got is the board's
+ * moves when "last updated" does and not before; a revival shows as a tag on
+ * the pick it saved rather than as a week survived, because that pick lost. Counts are out-row facts too: how far someone got is the board's
  * subject (spec §Standings View).
  */
 export function survivorWeeksSurvived(picks: readonly { outcome: PickOutcome | null }[]): number {
@@ -134,4 +133,37 @@ export function survivorRevivalOutlook(
     return SURVIVOR_REVIVAL_OUTLOOK.CERTAIN;
   }
   return SURVIVOR_REVIVAL_OUTLOOK.POSSIBLE;
+}
+
+/**
+ * The weeks the everyone-out revival saved this member in, so a revived pick
+ * can read as one rather than as the loss that ended them. A settled loss in
+ * any week but the one that eliminated them is a loss the rule reversed:
+ * settlement grades a loss that nobody's survival outlived as elimination, and
+ * a pick by a member already out grades to nothing (`packages/scoring`'s
+ * `settleSurvivorWeek`), so no other settled loss can sit outside that week.
+ * `certainWeekId` adds the current week's revival ahead of settlement — the
+ * week `survivorRevivalOutlook` calls certain and this member's pick lost —
+ * the same as every derived grade on the board.
+ *
+ * A revival from a *missed* pick has no pick to mark, so it isn't here: the
+ * history lists only weeks the member picked (`revivedCount` still counts it).
+ */
+export function survivorRevivedWeekIds(
+  member: {
+    eliminatedWeekId: string | null;
+    picks: readonly { weekId: string; outcome: PickOutcome | null }[];
+  },
+  certainWeekId: string | null,
+): ReadonlySet<string> {
+  const weekIds = new Set(
+    member.picks
+      .filter(
+        (pick) =>
+          pick.outcome === PICK_OUTCOME.INCORRECT && pick.weekId !== member.eliminatedWeekId,
+      )
+      .map((pick) => pick.weekId),
+  );
+  if (certainWeekId) weekIds.add(certainWeekId);
+  return weekIds;
 }
