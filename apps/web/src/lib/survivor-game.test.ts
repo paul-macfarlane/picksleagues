@@ -3,7 +3,8 @@ import { GAME_STATUS, PICK_OUTCOME, type GameStatus } from "@picksleagues/schema
 import {
   survivorPickGrade,
   survivorProvisionalOutcome,
-  survivorRevivalStillPossible,
+  SURVIVOR_REVIVAL_OUTLOOK,
+  survivorRevivalOutlook,
   survivorWeeksSurvived,
 } from "./survivor-game";
 
@@ -76,7 +77,7 @@ describe("survivorProvisionalOutcome", () => {
   });
 });
 
-describe("survivorRevivalStillPossible", () => {
+describe("survivorRevivalOutlook", () => {
   const finalGame = (homeScore: number, awayScore: number) => ({
     status: GAME_STATUS.FINAL,
     homeScore,
@@ -94,29 +95,43 @@ describe("survivorRevivalStillPossible", () => {
   };
   const hidden = { teamId: null, outcome: null, game: null };
 
+  const { RULED_OUT, POSSIBLE, CERTAIN } = SURVIVOR_REVIVAL_OUTLOOK;
   it.each([
     {
-      name: "everyone's pick has lost — revival still on the table",
+      name: "every alive member's pick has lost — revival is certain",
       picks: [lost, lost],
-      expected: true,
+      expected: CERTAIN,
     },
-    { name: "one derived win disproves it", picks: [lost, won], expected: false },
+    { name: "a lone alive member's loss is a certain revival", picks: [lost], expected: CERTAIN },
+    { name: "one derived win rules it out", picks: [lost, won], expected: RULED_OUT },
     {
-      name: "a tie advances (ADR-0033), so it disproves it too",
+      name: "a tie advances (ADR-0033), so it rules it out too",
       picks: [lost, tied],
-      expected: false,
+      expected: RULED_OUT,
     },
     {
-      name: "a settled correct outcome disproves it",
+      name: "a settled correct outcome rules it out",
       picks: [lost, { ...hidden, teamId: "home", outcome: PICK_OUTCOME.CORRECT }],
-      expected: false,
+      expected: RULED_OUT,
     },
-    { name: "a pending game keeps it possible", picks: [lost, pending], expected: true },
-    { name: "a hidden pick keeps it possible", picks: [lost, hidden], expected: true },
-    { name: "a member with no pick yet keeps it possible", picks: [lost, null], expected: true },
-    { name: "nobody alive at all — vacuously possible", picks: [], expected: true },
+    { name: "a pending game keeps it possible", picks: [lost, pending], expected: POSSIBLE },
+    { name: "a hidden pick keeps it possible", picks: [lost, hidden], expected: POSSIBLE },
+    {
+      name: "a member with no pick yet keeps it possible",
+      picks: [lost, null],
+      expected: POSSIBLE,
+    },
+    { name: "nobody alive at all — nothing is decided", picks: [], expected: POSSIBLE },
   ])("$name", ({ picks, expected }) => {
-    expect(survivorRevivalStillPossible(picks)).toBe(expected);
+    expect(survivorRevivalOutlook(picks, true)).toBe(expected);
+  });
+
+  it("an earlier week still unsettled keeps an all-lost week merely possible (ADR-0025)", () => {
+    expect(survivorRevivalOutlook([lost, lost], false)).toBe(POSSIBLE);
+  });
+
+  it("an earlier week still unsettled doesn't stop a win ruling it out", () => {
+    expect(survivorRevivalOutlook([lost, won], false)).toBe(RULED_OUT);
   });
 });
 
